@@ -480,7 +480,6 @@ A second pass went through the same nine generals and the base units they build,
 - Tank: the Emperor's Gattling turret starts Veteran like everything else the Tank general builds.
 - The generals' ECM Tanks jam only when you tell them to. They used to wander off to jam anything that came near.
 - A China supply truck weighs as much as a truck. It weighed as much as a soldier, and every blast threw it across the map.
-- China bunkers and Propaganda Centers show on the radar.
 - A TOW Humvee stops using its anti-air reach against ground targets while it is attacking.
 - A heroic pilot walks faster, not slower.
 - A tank crushed by an Overlord no longer lets a pilot out, on the three generals' Microwave Tanks and the Laser Crusader.
