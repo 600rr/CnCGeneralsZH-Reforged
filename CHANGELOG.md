@@ -512,7 +512,7 @@ A third pass went through the generals' powers, promotions and unit abilities.
 - Tooltips that named the wrong countdown: the Air Force Spectre Gunship (3:00, said 4:00), the Air Force Carpet Bomb (4:00, said China's 2:30), the Leaflet Drop (5:00, said 6:00), the Stealth GPS Scrambler (3:00, said 4:00). The Spectre's third promotion keeps the gunship up 20 seconds, and now says so.
 - Air Force, Laser and Superweapon: the Pathfinder and Stealth Fighter promotions stop asking for a plain American Barracks or Airfield these generals never build.
 - Voices and sounds that were recorded and never played: EVA's lines for the MOAB, the Sentry Drone Gun and Neutron Shells, the Super Hacker's own building-hack line, the Hacker's line when you arm the hack, the Artillery Barrage's own explosion (it borrowed the carpet bomb's, two at a time), and Jarmen Kell's charge-planting sound, where he said his attack line twice.
-- The Superweapon general's Particle Cannon glows and dies in the pink of its beam, not in the plain cannon's blue. The laser beams it throws when destroyed are still blue; there is no pink model for them.
+- The Superweapon general's Particle Cannon glows and dies in the pink of its beam, not in the plain cannon's blue. The laser beams it throws when destroyed go up pink as well. EA never made a pink model for them, so the same beams are drawn with a pink strip in place of the blue one, and the other generals' uplinks still die in blue.
 - The Particle Uplink's dish holds still while the building goes up instead of cycling its deploy animation.
 - A Sneak Attack tunnel coming out of the ground shows its own portrait, and the Demolitions Bomb Truck stops showing the Demolitions upgrade icon.
 
