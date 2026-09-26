@@ -1187,6 +1187,7 @@ InGameUI::InGameUI()
 	m_peaceTimeLabelDisplayString = NULL;
 	m_peaceCountdownDisplayString = NULL;
 	m_lastMoneyDisplayed = -1;
+	m_lastEarningDisplayed = 0;
 	m_hudDrawCount = 0;
 	m_hudLastSampleFrame = 0;
 	m_hudLastSampleMs = 0;
@@ -3908,14 +3909,16 @@ void InGameUI::update( void )
 	if( moneyPlayer)
 	{
 		Int currentMoney = moneyPlayer->getMoney()->countMoney();
+		Int currentEarning = earnedPerSecond( moneyPlayer->getPlayerIndex() );
 
-		if( m_lastMoneyDisplayed != currentMoney )
+		if( m_lastMoneyDisplayed != currentMoney || m_lastEarningDisplayed != currentEarning )
 		{
 			UnicodeString buffer;
 
-			buffer.format( TheGameText->fetch( "GUI:ControlBarMoneyDisplay" ), currentMoney );
+			buffer.format( TheGameText->fetch( "GUI:ControlBarMoneyEarning" ), currentMoney, currentEarning );
 			GadgetStaticTextSetText( moneyWin, buffer );
 			m_lastMoneyDisplayed = currentMoney;
+			m_lastEarningDisplayed = currentEarning;
 
 		}  // end if
 
