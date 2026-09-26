@@ -498,6 +498,24 @@ A second pass went through the same nine generals and the base units they build,
 - A Saboteur thrown off a dying Combat Bike is thrown, instead of vanishing.
 - The Alpha Aurora's fuel-air blast goes off where the bomb lands, not in the air above the first roof it passes, and the bomb no longer hangs in the air for a frame before landing.
 
+A third pass went through the generals' powers, promotions and unit abilities.
+
+- Satellite Hack I shows every enemy Command Center, including the ones built after you researched it. It only ever showed the ones standing at that moment. CIA Intelligence and Satellite Hack II now also catch what goes up while they are running.
+- Frenzy no longer scouts. Clicked into the fog, it opened a 250-wide window on the enemy base for 30 seconds.
+- Tank: Battlemaster Paradrop puts the tanks on the marker. The plane opened its doors 300 out, so one tank landed well short and a pair landed on top of each other.
+- China, Infantry and Nuke: the computer fires the carpet bomb it pays for. It bought the Tank general's bomber, which its own Command Center could not launch, so its fifth promotion point did nothing. A Nuke player holding a captured China Command Center no longer loses the Carpet Bomb shortcut either.
+- Infantry: the computer on Normal uses the Minigunner Paradrop it spends three promotion points on. Only Hard ever called it in.
+- Stealth: the Saboteur disables a China Internet Center and destroys a GLA fake building, like every other Saboteur. He used to walk up to them and do nothing. He also stops ranking up from salvage crates, which no other Saboteur does.
+- Demolitions: a Combat Bike keeps its buttons after the Demolitions upgrade. The upgrade took Jarmen Kell's pilot snipe away and added a suicide button that stayed grey all game.
+- Demolitions: the Rebel Ambush promotion says 4, 6 and 10 rebels, which is what it brings, not 4, 8 and 16.
+- Toxin: the Rebel Ambush promotion describes the toxin rebels it calls in.
+- Tooltips that named the wrong countdown: the Air Force Spectre Gunship (3:00, said 4:00), the Air Force Carpet Bomb (4:00, said China's 2:30), the Leaflet Drop (5:00, said 6:00), the Stealth GPS Scrambler (3:00, said 4:00). The Spectre's third promotion keeps the gunship up 20 seconds, and now says so.
+- Air Force, Laser and Superweapon: the Pathfinder and Stealth Fighter promotions stop asking for a plain American Barracks or Airfield these generals never build.
+- Voices and sounds that were recorded and never played: EVA's lines for the MOAB, the Sentry Drone Gun and Neutron Shells, the Super Hacker's own building-hack line, the Hacker's line when you arm the hack, the Artillery Barrage's own explosion (it borrowed the carpet bomb's, two at a time), and Jarmen Kell's charge-planting sound, where he said his attack line twice.
+- The Superweapon general's Particle Cannon glows and dies in the pink of its beam, not in the plain cannon's blue. The laser beams it throws when destroyed are still blue; there is no pink model for them.
+- The Particle Uplink's dish holds still while the building goes up instead of cycling its deploy animation.
+- A Sneak Attack tunnel coming out of the ground shows its own portrait, and the Demolitions Bomb Truck stops showing the Demolitions upgrade icon.
+
 ## One crate, one collector
 
 - Salvage gets collected. A wreck leaves money and a free upgrade lying on the ground, and the game asked you to spot it in the middle of the fight that made it, work out which of your units was allowed to take it, and drive that one over it by hand. Nobody does that, so most salvage on most maps timed out where it fell. Whoever is standing nearest with nothing to do goes and gets it now: a unit that can still be upgraded off it goes first, however far back it is standing, and failing that the nearest idle unit takes the cash. Dozers and harvesters are left to the job they are already earning at.

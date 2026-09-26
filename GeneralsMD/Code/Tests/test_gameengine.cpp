@@ -582,7 +582,11 @@ TEST(balance_patch_edits_a_weapon_in_place)
 	 GameEngine::init loads the file and folds it into the multiplayer INI CRC, so both ways of
 	 getting it wrong are expensive: a malformed block throws and takes the whole startup down, and
 	 a regeneration that loses the LightPulse ships a file that lights nothing and still refuses
-	 every player who does not have that exact copy. */
+	 every player who does not have that exact copy.  Since then the file also carries fixes that
+	 are not lights: the Artillery Barrage's sound, with EA's own light, and the Superweapon uplink's
+	 pink death, which has none and is the one block the count leaves out. */
+static const char *const s_unlitReforgedFXList = "FXList SupW_FX_ParticleUplinkDeathInitial";
+
 TEST(fxlist_reforged_ini_parses_and_keeps_its_light)
 {
 	CHECK( bootOnce() );
@@ -606,7 +610,11 @@ TEST(fxlist_reforged_ini_parses_and_keeps_its_light)
 	char line[ 512 ];
 	while( fgets( line, sizeof( line ), fp ) != NULL )
 	{
-		if( strncmp( line, "FXList ", 7 ) == 0 )
+		if( strncmp( line, s_unlitReforgedFXList, strlen( s_unlitReforgedFXList ) ) == 0 )
+		{
+			open = 0;
+		}
+		else if( strncmp( line, "FXList ", 7 ) == 0 )
 		{
 			++blocks;
 			open = 1;
@@ -625,7 +633,7 @@ TEST(fxlist_reforged_ini_parses_and_keeps_its_light)
 	}
 	fclose( fp );
 
-	CHECK_EQ( blocks, 89 );
+	CHECK_EQ( blocks, 90 );
 	CHECK_EQ( lit, blocks );
 }
 

@@ -1012,6 +1012,8 @@ void GameEngine::init( int argc, char *argv[] )
 
 
 		initSubsystem(TheScienceStore,"TheScienceStore", MSGNEW("GameEngineSubsystem") ScienceStore(), &xferCRC, "Data\\INI\\Default\\Science.ini", "Data\\INI\\Science.ini");
+		// New sciences only: a name EA already defined stops the load
+		ini.load( AsciiString( "Data\\INI\\ScienceReforged.ini" ), INI_LOAD_MULTIFILE, &xferCRC );
 		initSubsystem(TheMultiplayerSettings,"TheMultiplayerSettings", MSGNEW("GameEngineSubsystem") MultiplayerSettings(), &xferCRC, "Data\\INI\\Default\\Multiplayer.ini", "Data\\INI\\Multiplayer.ini");
 		initSubsystem(TheTerrainTypes,"TheTerrainTypes", MSGNEW("GameEngineSubsystem") TerrainTypeCollection(), &xferCRC, "Data\\INI\\Default\\Terrain.ini", "Data\\INI\\Terrain.ini");
 		initSubsystem(TheTerrainRoads,"TheTerrainRoads", MSGNEW("GameEngineSubsystem") TerrainRoadCollection(), &xferCRC, "Data\\INI\\Default\\Roads.ini", "Data\\INI\\Roads.ini");
@@ -1072,6 +1074,9 @@ void GameEngine::init( int argc, char *argv[] )
 		ini.load( AsciiString( "Data\\INI\\ObjectCreationListReforged.ini" ), INI_LOAD_OVERWRITE, &xferCRC );
 		initSubsystem(TheLocomotorStore,"TheLocomotorStore", MSGNEW("GameEngineSubsystem") LocomotorStore(), &xferCRC, NULL, "Data\\INI\\Locomotor.ini");
 		initSubsystem(TheSpecialPowerStore,"TheSpecialPowerStore", MSGNEW("GameEngineSubsystem") SpecialPowerStore(), &xferCRC, "Data\\INI\\Default\\SpecialPower.ini", "Data\\INI\\SpecialPower.ini");
+		/* Powers edited in place (a scan Frenzy should not give) and the Demolitions General's own
+			 Rebel Ambush, before any object names one. */
+		ini.load( AsciiString( "Data\\INI\\SpecialPowerReforged.ini" ), INI_LOAD_MULTIFILE, &xferCRC );
 		initSubsystem(TheDamageFXStore,"TheDamageFXStore", MSGNEW("GameEngineSubsystem") DamageFXStore(), &xferCRC, NULL, "Data\\INI\\DamageFX.ini");
 		initSubsystem(TheArmorStore,"TheArmorStore", MSGNEW("GameEngineSubsystem") ArmorStore(), &xferCRC, NULL, "Data\\INI\\Armor.ini");
 		initSubsystem(TheBuildAssistant,"TheBuildAssistant", MSGNEW("GameEngineSubsystem") BuildAssistant, NULL);
@@ -1105,6 +1110,8 @@ void GameEngine::init( int argc, char *argv[] )
     
     
 		initSubsystem(TheUpgradeCenter,"TheUpgradeCenter", MSGNEW("GameEngineSubsystem") UpgradeCenter, &xferCRC, "Data\\INI\\Default\\Upgrade.ini", "Data\\INI\\Upgrade.ini");
+		// An upgrade parsed again is edited in place, so this file names only what changes
+		ini.load( AsciiString( "Data\\INI\\UpgradeReforged.ini" ), INI_LOAD_MULTIFILE, &xferCRC );
 		initSubsystem(TheGameClient,"TheGameClient", createGameClient(), NULL);
 
 

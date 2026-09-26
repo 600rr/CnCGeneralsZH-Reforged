@@ -556,6 +556,8 @@ void Object::initObject()
 		{
 			controller->applyBattlePlanBonusesForObject( this );
 		}
+
+		controller->applyVisionSpies( this, TRUE );
 	}
 
 
@@ -5711,7 +5713,10 @@ void Object::setVisionSpied(Bool setting, Int byWhom)
 
 		m_visionSpiedMask = workingMask;
 
-		handlePartitionCellMaintenance();
+		// A unit spied as it is made still sits at the origin; the move that places it looks for it
+		const Coord3D* pos = getPosition();
+		if (pos->x || pos->y || pos->z)
+			handlePartitionCellMaintenance();
 	}
 }
 
