@@ -452,12 +452,45 @@ Every Zero Hour general is a copy of a base faction with changes on top, and the
 - Infantry: a Tank Hunter's icons show Nationalism and Fanaticism, the two upgrades that change him, where one read a raw text label.
 - Nuke: the Battlemaster and the Overlord drop icons for upgrades that do not exist, and the Overlord shows Isotope Stability, which it does have.
 - Toxin: the Tunnel Defender fires one rocket at a time. It carries a ground rocket and an air rocket, and each kept its own reload, so with a tank and a helicopter both in range it shot at the two together.
-- Toxin and Demolitions: Rebels, Terrorists and Tunnel Defenders show the upgrades they really have (AP Bullets, Anthrax Beta and Gamma, Booby Trap) and not Camouflage, which the Toxin general cannot buy.
+- Toxin and Demolitions: Rebels, Terrorists and Tunnel Defenders show the upgrades they really have (Anthrax Beta and Gamma, Booby Trap) and not Camouflage, which the Toxin general cannot buy.
 - Demolitions: a Stinger Site's demolition charge goes off once, at full strength, and only when you blow it up yourself. A suicide set it off twice, an ordinary death set off the suicide charge, and poison set off nothing.
 - Demolitions: the Stinger Site and the Tunnel Network show the Demolitions upgrade that arms them.
 - Stealth: a Rebel stays hidden when he is hit. Only firing gives him away, as on every other stealth soldier.
 - Stealth: a Palace whose garrison opens fire can be seen. The soldiers inside shot from cover without ever showing it.
 - Stealth: the Bomb Truck shows Anthrax Beta and the fake Arms Dealer shows Camo Netting.
+
+A second pass went through the same nine generals and the base units they build, and found more.
+
+- Laser and Superweapon: supply Chinooks unload at the speed the plain Chinook got in the last official patch. Both generals' Chinooks had kept the old, slower times, so their whole income ran 3 to 4% behind every other American general.
+- Every Stinger soldier fires one rocket at a time. Its ground rocket and air rocket reloaded separately, so switching targets fired a second one straight away.
+- Toxin: a Terrorist shot dead no longer sets off the Terrorists around him. His anthrax charge went off on any death and hurt his friends, each of them then died by explosion and fired a full dynamite pack, and a whole squad went up from one bullet.
+- Toxin: the demo trap goes off after its one second warning like every other trap, and an unfinished trap shot down by the enemy stays a dud.
+- Every demo trap ignores toxin and radiation puddles. An enemy Toxin Tractor spraying nearby used to set it off with nobody there.
+- Demolitions: a Scud Launcher that is simply destroyed fires the small demolition blast, not the 500 damage suicide charge.
+- Demolitions: a Terrorist blows up when a tank runs him over, as every other general's Terrorist does. He only went off on a suicide.
+- Demolitions: tanks and infantry killed by rockets or shells die their own way, with a wreck, instead of being flung like a Terrorist and sinking into the ground with his scream.
+- Demolitions: the Stinger Site's soldiers carry the Demolitions charge like the rest of that general's infantry, and a Combat Bike's Terrorist killed by anthrax Gamma still goes off.
+- A heroic Quad Cannon can be jammed by an ECM Tank. Its health grew past the most jamming it could take.
+- A heroic Toxin Tractor sprays the stronger poison, and now dies leaving the stronger puddle too. The Toxin Tractor left the weakest one even when it was not heroic.
+- Infantry and Nuke: a deployed Nuke Cannon fires its first shell at the target you gave it. It used to swap to the nearest enemy. Its wreck leaves one radiation pool, not two stacked.
+- Inferno Cannon shells always explode where they land. Shells that came down on a low arc or over a roof vanished without a hit, and never counted toward the firestorm.
+- A Dragon with Black Napalm can flame a soldier standing right against it, like one without.
+- Artillery Barrage shells stop blowing each other up on the way down.
+- The Overlord and the Emperor keep their hull on the ground target while the Gattling turret shoots at aircraft.
+- Tank: the Emperor's Gattling turret starts Veteran like everything else the Tank general builds.
+- The generals' ECM Tanks jam only when you tell them to. They used to wander off to jam anything that came near.
+- A China supply truck weighs as much as a truck. It weighed as much as a soldier, and every blast threw it across the map.
+- China bunkers and Propaganda Centers show on the radar.
+- A TOW Humvee stops using its anti-air reach against ground targets while it is attacking.
+- A heroic pilot walks faster, not slower.
+- A tank crushed by an Overlord no longer lets a pilot out, on the three generals' Microwave Tanks and the Laser Crusader.
+- Rangers still show hits after Chemical Suits, and the support planes still show hits after Countermeasures.
+- The Toxin Rebel no longer shows AP Bullets, which does nothing for his toxin gun.
+- Sounds that were wrong or missing: the Fire Base's selection click, the Microwave Tank's engine, the Sentry Drone setting off, the construction loop on the Fire Base, Patriot and Strategy Center, the level 3 Spectre's voices and gun, the Stealth Fighter's and the MiG's low-fuel warnings, the Alpha Aurora's own voice lines, the Internet Center's selection sound, the Minigunner's anti-air gun, the Chinese carpet bomber's engine, and a voice when you order Gattling Tanks, Minigunners, Assault Troop Crawlers, Overlords or Emperors onto an aircraft.
+- Icons that were wrong or missing: Supply Lines moves from the Supply Center to the Chinook, which is what it speeds up; the Ambulance shows Advanced Training, the Spectre shows Countermeasures and its portrait, the Laser Avenger shows Composite Armor, the China Command Center shows Radar, the pilot drops two upgrades he never had, and the Toxin Stinger Site, Scud Storm, Marauder and Combat Bike and the Stealth Scud Storm show their anthrax upgrade.
+- Demolitions: the Rebel says his line when he plants a booby trap, the Combat Bike's button shows its icon, and a Worker on a bike dies in the Demolitions explosion.
+- Toxin: a Stinger missile shot down by a laser burns up with the effect the plain one has.
+- The Stealth general's Quad Cannon costs 800 like the other GLA versions. The price change had missed it.
 
 ## One crate, one collector
 
