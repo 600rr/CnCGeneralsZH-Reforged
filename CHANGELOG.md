@@ -491,6 +491,13 @@ A second pass went through the same nine generals and the base units they build,
 - Demolitions: the Rebel says his line when he plants a booby trap, the Combat Bike's button shows its icon, and a Worker on a bike dies in the Demolitions explosion.
 - Toxin: a Stinger missile shot down by a laser burns up with the effect the plain one has.
 - The Stealth general's Quad Cannon costs 800 like the other GLA versions. The price change had missed it.
+- The Scud Storm fires when its timer says so and not before. There was a way to make it launch all nine missiles early.
+- Infantry and Nuke: buying Mines at the Command Center no longer takes Frenzy off its buttons, and the Infantry general keeps his own Carpet Bomb there. The Infantry barracks keeps its own capture-building upgrade after Mines as well.
+- The Nuke MiG upgrade can be started on low power, like every other upgrade that silo sells.
+- The ECM Tank has an Attack Move button and the Troop Crawlers have Guard.
+- The three American generals' Paradrop drops their own Rangers, and a destroyed Particle Uplink lets their own Rangers out of the rubble. Both used to give the plain American Ranger, who could not be double-click selected with the rest.
+- A Saboteur thrown off a dying Combat Bike is thrown, instead of vanishing.
+- The Alpha Aurora's fuel-air blast goes off where the bomb lands, not in the air above the first roof it passes, and the bomb no longer hangs in the air for a frame before landing.
 
 ## One crate, one collector
 

@@ -1214,9 +1214,16 @@ void CommandSet::parseCommandButton( INI* ini, void *instance, void *store, cons
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-CommandSet::CommandSet(const AsciiString& name) : 
+CommandSet::CommandSet(const AsciiString& name) :
 	m_name(name),
 	m_next(NULL)
+{
+	friend_clearCommands();
+}
+
+//-------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
+void CommandSet::friend_clearCommands()
 {
 	for( Int i = 0; i < MAX_COMMANDS_PER_SET; i++ )
 		m_command[ i ] = NULL;
@@ -2620,6 +2627,9 @@ void ControlBar::init( void )
 	// load the command sets
 	ini.load( AsciiString( "Data\\INI\\CommandSet.ini" ), INI_LOAD_OVERWRITE, NULL );
 
+	// the fork's corrections to EA's buttons and sets, edited in place; GameEngine::init checksums it
+	ini.load( AsciiString( "Data\\INI\\CommandSetReforged.ini" ), INI_LOAD_MULTIFILE, NULL );
+
 	// post process step after loading the command buttons and command sets
 	postProcessCommands();
 
@@ -3799,6 +3809,11 @@ CommandButton *ControlBar::newCommandButtonOverride( CommandButton *buttonToOver
 			commandSet->markAsOverride();
 		}
 	}  // end if
+	else if( ini->getLoadType() == INI_LOAD_MULTIFILE )
+	{
+		// a patch file's set replaces the set whole, in place, so every pointer to it stays good
+		commandSet->friend_clearCommands();
+	}
 	else if( ini->getLoadType() != INI_LOAD_CREATE_OVERRIDES )
 	{
 		//Holy crap, this sucks to debug!!!

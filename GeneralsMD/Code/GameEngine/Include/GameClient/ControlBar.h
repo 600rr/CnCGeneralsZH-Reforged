@@ -457,6 +457,7 @@ public:
 	CommandSet* friend_getNext() { return m_next; }
 	const FieldParse* friend_getFieldParse() const { return m_commandSetFieldParseTable; }
 	void friend_addToList(CommandSet** listHead);
+	void friend_clearCommands();
 
 private:
 
