@@ -432,6 +432,33 @@ found and fixed â€” EA's own, not port damage.**
 - A tank thrown by a carpet bomb or a MOAB is out of your hands until it comes down. A tank hit where it stood got its controls back on the very next frame, before it had left the ground, and anything already in the air got them back at the top of its arc, so it could drive in mid-air. Now the stun lasts until it lands and a few frames after, and a tank that comes down on its roof, in water it cannot drive through, on a cliff or off the edge of the map is lost, the way the game was written to do and never did. Over one carpet bomb, 16 of 20 units that lived through it came down still stunned where none did before, and one Paladin landed on its back. Replays recorded before this change play out differently.
 - Wreckage and bodies that should not bounce, don't. The data tells debris and a soldier flung by a blast to lie where they land, and fifteen entries say so, but the game never read the number and bounced all of it the same. Replays recorded before this change play out differently.
 
+## The nine generals, as their own data meant them
+
+Every Zero Hour general is a copy of a base faction with changes on top, and the copies missed things. Each general had at least three; they are all fixed, and a replay recorded before this change plays back differently.
+
+- Air Force, Laser and Superweapon: the Avenger no longer drives off after whoever shoots it. It holds position the way every other support vehicle does.
+- Air Force: the Avenger wears the Avenger's armour. It had been left on the older anti-air armour, so jet missiles did 30% to it instead of 23%.
+- Air Force: a King Raptor with Countermeasures gets the armour that comes with the flares. It only ever got the flares.
+- Air Force: a Saboteur in your Supply Center steals money and nothing else. The building was marked as a power plant, so the same Saboteur also blacked out your base.
+- Air Force and Superweapon: nothing can shoot at the gas cloud an Aurora leaves behind. Enemy defences used to waste their fire on it.
+- Air Force and Superweapon: the Microwave Tank stops showing a Composite Armor icon for an upgrade those generals cannot buy.
+- American soldiers killed by gamma toxin scream in English. Rangers, Colonel Burton, Missile Defenders, Pathfinders and pilots of the Air Force, Laser and Superweapon generals died with a GLA rebel's voice, and Chinese infantry of the Tank, Infantry and Nuke generals did the same; Black Lotus now dies with a woman's voice.
+- Laser: a Humvee plays its door sound once. Every soldier getting in or out played it twice.
+- Laser: the Laser Turret's anti-air and assist shots are its own blue beam with its own sound, not a Laser Paladin's.
+- Tank: the Emperor's propaganda speaker gets louder with Subliminal Messaging, like the Overlord's. It never read the upgrade at all.
+- Tank: a Helix shows its Napalm Bomb once you have bought it.
+- Infantry and Nuke: a Nuke Cannon fires neutron shells only after you buy Neutron Shells. Both generals' cannons came with them from the first shot.
+- Infantry: the Minigunner can be run over like every other soldier.
+- Infantry: a Tank Hunter's icons show Nationalism and Fanaticism, the two upgrades that change him, where one read a raw text label.
+- Nuke: the Battlemaster and the Overlord drop icons for upgrades that do not exist, and the Overlord shows Isotope Stability, which it does have.
+- Toxin: the Tunnel Defender fires one rocket at a time. It carries a ground rocket and an air rocket, and each kept its own reload, so with a tank and a helicopter both in range it shot at the two together.
+- Toxin and Demolitions: Rebels, Terrorists and Tunnel Defenders show the upgrades they really have (AP Bullets, Anthrax Beta and Gamma, Booby Trap) and not Camouflage, which the Toxin general cannot buy.
+- Demolitions: a Stinger Site's demolition charge goes off once, at full strength, and only when you blow it up yourself. A suicide set it off twice, an ordinary death set off the suicide charge, and poison set off nothing.
+- Demolitions: the Stinger Site and the Tunnel Network show the Demolitions upgrade that arms them.
+- Stealth: a Rebel stays hidden when he is hit. Only firing gives him away, as on every other stealth soldier.
+- Stealth: a Palace whose garrison opens fire can be seen. The soldiers inside shot from cover without ever showing it.
+- Stealth: the Bomb Truck shows Anthrax Beta and the fake Arms Dealer shows Camo Netting.
+
 ## One crate, one collector
 
 - Salvage gets collected. A wreck leaves money and a free upgrade lying on the ground, and the game asked you to spot it in the middle of the fight that made it, work out which of your units was allowed to take it, and drive that one over it by hand. Nobody does that, so most salvage on most maps timed out where it fell. Whoever is standing nearest with nothing to do goes and gets it now: a unit that can still be upgraded off it goes first, however far back it is standing, and failing that the nearest idle unit takes the cash. Dozers and harvesters are left to the job they are already earning at.

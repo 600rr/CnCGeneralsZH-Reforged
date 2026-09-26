@@ -1089,6 +1089,9 @@ void GameEngine::init( int argc, char *argv[] )
 			 wrote it, so the file holds the changes and nothing else; an Armor block still replaces
 			 that armor whole.  It is in the INI CRC like the files it edits. */
 		ini.load( AsciiString( "Data\\INI\\BalanceReforged.ini" ), INI_LOAD_MULTIFILE, &xferCRC );
+		/* Mistakes in EA's data for the nine generals, patched the same way: a copy that missed the
+			 original's change, a wrong faction's sound, an icon naming an upgrade that does not exist. */
+		ini.load( AsciiString( "Data\\INI\\FixesReforged.ini" ), INI_LOAD_MULTIFILE, &xferCRC );
 
 	#ifdef DUMP_PERF_STATS///////////////////////////////////////////////////////////////////////////
 	GetPrecisionTimer(&endTime64);//////////////////////////////////////////////////////////////////
