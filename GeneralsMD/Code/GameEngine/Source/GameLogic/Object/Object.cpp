@@ -2286,7 +2286,13 @@ void Object::setDisabledUntil( DisabledType type, UnsignedInt frame )
 		// A building's AI does not run while it is EMPed, hacked, subdued or out of power, so the attack it
 		// was in never exited and kept its look: a Gattling Cannon spun its barrels through the whole EMP.
 		// Selling a building idles it the same way, and it picks a target again once it is back.
-		if( isAIHaltedByDisable() )
+		// Not while a save is loading. A save adds each building's power back as the building comes back,
+		// oldest first, so a base that once built past its plants runs short partway through the load
+		// and switches off the buildings already restored. Their update modules go back on the sleepy
+		// list only once every object is in, and idling one before that woke a module the list did not
+		// hold: "sleepy update module illegal index", a player's crash on Load. The AI state each was
+		// saved in is what the load leaves it in.
+		if( isAIHaltedByDisable() && !TheGameState->isInLoadGame() )
 		{
 			m_ai->stopTurretsTurning();
 			if( isKindOf( KINDOF_STRUCTURE ) )
