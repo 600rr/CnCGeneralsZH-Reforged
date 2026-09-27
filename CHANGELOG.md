@@ -770,6 +770,29 @@ A third pass went through the generals' powers, promotions and unit abilities.
 - Switching between fullscreen and windowed on Direct3D 9 no longer crashes. The graphics card can refuse a buffer for a moment while the screen changes, and the game wrote into the one it never got. It writes somewhere harmless now and asks again the next time it draws.
 - Closing the window while the game is still loading closes the game. The close was turned into a message stamped with your player, and no player exists that early.
 - Steam checking or repairing the game files no longer leaves you with a game that crashes the moment it starts. Steam puts its own original exe back and leaves this build's key bindings file in place, and the original read that file, found commands it had never heard of and gave up. The file has a name only this build looks for now, so the original starts as plain Zero Hour.
+- A Propaganda Center's speech, a veterancy promotion or Jarmen Kell picking up scrap no longer throws away a reload in progress. A change to how fast a weapon fires restarted the wait from zero, so a Snipe that was nearly ready went back to the start; the reload now carries over at the new rate.
+- Units in a plain Chinook stop firing. Rocket soldiers riding in a Humvee that drove into a Chinook kept shelling the ground from the helicopter's hold.
+- A Laser Patriot no longer shoots at units outside its range.
+- An empty Emperor or Battle Bus is taken by the first soldier who climbs in, not only when a second one follows.
+- Hackers in an Internet Center keep hacking when you press Stop on a group that includes the building.
+- A force-attack order on one of your own stealthed units, or an ally's, walks the attacker over to it. It used to stand where it was, because the target counted as unseen.
+- Cancelling a unit in a production queue refunds what you paid for it, not whatever it costs by then.
+- A stealthed vehicle whose driver was sniped stops being invisible. The empty hull used to stay stealthed, and no detector could reveal a hull that belongs to nobody.
+- Killing a unit from stealth no longer tells your enemy about it with floating bounty money over the wreck. You still get the money.
+- Search and Destroy widens every building's sight by the same share. It used to hand a building the sight radius of whichever unit set the number, not a larger version of its own.
+- Rising water on a scripted map drowns what is under it, not the helicopters flying over it.
+- A group sent along waypoints with Alt keeps its formation, and a mixed group no longer counts as one formation when its members were in different ones.
+- A missile that reached its target on the same frame its fuel ran out explodes once, not twice.
+- Burning trees, a crashing helicopter, a nuclear silo's open doors and a Hacker or Black Lotus at work make their sound again after you load a save.
+- Loading a save keeps a Search and Destroy sight bonus, a pending order's origin, a script's next check and a dock's approach path, all of which came back wrong. Older saves still load.
+- A garrison entered while the map's playable edge was still closed can no longer be cleared by any blast that lands on the building.
+- Burning infantry run in every direction, not always north-east.
+- A player name long enough to fill the LAN game room no longer hangs the lobby, changing settings there no longer crashes it, and the list of LAN games keeps its place instead of jumping back to the top every time it refreshes.
+- Holding Ctrl while the beacon text box was open no longer leaves force-attack armed after you let go.
+- The camera stops following a unit the moment it goes stealthed or into the fog, instead of showing you where it went.
+- A broken map.ini, a damaged map cache in your user folder or a map name with forward slashes no longer crash the game or lose the map from the list; the cache is rebuilt.
+- A replay no longer crashes when it has no player from this machine, and a skirmish restarted from the menu records its replay with the slots you set up.
+- Replays recorded before this version that have burning infantry, missiles, captured vehicles or cancelled production in them play back differently.
 
 ## The buildings nobody repairs, repair themselves
 

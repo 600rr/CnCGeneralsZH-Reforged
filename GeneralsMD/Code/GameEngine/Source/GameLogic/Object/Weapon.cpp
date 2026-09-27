@@ -2084,8 +2084,17 @@ void Weapon::onWeaponBonusChange(const Object *source)
 
 	if( needUpdate )
 	{
-		m_whenLastReloadStarted = TheGameLogic->getFrame();
-		m_whenWeCanFireAgain = m_whenLastReloadStarted + newDelay;	
+		// Carry the progress over rather than starting the wait again: a propaganda tower's rate of fire
+		// bonus coming or going used to restart the whole reload, so a Nuke Cannon walking in and out of
+		// range of one never got to fire.  Half way through the old wait is half way through the new one.
+		const UnsignedInt now = TheGameLogic->getFrame();
+		const UnsignedInt oldDelay = m_whenWeCanFireAgain > m_whenLastReloadStarted ? m_whenWeCanFireAgain - m_whenLastReloadStarted : 0;
+		const UnsignedInt elapsed = now > m_whenLastReloadStarted ? now - m_whenLastReloadStarted : 0;
+		UnsignedInt newElapsed = 0;
+		if( oldDelay > 0 && newDelay > 0 )
+			newElapsed = (UnsignedInt)( (Real)min( elapsed, oldDelay ) / (Real)oldDelay * (Real)newDelay );
+		m_whenLastReloadStarted = now - min( newElapsed, now );
+		m_whenWeCanFireAgain = m_whenLastReloadStarted + newDelay;
 		
 		if (source->isReloadTimeShared())
 		{	
@@ -3022,6 +3031,11 @@ static void makeAssistanceRequest( Object *requestOf, void *userData )
 
 	// Don't ask ourselves (can't believe I forgot this one)
 	if( requestOf == requestData->m_requestingObject )
+		return;
+
+	// Nor the battery being shot at: it took the lock onto its long-range assist weapon, could not
+	// fire at itself, and went hunting with that range instead.
+	if( requestOf == requestData->m_victimObject )
 		return;
 
 	// Only request of our kind of people

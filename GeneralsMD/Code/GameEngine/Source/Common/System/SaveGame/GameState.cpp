@@ -1666,19 +1666,17 @@ void GameState::xfer( Xfer *xfer )
 	// if no label was found, we'll use the map name (just filename, no directory info)
 	if( exists == FALSE || saveGameInfo->mapLabel == AsciiString::TheEmptyString )
 	{
-		char string[ _MAX_PATH ];
-
-		strcpy( string, TheGlobalData->m_mapName.str() );
-		char *p = strrchr( string, '\\' );
+		// either separator can end the directory part: a map named on the command line may use '/'
+		const char *mapName = TheGlobalData->m_mapName.str();
+		const char *back = strrchr( mapName, '\\' );
+		const char *forward = strrchr( mapName, '/' );
+		const char *p = back;
+		if( forward != NULL && (p == NULL || forward > p) )
+			p = forward;
 		if( p == NULL )
 			saveGameInfo->mapLabel = TheGlobalData->m_mapName;
 		else
-		{
-
-			p++;  // skip the '\' we're on
-			saveGameInfo->mapLabel.set( p );
-
-		}  // end else
+			saveGameInfo->mapLabel.set( p + 1 );  // skip the separator we're on
 
 	}  // end if
 

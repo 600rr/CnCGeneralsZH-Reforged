@@ -563,4 +563,16 @@ void HelicopterSlowDeathBehavior::loadPostProcess( void )
 	// extend base class
 	SlowDeathBehavior::loadPostProcess();
 
+	// the death loop plays from the start of the spiral until the ground; a save carries neither the
+	// event nor its handle, so a copter loaded mid-spiral fell in silence
+	if( isSlowDeathActivated() && m_hitGroundFrame == 0 )
+	{
+		m_deathSound = getHelicopterSlowDeathBehaviorModuleData()->m_deathSound;
+		if( m_deathSound.getEventName().isEmpty() == false )
+		{
+			m_deathSound.setObjectID( getObject()->getID() );
+			m_deathSound.setPlayingHandle( TheAudio->addAudioEvent( &m_deathSound ) );
+		}
+	}
+
 }  // end loadPostProcess

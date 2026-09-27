@@ -585,13 +585,17 @@ void DockUpdate::crc( Xfer *xfer )
 }  // end crc
 
 // ------------------------------------------------------------------------------------------------
-/** Xfer Method */
+/** Xfer Method
+	* Version Info:
+	* 1: Initial version
+	* 2: Save the approach position bone count.  A load left it at -1 beside a TRUE m_positionsLoaded,
+	*    so a boneless dock stopped biasing the approach toward the arriving worker and gathering slowed. */
 // ------------------------------------------------------------------------------------------------
 void DockUpdate::xfer( Xfer *xfer )
 {
 
 	// version
-	XferVersion currentVersion = 1;
+	XferVersion currentVersion = 2;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -609,6 +613,10 @@ void DockUpdate::xfer( Xfer *xfer )
 
 	// # approach positions
 	xfer->xferInt( &m_numberApproachPositions );
+
+	// # approach position bones
+	if( version >= 2 )
+		xfer->xferInt( &m_numberApproachPositionBones );
 
 	// positions loaded
 	xfer->xferBool( &m_positionsLoaded );

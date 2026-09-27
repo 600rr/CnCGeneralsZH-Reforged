@@ -5224,6 +5224,8 @@ void ControlBar::showRallyPoint( const Coord3D *loc )
 		{
 
 			const ThingTemplate* ttn = TheThingFactory->findTemplate("RallyPointMarker");
+			if (!ttn)
+				return;
 			marker = TheThingFactory->newDrawable( ttn );
 			DEBUG_ASSERTCRASH( marker, ("showRallyPoint: Unable to create rally point drawable\n") );
 			if (marker)
@@ -6550,7 +6552,8 @@ void ControlBar::updateSpecialPowerShortcut( void )
 		animateSpecialPowerShortcut(TRUE);
 	}
 	else if( !hasValidShortcutButton 
-					 && !m_specialPowerShortcutParent->winIsHidden() 
+					 && !m_specialPowerShortcutParent->winIsHidden()
+					 && m_animateWindowManagerForGenShortcuts
 					 && m_animateWindowManagerForGenShortcuts->isFinished() )
 	{
 		animateSpecialPowerShortcut(FALSE);		

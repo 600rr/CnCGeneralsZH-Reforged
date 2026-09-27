@@ -169,6 +169,7 @@ ProductionEntry::ProductionEntry( void )
 	m_productionQuantityProduced = 0;
 	m_productionQuantityTotal = 0;
 	//
+	m_costPaid = 0;
 }  // end ProductionEntry
 
 //-------------------------------------------------------------------------------------------------
@@ -305,12 +306,13 @@ Bool ProductionUpdate::queueUpgrade( const UpgradeTemplate *upgrade )
 
 	// take the cost for the build away from the player
 	Money *money = player->getMoney();
-	money->withdraw( upgrade->calcCostToBuild( player ) );
+	const UnsignedInt costPaid = money->withdraw( upgrade->calcCostToBuild( player ) );
 
 	// allocate a new production entry
 	ProductionEntry *production = newInstance(ProductionEntry);
 
 	// assing production entry data
+	production->m_costPaid = costPaid;
 	production->m_type = PRODUCTION_UPGRADE;
 	production->m_upgradeToResearch = upgrade;
 	production->m_productionID = PRODUCTIONID_INVALID;  // not needed for upgrades, you can only have one of
@@ -373,7 +375,7 @@ void ProductionUpdate::cancelUpgrade( const UpgradeTemplate *upgrade )
 	if( refundIt )
 	{
 		Money *money = player->getMoney();
-		money->deposit( production->m_upgradeToResearch->calcCostToBuild( player ) );
+		money->deposit( production->m_costPaid );
 	}
 
 	// remove this production from the queue
@@ -456,11 +458,12 @@ Bool ProductionUpdate::queueCreateUnit( const ThingTemplate *unitType, Productio
 	// take the cost for the build away from the player
 	Player *player = getObject()->getControllingPlayer();
 	Money *money = player->getMoney();
-	money->withdraw( unitType->calcCostToBuild( player ) );
+	const UnsignedInt costPaid = money->withdraw( unitType->calcCostToBuild( player ) );
 
 	// allocate a new production entry
 	ProductionEntry *production = newInstance(ProductionEntry);
 
+	production->m_costPaid = costPaid;
 	production->m_productionQuantityTotal = getQuantityPerOrder( unitType );
 	production->m_productionQuantityProduced = 0;
 
@@ -504,7 +507,7 @@ Bool ProductionUpdate::cancelUnitCreate( ProductionID productionID )
 			// give the player the cost of the object back
 			Player *player = getObject()->getControllingPlayer();
 			Money *money = player->getMoney();
-			money->deposit( production->m_objectToProduce->calcCostToBuild( player ) );
+			money->deposit( production->m_costPaid );
 
 			// remove from queue list
 			removeFromProductionQueue( production );
@@ -1346,7 +1349,8 @@ void ProductionUpdate::xfer( Xfer *xfer )
 {
 
 	// version
-	XferVersion currentVersion = 1;
+	// 2: each entry carries what was paid for it
+	XferVersion currentVersion = 2;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -1396,6 +1400,9 @@ void ProductionUpdate::xfer( Xfer *xfer )
 
 			// exit door
 			xfer->xferInt( (Int*)&production->m_exitDoor );
+
+			// cost paid
+			xfer->xferUnsignedInt( &production->m_costPaid );
 
 		}  // end for
 
@@ -1485,6 +1492,14 @@ void ProductionUpdate::xfer( Xfer *xfer )
 
 			// exit door
 			xfer->xferInt( (Int*)&production->m_exitDoor );
+
+			// cost paid; an older save refunds at today's price, as it always did
+			if( version >= 2 )
+				xfer->xferUnsignedInt( &production->m_costPaid );
+			else if( production->m_type == PRODUCTION_UNIT )
+				production->m_costPaid = production->m_objectToProduce->calcCostToBuild( getObject()->getControllingPlayer() );
+			else
+				production->m_costPaid = production->m_upgradeToResearch->calcCostToBuild( getObject()->getControllingPlayer() );
 
 		}  // end for, i
 

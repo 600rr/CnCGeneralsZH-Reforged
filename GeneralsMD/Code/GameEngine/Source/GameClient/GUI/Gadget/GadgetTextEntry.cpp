@@ -197,6 +197,18 @@ WindowMsgHandledType GadgetTextEntryInput( GameWindow *window, UnsignedInt msg,
 				case KEY_DEL:
 					return MSG_IGNORED;
 
+				// the modifiers go on to the meta translator, both ways.  A Ctrl press passed through
+				// (the check above) but its release was swallowed here, so force-attack stayed armed
+				// after typing into the beacon or chat box and a click on a building fired at it
+				// instead of selecting it.
+				case KEY_LCTRL:
+				case KEY_RCTRL:
+				case KEY_LALT:
+				case KEY_RALT:
+				case KEY_LSHIFT:
+				case KEY_RSHIFT:
+					return MSG_IGNORED;
+
 				// --------------------------------------------------------------------
 				case KEY_DOWN:
 				case KEY_RIGHT:

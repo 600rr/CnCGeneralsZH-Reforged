@@ -265,7 +265,8 @@ void RailroadBehavior::onCollide( Object *other, const Coord3D *loc, const Coord
 				other->isKindOf( KINDOF_FS_FACTORY ) ||
 				other->isKindOf( KINDOF_FS_BASE_DEFENSE ) ||
 				other->isKindOf( KINDOF_FS_TECHNOLOGY ) ||
-				other->isKindOf( KINDOF_REBUILD_HOLE ) )
+				other->isKindOf( KINDOF_REBUILD_HOLE ) ||
+				other->isFactionStructure() )	// supply centers, fakes and internet centers carry none of the four above
 		{
 			playImpactSound(other, other->getPosition());
 			other->kill(); 
@@ -283,6 +284,7 @@ void RailroadBehavior::onCollide( Object *other, const Coord3D *loc, const Coord
 			other->kill();
 			return;
 		}
+		return;	// any other structure is left standing
 	}
 
 	

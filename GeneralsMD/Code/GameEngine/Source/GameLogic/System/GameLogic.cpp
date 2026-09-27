@@ -1289,25 +1289,14 @@ void GameLogic::startNewGame( Bool loadingSaveGame )
 	Bool isSkirmishOrSkirmishReplay = FALSE;
 	if (game)
 	{
+		// Random color, position and faction are drawn off the logical seed.  A restarted game puts
+		// the pre-draw values back so the same draws happen again (see GameInfo::handleOriginalSetups).
+		if (!loadingSaveGame)
+			game->handleOriginalSetups();
+
 		for (Int i=0; i<MAX_SLOTS; ++i)
 		{
 			GameSlot *slot = game->getSlot(i);
-			if (!loadingSaveGame) {
-				if (slot->hasSavedOriginalSetup())
-				{
-					DEBUG_ASSERTCRASH(m_gameMode == GAME_SKIRMISH, ("Expected GAME_SKIRMISH but got %d", m_gameMode));
-
-					// Random color, position and faction are drawn off the logical seed.  A restarted
-					// game puts the pre-draw values back so the same draws happen again.
-					slot->setColor(slot->getOriginalColor());
-					slot->setStartPos(slot->getOriginalStartPos());
-					slot->setPlayerTemplate(slot->getOriginalPlayerTemplate());
-				}
-				else
-				{
-					slot->saveOriginalSetup();
-				}
-			}
 			if (slot->isAI())
 			{
 				isSkirmishOrSkirmishReplay = TRUE;
@@ -1317,6 +1306,8 @@ void GameLogic::startNewGame( Bool loadingSaveGame )
 	} else {
 		if (m_gameMode == GAME_SINGLE_PLAYER)	{
 			if (TheSkirmishGameInfo) {
+				if (TheGameInfo == TheSkirmishGameInfo)
+					TheGameInfo = NULL;	// or it is left pointing at freed memory
 				delete TheSkirmishGameInfo;
 				TheSkirmishGameInfo = NULL;
 			}
@@ -1530,9 +1521,9 @@ void GameLogic::startNewGame( Bool loadingSaveGame )
 				}
 			}
 
-			AsciiString slotNameAscii;
-			slotNameAscii.translate(slot->getName());
-			if (slot->isHuman() && game->getSlotNum(slotNameAscii) == game->getLocalSlotNum()) {
+			// by index: the name went through an ASCII translate and back, which no name with a
+			// letter outside Latin-1 survives, so such a player started with the host's camera
+			if (slot->isHuman() && i == game->getLocalSlotNum()) {
 				localSlot = i;
 			}
 			TheSidesList->addSide(&d);
@@ -2551,12 +2542,22 @@ void GameLogic::loadMapINI( AsciiString mapName )
 	*extension = 0;
 
 
+	//
+	// A map's rules file comes with the map, and a mod map with a block this game does not know
+	// (a DeleteKey, say) threw out of here and took the whole game down at the loading screen.
+	// Keep what parsed up to the bad line and play on: every machine in a match has the same file,
+	// the map CRC sees to that, so each stops at the same line and the rules still agree.
+	//
 	_snprintf(fullFledgeFilename, _MAX_PATH, "%s\\map.ini", filename); fullFledgeFilename[_MAX_PATH-1] = 0;
 	if (TheFileSystem->doesFileExist(fullFledgeFilename)) {
 		DEBUG_LOG(("Loading map.ini\n"));
 		INI ini;
 		ini.setSkipUnknownFields( TRUE );
-		ini.load( AsciiString(fullFledgeFilename), INI_LOAD_CREATE_OVERRIDES, NULL );
+		try {
+			ini.load( AsciiString(fullFledgeFilename), INI_LOAD_CREATE_OVERRIDES, NULL );
+		} catch (...) {
+			DEBUG_LOG(("%s does not parse, the rest of it is ignored\n", fullFledgeFilename));
+		}
 	}
 
 	_snprintf(fullFledgeFilename, _MAX_PATH, "%s\\solo.ini", filename); fullFledgeFilename[_MAX_PATH-1] = 0;
@@ -2564,7 +2565,11 @@ void GameLogic::loadMapINI( AsciiString mapName )
 		DEBUG_LOG(("Loading solo.ini\n"));
 		INI ini;
 		ini.setSkipUnknownFields( TRUE );
-		ini.load( AsciiString(fullFledgeFilename), INI_LOAD_CREATE_OVERRIDES, NULL );
+		try {
+			ini.load( AsciiString(fullFledgeFilename), INI_LOAD_CREATE_OVERRIDES, NULL );
+		} catch (...) {
+			DEBUG_LOG(("%s does not parse, the rest of it is ignored\n", fullFledgeFilename));
+		}
 	}
 	
 	// No error here. There could've just *not* been a map.ini file.

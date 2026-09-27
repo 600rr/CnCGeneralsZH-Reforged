@@ -647,6 +647,9 @@ void RecorderClass::startRecording(GameDifficulty diff, Int originalGameMode, In
 	{
     if(TheSkirmishGameInfo)
     {
+			// This runs before GameLogic::tryStartNewGame, so a restarted skirmish has to get its
+			// pre-random slot setup back here too, or the replay records the first game's draws.
+			TheSkirmishGameInfo->handleOriginalSetups();
 			TheSkirmishGameInfo->setCRCInterval(REPLAY_CRC_INTERVAL);
       theSlotList = GameInfoToAsciiString(TheSkirmishGameInfo);
       DEBUG_LOG(("GameInfo String: %s\n",theSlotList.str()));

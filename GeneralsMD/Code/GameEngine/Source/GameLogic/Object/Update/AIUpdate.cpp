@@ -968,6 +968,14 @@ Bool AIUpdateInterface::chooseLocomotorSetExplicit(LocomotorSetType wst)
 	const LocomotorTemplateVector* set = getAIUpdateModuleData()->findLocomotorTemplateVector(wst);
 	if (set)
 	{
+		// A dying aircraft keeps the locomotor it has. JetSlowDeathBehavior grounds a wreck by taking the
+		// lift and the turn rate off the current Locomotor instance, and a rebuild from the templates
+		// (the jet's attack or return set timing out, say) hands the wreck full lift back and it flies
+		// on. LOCOMOTORSET_INVALID is a set not built yet, which loadPostProcess still has to build.
+		const Object* obj = getObject();
+		if (m_curLocomotorSet != LOCOMOTORSET_INVALID && obj->isEffectivelyDead() && obj->isKindOf(KINDOF_AIRCRAFT))
+			return FALSE;
+
 		m_locomotorSet.clear();
 		m_curLocomotor = NULL;
 		for (Int i = 0; i < set->size(); ++i)

@@ -1699,6 +1699,8 @@ WindowMsgHandledType SkirmishGameOptionsMenuSystem( GameWindow *window, Unsigned
 							skirmishMapSelectLayout = NULL;
 						}
 					TheShell->pop();
+          if (TheGameInfo == TheSkirmishGameInfo)
+            TheGameInfo = NULL;	// or it is left pointing at freed memory
           delete TheSkirmishGameInfo;
           TheSkirmishGameInfo = NULL;
 

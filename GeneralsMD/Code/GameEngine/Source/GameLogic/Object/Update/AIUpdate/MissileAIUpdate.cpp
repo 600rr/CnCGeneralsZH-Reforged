@@ -389,6 +389,11 @@ void MissileAIUpdate::detonate()
 {
 	Object* obj = getObject();
 
+	// Once only.  The kill state can detonate on arrival and a collision with the target land in the
+	// same frame, before the missile is gone, and the warhead's damage was dealt twice.
+	if( obj->testStatus( OBJECT_STATUS_MISSILE_KILLING_SELF ) )
+		return;
+
 	if (m_detonationWeaponTmpl)
 	{
 		

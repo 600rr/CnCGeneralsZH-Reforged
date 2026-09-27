@@ -478,6 +478,7 @@ public:
 	Real getShroudRange() const;				///< How far can you shroud?  Even more dynamic since it'll start at zero for everyone.
 	void setShroudRange( Real newShroudRange );	///< Access to setting someone's shrouding distance
 	Real getShroudClearingRange() const;				///< How far do you clear shroud?
+	Real getOwnShroudClearingRange() const { return m_shroudClearingRange; }	///< the range set on us, before a scaffold's zero; what a scalar multiplies
 	void setShroudClearingRange( Real newShroudClearingRange );	///< Access to setting someone's clear shroud distance
 	void setVisionSpied(Bool setting, Int byWhom);///< Change who is looking through our eyes
 
@@ -664,6 +665,7 @@ public:
 	void setHealthBoxOffset( const Coord3D& offset ) { m_healthBoxOffset = offset; } ///< for special amorphous like angry mob
 
 	void defect( Team *newTeam, UnsignedInt detectionTime );
+	void takeOverUnmanned( Object *pilot );	///< an unmanned vehicle gets this infantryman as its driver; he is used up
 	void goInvulnerable( UnsignedInt time );
 	
 	// This is public, since there is no Thing level master setting of Turret stuff.  It is all done in a sleepy hamlet

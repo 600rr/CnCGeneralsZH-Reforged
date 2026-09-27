@@ -382,11 +382,11 @@ Bool AIGroup::getMinMaxAndCenter( Coord2D *min, Coord2D *max, Coord3D *center )
 			max->y = max->y < objPos->y ? objPos->y : max->y;
 			FormationID curID = (*i)->getFormationID() ;
 			if (count==0) {
-				id = curID;	
-			} else {
-				if (id == NO_FORMATION_ID) {
-					id = NO_FORMATION_ID;
-				}
+				id = curID;
+			} else if (curID != id) {
+				// a formation only if every member is in the same one; this compared id with itself,
+				// so the first member alone decided it
+				id = NO_FORMATION_ID;
 			}
 
 			count++;
@@ -1995,7 +1995,10 @@ void AIGroup::groupMoveToPosition( const Coord3D *p_posIn, Bool addWaypoint, Com
 	Bool tightenGroup = FALSE;
 
 	Bool isFormation = getMinMaxAndCenter( &min, &max, &center );
-	if (addWaypoint) 
+	// a queued waypoint moves the members by their own offsets, which holds the shape anyway, so the
+	// formation the player made survives it instead of being dropped by the first alt-click
+	const Bool keepFormation = addWaypoint && isFormation;
+	if (addWaypoint)
   {
     isFormation = false;
   }
@@ -2380,7 +2383,8 @@ void AIGroup::groupMoveToPosition( const Coord3D *p_posIn, Bool addWaypoint, Com
 	Bool firstUnit = true;
 	for (theUnit = iter->first(); theUnit; theUnit = iter->next())
 	{
-		theUnit->setFormationID(NO_FORMATION_ID);
+		if (!keepFormation)
+			theUnit->setFormationID(NO_FORMATION_ID);
 		AIUpdateInterface *ai = theUnit->getAIUpdateInterface();
 
 		if (firstUnit) {
@@ -2838,9 +2842,11 @@ void AIGroup::groupIdle(CommandSourceType cmdSource)
 		}
 		else
 		{
-			//Handle garrisoned buildings.
+			//Handle garrisoned buildings.  Stop is for the ones shooting out of them: passengers who
+			//may not fire are there for the building's own job, and stopping them ended the hacking in
+			//an Internet Center until every hacker was taken out and put back.
 			ContainModuleInterface *contain = obj->getContain();
-			if( contain )
+			if( contain && contain->isPassengerAllowedToFire() )
 			{
 				contain->iterateContained( makeMemberStop, &cmdSource, false );
 			}

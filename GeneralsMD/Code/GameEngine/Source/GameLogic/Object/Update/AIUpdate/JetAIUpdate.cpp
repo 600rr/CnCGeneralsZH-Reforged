@@ -2671,13 +2671,14 @@ void JetAIUpdate::crc( Xfer *xfer )
 	* Version Info:
 	* 1: Initial version
 	* 2: Save engine on/off state.
-	* 3: TheSuperHackers @bugfix Save the helipad landing position. */
+	* 3: TheSuperHackers @bugfix Save the helipad landing position.
+	* 4: the most recent command keeps its source */
 // ------------------------------------------------------------------------------------------------
 void JetAIUpdate::xfer( Xfer *xfer )
 {
 
   // version
-  XferVersion currentVersion = 3;
+  XferVersion currentVersion = 4;
   XferVersion version = currentVersion;
   xfer->xferVersion( &version, currentVersion );
  
@@ -2687,6 +2688,8 @@ void JetAIUpdate::xfer( Xfer *xfer )
 
 	xfer->xferCoord3D(&m_producerLocation);
 	m_mostRecentCommand.doXfer(xfer);
+	if (version < 4)
+		m_mostRecentCommand.setCommandSource(CMD_FROM_AI);
 	xfer->xferUnsignedInt(&m_attackLocoExpireFrame);
 	xfer->xferUnsignedInt(&m_attackersMissExpireFrame);
 	xfer->xferUnsignedInt(&m_returnToBaseFrame);

@@ -238,6 +238,7 @@ public:
 		{
 			// A chinook given transport duty loses his supplies.
 			while( ai->loseOneBox() );
+			ai->setForceWantingState(FALSE);
 		}
 
 		// kill any drift...
@@ -1394,13 +1395,15 @@ void ChinookAIUpdate::crc( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Xfer method
 	* Version Info:
-	* 1: Initial version */
+	* 1: Initial version
+	* 2: m_originalPos
+	* 3: the pending command keeps its source */
 // ------------------------------------------------------------------------------------------------
 void ChinookAIUpdate::xfer( Xfer *xfer )
 {
 
   // version
-  XferVersion currentVersion = 2;
+  XferVersion currentVersion = 3;
   XferVersion version = currentVersion;
   xfer->xferVersion( &version, currentVersion );
 	// extend base class
@@ -1409,6 +1412,8 @@ void ChinookAIUpdate::xfer( Xfer *xfer )
 	xfer->xferBool(&m_hasPendingCommand);
 	if (m_hasPendingCommand) {
 		m_pendingCommand.doXfer(xfer);
+		if (version < 3)
+			m_pendingCommand.setCommandSource(CMD_FROM_AI);
 	}
 	xfer->xferUser(&m_flightStatus, sizeof(m_flightStatus));
 	xfer->xferObjectID(&m_airfieldForHealing);

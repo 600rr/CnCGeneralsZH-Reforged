@@ -357,25 +357,32 @@ static CanAttackResult canObjectForceAttack( Object *obj, const Object *victim, 
 //-------------------------------------------------------------------------------------------------
 static CanAttackResult canAnyForceAttack(const DrawableList *allSelected, const Object *victim, const Coord3D *pos )
 {
-	// check to make sure that allSelected can attack obj.
-	for (DrawableListCIt cit = allSelected->begin(); cit != allSelected->end(); ++cit) 
+	// "any" means any: this answered for the first object in the selection only, so a Sentry Drone
+	// built before the Humvee beside it stopped the pair force firing at all.
+	CanAttackResult best = ATTACKRESULT_NOT_POSSIBLE;
+	for (DrawableListCIt cit = allSelected->begin(); cit != allSelected->end(); ++cit)
 	{
 		Drawable *draw = *cit;
-		if (!draw) 
-		{
-			continue;
-		}
-		
-		Object *obj = draw->getObject();
-		if (!obj) 
+		if (!draw)
 		{
 			continue;
 		}
 
-		return canObjectForceAttack( obj, victim, pos );
+		Object *obj = draw->getObject();
+		if (!obj)
+		{
+			continue;
+		}
+
+		CanAttackResult result = canObjectForceAttack( obj, victim, pos );
+		if( result == ATTACKRESULT_POSSIBLE )
+			return result;
+		if( result == ATTACKRESULT_POSSIBLE_AFTER_MOVING
+				|| ( result == ATTACKRESULT_INVALID_SHOT && best == ATTACKRESULT_NOT_POSSIBLE ) )
+			best = result;
 	}
 
-	return ATTACKRESULT_NOT_POSSIBLE;
+	return best;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -3811,6 +3818,7 @@ GameMessageDisposition CommandTranslator::translateGameMessage(const GameMessage
 				TheWritableGlobalData->m_showObjectHealth = 1 - TheGlobalData->m_showObjectHealth;
 				TheInGameUI->message( UnicodeString( L"Object Health %s" ),
 															TheGlobalData->m_showObjectHealth ? L"ON" : L"OFF" );
+				disp = DESTROY_MESSAGE;
 			}
 			break;
 	
@@ -4977,6 +4985,7 @@ GameMessageDisposition CommandTranslator::translateGameMessage(const GameMessage
 		case GameMessage::MSG_META_DEMO_TOGGLE_RENDER:
 		{
 			TheWritableGlobalData->m_disableRender = !TheGlobalData->m_disableRender;
+			disp = DESTROY_MESSAGE;
 			break;
 		}
 
@@ -5029,6 +5038,7 @@ GameMessageDisposition CommandTranslator::translateGameMessage(const GameMessage
 					obj->kill();
 				}
 			}
+			disp = DESTROY_MESSAGE;
 		}
 		break;
 
@@ -5123,6 +5133,7 @@ GameMessageDisposition CommandTranslator::translateGameMessage(const GameMessage
 			} else {
 				TheDisplay->setDebugDisplayCallback(NULL);
 			}
+			disp = DESTROY_MESSAGE;
 			break;
 		}
 #endif // #ifdef PERF_TIMERS
@@ -5646,6 +5657,7 @@ GameMessageDisposition CommandTranslator::translateGameMessage(const GameMessage
 			//Dump performance statistics for this frame.
 			TheWritableGlobalData->m_dumpPerformanceStatistics = TRUE;
 			TheInGameUI->message( UnicodeString( L"Statistics dump made on frame: %d" ), TheGameLogic->getFrame() );
+			disp = DESTROY_MESSAGE;
 			break;
 #endif // DUMP_PERF_STATS
 
