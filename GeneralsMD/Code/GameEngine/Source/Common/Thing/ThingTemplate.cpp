@@ -792,6 +792,13 @@ void ThingTemplate::parseReplaceModule(INI *ini, void *instance, void *store, co
 	self->m_moduleParsingMode = MODULEPARSE_ADD_REMOVE_REPLACE;
 
 	const char *modToRemove = ini->getNextToken();
+
+	// The object's Locomotor lines are stored in its AIUpdate module data, not in the template, so
+	// replacing that module would leave the object with no locomotor at all. Carry them over.
+	LocomotorTemplateMap keptLocomotors;
+	if (const AIUpdateModuleData *oldAI = self->friend_getAIModuleInfo())
+		keptLocomotors = oldAI->m_locomotorTemplates;
+
 	AsciiString removedModuleName;
 	Bool removed = self->removeModuleInfo(modToRemove, removedModuleName);
 	if (!removed)
@@ -804,6 +811,9 @@ void ThingTemplate::parseReplaceModule(INI *ini, void *instance, void *store, co
 	self->m_moduleBeingReplacedName = removedModuleName;
 	self->m_moduleBeingReplacedTag = modToRemove;
 	ini->initFromINI(self, self->getFieldParse());
+	AIUpdateModuleData *newAI = self->friend_getAIModuleInfo();
+	if (newAI && newAI->m_locomotorTemplates.empty())
+		newAI->m_locomotorTemplates = keptLocomotors;
 	self->m_moduleBeingReplacedName.clear();
 	self->m_moduleBeingReplacedTag.clear();
 
