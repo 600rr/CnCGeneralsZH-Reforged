@@ -5894,7 +5894,8 @@ void Object::doCommandButton( const CommandButton *commandButton, CommandSourceT
 				{
 					WeaponSlotType weaponSlot = commandButton->getWeaponSlot();
 					// GUI_COMMAND_SWITCH_WEAPON switches until un-switched, or switched to something else.
-					setWeaponLock( weaponSlot, LOCKED_PERMANENTLY );
+					if( canSwitchToWeapon( weaponSlot ) )
+						setWeaponLock( weaponSlot, LOCKED_PERMANENTLY );
 					return;
 				}
 
@@ -6593,6 +6594,26 @@ Bool Object::canProduceUpgrade( const UpgradeTemplate *upgrade )
 	}
 
 	return FALSE;// Cheatin' punk.
+}
+
+//=============================================================================
+/** A switch-weapon order goes to a whole selection or a whole team, and every member used to take
+	* the lock. A Missile Defender in a group with a Ranger took the flashbang switch as a permanent
+	* lock on its laser-guided missiles and fired them at anything, as fast as they reload. */
+Bool Object::canSwitchToWeapon( WeaponSlotType weaponSlot ) const
+{
+	const CommandSet *set = TheControlBar->findCommandSet(getCommandSetString());
+	if( set == NULL )
+		return FALSE;	// an object with no command set has no buttons at all
+
+	for( Int buttonIndex = 0; buttonIndex < MAX_COMMANDS_PER_SET; buttonIndex++ )
+	{
+		const CommandButton *button = set->getCommandButton(buttonIndex);
+		if( button && button->getCommandType() == GUI_COMMAND_SWITCH_WEAPON && button->getWeaponSlot() == weaponSlot )
+			return TRUE;
+	}
+
+	return FALSE;
 }
 
 //-------------------------------------------------------------------------------------------------

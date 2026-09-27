@@ -162,6 +162,7 @@ ProductionEntry::ProductionEntry( void )
 	m_productionID = (ProductionID)1;
 	m_percentComplete = 0.0f;
 	m_framesUnderConstruction = 0;
+	m_totalProductionFrames = 0;
 	m_next = NULL;
 	m_prev = NULL;
 	//Added By Sadullah Nader
@@ -805,15 +806,25 @@ UpdateSleepTime ProductionUpdate::update( void )
 
 	}  // end if
 
-	// increase the frames we've been under production for
-	production->m_framesUnderConstruction++;
-
 	// how many total logic frames does it take to produce this unit
 	Int totalProductionFrames;
 	if( production->m_type == PRODUCTION_UNIT )
 		totalProductionFrames = production->m_objectToProduce->calcTimeToBuild( player );
 	else
 		totalProductionFrames = production->m_upgradeToResearch->calcTimeToBuild( player );
+
+	//
+	// The build time moves with power, the factory count and the rest.  Rescale the frames already
+	// done to the new time so the fraction finished carries over.  Measuring the old count against
+	// the new time applied the new rate to the whole build: a first power plant finished a half-built
+	// dozer on the spot, and losing power sent a progress bar backwards.
+	//
+	if( production->m_totalProductionFrames > 0 && totalProductionFrames != production->m_totalProductionFrames )
+		production->m_framesUnderConstruction = production->m_framesUnderConstruction * totalProductionFrames / production->m_totalProductionFrames;
+	production->m_totalProductionFrames = totalProductionFrames;
+
+	// increase the frames we've been under production for
+	production->m_framesUnderConstruction++;
 
 	// figure out our percent complete
 	production->m_percentComplete = INT_TO_REAL( production->m_framesUnderConstruction ) /
@@ -1350,7 +1361,8 @@ void ProductionUpdate::xfer( Xfer *xfer )
 
 	// version
 	// 2: each entry carries what was paid for it
-	XferVersion currentVersion = 2;
+	// 3: each entry carries the build time its frame count was measured against
+	XferVersion currentVersion = 3;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -1403,6 +1415,9 @@ void ProductionUpdate::xfer( Xfer *xfer )
 
 			// cost paid
 			xfer->xferUnsignedInt( &production->m_costPaid );
+
+			// build time the frame count was measured against
+			xfer->xferInt( &production->m_totalProductionFrames );
 
 		}  // end for
 
@@ -1500,6 +1515,10 @@ void ProductionUpdate::xfer( Xfer *xfer )
 				production->m_costPaid = production->m_objectToProduce->calcCostToBuild( getObject()->getControllingPlayer() );
 			else
 				production->m_costPaid = production->m_upgradeToResearch->calcCostToBuild( getObject()->getControllingPlayer() );
+
+			// an older save leaves it 0, and the first update measures against whatever it finds
+			if( version >= 3 )
+				xfer->xferInt( &production->m_totalProductionFrames );
 
 		}  // end for, i
 

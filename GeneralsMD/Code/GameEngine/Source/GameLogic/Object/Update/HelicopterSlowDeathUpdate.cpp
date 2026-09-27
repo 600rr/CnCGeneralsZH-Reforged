@@ -455,6 +455,15 @@ UpdateSleepTime HelicopterSlowDeathBehavior::update( void )
 			// mark the frame we hit the ground on
 			m_hitGroundFrame = TheGameLogic->getFrame();
 
+			// A copter down before its blades flew off never reached the ejection above, which only
+			// runs in the air: a veteran Comanche shot down low lost its pilot (upstream #175).
+			if( m_bladeFlyOffFrame > 0 )
+			{
+				m_bladeFlyOffFrame = 0;
+				if( modData->m_oclEjectPilot && copter->getVeterancyLevel() > LEVEL_REGULAR )
+					EjectPilotDie::ejectPilot( modData->m_oclEjectPilot, copter, NULL );
+			}
+
 			// make hit ground effect
 			FXList::doFXObj( modData->m_fxHitGround, copter );
 			ObjectCreationList::create( modData->m_oclHitGround, copter, NULL );

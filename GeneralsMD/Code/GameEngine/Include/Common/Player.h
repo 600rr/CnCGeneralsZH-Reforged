@@ -830,6 +830,17 @@ public:
 	Int getRankLevel() const							{ return m_rankLevel; }
 	Int getSkillPointsLevelUp() const			{ return m_levelUp;	}
 	Int getSkillPointsLevelDown() const			{ return m_levelDown;	}
+	/// How far from this rank to the next, 0 to 100.  A level a script disabled (-1 points) or two
+	/// ranks a Rank.ini gave the same points leave no way on, and count as full; the bars used to
+	/// divide by that difference.
+	Int getRankProgressPercent() const
+	{
+		const Int span = m_levelUp - m_levelDown;
+		if( span <= 0 )
+			return 100;
+		const Int progress = ( m_skillPoints - m_levelDown ) * 100 / span;
+		return progress < 0 ? 0 : ( progress > 100 ? 100 : progress );
+	}
 	UnicodeString getGeneralName() const	{ return m_generalName; }	
 	void setGeneralName( UnicodeString name ){ m_generalName = name;	}
 	/// returns TRUE if rank level really changed.

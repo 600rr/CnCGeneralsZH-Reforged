@@ -39,6 +39,7 @@
 #include "Common/PlayerList.h"
 #include "Common/RandomValue.h"
 #include "Common/Radar.h"
+#include "Common/Recorder.h"
 #include "Common/Team.h"
 #include "Common/WellKnownKeys.h"
 #include "Common/XferLoad.h"
@@ -58,6 +59,7 @@
 #include "GameLogic/ScriptEngine.h"
 #include "GameLogic/SidesList.h"
 #include "GameLogic/TerrainLogic.h"
+#include "GameLogic/Weapon.h"
 
 #ifdef _INTERNAL
 // for occasional debugging...
@@ -93,6 +95,7 @@ SaveGameInfo::SaveGameInfo( void )
 	date.year					= 0;
 	missionNumber			= 0;
 	saveFileType			= SAVE_FILE_TYPE_NORMAL;
+	framesPerSecond		= 0;
 
 }  // end SaveGameInfo
 
@@ -322,7 +325,8 @@ void GameState::init( void )
 	addSnapshotBlock( "CHUNK_TeamFactory",						TheTeamFactory,						SNAPSHOT_SAVELOAD );
 	addSnapshotBlock( "CHUNK_Players",								ThePlayerList,						SNAPSHOT_SAVELOAD );
 	addSnapshotBlock( "CHUNK_GameLogic",							TheGameLogic,							SNAPSHOT_SAVELOAD );
-	addSnapshotBlock( "CHUNK_Radar",									TheRadar,									SNAPSHOT_SAVELOAD );
+	addSnapshotBlock( "CHUNK_WeaponStore",						TheWeaponStore,						SNAPSHOT_SAVELOAD );	// absent from older saves, which load without it
+	addSnapshotBlock( "CHUNK_Radar",								TheRadar,									SNAPSHOT_SAVELOAD );
 	addSnapshotBlock( "CHUNK_ScriptEngine",						TheScriptEngine,					SNAPSHOT_SAVELOAD );
 	addSnapshotBlock( "CHUNK_SidesList",							TheSidesList,							SNAPSHOT_SAVELOAD );
 	addSnapshotBlock( "CHUNK_TacticalView",						TheTacticalView,					SNAPSHOT_SAVELOAD );
@@ -725,6 +729,11 @@ SaveCode GameState::loadGame( AvailableGameInfo gameInfo )
 	XferLoad xferLoad;
 	xferLoad.open( filepath );
 
+	// A match still recording ends here, before the engine reset closes its file with no length
+	// written into the header.
+	if( TheRecorder->getMode() == RECORDERMODETYPE_RECORD )
+		TheRecorder->stopRecording();
+
 	// clear out the game engine
 	TheGameEngine->reset();
 
@@ -783,6 +792,11 @@ SaveCode GameState::loadGame( AvailableGameInfo gameInfo )
 		return SC_INVALID_DATA;	// you can't use a naked "throw" outside of a catch statement!
 
 	}  // end if
+
+	// A loaded match played at the default 30 whatever speed it was saved at: the reset during the
+	// load puts the default back, and nothing kept the speed. A mission save starts its map afresh.
+	if( getSaveGameInfo()->saveFileType != SAVE_FILE_TYPE_MISSION && getSaveGameInfo()->framesPerSecond > 0 )
+		TheGameEngine->setFramesPerSecondLimit( getSaveGameInfo()->framesPerSecond );
 
 	//
 	// when loading a mission save, we want to do as much normal loading stuff as we
@@ -1614,12 +1628,21 @@ void GameState::xfer( Xfer *xfer )
 {
 
 	// version
-	XferVersion currentVersion = 2;
+	XferVersion currentVersion = 3;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
 	// get structure for our current game info
 	SaveGameInfo *saveGameInfo = getSaveGameInfo();
+
+	// version 3: the game speed, read back by loadGame. It goes first because the rest of this
+	// block ends in branches.
+	if( xfer->getXferMode() == XFER_SAVE )
+		saveGameInfo->framesPerSecond = TheGameEngine->getFramesPerSecondLimit();
+	else
+		saveGameInfo->framesPerSecond = 0;
+	if( version >= 3 )
+		xfer->xferInt( &saveGameInfo->framesPerSecond );
 
 	// version 2
 	if( version >= 2 )

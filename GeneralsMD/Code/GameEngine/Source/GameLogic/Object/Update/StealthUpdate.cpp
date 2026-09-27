@@ -955,6 +955,14 @@ void StealthUpdate::markAsDetected(UnsignedInt numFrames)
 }
 
 //-------------------------------------------------------------------------------------------------
+void StealthUpdate::keepDetected( UnsignedInt numFrames )
+{
+	const UnsignedInt expires = TheGameLogic->getFrame() + numFrames;
+	if( m_detectionExpiresFrame < expires )
+		m_detectionExpiresFrame = expires;
+}
+
+//-------------------------------------------------------------------------------------------------
 void StealthUpdate::disguiseAsObject( const Object *target )
 {
 	Object *self = getObject();

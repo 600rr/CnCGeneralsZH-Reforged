@@ -1141,7 +1141,8 @@ void updateGameOptions( void )
 		if (comboBoxSuperweapons)
 			UpdateSuperweaponComboBox( comboBoxSuperweapons, theGame, TheLAN->AmIHost() );
 		Int itemCount = GadgetComboBoxGetLength(comboBoxStartingCash);
-    for ( Int index = 0; index < itemCount; index++ )
+    Int index;
+    for ( index = 0; index < itemCount; index++ )
     {
       Int value  = (Int)GadgetComboBoxGetItemData(comboBoxStartingCash, index);
       if ( value == theGame->getStartingCash().countMoney() )
@@ -1151,7 +1152,10 @@ void updateGameOptions( void )
       }
     }
 
-    DEBUG_ASSERTCRASH( index < itemCount, ("Could not find new starting cash amount %d in list", theGame->getStartingCash().countMoney() ) );
+    // the preferences set the cash after the box was filled, so an amount the list does not carry
+    // (StartingCash in the player's INI) was in force but never shown
+    if ( index == itemCount )
+      PopulateStartingCashComboBox( comboBoxStartingCash, theGame );
 
 		if (comboBoxPeaceTime)
 			UpdatePeaceTimeComboBox( comboBoxPeaceTime, theGame, TheLAN->AmIHost() );

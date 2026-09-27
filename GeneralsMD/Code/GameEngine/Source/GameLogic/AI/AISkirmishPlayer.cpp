@@ -615,14 +615,15 @@ void AISkirmishPlayer::acquireEnemy(void)
 			// distance to half the map, which reads as "ignore the one you are about to beat".
 			//
 			Bool alreadyTargeted = FALSE;
-			Bool attackingMe = FALSE;
+			// The candidate itself has to have picked us. EA asked this of every other AI in the loop
+			// below, which skips the candidate, so the bonus went to anyone but the aggressor.
+			Bool attackingMe = curPlayer->isSkirmishAIPlayer() && curPlayer->getCurrentEnemy()==m_player;
 			Int k;
 			for (k=0; k<ThePlayerList->getPlayerCount(); k++) {
 				if (k==i) continue;  // don't count self.
 				Player *somePlayer = ThePlayerList->getNthPlayer(k);
 				if (!somePlayer->isSkirmishAIPlayer()) continue;
 				if (somePlayer->getCurrentEnemy()==curPlayer) alreadyTargeted = TRUE;
-				if (somePlayer->getCurrentEnemy()==m_player) attackingMe = TRUE;
 			}
 
 			const Real share = (estateTotal > 0.0f && i < MAX_PLAYER_COUNT) ? (estate[i] / estateTotal) : 0.0f;

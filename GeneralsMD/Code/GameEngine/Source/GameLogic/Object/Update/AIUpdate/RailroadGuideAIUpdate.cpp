@@ -571,6 +571,9 @@ void RailroadBehavior::loadTrackData( void )
 	m_track->m_length = 0.0f;
 	Waypoint *scanner = anchorWaypoint;
 	Real distFromTo = 0.0f;
+	std::set<WaypointID> visited;	// every waypoint already on the track
+	if ( scanner )
+		visited.insert( scanner->getID() );
 
 
 	//Let's start buliding our own track data from the waypoint data we find
@@ -639,6 +642,12 @@ void RailroadBehavior::loadTrackData( void )
 			m_track->m_isLooping = TRUE;
 			break; // it must be a looping track. Cool.
 		}
+
+		// A path that loops back to some waypoint other than the anchor never met the test above and
+		// grew the track until memory ran out: the map attached to upstream #1324 crashed on load.
+		// The track ends where it would start repeating.
+		if ( scanner && !visited.insert( scanner->getID() ).second )
+			break;
 	}
 
 }  // end loadTrackData

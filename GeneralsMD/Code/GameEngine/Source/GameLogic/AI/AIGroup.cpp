@@ -3644,8 +3644,31 @@ void AIGroup::groupCheer( CommandSourceType cmdSource )
 	}
 }
 
+/** The checks ControlBar makes before it shows the sell button.  The order lands on whatever is
+	* selected when the logic frame runs, and a selection hotkey pressed in the same frame as the
+	* button used to sell a tech building, a scaffold or a garrisoned civilian building. */
+static Bool mayPlayerSell( const Object *obj )
+{
+	if( obj->testStatus( OBJECT_STATUS_UNDER_CONSTRUCTION ) )
+		return FALSE;
+	if( obj->testScriptStatusBit( OBJECT_STATUS_SCRIPT_UNSELLABLE ) || obj->isDisabledByType( DISABLED_SUBDUED ) )
+		return FALSE;
+
+	const CommandSet *commandSet = TheControlBar->findCommandSet( obj->getCommandSetString() );
+	if( commandSet == NULL )
+		return FALSE;
+
+	for( Int buttonIndex = 0; buttonIndex < MAX_COMMANDS_PER_SET; buttonIndex++ )
+	{
+		const CommandButton *button = commandSet->getCommandButton( buttonIndex );
+		if( button && button->getCommandType() == GUI_COMMAND_SELL )
+			return TRUE;
+	}
+	return FALSE;
+}
+
 /**
-	* Sell all things in the group ... if possible 
+	* Sell all things in the group ... if possible
 	*/
 void AIGroup::groupSell( CommandSourceType cmdSource )
 {
@@ -3661,6 +3684,9 @@ void AIGroup::groupSell( CommandSourceType cmdSource )
 
 		// get object
 		obj = *thisIterator;
+
+		if( cmdSource == CMD_FROM_PLAYER && !mayPlayerSell( obj ) )
+			continue;
 
 		// try to sell object
 		TheBuildAssistant->sellObject( obj );
@@ -3887,6 +3913,9 @@ Bool AIGroup::setWeaponLockForGroup( WeaponSlotType weaponSlot, WeaponLockType l
 	std::list<Object *>::iterator i;
 	for( i = m_memberList.begin(); i != m_memberList.end(); ++i )
 	{
+		// a permanent lock is the switch-weapon button, and only members that have the button take it
+		if( lockType == LOCKED_PERMANENTLY && !(*i)->canSwitchToWeapon( weaponSlot ) )
+			continue;
 		if ((*i)->setWeaponLock( weaponSlot, lockType ))
 			any = true;
 	}

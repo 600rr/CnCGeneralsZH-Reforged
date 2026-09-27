@@ -506,6 +506,7 @@ Coord3D DockUpdate::computeApproachPosition( Int positionIndex, Object *forWhom 
 	fpOptions.minRadius = 0.0f;
 	fpOptions.maxRadius = 100.0f;
 	fpOptions.sourceToPathToDest = forWhom;// This makes it find a place forWhom can get to.
+	fpOptions.relationshipObject = forWhom;// ... and one its own side's mines do not rule out
 	if( forWhom->isUsingAirborneLocomotor() )
 		fpOptions.ignoreObject = getObject();// Flyers can ignore us, so they can approach right over us if they want.
 

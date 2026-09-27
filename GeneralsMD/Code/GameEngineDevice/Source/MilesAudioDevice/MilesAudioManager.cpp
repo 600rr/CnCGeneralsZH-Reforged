@@ -58,10 +58,12 @@
 #include "GameClient/DebugDisplay.h"
 #include "GameClient/Drawable.h"
 #include "GameClient/GameClient.h"
+#include "GameClient/ObserverCamera.h"
 #include "GameClient/VideoPlayer.h"
 #include "GameClient/View.h"
 
 #include "GameLogic/GameLogic.h"
+#include "GameLogic/PartitionManager.h"
 #include "GameLogic/TerrainLogic.h"
 
 #include "Common/File.h"
@@ -2550,9 +2552,22 @@ void MilesAudioManager::processPlayingList( void )
 					Real volForConsideration = getEffectiveVolume(playing->m_audioEventRTS);
 					volForConsideration /= (m_sound3DVolume > 0.0f ? m_soundVolume : 1.0f);
 					Bool playAnyways = BitTest( playing->m_audioEventRTS->getAudioEventInfo()->m_type, ST_GLOBAL) || playing->m_audioEventRTS->getAudioEventInfo()->m_priority == AP_CRITICAL;
-					if( volForConsideration < m_audioSettings->m_minVolume && !playAnyways ) 
+					if( volForConsideration < m_audioSettings->m_minVolume && !playAnyways )
 					{
 						// don't want to get an additional callback for this sample
+						AIL_register_3D_EOS_callback(playing->m_3DSample, NULL);
+						stopPlayingAudio( playing );
+						continue;
+					}
+					// canPlayNow keeps a shrouded sound from starting in the fog, but a loop that started
+					// in the open played on after its source flew into the fog: an enemy Helix or Comanche
+					// could be heard, and followed, where it could not be seen.  Stopped like one out of
+					// range, and the drawable starts it again once the spot is clear.
+					else if( !playAnyways
+						&& BitTest( playing->m_audioEventRTS->getAudioEventInfo()->m_type, ST_SHROUDED )
+						&& playing->m_audioEventRTS->getAudioEventInfo()->isPermanentSound()
+						&& ThePartitionManager->getShroudStatusForPlayer( TheObserverCamera.getShroudPlayerIndex(), pos ) != CELLSHROUD_CLEAR )
+					{
 						AIL_register_3D_EOS_callback(playing->m_3DSample, NULL);
 						stopPlayingAudio( playing );
 						continue;
@@ -3358,6 +3373,11 @@ void *AudioFileCache::openFile( AudioEventRTS *eventToOpenFrom )
 
 	if (it != m_openFiles.end()) {
 		++it->second.m_openCount;
+		// A cached file keeps the info of whoever opened it first, and a map's customised sound
+		// shares its file with the stock one.  That info is deleted with the level
+		// (removeLevelSpecificAudioEventInfos), and freeEnoughSpaceForSample went on reading the
+		// priority out of it for the file's next user.  The event opening it now is alive.
+		it->second.m_eventInfo = eventToOpenFrom->getAudioEventInfo();
 		return it->second.m_file;
 	}
 

@@ -575,6 +575,10 @@ static void placeNetworkBuildingsForPlayer(Int slotNum, const GameSlot *pSlot, P
 		return;
 
 	pPlayer->onStructureCreated(NULL, conYard);
+	// placeObjectAtPosition made it finished, so joining the team already counted its power, and
+	// onStructureConstructionComplete counts it again: a command center given EnergyProduction
+	// started every player at twice that, and the spare half stayed after it was sold
+	conYard->friend_adjustPowerForPlayer(FALSE);
 	pPlayer->onStructureConstructionComplete(NULL, conYard, FALSE);
 
 	//pos.x -= conYard->getGeometryInfo().getBoundingSphereRadius()/2;
@@ -2571,7 +2575,14 @@ void GameLogic::loadMapINI( AsciiString mapName )
 			DEBUG_LOG(("%s does not parse, the rest of it is ignored\n", fullFledgeFilename));
 		}
 	}
-	
+
+	// A weapon's projectile and OCLs are names until the store's post-process pass turns them into
+	// pointers, and that pass ran once at startup, before any map. A weapon a map.ini made or edited
+	// kept the names only, and every unit carrying it refused to fire.
+	TheWeaponStore->postProcessLoad();
+	// the same for a command button's picture, which the bar looked up once at startup
+	TheControlBar->postProcessCommands();
+
 	// No error here. There could've just *not* been a map.ini file.
 
 	// now look for a string file
@@ -5371,7 +5382,10 @@ void GameLogic::initTimeOutValues( void )
 {
 	if (!TheNetwork)
 		return;
-	for(Int i = 0; i < TheNetwork->getNumPlayers(); ++i)
+	// every slot: these are indexed by slot, and counting players left a human in a slot past the
+	// head count at 0, timed out before his first progress message, so whoever loaded first could
+	// start the match without him
+	for(Int i = 0; i < MAX_SLOTS; ++i)
 	{
 		m_progressCompleteTimeout[i] = timeGetTime();
 	}

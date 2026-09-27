@@ -523,7 +523,8 @@ public:
 	void setCommandSetStringOverride( AsciiString newCommandSetString ) { m_commandSetStringOverride = newCommandSetString; }
 
 	/// People are faking their commandsets, and, Surprise!, they are authoritative.  Challenge everything.
-	Bool Object::canProduceUpgrade( const UpgradeTemplate *upgrade ); 
+	Bool Object::canProduceUpgrade( const UpgradeTemplate *upgrade );
+	Bool canSwitchToWeapon( WeaponSlotType weaponSlot ) const;	///< does our command set hold a button that switches to this slot
 
 
 	// Weapons & Damage -------------------------------------------------------------------------------------------------

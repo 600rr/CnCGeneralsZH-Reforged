@@ -2442,8 +2442,9 @@ void JetAIUpdate::privateGetRepaired( Object *repairDepot, CommandSourceType cmd
 //-------------------------------------------------------------------------------------------------
 Bool JetAIUpdate::isParkedAt(const Object* obj) const
 {
+	// Helipad units count too: a Comanche on the pad has that airfield as its producer, and one told
+	// to repair at the pad it was already repairing on took off and flew a circuit back to it.
 	if (!getFlag(ALLOW_AIR_LOCO) &&
-			!getObject()->isKindOf(KINDOF_PRODUCED_AT_HELIPAD) &&
 			obj != NULL)
 	{
 		Object* airfield;

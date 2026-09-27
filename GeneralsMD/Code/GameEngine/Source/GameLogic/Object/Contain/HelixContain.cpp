@@ -241,10 +241,14 @@ void HelixContain::onDelete( void )
 // ------------------------------------------------------------------------------------------------
 void HelixContain::onCapture( Player *oldOwner, Player *newOwner )
 {
-//  Need to setteam() the portable structure, that's all;
+//  Need to setteam() the portable structure
   Object *portable = getPortableStructure();
   if ( portable )
 	  portable->setTeam( newOwner->getDefaultTeam() );
+
+	// and the passengers go the way every transport's do: a Helix sniped on the ground skipped this,
+	// so its infantry sat on in a neutral hulk while an Overlord's or a Humvee's got out
+	TransportContain::onCapture( oldOwner, newOwner );
 }
 
 //-------------------------------------------------------------------------------------------------

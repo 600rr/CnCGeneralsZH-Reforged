@@ -5908,6 +5908,16 @@ StateReturnType AIAttackFireWeaponState::update()
 		return STATE_FAILURE;
 	}
 
+	// The victim can leave range between the aim and the shot: a vehicle driving off while Jarmen Kell
+	// turns to snipe it. fireWeaponTemplate then refuses the shot, but the round is already off the
+	// clip, so a one-round ability went on cooldown with nothing hit. Back to aiming instead, which
+	// closes the distance. A contained shooter is left alone, its range comes from a fire point.
+	if (m_att->isAttackingObject() && !weapon->getTemplate()->isLeechRangeWeapon() && !obj->isContained()
+			&& !weapon->isWithinAttackRange(obj, victim))
+	{
+		return STATE_FAILURE;
+	}
+
 	// must adjust the state BEFORE calling fireWeapon, for FX to work correctly...
 	obj->setFiringConditionForCurrentWeapon();
 

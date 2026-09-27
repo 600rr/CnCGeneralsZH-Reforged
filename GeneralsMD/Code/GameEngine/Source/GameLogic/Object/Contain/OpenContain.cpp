@@ -505,26 +505,20 @@ void OpenContain::killAllContained( void )
 //--------------------------------------------------------------------------------------------------------
 void OpenContain::harmAndForceExitAllContained( DamageInfo *info )
 {
-	ContainedItemsList::iterator it = m_containList.begin();
-
- 	while ( it != m_containList.end() )
+	// Everyone is out before anyone is harmed. Harming a rider can bring the container down (a demo
+	// rider's suicide blast), and the container's death then put the riders still inside out without the
+	// damage they were owed. Patch 1.03 restarted the walk after every rider to survive that recursion;
+	// emptying the list first makes the recursion find nothing.
+	std::vector<Object*> exited;
+	while ( !m_containList.empty() )
 	{
-		Object *rider = *it;
+		Object *rider = m_containList.front();
+		removeFromContain( rider, true );
+		exited.push_back( rider );
+	}
 
-		if ( rider )
-		{
-		  removeFromContain( rider, true );
-		  rider->attemptDamage( info );
-		}
-
-		//Kris: Patch 1.03 -- Crash fix when neutral bunker on Alpine Assault is occupied with 10 demo general 
-		//infantry units with the suicide upgrade and US stealth fighters with bunker busters kill the guys inside.
-		//Causes recursive damage where a bunker buster destroys an infantry, the infantry explodes and blows up 
-		//another missile which kills everyone inside while the first missile is killing everyone. And the game blows up.
-		//Fix is to reset the list.
-		it = m_containList.begin();
-
-	}  // end while
+	for ( std::vector<Object*>::iterator it = exited.begin(); it != exited.end(); ++it )
+		(*it)->attemptDamage( info );
 
 
   DEBUG_ASSERTCRASH( m_containListSize == 0, ("harmAndForceExitAllContained just made a booboo, list size != zero.") );

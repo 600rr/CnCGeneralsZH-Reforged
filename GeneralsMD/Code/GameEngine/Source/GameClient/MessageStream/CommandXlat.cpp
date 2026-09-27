@@ -615,7 +615,12 @@ void pickAndPlayUnitVoiceResponse( const DrawableList *list, GameMessage::Type m
 			case GameMessage::MSG_DO_ATTACK_OBJECT:
 			case GameMessage::MSG_DO_WEAPON_AT_OBJECT:
 			{
-				if( !soundToPlayPtr )
+				// The first unit in the selection answered for all of it, even one that cannot shoot the
+				// target: a Chinook grouped with a Humvee called out its combat drop. The voice comes from
+				// a unit that can take the shot; a command-button weapon is judged in its own branch below.
+				const Bool canAnswer = msgType == GameMessage::MSG_DO_WEAPON_AT_OBJECT || target == NULL
+					|| canObjectForceAttack( obj, target, NULL ) != ATTACKRESULT_NOT_POSSIBLE;
+				if( !soundToPlayPtr && canAnswer )
 				{
 					//Low priority sounds -- only do this if uninitialized.
 					if( info && info->m_air )
@@ -929,7 +934,8 @@ void amIAHero(Object* obj, void* heroHolder)
 		return;
 	}
 
-	if (obj->isKindOf( KINDOF_HERO )) 
+	// a hero in his death animation is still on the player's list until the body is removed
+	if (obj->isKindOf( KINDOF_HERO ) && !obj->isEffectivelyDead())
 	{
 		((HeroHolder*)heroHolder)->hero = obj;
 	}

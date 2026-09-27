@@ -2399,7 +2399,9 @@ Object *Team::tryToRecruit(const ThingTemplate *tTemplate, const Coord3D *teamHo
 		if (!teamIsRecruitable) {
 			continue;
 		}
-		if (obj->getAIUpdateInterface() && !obj->getAIUpdateInterface()->isRecruitable()) {
+		// a recruit is sent home or told to stop the moment it joins, so one with no AI to take the
+		// order cannot be recruited: AIPlayer::queueUnits read the missing AI and crashed
+		if (!obj->getAIUpdateInterface() || !obj->getAIUpdateInterface()->isRecruitable()) {
 			continue; // can't recruit this unit.
 		}
 		if( obj->isDisabledByType( DISABLED_HELD ) ) 

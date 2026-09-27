@@ -331,7 +331,10 @@ void WeaponSet::updateWeaponSet(const Object* obj)
 		{
 			if (m_weapons[i] != NULL)
 			{
-				m_weapons[i]->deleteInstance();
+				// Not deleted here: this runs inside the weapon's own fire when the shot kills, the kill
+				// promotes the shooter and the promotion swaps the weapon set (an Angry Mob member on
+				// its way to Veteran).  privateFireWeapon then wrote into the freed Weapon.
+				TheWeaponStore->deleteWeaponLater(m_weapons[i]);
 				m_weapons[i] = NULL;
 			}
 

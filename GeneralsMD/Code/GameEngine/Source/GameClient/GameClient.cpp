@@ -528,6 +528,11 @@ void GameClient::reset( void )
 	// need to reset the in game UI to clear drawables before they are destroyed
 	TheInGameUI->reset();
 
+	// the team keys pressed in the match we are leaving will never land, and the next one counts
+	// its frames from zero again (init attaches no translators without a message stream)
+	if (TheSelectionTranslator)
+		TheSelectionTranslator->forgetPendingSquads();
+
 	// destroy all Drawables
 	for( draw = m_drawableList; draw; draw = nextDraw )
 	{
