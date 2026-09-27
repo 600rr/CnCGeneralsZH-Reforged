@@ -648,7 +648,10 @@ void LocomotorStore::reset()
 		Overridable *locoTemp = it->second->deleteOverrides();
 		if (!locoTemp)
 		{
-			m_locomotorTemplates.erase(it);
+			// a locomotor a map.ini made from nothing goes whole. erase() leaves 'it' dangling, and the
+			// loop went on comparing it - the heap damage that crashed loading a save of such a map,
+			// since every load resets the engine first.
+			it = m_locomotorTemplates.erase(it);
 		}
 		else
 		{
