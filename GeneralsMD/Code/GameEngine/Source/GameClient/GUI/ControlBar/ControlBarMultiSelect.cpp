@@ -182,9 +182,10 @@ void ControlBar::updateMultiSelectStrip( void )
 		return;
 
 	//
-	// the portrait bar's rule, the owner's: the focused type's portrait first and the selected types
-	// after it, and no upgrades, which belong to one unit.  A selection of one type is one cell with
-	// its count.  setPortraitByObject hides the cells, so it goes first
+	// the portrait bar's rule, the owner's: each selected type once, its own tile with its count, and
+	// no upgrades, which belong to one unit.  The portrait is still set to the focused type for the
+	// bar's own bookkeeping, and the page shrinks its window to nothing.  setPortraitByObject hides the
+	// cells, so it goes first
 	//
 	Drawable *focused = TheGameClient->findDrawableByID( m_multiSelectGroupFirst[ m_multiSelectFocus ] );
 	setPortraitByObject( focused ? focused->getObject() : NULL );

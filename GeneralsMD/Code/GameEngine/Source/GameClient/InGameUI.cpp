@@ -11638,27 +11638,32 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	Int rows = 1;
 	while( (Int)tiles.size() > rows * rows * PORTRAIT_PLACES )
 		rows++;
-	// a column of `rows` tiles is one cell wide
-	const Int columns = tiles.empty() ? (Int)upgrades.size() : ( (Int)tiles.size() + rows - 1 ) / rows;
+	// a column of `rows` tiles is one cell wide.  A multi-selection shows each type once, its own tile
+	// with its count, the focused one lit: the portrait of the focused type would be that type again,
+	// so the owner had it taken off and its window is shrunk to nothing
+	const Bool multi = !tiles.empty();
+	const Int columns = multi ? ( (Int)tiles.size() + rows - 1 ) / rows : (Int)upgrades.size();
+	const Int portraitWidth = multi ? 0 : PORTRAIT_WIDTH + CELL_GAP;
 
 	IRegion2D portraitBox;
 	portraitBox.lo.x = commandBox.lo.x;
 	portraitBox.hi.y = centreShown ? centreBox.lo.y - border : foot;
 	portraitBox.lo.y = portraitBox.hi.y - REAL_TO_INT( ( CELL_HEIGHT + CELL_GAP ) * scale );
-	portraitBox.hi.x = portraitBox.lo.x + REAL_TO_INT( ( PORTRAIT_WIDTH + CELL_GAP + columns * ( CELL_WIDTH + CELL_GAP ) ) * scale );
+	portraitBox.hi.x = portraitBox.lo.x + REAL_TO_INT( ( portraitWidth + columns * ( CELL_WIDTH + CELL_GAP ) ) * scale );
 	IRegion2D portraitFrame = framed( portraitBox, border, FALSE, FALSE );
 	portraitFrame.hi.y = centreShown ? centreBox.lo.y : barBottom();
 	putFrame( values, "portrait", portraitBox, portraitFrame, portraitShown );
 	TheControlBar->placeWindowAt( controlBarWindow( "RightHUD" ), portraitBox );
 	TheControlBar->placeWindowAt( controlBarWindow( "WinUnitSelected" ), portraitBox );
 	IRegion2D portraitCell = gridCell( portraitBox, 0, 0, CELL_WIDTH, CELL_HEIGHT );
-	portraitCell.hi.x = portraitCell.lo.x + REAL_TO_INT( PORTRAIT_WIDTH * scale );
+	portraitCell.hi.x = portraitCell.lo.x + ( multi ? 0 : REAL_TO_INT( PORTRAIT_WIDTH * scale ) );
 	TheControlBar->placeWindowAt( portraitWindow, portraitCell );
 	IRegion2D placesBox = portraitBox;
-	placesBox.lo.x = portraitCell.hi.x + REAL_TO_INT( ring * scale );
+	if( !multi )
+		placesBox.lo.x = portraitCell.hi.x + REAL_TO_INT( ring * scale );
 
 	std::vector< HtmlValues > &portraitCells = lists[ "portraitcells" ];
-	if( portraitShown )
+	if( portraitShown && !multi )
 	{
 		HtmlValues entry;
 		putCell( entry, portraitCell, ring, scale );
