@@ -1,9 +1,10 @@
-"""The command bar's attack and hold position cameos, painted in the manner of EA's command cameos
-(SSStop, SSGuard): a sign with a bevelled steel rim and four bolts standing over a painted
-backdrop.  No command set has a button for either order, so the game has no picture for them.
+"""The command bar's attack, hold position and move cameos, painted in the manner of EA's command
+cameos (SSStop, SSGuard): a sign with a bevelled steel rim and four bolts standing over a painted
+backdrop.  No command set has a button for any of these orders, so the game has no picture for them.
 
 Attack is a red plate with a white crosshair over a burning sky, hold position a blue plate with a
-raised palm over a blue one.  Each is painted at four times its size and brought down, which is
+raised palm over a blue one, move a green diamond with a white arrow over an overcast field.  Each
+is painted at four times its size and brought down, which is
 what softens the edges into the look of the shipped art.  The noise is seeded, so the file comes
 out the same every time.
 
@@ -21,8 +22,8 @@ from PIL import Image, ImageDraw, ImageFilter
 
 CAMEO_W, CAMEO_H = 60, 48           # every command cameo in the shipped mapped images
 SUPER = 4                           # painted at this many times the size
-TEXTURE_W, TEXTURE_H = 128, 64
-CAMEO_PLACES = {"attack": (0, 0), "hold": (64, 0)}
+TEXTURE_W, TEXTURE_H = 128, 128
+CAMEO_PLACES = {"attack": (0, 0), "hold": (64, 0), "move": (0, 64)}
 SEED = 20260928
 OUT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Data", "Art", "Textures", "ReforgedOrders.tga")
 
@@ -164,6 +165,22 @@ def hold(rng):
     return image
 
 
+def move(rng):
+    image = backdrop(rng, (96, 112, 104), (176, 184, 160), (214, 218, 206), (46, 52, 34))
+    cx, cy = W / 2, H / 2 - SUPER
+    reach = H * 0.47
+    inset = reach * 0.66
+    cx, cy = plate(image, [(cx, cy - reach), (cx + reach, cy), (cx, cy + reach), (cx - reach, cy)], (40, 150, 60),
+                   [(cx, cy - inset), (cx + inset, cy), (cx, cy + inset), (cx - inset, cy)])
+    # a road sign's arrow, pointing ahead: a shaft and a head, rounded off by the resize
+    draw = ImageDraw.Draw(image)
+    white = (248, 246, 240)
+    scale = reach / 60.0
+    draw.rectangle((cx - 6 * scale, cy - 2 * scale, cx + 6 * scale, cy + 22 * scale), fill=white)
+    draw.polygon([(cx, cy - 25 * scale), (cx + 19 * scale, cy), (cx - 19 * scale, cy)], fill=white)
+    return image
+
+
 def cameo(painted):
     small = painted.resize((CAMEO_W, CAMEO_H), Image.LANCZOS)
     return small.filter(ImageFilter.UnsharpMask(radius=1, percent=60, threshold=2))
@@ -172,7 +189,7 @@ def cameo(painted):
 def texture():
     rng = np.random.default_rng(SEED)
     sheet = Image.new("RGBA", (TEXTURE_W, TEXTURE_H), (0, 0, 0, 0))
-    for name, paint in (("attack", attack), ("hold", hold)):
+    for name, paint in (("attack", attack), ("hold", hold), ("move", move)):
         sheet.paste(cameo(paint(rng)).convert("RGBA"), CAMEO_PLACES[name])
     return sheet
 
@@ -184,11 +201,13 @@ def selfcheck():
         picture = np.asarray(sheet.crop((x, y, x + CAMEO_W, y + CAMEO_H)), dtype=int)
         assert picture[:, :, 3].min() == 255, name       # a whole cameo, no hole in it
         assert picture[:, :, :3].std() > 30, name        # a picture, not a flat fill
-    # red plate on the left, blue on the right: the two read apart at a glance
+    # a red plate, a blue one and a green one: the three read apart at a glance
     attack_mid = np.asarray(sheet.crop((20, 10, 40, 30)), dtype=int)[:, :, :3].mean(axis=(0, 1))
     hold_mid = np.asarray(sheet.crop((64 + 12, 6, 64 + 20, 14)), dtype=int)[:, :, :3].mean(axis=(0, 1))
+    move_side = np.asarray(sheet.crop((17, 64 + 25, 23, 64 + 29)), dtype=int)[:, :, :3].mean(axis=(0, 1))
     assert attack_mid[0] > attack_mid[2], attack_mid
     assert hold_mid[2] > hold_mid[0], hold_mid
+    assert move_side[1] > move_side[0] and move_side[1] > move_side[2], move_side
     assert np.array_equal(np.asarray(texture()), np.asarray(sheet))   # seeded: the same file every time
     print("order_cameos selfcheck ok")
 

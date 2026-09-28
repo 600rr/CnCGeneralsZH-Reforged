@@ -44,10 +44,10 @@
     data-each="commandcells" each {{cell.x}} .y .w .h: the command grid's places that hold a command,
                            six by three, each its key (Q W E R T Y, A S D F G H, Z X C V B N), an
                            empty one left as steel; its cells are a fifth bigger than the others
-    {{attackkey.x}} ...    the attack and hold position places, where the page's own keys stand,
-    {{holdkey.x}} ...      data-click="order:attack" and "order:hold", for a selection that attack
-                           moves; no command set has a button for either.  .key is the key bound
-                           to that place, "A" and "H" as shipped
+    {{attackkey.x}} ...    the attack, hold position and move places, where the page's own keys
+    {{holdkey.x}} ...      stand, data-click="order:attack", "order:hold" and "order:move", for a
+    {{movekey.x}} ...      selection that attack moves; no command set has a button for any of
+                           them.  .key is the key bound to that place, "A", "C" and "V" as shipped
     data-each="portraitcells" the portrait bar's cells, the portrait's first and then only what it
                            holds, each {{cell.x}} .y .w .h
     {{skilltray.x}} ...    the general's powers' tray, a panel as {{centre.x}} is, only as big as the
@@ -261,13 +261,14 @@
   .idle .icon { background-image: url(Icons/IdleWorker.svg); }
   .watching .idle { display: none; }
 
-  /* the command panel's attack and hold position: keys over their places' holes wearing cameos
-     painted for them (Code/Tools/order_cameos.py, the mapped images ReforgedOrderAttack and
-     ReforgedOrderHold), with the game's own lit and pushed overlays over them the way its command
-     buttons wear them */
+  /* the command panel's attack, hold position and move: keys over their places' holes wearing
+     cameos painted for them (Code/Tools/order_cameos.py, the mapped images ReforgedOrderAttack,
+     ReforgedOrderHold and ReforgedOrderMove), with the game's own lit and pushed overlays over them
+     the way its command buttons wear them */
   .order { background-size: 100% 100%; background-repeat: no-repeat; }
   .order.attack { background-image: url(ReforgedOrderAttack); }
   .order.hold { background-image: url(ReforgedOrderHold); }
+  .order.move { background-image: url(ReforgedOrderMove); }
   .order .glow { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background-size: 100% 100%; background-repeat: no-repeat; }
   .order:hover .glow { background-image: url(Cameo_hilited); }
   .held .order:hover .glow { background-image: url(Cameo_push); }
@@ -391,6 +392,7 @@
   <div class="piece commandcell" data-each="portraitcells" style="left: {{cell.x}}px; top: {{cell.y}}px; width: {{cell.w}}px; height: {{cell.h}}px"><div class="edge" style="left: -{{ring}}px; top: -{{ring}}px; right: -{{ring}}px; bottom: -{{ring}}px; border-width: {{ring}}px"></div><div class="bevel"></div></div>
   <div class="piece order attack {{attackkey.shown}}" data-click="order:attack" style="left: {{attackkey.x}}px; top: {{attackkey.y}}px; width: {{attackkey.w}}px; height: {{attackkey.h}}px"><div class="glow"></div><div class="keyname">{{attackkey.key}}</div></div>
   <div class="piece order hold {{holdkey.shown}}" data-click="order:hold" style="left: {{holdkey.x}}px; top: {{holdkey.y}}px; width: {{holdkey.w}}px; height: {{holdkey.h}}px"><div class="glow"></div><div class="keyname">{{holdkey.key}}</div></div>
+  <div class="piece order move {{movekey.shown}}" data-click="order:move" style="left: {{movekey.x}}px; top: {{movekey.y}}px; width: {{movekey.w}}px; height: {{movekey.h}}px"><div class="glow"></div><div class="keyname">{{movekey.key}}</div></div>
 
   <div class="piece frame bezel solid {{skilltray.shown}}" style="left: {{skilltray.x}}px; top: {{skilltray.y}}px; width: {{skilltray.w}}px; height: {{skilltray.h}}px; border-width: {{skilltray.bt}}px {{skilltray.br}}px {{skilltray.bb}}px {{skilltray.bl}}px">
     <div class="steel" style="left: -{{skilltray.bl}}px; right: -{{skilltray.br}}px; top: -{{skilltray.bt}}px; bottom: -{{skilltray.bb}}px"></div>

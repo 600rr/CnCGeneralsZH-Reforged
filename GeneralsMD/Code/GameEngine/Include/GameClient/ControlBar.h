@@ -454,18 +454,27 @@ enum CommandPlace
 	COMMAND_PLACE_EJECT = COMMAND_PLACE_Z,		///< a transport's passengers out, or a building's garrison
 	COMMAND_PLACE_GUARD = COMMAND_PLACE_X,
 	COMMAND_PLACE_HOLD = COMMAND_PLACE_C,
+	COMMAND_PLACE_MOVE = COMMAND_PLACE_V,
 	COMMAND_PLACE_RALLY = COMMAND_PLACE_B,
-	COMMAND_PLACE_SELL = COMMAND_PLACE_N
+	COMMAND_PLACE_SELL = COMMAND_PLACE_N,
+	COMMAND_PLACE_CLEAR_MINES = COMMAND_PLACE_N,	///< a dozer's or worker's
+	COMMAND_PLACE_FAKE_STRUCTURES = COMMAND_PLACE_H,	///< the GLA worker's switch to and from the fakes
+	COMMAND_PLACE_EXPLOSIVE = COMMAND_PLACE_B			///< the Demolition worker's suicide charge
 };
 
+/** The place a command button always stands at by its name, -1 for none: the worker's three, which
+	* share a command type with things that flow.  See ControlBar_commandPlaces. */
+Int ControlBar_namedCommandPlace( const char *buttonName );
+
 /** Where each of `count` command slots stands: `types` is what each slot holds, GUI_COMMAND_NONE for
-	* an empty one, and `places` gets a CommandPlace for each or -1.  Stop, attack move, guard, evacuate,
-	* rally point and sell go to their own places.  A set with an attack move has attack and hold
-	* position too, keys no command set has a button for, so their two places are kept for them; the
-	* return is TRUE then.  Everything else fills the free places in reading order, Q W E R T Y first:
-	* what the set builds (structures, units) in slot order, then the rest - abilities, upgrades,
-	* passengers - in slot order, so a building's upgrades come after its production. */
-Bool ControlBar_commandPlaces( const Int *types, Int count, Int *places );
+	* an empty one, `pinned` a place a slot's button always takes by name or -1, and `places` gets a
+	* CommandPlace for each or -1.  Pinned buttons, stop, attack move, guard, evacuate, rally point and
+	* sell go to their own places.  A set with an attack move has attack, hold position and move too,
+	* keys no command set has a button for, so their places are kept for them; the return is TRUE then.
+	* Everything else is packed toward the top left, Q A W Z S E X D R C F T V G Y B H N, skipping the
+	* places taken: what the set builds (structures, units) in slot order, then the rest - abilities,
+	* upgrades, passengers - in slot order, so a building's upgrades come after its production. */
+Bool ControlBar_commandPlaces( const Int *types, const Int *pinned, Int count, Int *places );
 enum { MAX_RIGHT_HUD_UPGRADE_CAMEOS = 5};
 enum { MAX_MULTI_SELECT_GROUPS = 36 };	///< unit types a multi-selection tells apart (6x6 grid, Tab focus)
 enum { 

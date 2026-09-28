@@ -1307,6 +1307,7 @@ InGameUI::InGameUI()
 	m_attackMoveToMode	= false;
 	m_forceAttackArmed	= false;
 	m_guardArmed				= false;
+	m_moveArmed					= false;
 	m_orderKeyKeptByShift	= false;
 	m_preferSelection		= false;
 	m_isAttackCircling	= FALSE;
@@ -4146,6 +4147,7 @@ void InGameUI::reset( void )
 	m_attackMoveToMode	= false;
 	m_forceAttackArmed	= false;
 	m_guardArmed				= false;
+	m_moveArmed					= false;
 	m_orderKeyKeptByShift	= false;
 	m_preferSelection		= false;
 	m_isAttackCircling	= FALSE;
@@ -11029,13 +11031,16 @@ static void armSignalFromPage( const std::string &kind )
 }
 
 //-------------------------------------------------------------------------------------------------
-/** data-click="order:attack" or "order:hold", the command panel's two orders no command set has a
-	* button for: what the A and H keys do, force fire armed for the next click, and hold position. */
+/** data-click="order:attack", "order:hold" or "order:move", the command panel's orders no command set
+	* has a button for: what the A, C and V keys do, force fire armed for the next click, hold position,
+	* and a move armed for the next click. */
 //-------------------------------------------------------------------------------------------------
 static void orderFromPage( const std::string &order )
 {
 	if( order == "attack" )
 		TheInGameUI->toggleForceAttackArmed();
+	else if( order == "move" )
+		TheInGameUI->toggleMoveArmed();
 	else if( order == "hold" && TheInGameUI->getSelectCount() > 0 )
 	{
 		GameMessage *hold = TheMessageStream->appendMessage( GameMessage::MSG_DO_HOLD_POSITION );
@@ -11561,17 +11566,34 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	putSignalRise( values, nowMs - m_signalsRiseStartMs );
 
 	// the command grid against the radar's panel, six by three, every place its key: the orders in the
-	// owner's places (ControlBar_commandPlaces) and everything else from Q on in reading order, what a
+	// owner's places (ControlBar_commandPlaces) and everything else packed toward the top left, what a
 	// set builds before its abilities and upgrades.  The power bar stands up in its
 	// groove inside the grid's frame, after it, the way the experience bar stands in the radar's.  The
 	// money hangs from the screen's top
 	const IRegion2D commandBox = gridBox( leftBox.hi.x + border, foot, COMMAND_COLUMNS, COMMAND_ROWS,
 																				COMMAND_CELL_WIDTH, COMMAND_CELL_HEIGHT );
+	Int where[ MAX_COMMANDS_PER_SET ];
+	const Bool fights = TheControlBar->getCommandPlaces( where );
+	TheControlBar->labelCommandPlaces( where );
+	Bool taken[ COMMAND_PLACE_COUNT ] = { FALSE };
+	Bool anyCommand = fights;
+	for( Int button = 0; button < COMMAND_BUTTONS; button++ )
+		if( where[ button ] >= 0 )
+			anyCommand = taken[ where[ button ] ] = TRUE;
+	// attack, hold position and move have no button in any command set: the page's keys do what A, C
+	// and V do, for anything that attack moves
+	taken[ COMMAND_PLACE_ATTACK ] = taken[ COMMAND_PLACE_HOLD ] = taken[ COMMAND_PLACE_MOVE ] = fights;
+
+	// with nothing to command, nothing selected, there is no grid and no frame round it, the owner's
+	// call: the power bar keeps its groove where it stands, in a frame of its own that wide
+	const Bool gridShown = centreShown && anyCommand;
 	IRegion2D power = commandBox;
 	power.lo.x = commandBox.hi.x + REAL_TO_INT( EXPERIENCE_GAP * scale );
 	power.hi.x = power.lo.x + REAL_TO_INT( POWER_WIDTH * scale );
 	IRegion2D centreContent = commandBox;
 	centreContent.hi.x = power.hi.x;
+	if( !gridShown )
+		centreContent.lo.x = power.lo.x;
 	const IRegion2D centreBox = framed( centreContent, border, FALSE, FALSE );
 	putFrame( values, "centre", centreContent, centreBox, centreShown );
 	putPowerGroove( values, power, centreShown );
@@ -11583,16 +11605,6 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	const IRegion2D frameRect = windowScreenRect( TheControlBar->getMasterParent() );
 	TheControlBar->placeWindowAt( controlBarWindow( "CenterBackground" ), frameRect );
 	TheControlBar->placeWindowAt( controlBarWindow( "CommandWindow" ), frameRect );
-	Int where[ MAX_COMMANDS_PER_SET ];
-	const Bool fights = TheControlBar->getCommandPlaces( where );
-	TheControlBar->labelCommandPlaces( where );
-	Bool taken[ COMMAND_PLACE_COUNT ] = { FALSE };
-	for( Int button = 0; button < COMMAND_BUTTONS; button++ )
-		if( where[ button ] >= 0 )
-			taken[ where[ button ] ] = TRUE;
-	// attack and hold position have no button in any command set: the page's keys do what A and H do,
-	// for anything that attack moves
-	taken[ COMMAND_PLACE_ATTACK ] = taken[ COMMAND_PLACE_HOLD ] = fights;
 
 	// a cell only for a place a command stands in; an empty one is the panel's steel
 	IRegion2D place[ COMMAND_PLACE_COUNT ];
@@ -11612,8 +11624,10 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 			TheControlBar->placeWindowAt( numberedWindow( "ButtonCommand", button + 1 ), place[ where[ button ] ] );
 	putPageRect( values, "attackkey", place[ COMMAND_PLACE_ATTACK ], centreShown && fights, scale );
 	putPageRect( values, "holdkey", place[ COMMAND_PLACE_HOLD ], centreShown && fights, scale );
+	putPageRect( values, "movekey", place[ COMMAND_PLACE_MOVE ], centreShown && fights, scale );
 	values[ "attackkey.key" ] = commandSlotKey( COMMAND_PLACE_ATTACK );
 	values[ "holdkey.key" ] = commandSlotKey( COMMAND_PLACE_HOLD );
+	values[ "movekey.key" ] = commandSlotKey( COMMAND_PLACE_MOVE );
 
 	// the portrait bar on the command panel, flush with its left edge: the portrait, then a single
 	// unit's upgrades or a multi-selection's types, the owner's rule, and only as long as what it

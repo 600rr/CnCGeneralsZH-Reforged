@@ -179,6 +179,7 @@ static GameMessage::Type orderAtPlace( Int place )
 		case COMMAND_PLACE_ATTACK_MOVE:	return GameMessage::MSG_META_TOGGLE_ATTACKMOVE;
 		case COMMAND_PLACE_GUARD:				return GameMessage::MSG_META_TOGGLE_GUARD;
 		case COMMAND_PLACE_HOLD:				return GameMessage::MSG_META_HOLD_POSITION;
+		case COMMAND_PLACE_MOVE:				return GameMessage::MSG_META_TOGGLE_MOVE;
 	}
 	return GameMessage::MSG_INVALID;
 }
@@ -191,8 +192,32 @@ static Bool isProduction( Int type )
 }
 
 //-------------------------------------------------------------------------------------------------
-Bool ControlBar_commandPlaces( const Int *types, Int count, Int *places )
+Int ControlBar_namedCommandPlace( const char *buttonName )
 {
+	static const struct { const char *name; Int place; } NAMED[] =
+	{
+		{ "Command_DisarmMinesAtPosition",				COMMAND_PLACE_CLEAR_MINES },
+		{ "Command_UpgradeGLAWorkerFakeCommandSet",	COMMAND_PLACE_FAKE_STRUCTURES },
+		{ "Command_UpgradeGLAWorkerRealCommandSet",	COMMAND_PLACE_FAKE_STRUCTURES },
+		{ "Demo_Command_TertiarySuicide",					COMMAND_PLACE_EXPLOSIVE }
+	};
+	for( Int each = 0; each < (Int)ARRAY_SIZE( NAMED ); each++ )
+		if( strcmp( NAMED[ each ].name, buttonName ) == 0 )
+			return NAMED[ each ].place;
+	return -1;
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool ControlBar_commandPlaces( const Int *types, const Int *pinned, Int count, Int *places )
+{
+	// the owner's order of 2026-09-28: down the columns two rows at a time, toward the top left
+	static const Int FILL[ COMMAND_PLACE_COUNT ] =
+	{
+		COMMAND_PLACE_Q, COMMAND_PLACE_A, COMMAND_PLACE_W, COMMAND_PLACE_Z, COMMAND_PLACE_S, COMMAND_PLACE_E,
+		COMMAND_PLACE_X, COMMAND_PLACE_D, COMMAND_PLACE_R, COMMAND_PLACE_C, COMMAND_PLACE_F, COMMAND_PLACE_T,
+		COMMAND_PLACE_V, COMMAND_PLACE_G, COMMAND_PLACE_Y, COMMAND_PLACE_B, COMMAND_PLACE_H, COMMAND_PLACE_N
+	};
+
 	Bool taken[ COMMAND_PLACE_COUNT ] = { FALSE };
 	Bool fights = FALSE;
 	for( Int slot = 0; slot < count; slot++ )
@@ -200,11 +225,11 @@ Bool ControlBar_commandPlaces( const Int *types, Int count, Int *places )
 		places[ slot ] = -1;
 		fights = fights || types[ slot ] == GUI_COMMAND_ATTACK_MOVE;
 	}
-	taken[ COMMAND_PLACE_ATTACK ] = taken[ COMMAND_PLACE_HOLD ] = fights;
+	taken[ COMMAND_PLACE_ATTACK ] = taken[ COMMAND_PLACE_HOLD ] = taken[ COMMAND_PLACE_MOVE ] = fights;
 
 	for( Int slot = 0; slot < count; slot++ )
 	{
-		const Int place = fixedCommandPlace( types[ slot ] );
+		const Int place = pinned[ slot ] >= 0 ? pinned[ slot ] : fixedCommandPlace( types[ slot ] );
 		if( place >= 0 && !taken[ place ] )
 		{
 			places[ slot ] = place;
@@ -212,7 +237,8 @@ Bool ControlBar_commandPlaces( const Int *types, Int count, Int *places )
 		}
 	}
 
-	// production first, then the rest, each into the first free place in reading order
+	// production first, then the rest: a factory whose set opens on an upgrade still puts its units
+	// on Q A W before the upgrade
 	for( Int pass = 0; pass < 2; pass++ )
 	{
 		const Bool wantProduction = ( pass == 0 );
@@ -220,12 +246,12 @@ Bool ControlBar_commandPlaces( const Int *types, Int count, Int *places )
 		{
 			if( places[ slot ] >= 0 || types[ slot ] == GUI_COMMAND_NONE || isProduction( types[ slot ] ) != wantProduction )
 				continue;
-			for( Int place = 0; place < COMMAND_PLACE_COUNT; place++ )
+			for( Int each = 0; each < COMMAND_PLACE_COUNT; each++ )
 			{
-				if( !taken[ place ] )
+				if( !taken[ FILL[ each ] ] )
 				{
-					places[ slot ] = place;
-					taken[ place ] = TRUE;
+					places[ slot ] = FILL[ each ];
+					taken[ FILL[ each ] ] = TRUE;
 					break;
 				}
 			}
@@ -238,14 +264,16 @@ Bool ControlBar_commandPlaces( const Int *types, Int count, Int *places )
 Bool ControlBar::getCommandPlaces( Int *places ) const
 {
 	Int types[ MAX_COMMANDS_PER_SET ];
+	Int pinned[ MAX_COMMANDS_PER_SET ];
 	for( Int slot = 0; slot < MAX_COMMANDS_PER_SET; slot++ )
 	{
 		GameWindow *window = m_commandWindows[ slot ];
 		const CommandButton *command = ( window && !BitTest( window->winGetStatus(), WIN_STATUS_HIDDEN ) )
 																	 ? (const CommandButton *)GadgetButtonGetData( window ) : NULL;
 		types[ slot ] = command ? command->getCommandType() : GUI_COMMAND_NONE;
+		pinned[ slot ] = command ? ControlBar_namedCommandPlace( command->getName().str() ) : -1;
 	}
-	return ControlBar_commandPlaces( types, MAX_COMMANDS_PER_SET, places );
+	return ControlBar_commandPlaces( types, pinned, MAX_COMMANDS_PER_SET, places );
 }
 
 //-------------------------------------------------------------------------------------------------

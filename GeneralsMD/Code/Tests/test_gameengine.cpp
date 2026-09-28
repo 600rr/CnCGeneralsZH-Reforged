@@ -3079,94 +3079,102 @@ TEST(controlbar_command_places_follow_the_owners_drawing)
 	enum { SLOTS = 14 };
 	Int places[ SLOTS ];
 	const Int N = GUI_COMMAND_NONE;
+	const Int C = GUI_COMMAND_DOZER_CONSTRUCT;
+	const Int nothingPinned[ SLOTS ] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
 
-	/* AmericaDozerCommandSet: structures in slots 1 to 9, 11 and 13, disarm mines in 14.  Nothing
-	   has a place of its own, so the structures fill the places in reading order and the disarm, an
-	   ability, comes after them */
-	const Int dozer[ SLOTS ] = { GUI_COMMAND_DOZER_CONSTRUCT, GUI_COMMAND_DOZER_CONSTRUCT, GUI_COMMAND_DOZER_CONSTRUCT,
-		GUI_COMMAND_DOZER_CONSTRUCT, GUI_COMMAND_DOZER_CONSTRUCT, GUI_COMMAND_DOZER_CONSTRUCT, GUI_COMMAND_DOZER_CONSTRUCT,
-		GUI_COMMAND_DOZER_CONSTRUCT, GUI_COMMAND_DOZER_CONSTRUCT, N, GUI_COMMAND_DOZER_CONSTRUCT, N,
-		GUI_COMMAND_DOZER_CONSTRUCT, GUI_COMMAND_FIRE_WEAPON };
-	CHECK( !ControlBar_commandPlaces( dozer, SLOTS, places ) );
-	CHECK_EQ( places[ 0 ], (Int)COMMAND_PLACE_Q );
-	CHECK_EQ( places[ 5 ], (Int)COMMAND_PLACE_Y );
-	CHECK_EQ( places[ 6 ], (Int)COMMAND_PLACE_A );
-	CHECK_EQ( places[ 8 ], (Int)COMMAND_PLACE_D );
-	CHECK_EQ( places[ 9 ], -1 );
-	CHECK_EQ( places[ 10 ], (Int)COMMAND_PLACE_F );
-	CHECK_EQ( places[ 12 ], (Int)COMMAND_PLACE_G );
-	CHECK_EQ( places[ 13 ], (Int)COMMAND_PLACE_H );
+	/* AmericaDozerCommandSet: structures in slots 1 to 9, 11 and 13, disarm mines in 14.  The disarm
+	   is pinned to N by its button's name; the eleven structures pack toward the top left in the
+	   owner's order, Q A W Z S E X D R C F */
+	const Int dozer[ SLOTS ] = { C, C, C, C, C, C, C, C, C, N, C, N, C, GUI_COMMAND_FIRE_WEAPON };
+	Int dozerPinned[ SLOTS ];
+	memcpy( dozerPinned, nothingPinned, sizeof( dozerPinned ) );
+	dozerPinned[ 13 ] = ControlBar_namedCommandPlace( "Command_DisarmMinesAtPosition" );
+	CHECK( !ControlBar_commandPlaces( dozer, dozerPinned, SLOTS, places ) );
+	const Int dozerPlaces[ SLOTS ] = { COMMAND_PLACE_Q, COMMAND_PLACE_A, COMMAND_PLACE_W, COMMAND_PLACE_Z,
+		COMMAND_PLACE_S, COMMAND_PLACE_E, COMMAND_PLACE_X, COMMAND_PLACE_D, COMMAND_PLACE_R, -1, COMMAND_PLACE_C, -1,
+		COMMAND_PLACE_F, COMMAND_PLACE_N };
+	for( Int slot = 0; slot < SLOTS; slot++ )
+		CHECK_EQ( places[ slot ], dozerPlaces[ slot ] );
 
 	/* AmericaVehicleHumveeCommandSet: three drones, five passengers, evacuate, attack move, guard,
 	   stop.  The orders take the owner's places whatever slot they were in - stop S, attack move D,
-	   eject Z, guard X - and A and C are kept for attack and hold position; the drones fill the top
-	   row and the passengers run on into F G */
+	   eject Z, guard X - and A, C and V are kept for attack, hold position and move; the drones and
+	   passengers take what is left in the owner's order, Q W E R F T G Y */
 	const Int humvee[ SLOTS ] = { GUI_COMMAND_OBJECT_UPGRADE, GUI_COMMAND_OBJECT_UPGRADE, GUI_COMMAND_OBJECT_UPGRADE,
 		GUI_COMMAND_EXIT_CONTAINER, GUI_COMMAND_EXIT_CONTAINER, GUI_COMMAND_EXIT_CONTAINER, GUI_COMMAND_EXIT_CONTAINER,
 		GUI_COMMAND_EXIT_CONTAINER, GUI_COMMAND_EVACUATE, N, GUI_COMMAND_ATTACK_MOVE, N, GUI_COMMAND_GUARD, GUI_COMMAND_STOP };
-	CHECK( ControlBar_commandPlaces( humvee, SLOTS, places ) );
-	CHECK_EQ( places[ 0 ], (Int)COMMAND_PLACE_Q );
-	CHECK_EQ( places[ 5 ], (Int)COMMAND_PLACE_Y );
-	CHECK_EQ( places[ 6 ], (Int)COMMAND_PLACE_F );
-	CHECK_EQ( places[ 7 ], (Int)COMMAND_PLACE_G );
-	CHECK_EQ( places[ 8 ], (Int)COMMAND_PLACE_Z );
-	CHECK_EQ( places[ 10 ], (Int)COMMAND_PLACE_D );
-	CHECK_EQ( places[ 12 ], (Int)COMMAND_PLACE_X );
-	CHECK_EQ( places[ 13 ], (Int)COMMAND_PLACE_S );
+	CHECK( ControlBar_commandPlaces( humvee, nothingPinned, SLOTS, places ) );
+	const Int humveePlaces[ SLOTS ] = { COMMAND_PLACE_Q, COMMAND_PLACE_W, COMMAND_PLACE_E, COMMAND_PLACE_R,
+		COMMAND_PLACE_F, COMMAND_PLACE_T, COMMAND_PLACE_G, COMMAND_PLACE_Y, COMMAND_PLACE_Z, -1, COMMAND_PLACE_D, -1,
+		COMMAND_PLACE_X, COMMAND_PLACE_S };
+	for( Int slot = 0; slot < SLOTS; slot++ )
+		CHECK_EQ( places[ slot ], humveePlaces[ slot ] );
 
 	/* ChinaCommandCenterCommandSet: a dozer to build, seven powers, two upgrades, rally, sell.  Rally
-	   stands on B and sell on N whatever slot they were in; the dozer first, then the rest in order */
+	   stands on B and sell on N whatever slot they were in; the dozer first on Q, then the rest */
 	const Int centre[ SLOTS ] = { GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_SPECIAL_POWER,
 		GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_SPECIAL_POWER,
 		GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_OBJECT_UPGRADE, GUI_COMMAND_OBJECT_UPGRADE, N, N,
 		GUI_COMMAND_SET_RALLY_POINT, GUI_COMMAND_SELL };
-	CHECK( !ControlBar_commandPlaces( centre, SLOTS, places ) );
-	CHECK_EQ( places[ 0 ], (Int)COMMAND_PLACE_Q );
-	CHECK_EQ( places[ 1 ], (Int)COMMAND_PLACE_W );
-	CHECK_EQ( places[ 6 ], (Int)COMMAND_PLACE_A );
-	CHECK_EQ( places[ 9 ], (Int)COMMAND_PLACE_F );
-	CHECK_EQ( places[ 12 ], (Int)COMMAND_PLACE_B );
-	CHECK_EQ( places[ 13 ], (Int)COMMAND_PLACE_N );
+	CHECK( !ControlBar_commandPlaces( centre, nothingPinned, SLOTS, places ) );
+	const Int centrePlaces[ SLOTS ] = { COMMAND_PLACE_Q, COMMAND_PLACE_A, COMMAND_PLACE_W, COMMAND_PLACE_Z,
+		COMMAND_PLACE_S, COMMAND_PLACE_E, COMMAND_PLACE_X, COMMAND_PLACE_D, COMMAND_PLACE_R, COMMAND_PLACE_C, -1, -1,
+		COMMAND_PLACE_B, COMMAND_PLACE_N };
+	for( Int slot = 0; slot < SLOTS; slot++ )
+		CHECK_EQ( places[ slot ], centrePlaces[ slot ] );
 
 	/* a factory whose set opens on an upgrade, nine units after it, a garrison, rally and sell: the
-	   units take Q W E R T Y and A S D, the upgrade comes after them on F, the garrison's evacuate is
-	   Z like a transport's */
+	   units take Q A W S E X D R C, round the garrison's evacuate on Z, and the upgrade comes after
+	   them on F.  Without production first the upgrade would have taken Q */
 	const Int factory[ SLOTS ] = { GUI_COMMAND_OBJECT_UPGRADE, GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_UNIT_BUILD,
 		GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_UNIT_BUILD,
 		GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_EVACUATE, N,
 		GUI_COMMAND_SET_RALLY_POINT, GUI_COMMAND_SELL };
-	CHECK( !ControlBar_commandPlaces( factory, SLOTS, places ) );
-	CHECK_EQ( places[ 1 ], (Int)COMMAND_PLACE_Q );
-	CHECK_EQ( places[ 6 ], (Int)COMMAND_PLACE_Y );
-	CHECK_EQ( places[ 7 ], (Int)COMMAND_PLACE_A );
-	CHECK_EQ( places[ 9 ], (Int)COMMAND_PLACE_D );
-	CHECK_EQ( places[ 0 ], (Int)COMMAND_PLACE_F );
-	CHECK_EQ( places[ 10 ], (Int)COMMAND_PLACE_Z );
-	CHECK_EQ( places[ 12 ], (Int)COMMAND_PLACE_B );
-	CHECK_EQ( places[ 13 ], (Int)COMMAND_PLACE_N );
+	CHECK( !ControlBar_commandPlaces( factory, nothingPinned, SLOTS, places ) );
+	const Int factoryPlaces[ SLOTS ] = { COMMAND_PLACE_F, COMMAND_PLACE_Q, COMMAND_PLACE_A, COMMAND_PLACE_W,
+		COMMAND_PLACE_S, COMMAND_PLACE_E, COMMAND_PLACE_X, COMMAND_PLACE_D, COMMAND_PLACE_R, COMMAND_PLACE_C,
+		COMMAND_PLACE_Z, -1, COMMAND_PLACE_B, COMMAND_PLACE_N };
+	for( Int slot = 0; slot < SLOTS; slot++ )
+		CHECK_EQ( places[ slot ], factoryPlaces[ slot ] );
 
-	/* the biggest set there is, the Boss general's dozer, fourteen structures: every one gets a place
-	   and no two share one */
-	Int boss[ SLOTS ];
+	/* Demo_GLAWorkerCommandSet, the fullest worker: ten structures, the suicide charge, the switch to
+	   the fakes and disarm mines.  The three are pinned by name to B, H and N, and the structures pack
+	   Q A W Z S E X D R C */
+	const Int worker[ SLOTS ] = { C, C, C, C, C, C, C, C, C, C, GUI_COMMAND_FIRE_WEAPON, N,
+		GUI_COMMAND_OBJECT_UPGRADE, GUI_COMMAND_FIRE_WEAPON };
+	Int workerPinned[ SLOTS ];
+	memcpy( workerPinned, nothingPinned, sizeof( workerPinned ) );
+	workerPinned[ 10 ] = ControlBar_namedCommandPlace( "Demo_Command_TertiarySuicide" );
+	workerPinned[ 12 ] = ControlBar_namedCommandPlace( "Command_UpgradeGLAWorkerFakeCommandSet" );
+	workerPinned[ 13 ] = ControlBar_namedCommandPlace( "Command_DisarmMinesAtPosition" );
+	CHECK( !ControlBar_commandPlaces( worker, workerPinned, SLOTS, places ) );
+	const Int workerPlaces[ SLOTS ] = { COMMAND_PLACE_Q, COMMAND_PLACE_A, COMMAND_PLACE_W, COMMAND_PLACE_Z,
+		COMMAND_PLACE_S, COMMAND_PLACE_E, COMMAND_PLACE_X, COMMAND_PLACE_D, COMMAND_PLACE_R, COMMAND_PLACE_C,
+		COMMAND_PLACE_B, -1, COMMAND_PLACE_H, COMMAND_PLACE_N };
 	for( Int slot = 0; slot < SLOTS; slot++ )
-		boss[ slot ] = GUI_COMMAND_DOZER_CONSTRUCT;
-	ControlBar_commandPlaces( boss, SLOTS, places );
-	Bool taken[ COMMAND_PLACE_COUNT ] = { FALSE };
+		CHECK_EQ( places[ slot ], workerPlaces[ slot ] );
+
+	// the fake set's switch back stands where the switch to it stood, and a name the table lacks has no place
+	CHECK_EQ( ControlBar_namedCommandPlace( "Command_UpgradeGLAWorkerRealCommandSet" ), (Int)COMMAND_PLACE_H );
+	CHECK_EQ( ControlBar_namedCommandPlace( "Command_ConstructGLABarracks" ), -1 );
+
+	/* the biggest set there is, the Boss general's dozer, fourteen structures: every one gets a place,
+	   no two share one, and they run the owner's order to G */
+	const Int boss[ SLOTS ] = { C, C, C, C, C, C, C, C, C, C, C, C, C, C };
+	ControlBar_commandPlaces( boss, nothingPinned, SLOTS, places );
+	const Int bossPlaces[ SLOTS ] = { COMMAND_PLACE_Q, COMMAND_PLACE_A, COMMAND_PLACE_W, COMMAND_PLACE_Z,
+		COMMAND_PLACE_S, COMMAND_PLACE_E, COMMAND_PLACE_X, COMMAND_PLACE_D, COMMAND_PLACE_R, COMMAND_PLACE_C,
+		COMMAND_PLACE_F, COMMAND_PLACE_T, COMMAND_PLACE_V, COMMAND_PLACE_G };
 	for( Int slot = 0; slot < SLOTS; slot++ )
-	{
-		CHECK( places[ slot ] >= 0 && places[ slot ] < COMMAND_PLACE_COUNT );
-		if( places[ slot ] < 0 || places[ slot ] >= COMMAND_PLACE_COUNT )
-			continue;
-		CHECK( !taken[ places[ slot ] ] );
-		taken[ places[ slot ] ] = TRUE;
-	}
+		CHECK_EQ( places[ slot ], bossPlaces[ slot ] );
 }
 
 /* CommandMapReforged.ini binds COMMAND_SLOTnn to the key of place nn - 1: the grid reads Q W E R T Y,
    A S D F G H, Z X C V B N, so a place's key is where the owner put it on 2026-09-28 - a unit's attack
-   on A, stop on S, attack move on D, eject on Z, guard on X, hold on C; a building's sell on N, rally
-   point on B and evacuate on Z.  No other record may hold one of those letters bare, or it comes
-   first in the list and steals the key. */
+   on A, stop on S, attack move on D, eject on Z, guard on X, hold on C, move on V; a building's sell
+   on N, rally point on B and evacuate on Z; a worker's disarm on N, its fakes on H and the Demolition
+   worker's charge on B.  No other record may hold one of those letters bare, or it comes first in the
+   list and steals the key. */
 TEST(the_command_grid_keys_are_the_places_and_n_sells_and_b_rallies)
 {
 	FILE *fp = fopen( COMMAND_MAP_REFORGED_INI, "rb" );
@@ -3188,27 +3196,52 @@ TEST(the_command_grid_keys_are_the_places_and_n_sells_and_b_rallies)
 	CHECK_EQ( GRID_KEYS[ COMMAND_PLACE_EJECT ], 'Z' );
 	CHECK_EQ( GRID_KEYS[ COMMAND_PLACE_GUARD ], 'X' );
 	CHECK_EQ( GRID_KEYS[ COMMAND_PLACE_HOLD ], 'C' );
+	CHECK_EQ( GRID_KEYS[ COMMAND_PLACE_MOVE ], 'V' );
 	CHECK_EQ( GRID_KEYS[ COMMAND_PLACE_RALLY ], 'B' );
 	CHECK_EQ( GRID_KEYS[ COMMAND_PLACE_SELL ], 'N' );
+	CHECK_EQ( GRID_KEYS[ COMMAND_PLACE_CLEAR_MINES ], 'N' );
+	CHECK_EQ( GRID_KEYS[ COMMAND_PLACE_FAKE_STRUCTURES ], 'H' );
+	CHECK_EQ( GRID_KEYS[ COMMAND_PLACE_EXPLOSIVE ], 'B' );
+	CHECK_EQ( GRID_KEYS[ ControlBar_namedCommandPlace( "Command_DisarmMinesAtPosition" ) ], 'N' );
+	CHECK_EQ( GRID_KEYS[ ControlBar_namedCommandPlace( "Command_UpgradeGLAWorkerFakeCommandSet" ) ], 'H' );
+	CHECK_EQ( GRID_KEYS[ ControlBar_namedCommandPlace( "Demo_Command_TertiarySuicide" ) ], 'B' );
 
-	// and the command types that land there, whatever slot of their set they sit in
+	// a set of nothing but flowing commands fills the grid in the owner's order of 2026-09-28
+	static const char FILL_KEYS[] = "QAWZSEXDRCFTVGYBHN";
+	Int flowing[ COMMAND_PLACE_COUNT ];
+	Int unpinned[ COMMAND_PLACE_COUNT ];
+	Int filled[ COMMAND_PLACE_COUNT ];
+	for( Int slot = 0; slot < COMMAND_PLACE_COUNT; slot++ )
+	{
+		flowing[ slot ] = GUI_COMMAND_SPECIAL_POWER;
+		unpinned[ slot ] = -1;
+	}
+	CHECK( !ControlBar_commandPlaces( flowing, unpinned, COMMAND_PLACE_COUNT, filled ) );
+	for( Int slot = 0; slot < COMMAND_PLACE_COUNT; slot++ )
+		CHECK_EQ( GRID_KEYS[ filled[ slot ] ], FILL_KEYS[ slot ] );
+
+	// and the command types that land there, whatever slot of their set they sit in.  A unit that
+	// attack moves keeps A, C and V for the page's attack, hold and move keys: its first flowing
+	// command is Q and its second W
 	enum { SLOTS = 8 };
 	const Int unit[ SLOTS ] = { GUI_COMMAND_STOP, GUI_COMMAND_GUARD, GUI_COMMAND_EVACUATE, GUI_COMMAND_ATTACK_MOVE,
-		GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_NONE, GUI_COMMAND_NONE, GUI_COMMAND_NONE };
+		GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_NONE, GUI_COMMAND_NONE };
 	Int places[ SLOTS ];
-	CHECK( ControlBar_commandPlaces( unit, SLOTS, places ) );
+	CHECK( ControlBar_commandPlaces( unit, unpinned, SLOTS, places ) );
 	CHECK_EQ( GRID_KEYS[ places[ 0 ] ], 'S' );
 	CHECK_EQ( GRID_KEYS[ places[ 1 ] ], 'X' );
 	CHECK_EQ( GRID_KEYS[ places[ 2 ] ], 'Z' );
 	CHECK_EQ( GRID_KEYS[ places[ 3 ] ], 'D' );
 	CHECK_EQ( GRID_KEYS[ places[ 4 ] ], 'Q' );
+	CHECK_EQ( GRID_KEYS[ places[ 5 ] ], 'W' );
 	const Int building[ SLOTS ] = { GUI_COMMAND_SELL, GUI_COMMAND_SET_RALLY_POINT, GUI_COMMAND_EVACUATE,
-		GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_NONE, GUI_COMMAND_NONE, GUI_COMMAND_NONE, GUI_COMMAND_NONE };
-	CHECK( !ControlBar_commandPlaces( building, SLOTS, places ) );
+		GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_NONE, GUI_COMMAND_NONE, GUI_COMMAND_NONE };
+	CHECK( !ControlBar_commandPlaces( building, unpinned, SLOTS, places ) );
 	CHECK_EQ( GRID_KEYS[ places[ 0 ] ], 'N' );
 	CHECK_EQ( GRID_KEYS[ places[ 1 ] ], 'B' );
 	CHECK_EQ( GRID_KEYS[ places[ 2 ] ], 'Z' );
 	CHECK_EQ( GRID_KEYS[ places[ 3 ] ], 'Q' );
+	CHECK_EQ( GRID_KEYS[ places[ 4 ] ], 'A' );
 
 	// every block as name, key and modifiers
 	Int slotsBound = 0;

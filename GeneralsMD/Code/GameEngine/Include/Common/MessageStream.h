@@ -300,6 +300,7 @@ public:
 		MSG_META_TOGGLE_FORCEATTACK,								///< arm force fire for the next order click (fork)
 		MSG_META_HOLD_POSITION,											///< hold position: guard in place, no pursuit (fork)
 		MSG_META_TOGGLE_GUARD,											///< arm guard for the next order click or drag (fork)
+		MSG_META_TOGGLE_MOVE,												///< arm a plain move for the next order click or drag (fork)
 		MSG_META_TOGGLE_PAUSE,											///< pause/unpause, single player and replay only (fork)
 		MSG_META_TOGGLE_PURCHASE_SCIENCE,						///< open/close the general's promotion screen (fork)
 		

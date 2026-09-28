@@ -3543,6 +3543,12 @@ GameMessageDisposition CommandTranslator::translateGameMessage(const GameMessage
 			break;
 
 		//-----------------------------------------------------------------------------------------
+		// the move key: the next order click, or a left drag, is the move a right click would give
+		case GameMessage::MSG_META_TOGGLE_MOVE:
+			TheInGameUI->toggleMoveArmed( );
+			break;
+
+		//-----------------------------------------------------------------------------------------
 		// the general's promotion screen. It is one click away on the stars button and nowhere on
 		// the keyboard, which is the wrong way round for something you open the moment a promotion
 		// lands - and the star only flashes until you look at it.
