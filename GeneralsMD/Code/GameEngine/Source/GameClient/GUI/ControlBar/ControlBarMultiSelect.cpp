@@ -182,21 +182,14 @@ void ControlBar::updateMultiSelectStrip( void )
 		return;
 
 	//
-	// a selection of one unit type reads like a single selection: its portrait, upgrade
-	// cameos and all, with how many are selected written on the portrait
+	// the portrait bar's rule, the owner's: the focused type's portrait first and the selected types
+	// after it, and no upgrades, which belong to one unit.  A selection of one type is one cell with
+	// its count.  setPortraitByObject hides the cells, so it goes first
 	//
-	if( m_multiSelectGroupCount == 1 )
-	{
-		Drawable *draw = TheGameClient->findDrawableByID( m_multiSelectGroupFirst[ 0 ] );
-		Object *obj = draw ? draw->getObject() : NULL;
-		setPortraitByObject( obj );		// also hides the grid cells
-		if( obj )
-			GadgetButtonSetCount( m_rightHUDCameoWindow, m_multiSelectGroupSize[ 0 ] );
-		return;
-	}
-
-	// the grid replaces the portrait while a mixed multi-selection is up
-	setPortraitByObject( NULL );
+	Drawable *focused = TheGameClient->findDrawableByID( m_multiSelectGroupFirst[ m_multiSelectFocus ] );
+	setPortraitByObject( focused ? focused->getObject() : NULL );
+	for( Int upgrade = 0; upgrade < MAX_RIGHT_HUD_UPGRADE_CAMEOS; upgrade++ )
+		m_rightHUDUpgradeCameos[ upgrade ]->winHide( TRUE );
 
 	// one cell per selected type with its count; the focused type is the lit one, the rest
 	// wear the darkened overlay state

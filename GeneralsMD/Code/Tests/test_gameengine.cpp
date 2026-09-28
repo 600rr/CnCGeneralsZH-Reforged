@@ -3090,6 +3090,66 @@ TEST(controlbar_promotion_columns_map_to_the_screens_three_rows)
 	CHECK_EQ( seen8, (1 << MAX_PURCHASE_SCIENCE_RANK_8) - 1 );
 }
 
+TEST(controlbar_command_places_follow_the_owners_drawing)
+{
+	enum { SLOTS = 14 };
+	Int places[ SLOTS ];
+	const Int N = GUI_COMMAND_NONE;
+
+	/* AmericaDozerCommandSet: structures in slots 1 to 9, 11 and 13, disarm mines in 14.  The first
+	   eight go to the Q bar at their slot, the rest to the W bar at their slot less eight, which is
+	   the place the structure chord's second key names; the disarm is an ability on the top row */
+	const Int dozer[ SLOTS ] = { GUI_COMMAND_DOZER_CONSTRUCT, GUI_COMMAND_DOZER_CONSTRUCT, GUI_COMMAND_DOZER_CONSTRUCT,
+		GUI_COMMAND_DOZER_CONSTRUCT, GUI_COMMAND_DOZER_CONSTRUCT, GUI_COMMAND_DOZER_CONSTRUCT, GUI_COMMAND_DOZER_CONSTRUCT,
+		GUI_COMMAND_DOZER_CONSTRUCT, GUI_COMMAND_DOZER_CONSTRUCT, N, GUI_COMMAND_DOZER_CONSTRUCT, N,
+		GUI_COMMAND_DOZER_CONSTRUCT, GUI_COMMAND_FIRE_WEAPON };
+	ControlBar_commandPlaces( dozer, SLOTS, places );
+	CHECK_EQ( places[ 0 ], (Int)COMMAND_PLACE_Q );
+	CHECK_EQ( places[ 7 ], COMMAND_PLACE_Q + 7 );
+	CHECK_EQ( places[ 8 ], (Int)COMMAND_PLACE_W );
+	CHECK_EQ( places[ 10 ], COMMAND_PLACE_W + 2 );
+	CHECK_EQ( places[ 12 ], COMMAND_PLACE_W + 4 );
+	CHECK_EQ( places[ 9 ], -1 );
+	CHECK_EQ( places[ 13 ], (Int)COMMAND_PLACE_SKILL );
+
+	/* AmericaVehicleHumveeCommandSet: three drones, five passengers, evacuate, attack move, guard,
+	   stop.  The orders take their own places whatever slot they were in; the passengers go to the Q
+	   bar by slot and the drones along the top */
+	const Int humvee[ SLOTS ] = { GUI_COMMAND_OBJECT_UPGRADE, GUI_COMMAND_OBJECT_UPGRADE, GUI_COMMAND_OBJECT_UPGRADE,
+		GUI_COMMAND_EXIT_CONTAINER, GUI_COMMAND_EXIT_CONTAINER, GUI_COMMAND_EXIT_CONTAINER, GUI_COMMAND_EXIT_CONTAINER,
+		GUI_COMMAND_EXIT_CONTAINER, GUI_COMMAND_EVACUATE, N, GUI_COMMAND_ATTACK_MOVE, N, GUI_COMMAND_GUARD, GUI_COMMAND_STOP };
+	ControlBar_commandPlaces( humvee, SLOTS, places );
+	CHECK_EQ( places[ 0 ], COMMAND_PLACE_SKILL + 0 );
+	CHECK_EQ( places[ 2 ], COMMAND_PLACE_SKILL + 2 );
+	CHECK_EQ( places[ 3 ], COMMAND_PLACE_Q + 3 );
+	CHECK_EQ( places[ 8 ], (Int)COMMAND_PLACE_EJECT );
+	CHECK_EQ( places[ 10 ], (Int)COMMAND_PLACE_ATTACK_MOVE );
+	CHECK_EQ( places[ 12 ], (Int)COMMAND_PLACE_GUARD );
+	CHECK_EQ( places[ 13 ], (Int)COMMAND_PLACE_STOP );
+
+	/* ChinaCommandCenterCommandSet: a dozer to build, seven powers, two upgrades, rally, sell.  Past
+	   the top row's five the rest spill into the worker bars' free places, and nothing lands on the
+	   places kept for orders */
+	const Int centre[ SLOTS ] = { GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_SPECIAL_POWER,
+		GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_SPECIAL_POWER,
+		GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_OBJECT_UPGRADE, GUI_COMMAND_OBJECT_UPGRADE, N, N,
+		GUI_COMMAND_SET_RALLY_POINT, GUI_COMMAND_SELL };
+	ControlBar_commandPlaces( centre, SLOTS, places );
+	CHECK_EQ( places[ 0 ], (Int)COMMAND_PLACE_Q );
+	CHECK_EQ( places[ 5 ], COMMAND_PLACE_SKILL + 4 );
+	CHECK_EQ( places[ 6 ], COMMAND_PLACE_Q + 1 );
+	CHECK_EQ( places[ 13 ], COMMAND_PLACE_Q + 6 );
+	Bool taken[ COMMAND_PLACE_COUNT ] = { FALSE };
+	for( Int slot = 0; slot < SLOTS; slot++ )
+	{
+		if( places[ slot ] < 0 )
+			continue;
+		CHECK( !taken[ places[ slot ] ] );
+		CHECK( places[ slot ] < COMMAND_PLACE_SKILLS || places[ slot ] >= COMMAND_PLACE_Q );
+		taken[ places[ slot ] ] = TRUE;
+	}
+}
+
 TEST(controlbar_seconds_round_up_and_never_reach_zero_early)
 {
 	/* nothing left is the only thing that reads as no number at all */

@@ -1651,7 +1651,6 @@ struct ControlBarPanelPlacement
 	Real designX, designY, designW, designH;
 	Int placedX, placedY, placedW, placedH;
 	Int slideApplied;			///< how far down applyPanelSlide has actually moved this one, in pixels
-	ICoord2D inset;				///< how far insetPlacedWindow has put it inside the placed rectangle, each way, in pixels
 };
 typedef std::map< GameWindow *, ControlBarPanelPlacement > ControlBarPanelPlacementMap;
 static ControlBarPanelPlacementMap theControlBarPlacement;
@@ -2036,13 +2035,9 @@ void ControlBar::placeInPanel( GameWindow *win, Int panel,
 	win->winGetPosition( &rel.x, &rel.y );
 	win->winGetSize( &size.x, &size.y );
 
-	// a window insetPlacedWindow put inside its place is read as the whole place, or every rebuild
-	// would take the inset for what it was authored at and shrink it again
 	ControlBarPanelPlacement &place = theControlBarPlacement[ win ];
-	size.x += 2 * place.inset.x;
-	size.y += 2 * place.inset.y;
-	const Int oldX = oldParentX + rel.x - place.inset.x;
-	const Int oldY = oldParentY + rel.y - place.inset.y;
+	const Int oldX = oldParentX + rel.x;
+	const Int oldY = oldParentY + rel.y;
 
 	if( place.known == FALSE || oldX != place.placedX || oldY != place.placedY ||
 			size.x != place.placedW || size.y != place.placedH )
@@ -2111,7 +2106,6 @@ void ControlBar::placeInPanel( GameWindow *win, Int panel,
 	place.panel = panel;
 	place.weHid = FALSE;
 	place.slideApplied = 0;
-	place.inset.x = place.inset.y = 0;
 	place.placedX = newX;
 	place.placedY = newY;
 	place.placedW = newW;
@@ -2161,43 +2155,99 @@ Int ControlBar::getPanelSlideOffset( Int panel ) const
 }
 
 //-------------------------------------------------------------------------------------------------
-void ControlBar::insetPlacedWindow( GameWindow *window, const ICoord2D &inset )
-{
-	ControlBarPanelPlacement &place = theControlBarPlacement.find( window )->second;
-	if( place.inset.x == inset.x && place.inset.y == inset.y )
-		return;
-
-	// where placeInPanel put it in its parent, which the parent carries with it wherever it goes
-	const ControlBarPanelPlacement &parent = theControlBarPlacement.find( window->winGetParent() )->second;
-	window->winSetPosition( place.placedX - parent.placedX + inset.x, place.placedY - parent.placedY + inset.y );
-	window->winSetSize( place.placedW - 2 * inset.x, place.placedH - 2 * inset.y );
-	place.inset = inset;
-}
-
-ICoord2D ControlBar::getPlacedInset( GameWindow *window ) const
-{
-	return theControlBarPlacement.find( window )->second.inset;
-}
-
-//-------------------------------------------------------------------------------------------------
 /** A window moved without its place moving was read by the next layoutPanels as moved by somebody
 	* else, in the loader's stretched space, and its size taken back through the loader's scale: the
 	* command grid, lowered to the bottom edge, came out three quarters as wide after a watcher's
-	* selection rebuilt the bar, and the promotion screen measures its cells off it. */
+	* selection rebuilt the bar.  The children keep their own places, since they stay where they
+	* stood on screen. */
 //-------------------------------------------------------------------------------------------------
-static void lowerPlaces( GameWindow *window, Int shift )
+void ControlBar::placeWindowAt( GameWindow *window, const IRegion2D &rect )
 {
-	theControlBarPlacement.find( window )->second.placedY += shift;
-	for( GameWindow *child = window->winGetChild(); child; child = child->winGetNext() )
-		lowerPlaces( child, shift );
-}
+	ICoord2D screen, size;
+	window->winGetScreenPosition( &screen.x, &screen.y );
+	window->winGetSize( &size.x, &size.y );
+	const Int dx = rect.lo.x - screen.x;
+	const Int dy = rect.lo.y - screen.y;
+	const Int width = rect.hi.x - rect.lo.x;
+	const Int height = rect.hi.y - rect.lo.y;
+	if( dx == 0 && dy == 0 && size.x == width && size.y == height )
+		return;
 
-void ControlBar::lowerPlacedWindow( GameWindow *window, Int shift )
-{
 	Int x = 0, y = 0;
 	window->winGetPosition( &x, &y );
-	window->winSetPosition( x, y + shift );
-	lowerPlaces( window, shift );
+	window->winSetPosition( x + dx, y + dy );
+	window->winSetSize( width, height );
+	for( GameWindow *child = window->winGetChild(); child; child = child->winGetNext() )
+	{
+		child->winGetPosition( &x, &y );
+		child->winSetPosition( x - dx, y - dy );
+	}
+
+	// a window made in code, a multi-selection's cell, has no place until the next layoutPanels
+	// gives it one, and that one reads it as first seen whatever is written here
+	ControlBarPanelPlacement &place = theControlBarPlacement[ window ];
+	place.placedX += dx;
+	place.placedY += dy;
+	place.placedW = width;
+	place.placedH = height;
+}
+
+//-------------------------------------------------------------------------------------------------
+void ControlBar_commandPlaces( const Int *types, Int count, Int *places )
+{
+	enum { CHORD_GROUP = 8 };
+	Bool taken[ COMMAND_PLACE_COUNT ] = { FALSE };
+	for( Int slot = 0; slot < count; slot++ )
+		places[ slot ] = -1;
+
+	// the orders every unit shares, each at its own place
+	for( Int slot = 0; slot < count; slot++ )
+	{
+		Int place = -1;
+		switch( types[ slot ] )
+		{
+			case GUI_COMMAND_STOP:									place = COMMAND_PLACE_STOP; break;
+			case GUI_COMMAND_ATTACK_MOVE:						place = COMMAND_PLACE_ATTACK_MOVE; break;
+			case GUI_COMMAND_GUARD:
+			case GUI_COMMAND_GUARD_WITHOUT_PURSUIT:
+			case GUI_COMMAND_GUARD_FLYING_UNITS_ONLY:	place = COMMAND_PLACE_GUARD; break;
+			case GUI_COMMAND_EVACUATE:							place = COMMAND_PLACE_EJECT; break;
+		}
+		if( place >= 0 && !taken[ place ] )
+		{
+			places[ slot ] = place;
+			taken[ place ] = TRUE;
+		}
+	}
+
+	// what a builder, a factory or a transport lists, in the worker bars at its slot's place in its
+	// chord group: the structure chord's second key is that place
+	for( Int slot = 0; slot < count && slot < 2 * CHORD_GROUP; slot++ )
+	{
+		const Int type = types[ slot ];
+		if( places[ slot ] >= 0 ||
+				( type != GUI_COMMAND_DOZER_CONSTRUCT && type != GUI_COMMAND_UNIT_BUILD && type != GUI_COMMAND_EXIT_CONTAINER ) )
+			continue;
+		places[ slot ] = ( slot < CHORD_GROUP ? COMMAND_PLACE_Q : COMMAND_PLACE_W ) + slot % CHORD_GROUP;
+		taken[ places[ slot ] ] = TRUE;
+	}
+
+	// the rest along the top row, then wherever the worker bars have room
+	for( Int slot = 0; slot < count; slot++ )
+	{
+		if( places[ slot ] >= 0 || types[ slot ] == GUI_COMMAND_NONE )
+			continue;
+		for( Int place = COMMAND_PLACE_SKILL; place < COMMAND_PLACE_COUNT; place++ )
+		{
+			const Bool spare = place < COMMAND_PLACE_SKILLS || place >= COMMAND_PLACE_Q;
+			if( spare && !taken[ place ] )
+			{
+				places[ slot ] = place;
+				taken[ place ] = TRUE;
+				break;
+			}
+		}
+	}
 }
 
 //-------------------------------------------------------------------------------------------------

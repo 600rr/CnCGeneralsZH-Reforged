@@ -420,6 +420,32 @@ enum { CTRL_SHIFT_BUILD_QUEUE_COUNT = 100 };
 Int getBuildBatchCount( void );
 
 enum { MAX_COMMANDS_PER_SET = 18 };  // user interface max is 14 (but internally it's 18 for script only buttons!)
+
+/** The places the bar's page lays a command set out in: the command panel's three rows and the two
+	* worker bars.  See ControlBar_commandPlaces. */
+enum CommandPlace
+{
+	COMMAND_PLACE_SKILL = 0,						///< the command panel's top row, the unit's own abilities and upgrades
+	COMMAND_PLACE_SKILLS = 5,
+	COMMAND_PLACE_ATTACK = 5,						///< its second row: attack, stop, attack move
+	COMMAND_PLACE_STOP,
+	COMMAND_PLACE_ATTACK_MOVE,
+	COMMAND_PLACE_EJECT,								///< its third row: eject, seek shelter, guard, hold position
+	COMMAND_PLACE_SHELTER,
+	COMMAND_PLACE_GUARD,
+	COMMAND_PLACE_HOLD,
+	COMMAND_PLACE_Q,										///< the Q worker bar, one place for each slot of the Q structure chord
+	COMMAND_PLACE_W = COMMAND_PLACE_Q + 8,	///< the W worker bar, the W chord's
+	COMMAND_PLACE_COUNT = COMMAND_PLACE_W + 8
+};
+
+/** Where each of `count` command slots stands: `types` is what each slot holds, GUI_COMMAND_NONE for
+	* an empty one, and `places` gets a CommandPlace for each or -1.  A stop, an attack move, a guard
+	* and an evacuate go to their own places; a structure, a unit to build and a passenger's exit go to
+	* the worker bars by slot, the first eight to Q and the rest to W, where the structure chord's keys
+	* find them; everything else runs along the top row in slot order and spills into the worker bars'
+	* free places. */
+void ControlBar_commandPlaces( const Int *types, Int count, Int *places );
 enum { MAX_RIGHT_HUD_UPGRADE_CAMEOS = 5};
 enum { MAX_MULTI_SELECT_GROUPS = 36 };	///< unit types a multi-selection tells apart (6x6 grid, Tab focus)
 enum { 
@@ -1045,15 +1071,13 @@ public:
 		* shown, each in its place. */
 	Int placeSpecialPowerShortcutGrid( const ICoord2D *corner, const ICoord2D &cell, Int gap );
 
-	/** Puts one of the bar's windows `inset` pixels inside the rectangle layoutPanels gave it, across
-		* on both sides and down on both, or outside it where the inset is less than nought; nought gives
-		* it the rectangle back.  A rebuild of the layout reads the window as that rectangle. */
-	void insetPlacedWindow( GameWindow *window, const ICoord2D &inset );
-	ICoord2D getPlacedInset( GameWindow *window ) const;	///< what insetPlacedWindow last put it in by
-	/** Moves one of the bar's windows `shift` pixels down, and the places layoutPanels recorded for it
-		* and everything inside it with it, so a rebuild of the layout reads it as placed there. */
-	void lowerPlacedWindow( GameWindow *window, Int shift );
+	/** Puts one of the bar's windows on `rect`, screen pixels, and leaves its children standing where
+		* they were on screen.  The place layoutPanels recorded for it moves with it, so a rebuild of the
+		* layout reads the window as put there and not as moved in the loader's stretched space. */
+	void placeWindowAt( GameWindow *window, const IRegion2D &rect );
 	GameWindow *getSpecialPowerShortcutParent( void ) { return m_specialPowerShortcutParent; }
+	/// a multi-selection's type cells, one a selected type, shown or hidden; see updateMultiSelectStrip
+	const std::vector< GameWindow * > &getMultiSelectTiles( void ) const { return m_multiSelectTiles; }
 
 	/// the general's stars are asking to be spent, so the button blinks; see getStarImage
 	Bool isGeneralStarFlashing( void ) const { return m_genStarFlash; }
