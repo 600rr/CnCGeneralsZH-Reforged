@@ -547,11 +547,72 @@ void AIPlayer::checkForSupplyCenter( BuildListInfo *info, Object *bldg )
 	}
 }
 
+/** A warehouse with boxes left, not an enemy's, within reach of this supply center. */
+static Bool hasSuppliesNear( Player *player, const Object *supplyCenter )
+{
+	Coord3D center = *supplyCenter->getPosition();
+	Real radius = SUPPLY_CENTER_CLOSE_DIST + supplyCenter->getGeometryInfo().getBoundingCircleRadius();
+
+	PartitionFilterAcceptByKindOf f1(MAKE_KINDOF_MASK(KINDOF_SUPPLY_SOURCE), KINDOFMASK_NONE);
+	PartitionFilterPlayer f2(player, false);	// Only find other.
+	PartitionFilterOnMap filterMapStatus;
+
+	PartitionFilter *filters[] = { &f1, &f2, &filterMapStatus, 0 };
+
+	Object *supplySource = ThePartitionManager->getClosestObject(&center, radius, FROM_BOUNDINGSPHERE_2D, filters);
+	if (!supplySource) {
+		return FALSE;
+	}
+	static const NameKeyType key_warehouseUpdate = NAMEKEY("SupplyWarehouseDockUpdate");
+	SupplyWarehouseDockUpdate *warehouseModule = (SupplyWarehouseDockUpdate*)supplySource->findUpdateModule( key_warehouseUpdate );
+	if( warehouseModule )	{
+		if (warehouseModule->getBoxesStored()*TheGlobalData->m_baseValuePerSupplyBox <= 0) return FALSE;
+		if( player->getRelationship(supplySource->getTeam()) == ENEMIES ) return FALSE;
+	}
+	return TRUE;
+}
+
+struct IdleTruckSearch
+{
+	Player *player;
+	const Object *center;
+	Object *truck;
+};
+
+static void considerIdleTruck( Object *obj, void *userData )
+{
+	IdleTruckSearch *search = (IdleTruckSearch *)userData;
+	if( search->truck || !obj->isKindOf( KINDOF_HARVESTER ) || obj->isEffectivelyDead() || obj->isContained() || obj->getAI() == NULL )
+		return;
+	AIUpdateInterface *ai = obj->getAI();
+	SupplyTruckAIInterface *truckAI = ai->getSupplyTruckAIInterface();
+	if( truckAI == NULL || !ai->isIdle() )
+		return;
+	DozerAIInterface *dozerAI = ai->getDozerAIInterface();
+	if( dozerAI && dozerAI->isAnyTaskPending() )
+		return;		// a GLA worker between jobs
+	const Object *dock = TheGameLogic->findObjectByID( truckAI->getPreferredDockID() );
+	if( dock && dock != search->center && hasSuppliesNear( search->player, dock ) )
+		return;		// its own center still has boxes to fetch
+	search->truck = obj;
+}
+
+/** A truck of this player's standing about with nothing to fetch. */
+static Object *findIdleTruck( Player *player, const Object *center )
+{
+	IdleTruckSearch search;
+	search.player = player;
+	search.center = center;
+	search.truck = NULL;
+	player->iterateObjects( considerIdleTruck, &search );
+	return search.truck;
+}
+
 // ------------------------------------------------------------------------------------------------
 /** Queue up a supply truck to be built. */
 // ------------------------------------------------------------------------------------------------
 void AIPlayer::queueSupplyTruck( void )
-{			
+{
 	Bool truckInQueue = false;
 	for ( DLINK_ITERATOR<TeamInQueue> iter = iterate_TeamBuildQueue(); !iter.done(); iter.advance())
 	{
@@ -610,28 +671,8 @@ void AIPlayer::queueSupplyTruck( void )
 					continue; // don't consider rebuild holes.
 				}
 				// Make sure we have a supplies near it.
-				Coord3D center = *supplyCenter->getPosition();
-				Real radius = SUPPLY_CENTER_CLOSE_DIST + supplyCenter->getGeometryInfo().getBoundingCircleRadius();
-
-				PartitionFilterAcceptByKindOf f1(MAKE_KINDOF_MASK(KINDOF_SUPPLY_SOURCE), KINDOFMASK_NONE);
-				PartitionFilterPlayer f2(m_player, false);	// Only find other.
-				PartitionFilterOnMap filterMapStatus;
-
-				PartitionFilter *filters[] = { &f1, &f2, &filterMapStatus, 0 };
-
-				Object *supplySource = ThePartitionManager->getClosestObject(&center, radius, FROM_BOUNDINGSPHERE_2D, filters);
-				if (!supplySource) {
-					// No supplies.
+				if (!hasSuppliesNear(m_player, supplyCenter)) {
 					continue;
-				}
-				static const NameKeyType key_warehouseUpdate = NAMEKEY("SupplyWarehouseDockUpdate");
-				SupplyWarehouseDockUpdate *warehouseModule = (SupplyWarehouseDockUpdate*)supplySource->findUpdateModule( key_warehouseUpdate );
-				if( warehouseModule )	{	 
-					Int availableCash = warehouseModule->getBoxesStored()*TheGlobalData->m_baseValuePerSupplyBox;
-					if (availableCash<=0) continue;
-					if( m_player->getRelationship(supplySource->getTeam()) == ENEMIES ) {
-						continue;
-					}
 				}
 				// Ok, it has supplies available near it.
 				checkForSupplyCenter(info, supplyCenter);
@@ -708,6 +749,23 @@ void AIPlayer::queueSupplyTruck( void )
 							}
 						}
 					}
+				}
+			}
+			/* A truck whose pile ran dry regroups at the nearest supply center, which is its own dry one,
+				 and looks again only as far as its scan reaches, so the trucks of a picked-clean pile stood
+				 round it for the rest of the match while this center bought new ones, three times what it
+				 wanted: a Hard China kept nine trucks, eight of them idle, from frame 5000 on. An idle one
+				 comes here first, and a center with nothing beside it gets no truck at all. */
+			Object *center = TheGameLogic->findObjectByID(info->getObjectID());
+			if (center && !center->isKindOf(KINDOF_REBUILD_HOLE)) {
+				if (!hasSuppliesNear(m_player, center)) {
+					continue;
+				}
+				Object *idleTruck = findIdleTruck(m_player, center);
+				if (idleTruck) {
+					info->setCurrentGatherers(max(info->getCurrentGatherers(), 0) + 1);
+					idleTruck->getAI()->aiDock(center, CMD_FROM_PLAYER);	// from the player, so it stays his preferred dock (see above)
+					return;
 				}
 			}
 			if (totalHarvesters >= desiredGatherers*3) {
@@ -880,6 +938,24 @@ static Bool isBuildSearchWalkable( Int cellX, Int cellY, const Coord3D *worldPos
 }
 
 // ------------------------------------------------------------------------------------------------
+/** The entry's spot cannot take the building.  The base builder takes the first priority entry on
+	* the list and nothing else that pass, so an entry that fails the same way every pass stops the
+	* whole base: a Hard GLA's Scud Storm flooded 7,406 cells, found nothing, and flooded again for
+	* 17,000 frames while 40,000 sat in the bank and nine buildings waited behind it.  A priority
+	* entry is a one-off request, and whoever asked for it places it again with a fresh search, so
+	* it is blanked: every walk of the build list skips an entry with no template, and the base
+	* builder takes a priority entry whatever its rebuild count says.  An entry of the map's own plan
+	* waits out the rebuild delay and lets the rest of the list go first. */
+// ------------------------------------------------------------------------------------------------
+static void giveUpOnSpot( BuildListInfo *info )
+{
+	if( info->isPriorityBuild() )
+		info->setTemplateName( AsciiString::TheEmptyString );
+	else
+		info->setObjectTimestamp( TheGameLogic->getFrame() + 1 );
+}
+
+// ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 Object *AIPlayer::buildStructureWithDozer(const ThingTemplate *bldgPlan, BuildListInfo *info)
 {
@@ -930,6 +1006,7 @@ Object *AIPlayer::buildStructureWithDozer(const ThingTemplate *bldgPlan, BuildLi
 																								 dozer, m_player ) != LBC_OK ) {
 		// If there's enemy units or structures, don't build/rebuild.
 		TheTerrainVisual->removeAllBibs();	// isLocationLegalToBuild adds bib feedback, turn it off.  jba.
+		giveUpOnSpot(info);
 		return NULL;
 	}
 
@@ -962,8 +1039,8 @@ Object *AIPlayer::buildStructureWithDozer(const ThingTemplate *bldgPlan, BuildLi
 				 When nothing fits, EA settled for the original spot, checked with
 				 NO_ENEMY_OBJECT_OVERLAP alone. That option skips every structure that is not an
 				 enemy's, the AI's own buildings included, and it is how a base grew buildings inside
-				 buildings. No spot now means no building this pass; the next pass floods again with
-				 whatever has been sold or destroyed since. */
+				 buildings. No spot now means no building from this entry: giveUpOnSpot drops it or
+				 sets it aside, so the rest of the list is not held behind it. */
 			static const Int NEIGHBOURS[8][2] = { {1,0}, {-1,0}, {0,1}, {0,-1}, {1,1}, {-1,1}, {1,-1}, {-1,-1} };
 			const Int searchRadius = isSkirmishAI() ? SKIRMISH_BUILD_SEARCH_CELLS : BUILD_SEARCH_CELLS;
 			const Int searchWidth = 2*searchRadius + 1;
@@ -1028,6 +1105,8 @@ Object *AIPlayer::buildStructureWithDozer(const ThingTemplate *bldgPlan, BuildLi
 				TheTerrainVisual->removeAllBibs();	// isLocationLegalToBuild adds bib feedback
 				if (searchUnfinished) {
 					m_buildDelay = 1;		// try again next frame; doBaseBuilding leaves any value >= 1 alone
+				} else {
+					giveUpOnSpot(info);
 				}
 				return NULL;
 			}
@@ -2771,6 +2850,45 @@ void AIPlayer::buildUpgrade(const AsciiString &upgrade)
 	return;
 }
 
+/** Defenses buildBySupplies puts beside one warehouse. */
+static const Int MAX_DEFENSES_PER_WAREHOUSE = 2;
+
+struct OwnedNearCount
+{
+	const ThingTemplate *tmpl;
+	Coord3D at;
+	Real radiusSqr;
+	Int count;
+};
+
+static void countOwnedNearObject( Object *obj, void *userData )
+{
+	OwnedNearCount *search = (OwnedNearCount *)userData;
+	if( !obj->isEffectivelyDead() && obj->getTemplate()->isEquivalentTo( search->tmpl ) &&
+			sqr( obj->getPosition()->x - search->at.x ) + sqr( obj->getPosition()->y - search->at.y ) <= search->radiusSqr )
+		++search->count;
+}
+
+/** This player's copies of a building within radius of a point: standing, going up, or asked for
+	* and waiting for a dozer. */
+static Int countOwnedNear( Player *player, const ThingTemplate *tmpl, const Coord3D *at, Real radius )
+{
+	OwnedNearCount search;
+	search.tmpl = tmpl;
+	search.at = *at;
+	search.radiusSqr = radius * radius;
+	search.count = 0;
+	player->iterateObjects( countOwnedNearObject, &search );
+	for( BuildListInfo *info = player->getBuildList(); info; info = info->getNext() )
+	{
+		if( info->isPriorityBuild() && info->isBuildable() && info->getObjectID() == INVALID_ID &&
+				info->getTemplateName() == tmpl->getName() &&
+				sqr( info->getLocation()->x - at->x ) + sqr( info->getLocation()->y - at->y ) <= search.radiusSqr )
+			++search.count;
+	}
+	return search.count;
+}
+
 // ------------------------------------------------------------------------------------------------
 /** Build a supply center near a supply source with minimumCash or more resources. */
 // ------------------------------------------------------------------------------------------------
@@ -2785,6 +2903,13 @@ void AIPlayer::buildBySupplies(Int minimumCash, const AsciiString& thingName)
 		Object *curWarehouse = TheGameLogic->findObjectByID(m_curWarehouseID);
 		if (curWarehouse) {
 			bestSupplyWarehouse = curWarehouse;
+		}
+		// Every call aims at the same spot beside the warehouse and the wiggle below takes the nearest
+		// free ground to it, so each defense the scripts asked for went up against the last one: a
+		// Hard China stood nine Gattling cannons shoulder to shoulder at one pile.
+		if (bestSupplyWarehouse && countOwnedNear(m_player, tTemplate, bestSupplyWarehouse->getPosition(),
+				SUPPLY_CENTER_CLOSE_DIST + bestSupplyWarehouse->getGeometryInfo().getBoundingCircleRadius()) >= MAX_DEFENSES_PER_WAREHOUSE) {
+			return;
 		}
 	}
 
@@ -5227,7 +5352,19 @@ void AIPlayer::buildAsap( const ThingTemplate *tmpl )
 		spot.x -= dir.x * m_baseRadius * POWER_SETBACK;
 		spot.y -= dir.y * m_baseRadius * POWER_SETBACK;
 	}
-	placeNear( tmpl, &spot, 0.0f );
+	if( placeNear( tmpl, &spot, 0.0f ) )
+		return;
+
+	/* A superweapon's footprint rarely fits one of placeNear's two dozen tries in a grown base, so the
+		 request goes down behind the base anyway and the dozer's flood search looks for the room.  A
+		 base with none floods seven thousand cells for nothing, and giveUpOnSpot drops the request, so
+		 it is only put down every sixth check: asked every check, one Hard GLA spent 3,687 frames of a
+		 match flooding for a Scud Storm with the rest of its base waiting behind it. */
+	const Int FLOOD_EVERY_CHECKS = 6;
+	if( (TheGameLogic->getFrame() / SUPERWEAPON_CHECK_RATE) % FLOOD_EVERY_CHECKS != 0 )
+		return;
+	spot.z = 0;
+	m_player->addToPriorityBuildList( tmpl->getName(), &spot, tmpl->getPlacementViewAngle() );
 }
 
 //----------------------------------------------------------------------------------------------------------
