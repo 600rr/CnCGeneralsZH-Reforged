@@ -2,10 +2,10 @@
 <!--
   The command bar's frame, drawn where its three plates used to be, and the bar's own buttons, laid
   out the way the owner drew them on 2026-09-28 (docs/plans/HUD-REDESIGN.md): the radar in the
-  bottom left corner with the experience bar beside it, the command grid with the portrait bar on
-  it and the power bar standing up after it; over the radar the idle
-  worker's key on the skills key on the under-attack light, and the smoke signals; the money at the
-  screen's top.  Laid out at ControlBarHudScale(), 70 percent of the uniform scale the tooltips and
+  bottom left corner with the experience bar beside it, the command grid with the power bar lying
+  along its top and the money on the power bar's left end, the portrait bar after the grid on the
+  screen's bottom edge; over the radar the idle worker's key on the skills key on the under-attack
+  light, and the smoke signals.  Laid out at ControlBarHudScale(), 70 percent of the uniform scale the tooltips and
   the boards use.  The command buttons, the radar, the money and the
   portrait are still the bar's windows and paint over this page.  The under-attack light, the power
   bar and the experience bar are the page's to draw: their windows take the clicks and draw
@@ -29,10 +29,10 @@
     {{power.fill}}         the power bar: production as a percent of the bar, on the bar's own
     {{power.needle}}       logarithmic scale, consumption as the same ({{power.consumes}} "hidden"
                            while it is nought), and {{power.state}} "green",
-                           "yellow" or "red"; the watched player's while watching.  The bar stands
-                           up: {{power.needley}} is the needle's place in pixels down the groove
-    data-each="powercells" the same production as 20 cells from the bottom, each {{lit}} "lit" up to
-                           it, standing at {{y}} pixels inside the frame's lip, {{h}} tall, {{segh}}
+                           "yellow" or "red"; the watched player's while watching.  The bar lies
+                           flat: {{power.needlex}} is the needle's place in pixels along the groove
+    data-each="powercells" the same production as 20 cells from the left, each {{lit}} "lit" up to
+                           it, standing at {{x}} pixels inside the frame's lip, {{w}} wide, {{segw}}
                            without its black line
     {{expframe.x}} ...     the experience bar's groove beside the radar, .w and .h its inside,
                            {{expframe.innerw}} the width inside its lip; data-each="expcells" its
@@ -69,16 +69,16 @@
                            {{panelN.shown}} is "hidden" when a minimised bar has stood it down
     {{left.x}} .y .w .h    the panels, each a container and a border outside it: .x and .y the
     {{centre.x}} ...       border's outer corner, .w and .h the container, exactly what it holds (the
-    {{portrait.x}} ...     radar and the experience bar; the command grid and the power groove; the
-                           portrait bar's), and .bt .br .bb .bl the border's four widths, out to the
+    {{powerpanel.x}} ...   radar and the experience bar; the command grid; the power groove; the
+    {{portrait.x}} ...     portrait bar's), and .bt .br .bb .bl the border's four widths, out to the
                            screen's edge on the sides against it
     {{alerttab.x}} ...     the under-attack light, a tab on the radar panel's top edge at its left
     {{skillstab.x}} ...    hand end, and on it the skills key: the rank's stars, pressed through
                            data-click="press:ButtonGeneral" for the promotion screen
     {{idletab.x}} ...      the idle worker's key in a tab on the skills key
-    {{powerframe.x}} ...   the power bar's groove inside the command grid's frame, after the grid;
-                           {{powerframe.inner}} the width inside the frame and its lip
-    {{moneyplate.x}} ...   the money's plate hanging from the screen's top edge in its middle, and
+    {{powerframe.x}} ...   the power bar's groove in its panel over the command grid's frame;
+                           {{powerframe.inner}} the height inside the frame and its lip
+    {{moneyplate.x}} ...   the money's plate standing on the power panel's left end, and
     {{moneyblock.x}} ...   the dark well in it the money's window is moved into
     {{Name.x}} .y .w .h    the rectangle of the bar's window Name, {{Name.shown}} "shown" or "hidden"
                            and {{Name.state}} any of "disabled", "hilite", "pushed", for LeftHUD (the
@@ -162,12 +162,9 @@
   .china .commandcell .bevel { border-bottom-color: #d98a72; border-right-color: #d98a72; }
   .gla .commandcell .bevel { border-bottom-color: #cbbf82; border-right-color: #cbbf82; }
 
-  /* the money's plate hanging from the screen's top edge, the money's well sunk in it.  The money's
+  /* the money's plate standing on the power bar's panel, the money's well sunk in it.  The money's
      figure is the bar's own window over its well */
   .stack { box-sizing: border-box; margin: 0; }
-  .moneyplate .steel { background: linear-gradient(to bottom, #7d8691, #b0b8c1); }
-  .china .moneyplate .steel { background: linear-gradient(to bottom, #9a4331, #cf8068); }
-  .gla .moneyplate .steel { background: linear-gradient(to bottom, #8f8249, #c8bc84); }
   .moneywell { background-color: #020405; }
   .moneywell .lip { position: absolute; left: 0; top: 0; right: 0; bottom: 0; border: 1px solid #06090b;
                     border-bottom-color: #b4bec8; border-right-color: #b4bec8; }
@@ -185,27 +182,27 @@
      left a gap under it */
   .groove.stack { margin: 0; }
 
-  /* the power bar is the page's: a column of cells up the groove, lit from the bottom up to the
+  /* the power bar is the page's: a row of cells along the groove, lit from the left up to the
      production in the power bar's own green, yellow or red, a black line between every two, and the
      consumption a white needle across them.  Full is every cell, lip to lip */
-  /* the column's width is the frame's inside, {{powerframe.inner}}, written in: a percentage of a
-     width set by left and right does not resolve here, and the cells came out with none */
-  .cells { position: absolute; left: 1px; top: 1px; bottom: 1px; }
-  /* each cell stands at its own {{y}} and {{h}} in pixels, and the gap is the inner block's margin:
+  /* the row's height is the frame's inside, {{powerframe.inner}}, written in: a percentage of a
+     height set by top and bottom does not resolve here, and the cells came out with none */
+  .cells { position: absolute; left: 1px; top: 1px; right: 1px; }
+  /* each cell stands at its own {{x}} and {{w}} in pixels, and the gap is the inner block's margin:
      a percentage of an absolutely placed box does not resolve here at all */
-  .cells .cell { position: absolute; left: 0; }
-  .cells .seg { margin-top: 1px; background-color: #0d1512; background-size: 100% 100%; background-repeat: no-repeat; }
+  .cells .cell { position: absolute; top: 0; }
+  .cells .seg { margin-left: 1px; background-color: #0d1512; background-size: 100% 100%; background-repeat: no-repeat; }
   .cells .lit .seg { background-image: url(PowerBarGreen); }
   .cells.yellow .lit .seg { background-image: url(PowerBarYellow); }
   .cells.red .lit .seg { background-image: url(PowerBarRed); }
-  /* the needle is a gauge pointer through the whole groove at {{power.needley}} pixels down: a white
-     stem outlined in black so it reads on a lit cell as well as a dark one, capped left and right
+  /* the needle is a gauge pointer through the whole groove at {{power.needlex}} pixels in: a white
+     stem outlined in black so it reads on a lit cell as well as a dark one, capped top and bottom
      where it crosses the groove's edges.  It stands after the lip so the lip does not cut it */
-  .needle { position: absolute; left: -2px; right: -2px; height: 4px; margin-top: -1px; background-color: #000000; }
+  .needle { position: absolute; top: -2px; bottom: -2px; width: 4px; margin-left: -1px; background-color: #000000; }
   .needle .stem { position: absolute; left: 1px; right: 1px; top: 1px; bottom: 1px; background-color: #f4f6f8; }
-  .needle .cap { position: absolute; top: -1px; width: 1px; height: 4px; border: 1px solid #000000; background-color: #f4f6f8; }
-  .needle .head { left: -1px; }
-  .needle .foot { right: -1px; }
+  .needle .cap { position: absolute; left: -1px; width: 4px; height: 1px; border: 1px solid #000000; background-color: #f4f6f8; }
+  .needle .head { top: -1px; }
+  .needle .foot { bottom: -1px; }
   .china .groove { border-bottom-color: #d98a72; border-right-color: #d98a72; }
   .gla .groove { border-bottom-color: #cbbf82; border-right-color: #cbbf82; }
 
@@ -363,22 +360,27 @@
     <div class="shade" style="right: -{{centre.br}}px; top: -{{centre.bt}}px; bottom: -{{centre.bb}}px"></div>
     <div class="sunk grid" style="width: {{centre.w}}px; height: {{centre.h}}px"></div>
   </div>
-  <!-- the power bar standing up in its groove at the command grid's right, the way the experience
-       bar stands beside the radar -->
+  <!-- the power bar lying in its groove on a panel of its own along the command grid's top -->
+  <div class="piece frame bezel solid {{powerpanel.shown}}" style="left: {{powerpanel.x}}px; top: {{powerpanel.y}}px; width: {{powerpanel.w}}px; height: {{powerpanel.h}}px; border-width: {{powerpanel.bt}}px {{powerpanel.br}}px {{powerpanel.bb}}px {{powerpanel.bl}}px">
+    <div class="steel" style="left: -{{powerpanel.bl}}px; right: -{{powerpanel.br}}px; top: -{{powerpanel.bt}}px; bottom: -{{powerpanel.bb}}px"></div>
+    <div class="shine" style="left: -{{powerpanel.bl}}px; right: -{{powerpanel.br}}px; top: -{{powerpanel.bt}}px"></div>
+    <div class="lit" style="left: -{{powerpanel.bl}}px; top: -{{powerpanel.bt}}px; bottom: -{{powerpanel.bb}}px"></div>
+    <div class="shade" style="right: -{{powerpanel.br}}px; top: -{{powerpanel.bt}}px; bottom: -{{powerpanel.bb}}px"></div>
+  </div>
   <div class="piece groove solid stack {{powerframe.shown}}" style="left: {{powerframe.x}}px; top: {{powerframe.y}}px; width: {{powerframe.w}}px; height: {{powerframe.h}}px">
-    <div class="cells {{power.state}}" style="width: {{powerframe.inner}}px"><div class="cell {{lit}}" data-each="powercells" style="top: {{y}}px; height: {{h}}px; width: {{powerframe.inner}}px"><div class="seg" style="width: {{powerframe.inner}}px; height: {{segh}}px"></div></div></div>
+    <div class="cells {{power.state}}" style="height: {{powerframe.inner}}px"><div class="cell {{lit}}" data-each="powercells" style="left: {{x}}px; width: {{w}}px; height: {{powerframe.inner}}px"><div class="seg" style="height: {{powerframe.inner}}px; width: {{segw}}px"></div></div></div>
     <div class="lip"></div>
-    <div class="needle {{power.consumes}}" style="top: {{power.needley}}px"><div class="stem"></div><div class="cap head"></div><div class="cap foot"></div></div>
+    <div class="needle {{power.consumes}}" style="left: {{power.needlex}}px"><div class="stem"></div><div class="cap head"></div><div class="cap foot"></div></div>
   </div>
   <div class="piece tab idle {{idletab.shown}} {{ButtonIdleWorker.state}}" style="left: {{idletab.x}}px; top: {{idletab.y}}px; width: {{idletab.w}}px; height: {{idletab.h}}px">
     <div class="key" data-click="press:ButtonIdleWorker"><div class="icon"></div><div class="veil"></div></div>
   </div>
-  <!-- the money, a plate hanging from the screen's top edge in its middle -->
+  <!-- the money, a plate standing on the power bar's panel at its left end -->
   <div class="piece bezel solid moneyplate {{moneyplate.shown}}" style="left: {{moneyplate.x}}px; top: {{moneyplate.y}}px; width: {{moneyplate.w}}px; height: {{moneyplate.h}}px">
     <div class="steel" style="left: 0; right: 0; top: 0; bottom: 0"></div>
+    <div class="shine" style="left: 0; right: 0; top: 0"></div>
     <div class="lit" style="left: 0; top: 0; bottom: 0"></div>
     <div class="shade" style="right: 0; top: 0; bottom: 0"></div>
-    <div class="base" style="left: 0; right: 0; bottom: 0"></div>
   </div>
   <div class="piece moneywell solid {{moneyblock.shown}}" style="left: {{moneyblock.x}}px; top: {{moneyblock.y}}px; width: {{moneyblock.w}}px; height: {{moneyblock.h}}px"><div class="lip"></div></div>
   <div class="piece frame bezel solid {{portrait.shown}}" style="left: {{portrait.x}}px; top: {{portrait.y}}px; width: {{portrait.w}}px; height: {{portrait.h}}px; border-width: {{portrait.bt}}px {{portrait.br}}px {{portrait.bb}}px {{portrait.bl}}px">
