@@ -687,28 +687,28 @@ public:  // ********************************************************************
 	}
 
 	/** A shift-dragged row: the step from one structure to the next, and how many fit between the
-		* anchor and a cursor 'dx'/'dy' away.  The row runs along the nearest eighth of a turn - a
-		* component counts once it is more than tan 22.5 degrees of the other - and packs as tight as
-		* the footprint allows along it: the footprint is the box 'halfFacing' by 'halfSide' turned to
-		* the heading.  So a structure turned onto the row's own line stands face to face with the
-		* next, and one turned across it corner to corner, which is the closest a straight row of those
-		* can get.  The step is not rounded to the build grid: a Power Plant is 44 across and the grid
-		* is 10, and rounding it up left 6 of dirt at every joint.  Never fewer than one, never more
-		* than 'most'.  Inline and static so a test can reach it without linking the whole in-game UI. */
+		* anchor and a cursor 'dx'/'dy' away.  The row runs the way the drag does, at any angle; it
+		* went along the nearest eighth of a turn until the owner asked for 2026-09-28, and a line
+		* dragged at 20 degrees came out flat.  It packs as tight as the footprint allows along it:
+		* the footprint is the box 'halfFacing' by 'halfSide' turned to the heading.  So a structure
+		* turned onto the row's own line stands face to face with the next, and one turned across it
+		* corner to corner, which is the closest a straight row of those can get.  The step is not
+		* rounded to the build grid: a Power Plant is 44 across and the grid is 10, and rounding it
+		* up left 6 of dirt at every joint.  Never fewer than one, never more than 'most'.  Inline
+		* and static so a test can reach it without linking the whole in-game UI. */
 	static Int placementRow( Real dx, Real dy, Real headingCos, Real headingSin, Real halfFacing,
 													 Real halfSide, Int most, Coord2D *step )
 	{
-		const Real slope = 0.41421356f;		// tan 22.5 degrees
-		const Real diagonal = 0.70710678f;	// each component of a unit step on a diagonal
-
-		const Real signX = fabs( dx ) > fabs( dy ) * slope ? ( dx < 0.0f ? -1.0f : 1.0f ) : 0.0f;
-		const Real signY = fabs( dy ) > fabs( dx ) * slope ? ( dy < 0.0f ? -1.0f : 1.0f ) : 0.0f;
-		const Real along = ( signX != 0.0f && signY != 0.0f ) ? diagonal : 1.0f;
-
-		const Real touch = placementTouchDistance( signX * along, signY * along, headingCos, headingSin,
-																							 2.0f * halfFacing, 2.0f * halfSide );
-		step->x = signX * along * touch;
-		step->y = signY * along * touch;
+		step->x = 0.0f;
+		step->y = 0.0f;
+		const Real length = (Real)sqrt( dx * dx + dy * dy );
+		if( length > 0.0f )
+		{
+			const Real touch = placementTouchDistance( dx / length, dy / length, headingCos, headingSin,
+																								 2.0f * halfFacing, 2.0f * halfSide );
+			step->x = dx / length * touch;
+			step->y = dy / length * touch;
+		}
 
 		Int count = 1;
 		const Real stepSqr = step->x * step->x + step->y * step->y;
@@ -1539,7 +1539,6 @@ protected:
 	Int													m_lastMoneyDisplayed;		///< so the money gadget is only written when the amount changes
 	Int													m_lastEarningDisplayed;	///< or the money earned a second beside it
 	MoneyPlateWidth							m_moneyPlate;						///< the money plate's width, following the figure's
-	DisplayString *							m_moneyMeasure;					///< the money's text on one line, never wrapped, to measure it by
 	UnsignedInt									m_hudDrawCount;					///< rendered frames counted by drawHudOverlay itself
 	UnsignedInt									m_hudLastSampleFrame;		///< m_hudDrawCount the fps sample was last refreshed on
 	UnsignedInt									m_hudLastSampleMs;			///< wall clock of that sample

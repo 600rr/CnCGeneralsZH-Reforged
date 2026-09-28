@@ -2258,7 +2258,7 @@ TEST(placement_grid_snap_puts_footprint_edges_on_cell_lines)
 	CHECK_NEAR(InGameUI::snapPlacementAxis(13.0f, 0.0f), 14.5f, 0.0001f);
 }
 
-TEST(placement_row_packs_the_footprint_along_the_nearest_eighth)
+TEST(placement_row_packs_the_footprint_along_the_drag)
 {
 	Coord2D step;
 	const Real half = 0.70710678f;	/* cos and sin of an eighth of a turn */
@@ -2270,10 +2270,17 @@ TEST(placement_row_packs_the_footprint_along_the_nearest_eighth)
 	CHECK_NEAR(step.y, 0.0f, 0.0001f);
 	CHECK_EQ(InGameUI::placementRow(122.0f, 0.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step), 4);
 
-	/* a hand-drawn line 20 degrees off still runs straight, and backwards runs backwards */
-	CHECK_EQ(InGameUI::placementRow(-100.0f, 36.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step), 3);
+	/* backwards runs backwards */
+	CHECK_EQ(InGameUI::placementRow(-100.0f, 0.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step), 3);
 	CHECK_NEAR(step.x, -40.5f, 0.0001f);
 	CHECK_NEAR(step.y, 0.0f, 0.0001f);
+
+	/* a line dragged 20 degrees off the axis runs at 20 degrees, not flat: the pieces meet through
+	 * the facing face, 40 / cos 20 apart, and the hair */
+	const Real twenty = 20.0f * PI / 180.0f;
+	InGameUI::placementRow(100.0f * Cos(twenty), 100.0f * Sin(twenty), 1.0f, 0.0f, 20.0f, 15.0f, 50, &step);
+	CHECK_NEAR(step.y / step.x, Sin(twenty) / Cos(twenty), 0.0001f);
+	CHECK_NEAR(sqrt(step.x * step.x + step.y * step.y), 40.0f / Cos(twenty) + 0.5f, 0.001f);
 
 	/* along y the step is the footprint's other side */
 	InGameUI::placementRow(0.0f, -90.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step);
@@ -2282,7 +2289,7 @@ TEST(placement_row_packs_the_footprint_along_the_nearest_eighth)
 
 	/* a diagonal slides each piece along the last one's long side instead of meeting it corner
 	 * to corner: 30 on each axis and the hair, where 40 by 30 left a triangle of ground */
-	CHECK_EQ(InGameUI::placementRow(80.0f, 60.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step), 3);
+	CHECK_EQ(InGameUI::placementRow(80.0f, 80.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step), 3);
 	CHECK_NEAR(step.x, 30.0f + 0.5f * half, 0.001f);
 	CHECK_NEAR(step.y, 30.0f + 0.5f * half, 0.001f);
 

@@ -1189,7 +1189,6 @@ InGameUI::InGameUI()
 	m_lastMoneyDisplayed = -1;
 	m_lastEarningDisplayed = 0;
 	m_moneyPlate = MoneyPlateWidth();
-	m_moneyMeasure = NULL;
 	m_hudDrawCount = 0;
 	m_hudLastSampleFrame = 0;
 	m_hudLastSampleMs = 0;
@@ -3406,8 +3405,7 @@ void InGameUI::handleBuildPlacements( void )
 			// only adjust angle if we've actually moved the mouse, and not into a row: that drag
 			// lays structures, the heading stays the one they had
 			const Bool dragged = start.x != end.x || start.y != end.y;
-			row = dragged && placesRow();
-			if( dragged && !row )
+			row = dragged && placesRow();			if( dragged && !row )
 				angle = computePlacementAngle( &start, &end );
 
 		}  // end if
@@ -3562,9 +3560,11 @@ void InGameUI::handleBuildPlacements( void )
 				return;
 
 			// both ends, so a wall lands on the grid and tiles from a grid square; a row starts where
-			// the ghost did, against its neighbour
+			// the ghost did, against its neighbour, and runs toward the cursor itself, since a snapped
+			// end turned a short drag a few degrees off the line the player drew
 			snapPlacementToGrid( &worldStart, m_pendingPlaceType, angle );
-			snapPlacementToGrid( &worldEnd, m_pendingPlaceType, angle );
+			if( lineBuild )
+				snapPlacementToGrid( &worldEnd, m_pendingPlaceType, angle );
 			snapPlacementToNeighbour( &worldStart, m_pendingPlaceType, angle );
 
 			// get the builder object that will be constructing things
@@ -6977,7 +6977,6 @@ void InGameUI::computePlacementRow( const ThingTemplate *what, Real angle, const
 	Coord2D step;
 	const Int count = placementRow( end->x - start->x, end->y - start->y, (Real)Cos( angle ),
 																	(Real)Sin( angle ), halfFacing, minor, most, &step );
-
 	positions->clear();
 	for( Int i = 0; i < count; i++ )
 	{
@@ -11654,19 +11653,15 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	putPowerGroove( values, power, centreShown );
 	putPowerBar( values, lists[ "powercells" ] );	// after the groove, which it divides into cells
 	// the money's well is as wide as the figure and a margin each side, following it through
-	// InGameUI_moneyPlateWidth on the client's clock.  The gadget's own string is wrapped to the
-	// window's width every time it draws, so measured it gave the widest line of a figure already cut
-	// in two, "$ 10000" without its "+25/s", and the plate stayed too narrow to ever unwrap it: the
-	// text is measured on a string of its own that never wraps
+	// InGameUI_moneyPlateWidth on the client's clock.  A static text wraps at its window's width less
+	// ten pixels, which the margin only covered from a scale of 1.0 up: at 1280x720 "$ 48500  +0/s"
+	// broke onto two lines and spilled out of the plate.  The window is one line, which the static
+	// text draws unwrapped, so the figure is never cut and its own string measures it
 	GameWindow *moneyWindow = controlBarWindow( "MoneyDisplay" );
 	DisplayString *moneyText = ( (TextData *)moneyWindow->winGetUserData() )->text;
-	if( m_moneyMeasure == NULL )
-		m_moneyMeasure = TheDisplayStringManager->newDisplayString();
-	if( m_moneyMeasure->getFont() != moneyText->getFont() )
-		m_moneyMeasure->setFont( moneyText->getFont() );
-	if( m_moneyMeasure->getText().compare( moneyText->getText() ) != 0 )
-		m_moneyMeasure->setText( moneyText->getText() );
-	const Int moneyNeeded = m_moneyMeasure->getWidth() + 2 * REAL_TO_INT( MONEY_TEXT_MARGIN * scale );
+	moneyWindow->winSetStatus( WIN_STATUS_ONE_LINE );
+	moneyText->setWordWrap( 0 );
+	const Int moneyNeeded = moneyText->getWidth() + 2 * REAL_TO_INT( MONEY_TEXT_MARGIN * scale );
 	putMoney( values, powerBox, InGameUI_moneyPlateWidth( m_moneyPlate, moneyNeeded, nowMs ),
 						centreShown && !moneyWindow->winIsHidden() );
 
