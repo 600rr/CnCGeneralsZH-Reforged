@@ -1557,6 +1557,13 @@ extern Bool ControlBarPanelDesignToScreen( Int panel, const IRegion2D *design,
 extern Real ControlBarUniformScale( void );
 extern Real ControlBarUniformScaleFor( Int displayWidth, Int displayHeight );	///< ...for a screen you name
 
+/** The scale the bottom HUD's page and everything laid out on it are drawn at: the uniform scale cut
+	* to CONTROL_BAR_HUD_PERCENT of itself, the owner's "too big" of 2026-09-28, and never below 1.  The
+	* tooltips, the boards and the menus keep the uniform scale. */
+enum { CONTROL_BAR_HUD_PERCENT = 70 };
+extern Real ControlBarHudScale( void );
+extern Real ControlBarHudScaleFor( Int displayWidth, Int displayHeight );
+
 /** Undo the .wnd loader's separate-axis stretch over a whole layout: every window under 'root' is
 	* recovered to its authored 800x600 rectangle and put back at ControlBarUniformScale(), anchored
 	* at the given fraction of the screen (0 = left/top edge, 1 = right/bottom, 0.5 = centred) with

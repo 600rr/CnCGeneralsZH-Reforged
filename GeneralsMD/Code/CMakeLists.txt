@@ -666,7 +666,8 @@ add_custom_command(TARGET generals POST_BUILD
           ${CMAKE_CURRENT_SOURCE_DIR}/Data/Install_Final.bmp
           ${CMAKE_CURRENT_SOURCE_DIR}/../Run/
   # The three command bar plates per side, the smoke signals' ground marks and the
-  # SupW uplink's pink laser strip (Tools/pink_laser.py).  A loose
+  # SupW uplink's pink laser strip (Tools/pink_laser.py) and the attack and hold position cameos
+  # (Tools/order_cameos.py).  A loose
   # texture beats every .big, so these land in Run/Art/Textures where the W3D file
   # system looks first.
   COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -835,6 +836,10 @@ if(Python3_Interpreter_FOUND)
   # synthetic one and checks the block parser did not eat an End or duplicate a key.
   add_test(NAME vfx_tune_selfcheck
            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/Tools/vfx_tune.py selfcheck)
+  # Tools/order_cameos.py paints the command bar's attack and hold position cameos: two whole
+  # pictures in the places the mapped images name, told apart by colour, the same every run.
+  add_test(NAME order_cameos_selfcheck
+           COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/Tools/order_cameos.py selfcheck)
   # The options screen is three tracked files that have to agree: TheOptionCatalog names a widget,
   # Data/Window/Menus/OptionsMenu.wnd has to carry it, and Data/Patch.str has to carry its label,
   # its tooltip and every combo box entry.  Nothing at build time notices a typo in any of them -

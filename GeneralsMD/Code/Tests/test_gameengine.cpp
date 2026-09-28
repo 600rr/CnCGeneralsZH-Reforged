@@ -11165,6 +11165,19 @@ TEST(the_hud_is_measured_at_the_command_bars_own_scale)
 	CHECK_NEAR( ControlBarUniformScaleFor( 0, 0 ), 1.0f, 0.001f );
 }
 
+/* The bottom HUD is drawn smaller than the rest, the owner's "too big": seventy percent of the
+	 uniform scale, so 1.26 at 1920x1080 where the boards stand at 1.8, and never under what was
+	 authored, so 1280x720 stays at 1 where seventy percent would have been 0.84. */
+TEST(controlbar_hud_scale_is_seventy_percent_and_never_below_one)
+{
+	CHECK_NEAR( ControlBarHudScaleFor( 1920, 1080 ), 1.26f, 0.001f );
+	CHECK_NEAR( ControlBarHudScaleFor( 3840, 2160 ), 2.52f, 0.001f );
+	CHECK_NEAR( ControlBarHudScaleFor( 2560, 1080 ), 1.26f, 0.001f );
+	CHECK_NEAR( ControlBarHudScaleFor( 1280, 720 ), 1.0f, 0.001f );
+	CHECK_NEAR( ControlBarHudScaleFor( 800, 600 ), 1.0f, 0.001f );
+	CHECK( ControlBarHudScaleFor( 1920, 1080 ) < ControlBarUniformScaleFor( 1920, 1080 ) );
+}
+
 /* A health bar is drawn in raw pixels over a tank whose own size on screen is set by the camera,
 	 and the camera fills the screen's *height*.  So the bar has to follow the height too.  Measured
 	 off the width it was two and a half times too wide on a 32:9 screen: the bar of a barracks

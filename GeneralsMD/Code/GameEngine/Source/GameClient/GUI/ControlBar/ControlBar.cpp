@@ -1515,6 +1515,22 @@ Real ControlBarUniformScale( void )
 }
 
 //-------------------------------------------------------------------------------------------------
+Real ControlBarHudScaleFor( Int displayWidth, Int displayHeight )
+{
+	const Real s = ControlBarUniformScaleFor( displayWidth, displayHeight ) * CONTROL_BAR_HUD_PERCENT / 100.0f;
+	return s < 1.0f ? 1.0f : s;
+}
+
+//-------------------------------------------------------------------------------------------------
+Real ControlBarHudScale( void )
+{
+	if( TheDisplay == NULL )
+		return 1.0f;
+
+	return ControlBarHudScaleFor( TheDisplay->getWidth(), TheDisplay->getHeight() );
+}
+
+//-------------------------------------------------------------------------------------------------
 /** One window of a layout being taken out of the loader's stretched space, and everything under it.
 	* Positions are relative to the parent, so both the parent's old and its new screen origin travel
 	* down the recursion - the same walk placeInPanel does, without the panels and the plate art. */

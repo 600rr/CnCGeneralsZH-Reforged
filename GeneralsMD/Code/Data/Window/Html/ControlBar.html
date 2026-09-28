@@ -3,8 +3,10 @@
   The command bar's frame, drawn where its three plates used to be, and the bar's own buttons, laid
   out the way the owner drew them on 2026-09-28 (docs/plans/HUD-REDESIGN.md): the radar in the
   bottom left corner with the experience bar beside it, the command panel with the portrait bar on
-  it, the Q and W worker bars with the purse on them; over the radar the skills key on the
-  under-attack light and the smoke signals.  The command buttons, the radar, the money and the
+  it, the Q and W worker bars with the power bar standing up after them; over the radar the idle
+  worker's key on the skills key on the under-attack light, and the smoke signals; the money at the
+  screen's top.  Laid out at ControlBarHudScale(), 70 percent of the uniform scale the tooltips and
+  the boards use.  The command buttons, the radar, the money and the
   portrait are still the bar's windows and paint over this page.  The under-attack light, the power
   bar and the experience bar are the page's to draw: their windows take the clicks and draw
   nothing.  The menu, idle worker and promotion buttons are the page's altogether, pressed through
@@ -27,9 +29,11 @@
     {{power.fill}}         the power bar: production as a percent of the bar, on the bar's own
     {{power.needle}}       logarithmic scale, consumption as the same ({{power.consumes}} "hidden"
                            while it is nought), and {{power.state}} "green",
-                           "yellow" or "red"; the watched player's while watching
-    data-each="powercells" the same production as 40 cells, each {{lit}} "lit" up to it, standing at
-                           {{x}} pixels inside the frame's lip and {{w}} wide
+                           "yellow" or "red"; the watched player's while watching.  The bar stands
+                           up: {{power.needley}} is the needle's place in pixels down the groove
+    data-each="powercells" the same production as 20 cells from the bottom, each {{lit}} "lit" up to
+                           it, standing at {{y}} pixels inside the frame's lip, {{h}} tall, {{segh}}
+                           without its black line
     {{expframe.x}} ...     the experience bar's groove beside the radar, .w and .h its inside,
                            {{expframe.innerw}} the width inside its lip; data-each="expcells" its
                            ten rungs from the bottom up, each {{lit}} "lit" up to the way from this
@@ -37,14 +41,15 @@
                            its black line
     data-each="rankstars"  a star for every rank there is, {{lit}} "lit" up to the one reached, at
                            {{x}} inside the 58 wide key so the row is centred on it
-    data-each="commandcells" every place a command can go, shown or not, each {{cell.x}} .y .w .h:
-                           the command panel's twelve (five abilities and upgrades; attack, stop,
-                           attack move; eject, seek shelter, guard, hold position) and the worker
-                           bars' eight each
+    data-each="commandcells" each {{cell.x}} .y .w .h: the command panel's places that hold a command
+                           (five abilities and upgrades; attack, stop, attack move; eject, seek
+                           shelter, guard, hold position), an empty one left as steel, and every
+                           place of the worker bars, eight each
     {{attackkey.x}} ...    the attack and hold position places, where the page's own keys stand,
     {{holdkey.x}} ...      data-click="order:attack" and "order:hold", for a selection that attack
                            moves; no command set has a button for either
-    data-each="portraitcells" the portrait bar's places, the portrait's first, each {{cell.x}} .y .w .h
+    data-each="portraitcells" the portrait bar's cells, the portrait's first and then only what it
+                           holds, each {{cell.x}} .y .w .h
     {{skilltray.x}} ...    the general's powers' tray, a panel as {{centre.x}} is, only as big as the
                            powers shown; data-each="skillcells" a cell behind each power, each
                            {{cell.x}} .y .w .h
@@ -70,10 +75,11 @@
     {{alerttab.x}} ...     the under-attack light, a tab on the radar panel's top edge at its left
     {{skillstab.x}} ...    hand end, and on it the skills key: the rank's stars, pressed through
                            data-click="press:ButtonGeneral" for the promotion screen
-    {{purse.x}} ...        the steel on the worker bars, level with the command panel's top, and in
-    {{workerkey.x}} ...    it the idle worker's key, the power bar's frame and the money's well;
-    {{powerframe.x}} ...   {{powerframe.inner}} the height inside the frame and its lip
-    {{moneyblock.x}} ...
+    {{idletab.x}} ...      the idle worker's key in a tab on the skills key
+    {{powerframe.x}} ...   the power bar's groove inside the W bar's frame, after its grid;
+                           {{powerframe.inner}} the width inside the frame and its lip
+    {{moneyplate.x}} ...   the money's plate hanging from the screen's top edge in its middle, and
+    {{moneyblock.x}} ...   the dark well in it the money's window is moved into
     {{Name.x}} .y .w .h    the rectangle of the bar's window Name, {{Name.shown}} "shown" or "hidden"
                            and {{Name.state}} any of "disabled", "hilite", "pushed", for LeftHUD (the
                            radar), RightHUD (the portrait's box), CameoWindow (the portrait),
@@ -156,13 +162,12 @@
   .china .commandcell .bevel { border-bottom-color: #d98a72; border-right-color: #d98a72; }
   .gla .commandcell .bevel { border-bottom-color: #cbbf82; border-right-color: #cbbf82; }
 
-  /* the purse, a plate on the worker bars level with the command panel's top: the idle worker's
-     key, the power bar's groove and the money's well sunk in it.  The money's figure is the bar's
-     own window over its well */
+  /* the money's plate hanging from the screen's top edge, the money's well sunk in it.  The money's
+     figure is the bar's own window over its well */
   .stack { box-sizing: border-box; margin: 0; }
-  .purse .steel { background: linear-gradient(to bottom, #b0b8c1, #7d8691); }
-  .china .purse .steel { background: linear-gradient(to bottom, #cf8068, #9a4331); }
-  .gla .purse .steel { background: linear-gradient(to bottom, #c8bc84, #8f8249); }
+  .moneyplate .steel { background: linear-gradient(to bottom, #7d8691, #b0b8c1); }
+  .china .moneyplate .steel { background: linear-gradient(to bottom, #9a4331, #cf8068); }
+  .gla .moneyplate .steel { background: linear-gradient(to bottom, #8f8249, #c8bc84); }
   .moneywell { background-color: #020405; }
   .moneywell .lip { position: absolute; left: 0; top: 0; right: 0; bottom: 0; border: 1px solid #06090b;
                     border-bottom-color: #b4bec8; border-right-color: #b4bec8; }
@@ -180,28 +185,27 @@
      left a gap under it */
   .groove.stack { margin: 0; }
 
-  /* the power bar is the page's: a row of cells across the frame, lit from the left up to the
+  /* the power bar is the page's: a column of cells up the groove, lit from the bottom up to the
      production in the power bar's own green, yellow or red, a black line between every two, and the
      consumption a white needle across them.  Full is every cell, lip to lip */
-  /* the row's height is the frame's inside, {{powerframe.inner}}, written in: a percentage of a
-     height set by top and bottom does not resolve here, and the cells came out with none */
-  .cells { position: absolute; left: 1px; top: 1px; right: 1px; }
-  /* each cell stands at its own {{x}} and {{w}} in pixels, and the gap is the inner block's margin:
-     floated at a percentage the fortieth cell fell onto a second row, and a percentage of an
-     absolutely placed box does not resolve here at all */
-  .cells .cell { position: absolute; top: 0; }
-  .cells .seg { margin-right: 1px; background-color: #0d1512; background-size: 100% 100%; background-repeat: no-repeat; }
+  /* the column's width is the frame's inside, {{powerframe.inner}}, written in: a percentage of a
+     width set by left and right does not resolve here, and the cells came out with none */
+  .cells { position: absolute; left: 1px; top: 1px; bottom: 1px; }
+  /* each cell stands at its own {{y}} and {{h}} in pixels, and the gap is the inner block's margin:
+     a percentage of an absolutely placed box does not resolve here at all */
+  .cells .cell { position: absolute; left: 0; }
+  .cells .seg { margin-top: 1px; background-color: #0d1512; background-size: 100% 100%; background-repeat: no-repeat; }
   .cells .lit .seg { background-image: url(PowerBarGreen); }
   .cells.yellow .lit .seg { background-image: url(PowerBarYellow); }
   .cells.red .lit .seg { background-image: url(PowerBarRed); }
-  /* the needle is a gauge pointer through the whole groove: a white stem outlined in black so it
-     reads on a lit cell as well as a dark one, capped top and bottom where it crosses the groove's
-     edges.  It stands after the lip so the lip does not cut it */
-  .needle { position: absolute; top: -2px; bottom: -2px; width: 4px; margin-left: -2px; background-color: #000000; }
+  /* the needle is a gauge pointer through the whole groove at {{power.needley}} pixels down: a white
+     stem outlined in black so it reads on a lit cell as well as a dark one, capped left and right
+     where it crosses the groove's edges.  It stands after the lip so the lip does not cut it */
+  .needle { position: absolute; left: -2px; right: -2px; height: 4px; margin-top: -1px; background-color: #000000; }
   .needle .stem { position: absolute; left: 1px; right: 1px; top: 1px; bottom: 1px; background-color: #f4f6f8; }
-  .needle .cap { position: absolute; left: -1px; width: 4px; height: 1px; border: 1px solid #000000; background-color: #f4f6f8; }
-  .needle .head { top: -1px; }
-  .needle .foot { bottom: -1px; }
+  .needle .cap { position: absolute; top: -1px; width: 1px; height: 4px; border: 1px solid #000000; background-color: #f4f6f8; }
+  .needle .head { left: -1px; }
+  .needle .foot { right: -1px; }
   .china .groove { border-bottom-color: #d98a72; border-right-color: #d98a72; }
   .gla .groove { border-bottom-color: #cbbf82; border-right-color: #cbbf82; }
 
@@ -252,22 +256,21 @@
   .china .step { background: linear-gradient(to bottom, #6a2a1c, #3f160f); border-top-color: #f0b8a4; }
   .gla .step { background: linear-gradient(to bottom, #665b31, #3c3519); border-top-color: #ebe2b4; }
 
-  /* the idle worker: a key at the purse's left end, over the worker bars */
-  .idle .key { left: 0; top: 0; }
+  /* the idle worker: a key in a tab standing on the skills key's, 38 by 22 */
+  .idle .key { left: 2px; top: 3px; }
   .idle .icon { background-image: url(Icons/IdleWorker.svg); }
   .watching .idle { display: none; }
 
-  /* the command panel's attack and hold position: keys over their places' holes, dark until the
-     pointer lifts them as lit steel, a picture in the middle of the 38 by 33 cell */
-  .order { background-color: #020405; }
-  .order:hover { background: linear-gradient(to bottom, #b3bbc4, #5a626c); }
-  .china .order:hover { background: linear-gradient(to bottom, #d58a70, #7a3120); }
-  .gla .order:hover { background: linear-gradient(to bottom, #cabe86, #766a3a); }
-  .held .order:hover { background: linear-gradient(to bottom, #151a1f, #3a414a); }
-  .order .icon { position: absolute; left: 11px; top: 8px; width: 16px; height: 16px;
-                 background-size: 100% 100%; background-repeat: no-repeat; }
-  .order.attack .icon { background-image: url(Icons/OrderAttack.svg); }
-  .order.hold .icon { background-image: url(Icons/OrderHold.svg); }
+  /* the command panel's attack and hold position: keys over their places' holes wearing cameos
+     painted for them (Code/Tools/order_cameos.py, the mapped images ReforgedOrderAttack and
+     ReforgedOrderHold), with the game's own lit and pushed overlays over them the way its command
+     buttons wear them */
+  .order { background-size: 100% 100%; background-repeat: no-repeat; }
+  .order.attack { background-image: url(ReforgedOrderAttack); }
+  .order.hold { background-image: url(ReforgedOrderHold); }
+  .order .glow { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background-size: 100% 100%; background-repeat: no-repeat; }
+  .order:hover .glow { background-image: url(Cameo_hilited); }
+  .held .order:hover .glow { background-image: url(Cameo_push); }
 
   /* the under-attack light: a red lamp in a tab on the radar's bezel, dark until the bar blinks it.
      The tab is 66 by 14 and the lamp a bar 54 by 10 with its rim */
@@ -368,19 +371,22 @@
     <div class="shade" style="right: -{{wbar.br}}px; top: -{{wbar.bt}}px; bottom: -{{wbar.bb}}px"></div>
     <div class="sunk grid" style="width: {{wbar.w}}px; height: {{wbar.h}}px"></div>
   </div>
-  <!-- the purse stands on the worker bars; drawn after them, it takes the top of their steel -->
-  <div class="piece bezel solid purse {{purse.shown}}" style="left: {{purse.x}}px; top: {{purse.y}}px; width: {{purse.w}}px; height: {{purse.h}}px">
-    <div class="steel" style="left: 0; right: 0; top: 0; bottom: 0"></div>
-    <div class="shine" style="left: 0; right: 0; top: 0"></div>
-    <div class="shade" style="right: 0; top: 0; bottom: 0"></div>
+  <!-- the power bar standing up in its groove at the W bar's right, the way the experience bar
+       stands beside the radar -->
+  <div class="piece groove solid stack {{powerframe.shown}}" style="left: {{powerframe.x}}px; top: {{powerframe.y}}px; width: {{powerframe.w}}px; height: {{powerframe.h}}px">
+    <div class="cells {{power.state}}" style="width: {{powerframe.inner}}px"><div class="cell {{lit}}" data-each="powercells" style="top: {{y}}px; height: {{h}}px; width: {{powerframe.inner}}px"><div class="seg" style="width: {{powerframe.inner}}px; height: {{segh}}px"></div></div></div>
+    <div class="lip"></div>
+    <div class="needle {{power.consumes}}" style="top: {{power.needley}}px"><div class="stem"></div><div class="cap head"></div><div class="cap foot"></div></div>
   </div>
-  <div class="piece idle {{purse.shown}} {{ButtonIdleWorker.state}}" style="left: {{workerkey.x}}px; top: {{workerkey.y}}px">
+  <div class="piece tab idle {{idletab.shown}} {{ButtonIdleWorker.state}}" style="left: {{idletab.x}}px; top: {{idletab.y}}px; width: {{idletab.w}}px; height: {{idletab.h}}px">
     <div class="key" data-click="press:ButtonIdleWorker"><div class="icon"></div><div class="veil"></div></div>
   </div>
-  <div class="piece groove solid stack {{powerframe.shown}}" style="left: {{powerframe.x}}px; top: {{powerframe.y}}px; width: {{powerframe.w}}px; height: {{powerframe.h}}px">
-    <div class="cells {{power.state}}" style="height: {{powerframe.inner}}px"><div class="cell {{lit}}" data-each="powercells" style="left: {{x}}px; width: {{w}}px; height: {{powerframe.inner}}px"><div class="seg" style="height: {{powerframe.inner}}px"></div></div></div>
-    <div class="lip"></div>
-    <div class="needle {{power.consumes}}" style="left: {{power.needle}}%"><div class="stem"></div><div class="cap head"></div><div class="cap foot"></div></div>
+  <!-- the money, a plate hanging from the screen's top edge in its middle -->
+  <div class="piece bezel solid moneyplate {{moneyplate.shown}}" style="left: {{moneyplate.x}}px; top: {{moneyplate.y}}px; width: {{moneyplate.w}}px; height: {{moneyplate.h}}px">
+    <div class="steel" style="left: 0; right: 0; top: 0; bottom: 0"></div>
+    <div class="lit" style="left: 0; top: 0; bottom: 0"></div>
+    <div class="shade" style="right: 0; top: 0; bottom: 0"></div>
+    <div class="base" style="left: 0; right: 0; bottom: 0"></div>
   </div>
   <div class="piece moneywell solid {{moneyblock.shown}}" style="left: {{moneyblock.x}}px; top: {{moneyblock.y}}px; width: {{moneyblock.w}}px; height: {{moneyblock.h}}px"><div class="lip"></div></div>
   <div class="piece frame bezel solid {{portrait.shown}}" style="left: {{portrait.x}}px; top: {{portrait.y}}px; width: {{portrait.w}}px; height: {{portrait.h}}px; border-width: {{portrait.bt}}px {{portrait.br}}px {{portrait.bb}}px {{portrait.bl}}px">
@@ -392,8 +398,8 @@
   </div>
   <div class="piece commandcell" data-each="commandcells" style="left: {{cell.x}}px; top: {{cell.y}}px; width: {{cell.w}}px; height: {{cell.h}}px"><div class="edge" style="left: -{{ring}}px; top: -{{ring}}px; right: -{{ring}}px; bottom: -{{ring}}px; border-width: {{ring}}px"></div><div class="bevel"></div></div>
   <div class="piece commandcell" data-each="portraitcells" style="left: {{cell.x}}px; top: {{cell.y}}px; width: {{cell.w}}px; height: {{cell.h}}px"><div class="edge" style="left: -{{ring}}px; top: -{{ring}}px; right: -{{ring}}px; bottom: -{{ring}}px; border-width: {{ring}}px"></div><div class="bevel"></div></div>
-  <div class="piece order attack {{attackkey.shown}}" data-click="order:attack" style="left: {{attackkey.x}}px; top: {{attackkey.y}}px; width: {{attackkey.w}}px; height: {{attackkey.h}}px"><div class="icon"></div></div>
-  <div class="piece order hold {{holdkey.shown}}" data-click="order:hold" style="left: {{holdkey.x}}px; top: {{holdkey.y}}px; width: {{holdkey.w}}px; height: {{holdkey.h}}px"><div class="icon"></div></div>
+  <div class="piece order attack {{attackkey.shown}}" data-click="order:attack" style="left: {{attackkey.x}}px; top: {{attackkey.y}}px; width: {{attackkey.w}}px; height: {{attackkey.h}}px"><div class="glow"></div></div>
+  <div class="piece order hold {{holdkey.shown}}" data-click="order:hold" style="left: {{holdkey.x}}px; top: {{holdkey.y}}px; width: {{holdkey.w}}px; height: {{holdkey.h}}px"><div class="glow"></div></div>
 
   <div class="piece frame bezel solid {{skilltray.shown}}" style="left: {{skilltray.x}}px; top: {{skilltray.y}}px; width: {{skilltray.w}}px; height: {{skilltray.h}}px; border-width: {{skilltray.bt}}px {{skilltray.br}}px {{skilltray.bb}}px {{skilltray.bl}}px">
     <div class="steel" style="left: -{{skilltray.bl}}px; right: -{{skilltray.br}}px; top: -{{skilltray.bt}}px; bottom: -{{skilltray.bb}}px"></div>
