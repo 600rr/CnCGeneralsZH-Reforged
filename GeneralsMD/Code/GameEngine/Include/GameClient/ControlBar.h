@@ -1100,6 +1100,9 @@ public:
 	GameWindow *getSpecialPowerShortcutParent( void ) { return m_specialPowerShortcutParent; }
 	/// a multi-selection's type cells, one a selected type, shown or hidden; see updateMultiSelectStrip
 	const std::vector< GameWindow * > &getMultiSelectTiles( void ) const { return m_multiSelectTiles; }
+	/// the portrait bar's upgrade cameos and type tiles, which have no command button: TRUE and their
+	/// tooltip's name and description for one of them, FALSE for any other window
+	Bool describePortraitBarWindow( GameWindow *window, UnicodeString &name, UnicodeString &description ) const;
 
 	/// the general's stars are asking to be spent, so the button blinks; see getStarImage
 	Bool isGeneralStarFlashing( void ) const { return m_genStarFlash; }
@@ -1291,6 +1294,7 @@ protected:
 	GameWindow *m_rightHUDWindow;									///< window of the right HUD display
 	GameWindow *m_rightHUDCameoWindow;									///< window of the right HUD display
 	GameWindow *m_rightHUDUpgradeCameos[MAX_RIGHT_HUD_UPGRADE_CAMEOS];
+	const UpgradeTemplate *m_rightHUDUpgrades[MAX_RIGHT_HUD_UPGRADE_CAMEOS];	///< what each upgrade cameo shows, for its tooltip
 	GameWindow *m_rightHUDUnitSelectParent;
 
 	GameWindow *m_communicatorButton;             ///< button for the communicator

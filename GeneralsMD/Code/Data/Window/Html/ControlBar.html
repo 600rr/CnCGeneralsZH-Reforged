@@ -75,7 +75,8 @@
     {{alerttab.x}} ...     the under-attack light, a tab on the radar panel's top edge at its left
     {{skillstab.x}} ...    hand end, and on it the skills key: the rank's stars, pressed through
                            data-click="press:ButtonGeneral" for the promotion screen
-    {{idletab.x}} ...      the idle worker's key in a tab on the skills key
+    {{idletab.x}} ...      the idle worker's key in a tab on the skills key; {{idleflash}} "flash"
+                           for half of every 0.7 seconds of the client's clock while one is idle
     {{powerframe.x}} ...   the power bar's groove in its panel over the command grid's frame;
                            {{powerframe.inner}} the height inside the frame and its lip
     {{moneyplate.x}} ...   the money's plate standing on the power panel's left end, and
@@ -127,7 +128,10 @@
      one down its right, and what it holds sunk in a two pixel well.  Every piece is placed from the
      container's corner with the border's widths written in, since the page cannot add a width to a
      width */
-  .bezel .steel { position: absolute; background: linear-gradient(to bottom, #9aa3ad, #5a626c 30%, #353c45); }
+  /* every steel fill of the bar is 60 percent of the light it had until 2026-09-28, the owner's call
+     for a darker bar: the plates, the grid wells, the tabs and the step.  The light and dark bevel
+     lines keep their colours, so the edges read as clearly on the darker steel */
+  .bezel .steel { position: absolute; background: linear-gradient(to bottom, #5c6268, #363b41 30%, #20242a); }
   .bezel .shine { position: absolute; height: 1px; background-color: #dde4ea; }
   .bezel .lit { position: absolute; width: 1px; background-color: #b3bbc4; }
   .bezel .shade { position: absolute; width: 1px; background-color: #0c1114; }
@@ -135,10 +139,10 @@
   .gla .bezel .lit { background-color: #cabe86; }
   .bezel .sunk { position: absolute; left: -2px; top: -2px; border: 2px solid #06090b;
                  border-bottom-color: #b4bec8; border-right-color: #b4bec8; background-color: #020405; }
-  .china .bezel .steel { background: linear-gradient(to bottom, #c06a52, #7a3120 30%, #3f160f); }
+  .china .bezel .steel { background: linear-gradient(to bottom, #733f31, #491d13 30%, #260d09); }
   .china .bezel .shine { background-color: #f0b8a4; }
   .china .bezel .sunk { border-bottom-color: #d98a72; border-right-color: #d98a72; }
-  .gla .bezel .steel { background: linear-gradient(to bottom, #b8ab6e, #766a3a 30%, #3c3519); }
+  .gla .bezel .steel { background: linear-gradient(to bottom, #6e6742, #473f23 30%, #24200f); }
   .gla .bezel .shine { background-color: #ebe2b4; }
   .gla .bezel .sunk { border-bottom-color: #cbbf82; border-right-color: #cbbf82; }
   /* the command grid: its well is steel, and each of the fourteen places a dark hole exactly its
@@ -148,14 +152,14 @@
      the buttons and takes no more than the bevel's pixel off a picture */
   .front .piece { display: none; }
   .front .piece.over { display: block; }
-  .bezel .sunk.grid { background-color: #3a414a; }
-  .china .bezel .sunk.grid { background-color: #45190f; }
-  .gla .bezel .sunk.grid { background-color: #423a1c; }
+  .bezel .sunk.grid { background-color: #23272c; }
+  .china .bezel .sunk.grid { background-color: #290f09; }
+  .gla .bezel .sunk.grid { background-color: #282311; }
   .commandcell { background-color: #020405; }
   .commandcell.over { background: none; }
-  .commandcell .edge { position: absolute; border-style: solid; border-color: #3a414a; }
-  .china .commandcell .edge { border-color: #45190f; }
-  .gla .commandcell .edge { border-color: #423a1c; }
+  .commandcell .edge { position: absolute; border-style: solid; border-color: #23272c; }
+  .china .commandcell .edge { border-color: #290f09; }
+  .gla .commandcell .edge { border-color: #282311; }
   /* the bevel lies on the picture's outermost pixel, where a button draws its own border line */
   .commandcell .bevel { position: absolute; left: 0; top: 0; right: 0; bottom: 0; border: 1px solid #06090b;
                         border-bottom-color: #9aa4ae; border-right-color: #9aa4ae; }
@@ -223,9 +227,9 @@
   .menu:hover .bar { background-color: #e8d27a; }
 
   /* a tab cut from a bezel's own steel, standing on its top edge and running down into it */
-  .tab { background: linear-gradient(to bottom, #b3bbc4, #8b949e); border-top: 1px solid #dde4ea; border-right: 1px solid #0c1114; }
-  .china .tab { background: linear-gradient(to bottom, #d58a70, #c06a52); border-top-color: #f0b8a4; }
-  .gla .tab { background: linear-gradient(to bottom, #cabe86, #b8ab6e); border-top-color: #ebe2b4; }
+  .tab { background: linear-gradient(to bottom, #6b7076, #53595f); border-top: 1px solid #dde4ea; border-right: 1px solid #0c1114; }
+  .china .tab { background: linear-gradient(to bottom, #805343, #733f31); border-top-color: #f0b8a4; }
+  .gla .tab { background: linear-gradient(to bottom, #797250, #6e6742); border-top-color: #ebe2b4; }
 
   /* a key sunk in the steel with a one-colour SVG on it, the smoke signals' and the idle worker's:
      under the pointer it comes up out of its well as lit steel with a gold rim, and a key whose
@@ -249,14 +253,17 @@
 
   /* a step: a bezel's steel carried on beside it at the shade the bezel has that low down, with its
      own lit top edge, standing on the screen's bottom edge */
-  .step { background: linear-gradient(to bottom, #4f575f, #353c45); border-top: 1px solid #dde4ea; }
-  .china .step { background: linear-gradient(to bottom, #6a2a1c, #3f160f); border-top-color: #f0b8a4; }
-  .gla .step { background: linear-gradient(to bottom, #665b31, #3c3519); border-top-color: #ebe2b4; }
+  .step { background: linear-gradient(to bottom, #2f3439, #20242a); border-top: 1px solid #dde4ea; }
+  .china .step { background: linear-gradient(to bottom, #3f1911, #260d09); border-top-color: #f0b8a4; }
+  .gla .step { background: linear-gradient(to bottom, #3d371d, #24200f); border-top-color: #ebe2b4; }
 
   /* the idle worker: a key in a tab standing on the skills key's, 38 by 22 */
   .idle .key { left: 2px; top: 3px; }
   .idle .icon { background-image: url(Icons/IdleWorker.svg); }
   .watching .idle { display: none; }
+  /* while a worker stands idle the key flashes, {{idleflash}} "flash" for half of every 0.7 seconds:
+     amber and white-rimmed, the brightest thing on the bar, then back to the sunk key */
+  .idle.flash .key { background: linear-gradient(to bottom, #ffc640, #d06a00); border-color: #ffffff; }
 
   /* the command panel's attack, hold position and move: keys over their places' holes wearing
      cameos painted for them (Code/Tools/order_cameos.py, the mapped images ReforgedOrderAttack,
@@ -372,7 +379,7 @@
     <div class="lip"></div>
     <div class="needle {{power.consumes}}" style="left: {{power.needlex}}px"><div class="stem"></div><div class="cap head"></div><div class="cap foot"></div></div>
   </div>
-  <div class="piece tab idle {{idletab.shown}} {{ButtonIdleWorker.state}}" style="left: {{idletab.x}}px; top: {{idletab.y}}px; width: {{idletab.w}}px; height: {{idletab.h}}px">
+  <div class="piece tab idle {{idletab.shown}} {{ButtonIdleWorker.state}} {{idleflash}}" style="left: {{idletab.x}}px; top: {{idletab.y}}px; width: {{idletab.w}}px; height: {{idletab.h}}px">
     <div class="key" data-click="press:ButtonIdleWorker"><div class="icon"></div><div class="veil"></div></div>
   </div>
   <!-- the money, a plate standing on the power bar's panel at its left end -->

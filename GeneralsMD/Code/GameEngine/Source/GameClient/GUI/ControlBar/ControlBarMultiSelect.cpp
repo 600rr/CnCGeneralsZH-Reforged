@@ -32,6 +32,8 @@
 #include "PreRTS.h"	// This must go first in EVERY cpp file int the GameEngine
 
 #include "Common/ThingTemplate.h"
+#include "Common/Upgrade.h"
+#include "GameClient/GameText.h"
 #include "GameClient/ControlBar.h"
 #include "GameClient/Drawable.h"
 #include "GameClient/GameClient.h"
@@ -214,6 +216,49 @@ void ControlBar::updateMultiSelectStrip( void )
 }  // end updateMultiSelectStrip
 
 //-------------------------------------------------------------------------------------------------
+/** The tooltip a type tile shows, through the build tooltip the command buttons use. */
+//-------------------------------------------------------------------------------------------------
+static void portraitBarTooltip( GameWindow *window, WinInstanceData *instData, UnsignedInt mouse )
+{
+	TheControlBar->showBuildTooltipLayout( window );
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool ControlBar::describePortraitBarWindow( GameWindow *window, UnicodeString &name, UnicodeString &description ) const
+{
+	for( Int upgrade = 0; upgrade < MAX_RIGHT_HUD_UPGRADE_CAMEOS; upgrade++ )
+	{
+		const UpgradeTemplate *shown = m_rightHUDUpgrades[ upgrade ];
+		if( window != m_rightHUDUpgradeCameos[ upgrade ] || shown == NULL )
+			continue;
+
+		name = TheGameText->fetch( shown->getDisplayNameLabel().str() );
+		// the description is the one on the button that buys it, when there is such a button
+		description.clear();
+		for( const CommandButton *button = m_commandButtons; button; button = button->getNext() )
+		{
+			if( button->getUpgradeTemplate() == shown && button->getDescriptionLabel().isNotEmpty() )
+			{
+				description = TheGameText->fetch( button->getDescriptionLabel() );
+				break;
+			}
+		}
+		return TRUE;
+	}
+
+	for( size_t tile = 0; tile < m_multiSelectTiles.size() && (Int)tile < m_multiSelectGroupCount; tile++ )
+	{
+		if( window != m_multiSelectTiles[ tile ] )
+			continue;
+
+		name.format( L"%ls (%d)", m_multiSelectGroupTemplate[ tile ]->getDisplayName().str(), m_multiSelectGroupSize[ tile ] );
+		description.clear();
+		return TRUE;
+	}
+	return FALSE;
+}
+
+//-------------------------------------------------------------------------------------------------
 /** Make sure 'count' grid cells exist and lay them out n x n over the right HUD, n the
 	* smallest square that holds them: one type fills the HUD, 2-4 get 2x2, 5-9 get 3x3, and
 	* so on.  Cells are plain windows created in code (ControlBar.wnd has none to spare) that
@@ -242,7 +287,10 @@ void ControlBar::layoutMultiSelectTiles( Int count )
 													WIN_STATUS_ENABLED | WIN_STATUS_USE_OVERLAY_STATES | WIN_STATUS_HIDDEN,
 													0, 0, cellW, cellH, GameWinDefaultSystem );
 			if( tile )
+			{
 				tile->winSetDrawFunc( TheWindowManager->getPushButtonImageDrawFunc() );
+				tile->winSetTooltipFunc( portraitBarTooltip );
+			}
 			m_multiSelectTiles.push_back( tile );
 		}
 

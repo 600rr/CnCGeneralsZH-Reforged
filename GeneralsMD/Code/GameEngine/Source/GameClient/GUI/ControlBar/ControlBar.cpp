@@ -2685,7 +2685,10 @@ void ControlBar::shutdownWindows( void )
 	for( i = 0; i < MAX_PURCHASE_SCIENCE_RANK_8; i++ )
 		m_sciencePurchaseWindowsRank8[ i ] = NULL;
 	for( i = 0; i < MAX_RIGHT_HUD_UPGRADE_CAMEOS; i++ )
+	{
 		m_rightHUDUpgradeCameos[ i ] = NULL;
+		m_rightHUDUpgrades[ i ] = NULL;
+	}
 	for( i = 0; i < MAX_SPECIAL_POWER_SHORTCUTS; i++ )
 	{
 		m_specialPowerShortcutButtons[ i ] = NULL;
@@ -2854,6 +2857,7 @@ void ControlBar::initWindows( void )
 			m_rightHUDUpgradeCameos[ i ] =
 				TheWindowManager->winGetWindowFromId( m_rightHUDWindow, id );
 			m_rightHUDUpgradeCameos[ i ]->winSetStatus( WIN_STATUS_USE_OVERLAY_STATES );
+			m_rightHUDUpgradeCameos[ i ]->winSetTooltipFunc( commandButtonTooltip );
 		}
 
 		// the multi-select unit grid cells over the right HUD are created on demand by
@@ -5060,6 +5064,7 @@ void ControlBar::setPortraitByObject( Object *obj )
 
 			m_rightHUDUpgradeCameos[i]->winHide(FALSE);
 			m_rightHUDUpgradeCameos[i]->winSetEnabledImage( 0, ut->getButtonImage() );
+			m_rightHUDUpgrades[i] = ut;
 			if( obj->hasUpgrade(ut) )
 			{
 				//Object level upgrades

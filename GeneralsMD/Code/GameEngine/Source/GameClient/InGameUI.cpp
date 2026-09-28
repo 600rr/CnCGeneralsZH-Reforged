@@ -11610,6 +11610,12 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	const Bool signalsShown = leftFound && signalsAllowed();
 	putPageRect( values, "signals", signalStep, signalsShown, scale );
 	const UnsignedInt nowMs = timeGetTime();
+
+	// the idle worker's key flashes while a worker stands idle, which is when the bar enables its
+	// window: lit and dark in turn, a beat the eye catches at the edge of the screen
+	enum { IDLE_FLASH_PERIOD_MS = 700 };
+	const Bool idleWaiting = idleShown && BitTest( controlBarWindow( "ButtonIdleWorker" )->winGetStatus(), WIN_STATUS_ENABLED );
+	values[ "idleflash" ] = idleWaiting && nowMs % IDLE_FLASH_PERIOD_MS < IDLE_FLASH_PERIOD_MS / 2 ? "flash" : "";
 	if( signalsShown && !m_signalsWereShown )
 		m_signalsRiseStartMs = nowMs;
 	m_signalsWereShown = signalsShown;
