@@ -263,12 +263,15 @@ Bool ControlBar_commandPlaces( const Int *types, const Int *pinned, Int count, I
 //-------------------------------------------------------------------------------------------------
 Bool ControlBar::getCommandPlaces( Int *places ) const
 {
+	// a context without the command group (nothing selected, a building going up, a beacon) hides the
+	// group's parent and leaves the buttons as the last selection set them: those are not on the bar
+	const Bool groupShown = !m_contextParent[ CP_COMMAND ]->winIsHidden();
 	Int types[ MAX_COMMANDS_PER_SET ];
 	Int pinned[ MAX_COMMANDS_PER_SET ];
 	for( Int slot = 0; slot < MAX_COMMANDS_PER_SET; slot++ )
 	{
 		GameWindow *window = m_commandWindows[ slot ];
-		const CommandButton *command = ( window && !BitTest( window->winGetStatus(), WIN_STATUS_HIDDEN ) )
+		const CommandButton *command = ( groupShown && window && !BitTest( window->winGetStatus(), WIN_STATUS_HIDDEN ) )
 																	 ? (const CommandButton *)GadgetButtonGetData( window ) : NULL;
 		types[ slot ] = command ? command->getCommandType() : GUI_COMMAND_NONE;
 		pinned[ slot ] = command ? ControlBar_namedCommandPlace( command->getName().str() ) : -1;

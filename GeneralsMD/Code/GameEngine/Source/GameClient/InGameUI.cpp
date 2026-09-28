@@ -1189,6 +1189,7 @@ InGameUI::InGameUI()
 	m_lastMoneyDisplayed = -1;
 	m_lastEarningDisplayed = 0;
 	m_moneyPlate = MoneyPlateWidth();
+	m_moneyMeasure = NULL;
 	m_hudDrawCount = 0;
 	m_hudLastSampleFrame = 0;
 	m_hudLastSampleMs = 0;
@@ -11647,10 +11648,19 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	putPowerGroove( values, power, centreShown );
 	putPowerBar( values, lists[ "powercells" ] );	// after the groove, which it divides into cells
 	// the money's well is as wide as the figure and a margin each side, following it through
-	// InGameUI_moneyPlateWidth on the client's clock
+	// InGameUI_moneyPlateWidth on the client's clock.  The gadget's own string is wrapped to the
+	// window's width every time it draws, so measured it gave the widest line of a figure already cut
+	// in two, "$ 10000" without its "+25/s", and the plate stayed too narrow to ever unwrap it: the
+	// text is measured on a string of its own that never wraps
 	GameWindow *moneyWindow = controlBarWindow( "MoneyDisplay" );
-	const Int moneyNeeded = ( (TextData *)moneyWindow->winGetUserData() )->text->getWidth()
-													+ 2 * REAL_TO_INT( MONEY_TEXT_MARGIN * scale );
+	DisplayString *moneyText = ( (TextData *)moneyWindow->winGetUserData() )->text;
+	if( m_moneyMeasure == NULL )
+		m_moneyMeasure = TheDisplayStringManager->newDisplayString();
+	if( m_moneyMeasure->getFont() != moneyText->getFont() )
+		m_moneyMeasure->setFont( moneyText->getFont() );
+	if( m_moneyMeasure->getText().compare( moneyText->getText() ) != 0 )
+		m_moneyMeasure->setText( moneyText->getText() );
+	const Int moneyNeeded = m_moneyMeasure->getWidth() + 2 * REAL_TO_INT( MONEY_TEXT_MARGIN * scale );
 	putMoney( values, powerBox, InGameUI_moneyPlateWidth( m_moneyPlate, moneyNeeded, nowMs ),
 						centreShown && !moneyWindow->winIsHidden() );
 

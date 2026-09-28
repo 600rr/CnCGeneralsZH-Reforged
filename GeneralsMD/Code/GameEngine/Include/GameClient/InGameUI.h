@@ -1539,6 +1539,7 @@ protected:
 	Int													m_lastMoneyDisplayed;		///< so the money gadget is only written when the amount changes
 	Int													m_lastEarningDisplayed;	///< or the money earned a second beside it
 	MoneyPlateWidth							m_moneyPlate;						///< the money plate's width, following the figure's
+	DisplayString *							m_moneyMeasure;					///< the money's text on one line, never wrapped, to measure it by
 	UnsignedInt									m_hudDrawCount;					///< rendered frames counted by drawHudOverlay itself
 	UnsignedInt									m_hudLastSampleFrame;		///< m_hudDrawCount the fps sample was last refreshed on
 	UnsignedInt									m_hudLastSampleMs;			///< wall clock of that sample

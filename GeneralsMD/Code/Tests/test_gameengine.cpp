@@ -3083,6 +3083,13 @@ TEST(controlbar_command_places_follow_the_owners_drawing)
 	const Int C = GUI_COMMAND_DOZER_CONSTRUCT;
 	const Int nothingPinned[ SLOTS ] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
 
+	/* nothing on the bar, which is what getCommandPlaces hands over for a hidden command group (the
+	   last unit deselected or dead) whatever its buttons still hold: no place taken, no page keys */
+	const Int empty[ SLOTS ] = { N, N, N, N, N, N, N, N, N, N, N, N, N, N };
+	CHECK( !ControlBar_commandPlaces( empty, nothingPinned, SLOTS, places ) );
+	for( Int slot = 0; slot < SLOTS; slot++ )
+		CHECK_EQ( places[ slot ], -1 );
+
 	/* AmericaDozerCommandSet: structures in slots 1 to 9, 11 and 13, disarm mines in 14.  The disarm
 	   is pinned to N by its button's name; the eleven structures pack toward the top left in the
 	   owner's order, Q A W Z S E X D R C F */
