@@ -7875,7 +7875,7 @@ void InGameUI::postDraw( void )
 		}
 	}
 	
-	// draw the scroll anchor, which sits on the middle button now
+	// draw the anchor of a right-drag pan
 	if (TheLookAtTranslator && m_drawRMBScrollAnchor)
 	{
 		const ICoord2D* anchor = TheLookAtTranslator->getScrollAnchor();

@@ -39,8 +39,10 @@ public:
 	LookAtTranslator();
 	~LookAtTranslator();
 	virtual GameMessageDisposition translateGameMessage(const GameMessage *msg);
-	/// where the middle-button scroll was started from, or NULL if no such scroll is running
+	/// where the right-button pan was started from, or NULL if no such pan is running
 	const ICoord2D* getScrollAnchor( void );
+	/// a right drag is panning the camera, so the release that ends it is not a click
+	Bool isRightDragPanning( void ) const { return m_isScrolling && m_scrollType == SCROLL_RMB; }
 	Bool hasMouseMovedRecently( void );
 	/// scrolling, turning or tilting the camera by hand, with the mouse or the keys, right now
 	Bool isMovingCamera( void ) const { return m_isScrolling || m_isRotating || m_isPitching; }
@@ -53,17 +55,18 @@ private:
 	{
 		MAX_VIEW_LOCS = 8
 	};
-	// the middle button drags the camera; the right one gives orders
+	// a right click gives an order and a right drag pans; the middle button turns the camera
 	enum
 	{
 		SCROLL_NONE = 0,
 		SCROLL_KEY,
 		SCROLL_SCREENEDGE,
-		SCROLL_MMB				// middle-button drag pan
+		SCROLL_RMB				// right-button drag pan
 	};
 	ICoord2D m_anchor;
 	ICoord2D m_originalAnchor;
-	ICoord2D m_currentPos;									
+	ICoord2D m_currentPos;
+	Bool m_rightPanArmed;			// the right button is down and has not yet moved far enough to be a pan
 	Bool m_isScrolling;				// set to true if we are in the act of RMB scrolling
 	Bool m_isRotating;					// set to true if we are in the act of MMB rotating
 	Real m_freeRotateAngle;		// heading the drag has asked for, before SnapCameraRotateTo45 quantizes it

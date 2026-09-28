@@ -52,6 +52,7 @@
 #include "GameClient/GameText.h"
 #include "GameClient/GameWindowManager.h"
 #include "GameClient/Keyboard.h"
+#include "GameClient/LookAtXlat.h"
 #include "GameClient/SelectionInfo.h"
 #include "GameClient/SelectionPriority.h"
 #include "GameClient/SelectionXlat.h"
@@ -1161,6 +1162,11 @@ GameMessageDisposition SelectionTranslator::translateGameMessage(const GameMessa
 		//-----------------------------------------------------------------------------
 		case GameMessage::MSG_RAW_MOUSE_RIGHT_BUTTON_UP:
 		{
+			// a right drag panned the camera, and a pan takes nothing back: a player can look around
+			// with a structure on the cursor or a GUI command waiting and still have it on release
+			if( TheLookAtTranslator->isRightDragPanning() )
+				break;
+
 			// a signal armed off the command bar is all the right button takes back
 			if( TheInGameUI->isSignalArmed() )
 			{
@@ -1169,15 +1175,15 @@ GameMessageDisposition SelectionTranslator::translateGameMessage(const GameMessa
 			}
 
 			//
-			// The right button drops whatever is armed, and it does so on a drag as well as on a
-			// click.  A dozer placing a row of structures with shift held is the case that made this
-			// matter: the player right-clicks to send it somewhere, the cursor travels a few pixels
-			// while the button is down, the order goes out as a formation move - and the ghost used
-			// to stay riding the cursor because the cancel only ran on a strict click.
+			// The right button drops whatever is armed, and it does so on a release that wobbled as
+			// well as on a strict click.  A dozer placing a row of structures with shift held is the
+			// case that made this matter: the player right-clicks to send it somewhere, the cursor
+			// travels a few pixels while the button is down, and the ghost used to stay riding the
+			// cursor because the cancel only ran on a strict click.
 			//
 			// Nothing here eats the message.  The order itself arrives as the separate
-			// MSG_MOUSE_RIGHT_CLICK the meta translator inserts, and CommandXlat still needs this
-			// release to close off a formation drag it started.
+			// MSG_MOUSE_RIGHT_CLICK the meta translator inserts, and LookAtXlat still needs this
+			// release to end a pan.
 			//
 			if( TheInGameUI->getGUICommand() )
 			{

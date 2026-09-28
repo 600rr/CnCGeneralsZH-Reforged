@@ -218,8 +218,8 @@ const OptionDef TheOptionCatalog[] =
 		OPTION_BOOL, APPLY_LIVE, 0, 1,
 		get_m_snapCameraRotateTo45, set_m_snapCameraRotateTo45 },
 
-	// MiddleMousePans used to sit here.  The middle button is the only camera drag there is now, so
-	// there is nothing left to choose: it pans, and Ctrl turns the same drag into a rotate.
+	// MiddleMousePans used to sit here.  There is nothing left to choose: a right drag pans and a
+	// middle drag turns the camera.
 
 	// Back on Options > Controls: players split on whether the wheel should chase the cursor.
 	{ "ZoomToCursor",							OPT_WND( "CheckZoomToCursor" ), "GUI:ZoomToCursor",
@@ -232,9 +232,9 @@ const OptionDef TheOptionCatalog[] =
 		OPTION_BOOL, APPLY_LIVE, 0, 1,
 		get_m_isometricCamera, set_m_isometricCamera },
 
-	// A right drag over the ground spreads the selection along the line drawn instead of sending
-	// everyone to one point.  On by default - the right button stopped scrolling, so the drag was
-	// free - and here for anyone who would rather a slipped click did nothing at all.
+	// With the move, attack move or guard key armed, a left drag over the ground spreads the
+	// selection along the line drawn instead of sending everyone to one point.  On by default, and
+	// here for anyone who would rather that drag did nothing at all.
 	{ "FormationDrag",						"", "",
 		OPTION_BOOL, APPLY_LIVE, 0, 1,
 		get_m_formationDrag, set_m_formationDrag },

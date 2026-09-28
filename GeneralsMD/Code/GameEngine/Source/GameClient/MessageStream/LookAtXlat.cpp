@@ -70,6 +70,14 @@ Int SCROLL_AMT = 100;
 
 static const Int edgeScrollSize = 3;
 
+static Bool isAtScreenEdge( const ICoord2D& pos )
+{
+	const Int width  = (Int)TheDisplay->getWidth();
+	const Int height = (Int)TheDisplay->getHeight();
+	return pos.x < edgeScrollSize || pos.y < edgeScrollSize
+			|| pos.x >= width - edgeScrollSize || pos.y >= height - edgeScrollSize;
+}
+
 static Mouse::MouseCursor prevCursor = Mouse::ARROW;
 
 //-----------------------------------------------------------------------------
@@ -107,6 +115,7 @@ void LookAtTranslator::stopScrolling( void )
 
 //-----------------------------------------------------------------------------
 LookAtTranslator::LookAtTranslator() :
+	m_rightPanArmed(false),
 	m_isScrolling(false),
 	m_isRotating(false),
 	m_freeRotateAngle(0.0f),
@@ -138,7 +147,7 @@ LookAtTranslator::~LookAtTranslator()
 
 const ICoord2D* LookAtTranslator::getScrollAnchor(void)
 {
-	if (m_isScrolling && m_scrollType == SCROLL_MMB)
+	if (isRightDragPanning())
 	{
 		return &m_anchor;
 	}
@@ -249,13 +258,25 @@ GameMessageDisposition LookAtTranslator::translateGameMessage(const GameMessage 
 		}
 
 		//-----------------------------------------------------------------------------
-		// The right button belongs to the order layer - a click commands, a drag draws a formation
-		// line - so here it only keeps the idle timer honest: a player who is right-clicking is not
-		// away from the keyboard.
+		// A right click is an order and a right drag pans.  The press only arms the pan: it starts
+		// once the cursor has left the mouse's drag tolerance, so a click that wobbles a pixel or two
+		// still reaches CommandXlat as an order and never nudges the camera.  The anchor stays where
+		// the button went down and the camera runs away from it, faster the further the cursor gets.
 		case GameMessage::MSG_RAW_MOUSE_RIGHT_BUTTON_DOWN:
+		case GameMessage::MSG_RAW_MOUSE_RIGHT_DOUBLE_CLICK:
+		{
+			m_lastMouseMoveFrame = TheGameLogic->getFrame();
+			m_anchor = msg->getArgument( 0 )->pixel;
+			m_rightPanArmed = true;
+			break;
+		}
+
 		case GameMessage::MSG_RAW_MOUSE_RIGHT_BUTTON_UP:
 		{
 			m_lastMouseMoveFrame = TheGameLogic->getFrame();
+			m_rightPanArmed = false;
+			if (isRightDragPanning())
+				stopScrolling();
 			break;
 		}
 
@@ -269,24 +290,13 @@ GameMessageDisposition LookAtTranslator::translateGameMessage(const GameMessage 
 			m_currentPos = msg->getArgument( 0 )->pixel;
 			m_timestamp = TheGameClient->getFrame();
 
-			// The middle button is the camera: drag it and the map follows the cursor, hold ctrl and
-			// the drag turns the camera instead.  It used to be the other way round, with a
-			// MiddleMousePans switch in Options.ini deciding; there is no switch now because the
-			// right button no longer scrolls anything and the pan has to live somewhere.  The
-			// click-to-reset below works either way.
-			if( !TheKeyboard->isCtrl() )
-			{
-				m_isRotating = false;
-				if (!TheInGameUI->isSelecting() && !m_isScrolling)
-					setScrolling(SCROLL_MMB);
-			}
-			else
-			{
-				m_isRotating = true;
-				// the drag turns this, and under SnapCameraRotateTo45 the camera stands on whichever
-				// eighth it is nearest - so start it where the camera already is.
-				m_freeRotateAngle = TheTacticalView->getAngle();
-			}
+			// The middle button turns the camera: drag it sideways and the heading follows.  The pan
+			// is on the right button, so no modifier is needed.  A click without a drag puts the
+			// camera back, below.
+			m_isRotating = true;
+			// the drag turns this, and under SnapCameraRotateTo45 the camera stands on whichever
+			// eighth it is nearest - so start it where the camera already is.
+			m_freeRotateAngle = TheTacticalView->getAngle();
 			break;
 		}
 
@@ -299,8 +309,6 @@ GameMessageDisposition LookAtTranslator::translateGameMessage(const GameMessage 
 			const UnsignedInt PIXEL_OFFSET = 5;
 
 			m_isRotating = false;
-			if (m_scrollType == SCROLL_MMB)
-				stopScrolling();
 			Int dx = m_currentPos.x-m_originalAnchor.x;
 			if (dx<0) dx = -dx;
 			Int dy = m_currentPos.y-m_originalAnchor.y;
@@ -324,15 +332,23 @@ GameMessageDisposition LookAtTranslator::translateGameMessage(const GameMessage 
 				m_lastMouseMoveFrame = TheGameLogic->getFrame();
 
 			m_currentPos = msg->getArgument( 0 )->pixel;
-			
-			UnsignedInt height = TheDisplay->getHeight();
-			UnsignedInt width  = TheDisplay->getWidth();
 
 			if (TheInGameUI->getInputEnabled() == FALSE) {
 				// We don't care how we're scrolling, just stop.
 				if (m_isScrolling)
 					stopScrolling();
+				m_rightPanArmed = false;
 				break;
+			}
+
+			// a right press that has travelled past the drag tolerance is a pan, not an order
+			if (m_rightPanArmed
+					&& ((UnsignedInt)abs(m_currentPos.x - m_anchor.x) > TheMouse->m_dragTolerance
+							|| (UnsignedInt)abs(m_currentPos.y - m_anchor.y) > TheMouse->m_dragTolerance))
+			{
+				m_rightPanArmed = false;
+				if (!TheInGameUI->isSelecting() && !m_isScrolling)
+					setScrolling(SCROLL_RMB);
 			}
 
 			// retail disables edge scrolling entirely in a window; EdgeScrollInWindowedMode in
@@ -347,19 +363,14 @@ GameMessageDisposition LookAtTranslator::translateGameMessage(const GameMessage 
 
 			if (m_isScrolling)
 			{
-				if ( m_scrollType == SCROLL_SCREENEDGE
-						 && (!edgeScrollAllowed
-								 || (m_currentPos.x >= edgeScrollSize && m_currentPos.y >= edgeScrollSize && m_currentPos.y < height-edgeScrollSize && m_currentPos.x < width-edgeScrollSize)) )
+				if ( m_scrollType == SCROLL_SCREENEDGE && (!edgeScrollAllowed || !isAtScreenEdge(m_currentPos)) )
 				{
 					stopScrolling();
 				}
 			}
-			else if (edgeScrollAllowed)
+			else if (edgeScrollAllowed && isAtScreenEdge(m_currentPos))
 			{
-				if ( m_currentPos.x < edgeScrollSize || m_currentPos.y < edgeScrollSize || m_currentPos.y >= height-edgeScrollSize || m_currentPos.x >= width-edgeScrollSize )
-				{
-					setScrolling(SCROLL_SCREENEDGE);
-				}
+				setScrolling(SCROLL_SCREENEDGE);
 			}
 
 			// rotate the view
@@ -473,11 +484,11 @@ GameMessageDisposition LookAtTranslator::translateGameMessage(const GameMessage 
 			{
 				switch (m_scrollType)
 				{
-				case SCROLL_MMB:
+				case SCROLL_RMB:
 					{
 						// The anchor stays where the button went down and the camera runs away from it,
-						// faster the further the cursor gets.  This is what the right button used to do,
-						// and it is what the hand expects; a one-to-one drag of the world is not the same
+						// faster the further the cursor gets.  This is the retail right-drag scroll, and it
+						// is what the hand expects; a one-to-one drag of the world is not the same
 						// gesture and reads as sluggish at these scroll factors.
 						if (TheInGameUI->shouldMoveScrollAnchor())
 						{

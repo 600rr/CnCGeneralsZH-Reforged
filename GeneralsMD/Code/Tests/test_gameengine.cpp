@@ -1101,14 +1101,15 @@ TEST(income_sharing_splits_evenly_and_keeps_the_remainder)
 	CHECK_EQ( IncomeAllyShare( 200, 1 ), 0u );
 }
 
-/* CommandXlat.cpp: a right drag spreads the selection along the line drawn, but only when there is
-   a selection to spread and no GUI command already waiting for the click. */
+/* CommandXlat.cpp: with the move, attack move or guard key armed, a left drag spreads the selection
+   along the line drawn, but only when there is a selection to spread and no GUI command already
+   waiting for the click.  The right button never draws it; a right drag pans. */
 extern Bool Command_formationDragArmed( Bool setting, Bool haveMovableSelection,
 																				Bool guiCommandPending );
 
-TEST(formation_drag_takes_the_right_button_only_when_it_is_asked_for)
+TEST(formation_drag_takes_the_armed_left_button_only_when_it_is_asked_for)
 {
-	/* on by default: a right drag with your own units selected draws the line. */
+	/* on by default: an armed left drag with your own units selected draws the line. */
 	CHECK(  Command_formationDragArmed( true, true, false ) );
 
 	/* off is off. */
@@ -12940,8 +12941,8 @@ TEST(build_placement_preview_defaults_are_the_ones_the_game_always_used)
 	// and the income trickle is off unless somebody asks for it
 	CHECK_EQ( scratch->m_moneyPerMinute, 0 );
 
-	// the right button stopped scrolling when the mouse went onto one scheme, which is what freed
-	// a right drag to draw a formation line; that is on unless somebody turns it off
+	// a left drag with the move, attack move or guard key armed draws a formation line; that is on
+	// unless somebody turns it off
 	CHECK( scratch->m_formationDrag );
 
 	delete scratch;

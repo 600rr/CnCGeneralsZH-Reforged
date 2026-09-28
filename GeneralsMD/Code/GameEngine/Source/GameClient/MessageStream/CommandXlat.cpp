@@ -131,7 +131,8 @@ Bool Command_stopMeansCancelConstruction( Int selectionCount, Bool locallyContro
 
 //-------------------------------------------------------------------------------------------------
 /**
- * Is this right-button press the start of a formation line?
+ * Is this left-button press, made with the move, attack move or guard key armed, the start of a
+ * formation line?
  * A GUI command waiting for a target owns the next click, and with nothing of your own selected
  * there is nobody to spread, so both of those leave the drag meaning nothing.
  */
@@ -4042,16 +4043,14 @@ GameMessageDisposition CommandTranslator::translateGameMessage(const GameMessage
 			m_mouseRightDragAnchor = msg->getArgument( 0 )->pixel;
 			m_mouseRightDown = (UnsignedInt) msg->getArgument( 2 )->integer;
 
-			// attack move and guard draw their line with the left button only
-			m_formationDragAnchor = m_mouseRightDragAnchor;
-			m_formationDragArmed = isFormationDragArmed() && !TheInGameUI->isLineOrderArmed();
-
+			// a right drag pans the camera (LookAtXlat) and never draws a formation line
 			break;
 		}
 
 		//-----------------------------------------------------------------------------
-		// Attack move and guard are aimed with the left button, so with either armed a left drag draws
-		// the same line a right drag does.  The attack key keeps its left drag for the attack circle.
+		// A formation line is drawn with the left button, and only once the move, attack move or guard
+		// key is armed: a left drag without one is a selection box.  The attack key keeps its left
+		// drag for the attack circle.
 		case GameMessage::MSG_RAW_MOUSE_LEFT_DOUBLE_CLICK:
 		case GameMessage::MSG_RAW_MOUSE_LEFT_BUTTON_DOWN:
 		{
@@ -4102,11 +4101,8 @@ GameMessageDisposition CommandTranslator::translateGameMessage(const GameMessage
 			m_mouseRightDragLift = msg->getArgument( 0 )->pixel;
 			m_mouseRightUp = (UnsignedInt) msg->getArgument( 2 )->integer;
 
-			if( m_formationDragArmed )
-				finishFormationDrag( m_mouseRightDragLift );
-
 			// a structure waiting to be placed is dropped by the same release, over in
-			// SelectionXlat, which sees it whether this was a click or a drag
+			// SelectionXlat, unless the release ended a pan
 
 			break;
 		}
@@ -4133,22 +4129,24 @@ GameMessageDisposition CommandTranslator::translateGameMessage(const GameMessage
 		}
 		case GameMessage::MSG_MOUSE_RIGHT_CLICK:
 		{
-			// The right button is the order button, always.  It used to depend on UseAlternateMouse,
-			// which is gone: a click here commands, a drag draws a formation line, and neither of
-			// them scrolls.
-			//
-			// The one exception is the attack, attack move or guard key.  Those orders are aimed with the
-			// left button, so a right click while one is armed puts the key down and gives no order.
+			// A right click is an order.  A right drag pans the camera (LookAtXlat), so a release that
+			// travelled past the drag tolerance, or was held too long, gives no order at all.
+			const Bool isRightClick = TheMouse->isClick(&m_mouseRightDragAnchor, &m_mouseRightDragLift,
+					NULL, NULL,
+					m_mouseRightDown, m_mouseRightUp);
+
+			// The one exception is the move, attack, attack move or guard key.  Those orders are aimed
+			// with the left button, so a right click while one is armed puts the key down and gives no
+			// order.  A pan leaves the key armed.
 			if( TheInGameUI->isOrderKeyArmed() )
 			{
-				TheInGameUI->clearAttackMoveToMode();
+				if( isRightClick )
+					TheInGameUI->clearAttackMoveToMode();
 				disp = DESTROY_MESSAGE;
 				break;
 			}
 
-			if (TheMouse->isClick(&m_mouseRightDragAnchor, &m_mouseRightDragLift,
-					NULL, NULL,
-					m_mouseRightDown, m_mouseRightUp))
+			if (isRightClick)
 			{
 				Bool isPoint = (msg->getArgument(0)->pixelRegion.height() == 0 && msg->getArgument(0)->pixelRegion.width() == 0);
 

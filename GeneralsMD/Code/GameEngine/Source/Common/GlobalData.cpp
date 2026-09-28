@@ -1130,7 +1130,7 @@ GlobalData::GlobalData()
 	m_snapCameraRotateTo45 = TRUE;
 	m_zoomToCursor = TRUE;
 	m_isometricCamera = FALSE;
-	// the right button no longer scrolls, so a right-drag is free to mean something
+	// a left drag with the move, attack move or guard key armed draws a formation line
 	m_formationDrag = TRUE;
 	m_showAllyCursors = TRUE;
 	m_chromaLighting = TRUE;	//costs nothing on a machine with no Razer server: the handshake fails once

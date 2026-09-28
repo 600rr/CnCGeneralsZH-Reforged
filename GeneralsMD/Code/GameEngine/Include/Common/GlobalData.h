@@ -390,7 +390,7 @@ public:
 	Bool m_buildPlacementShadows;		///< whether that structure casts a shadow while it rides the cursor
 	Bool m_zoomToCursor;				///< the mouse wheel zooms toward whatever the cursor is over
 	Bool m_isometricCamera;				///< the tactical view from far off down a narrow cone, near enough orthographic
-	Bool m_formationDrag;				///< dragging the right button spreads the selection along the line drawn
+	Bool m_formationDrag;				///< with the move, attack move or guard key armed, a left drag spreads the selection along the line drawn
 	Bool m_showAllyCursors;				///< in a network game, draw where each ally's mouse is pointing
 	Bool m_chromaLighting;				///< put the state of the match on Razer hardware
 	Int m_menuTransitionSpeed;			///< percent of the authored speed the menus slide and fade at; 100 = as drawn

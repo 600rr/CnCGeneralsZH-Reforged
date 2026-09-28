@@ -1122,7 +1122,7 @@ public:  // ********************************************************************
 	Bool isGuardArmed( void ) const						{ return m_guardArmed; }
 
 	// the move key arms the order a right click gives, for the left button: the next order click is
-	// that move, and a left drag the formation line a right drag draws
+	// that move, and a left drag draws the formation line
 	void toggleMoveArmed( void )							{ m_moveArmed = !m_moveArmed; m_attackMoveToMode = FALSE; m_forceAttackArmed = FALSE; m_guardArmed = FALSE; }
 	Bool isMoveArmed( void ) const						{ return m_moveArmed; }
 	Bool isLineOrderArmed( void ) const				{ return m_attackMoveToMode || m_guardArmed || m_moveArmed; }	///< a left drag draws a move, attack move or guard line; force fire's left drag is the attack circle
@@ -1158,8 +1158,7 @@ public:  // ********************************************************************
 	void setDrawRMBScrollAnchor(Bool b) { m_drawRMBScrollAnchor = b; }
 	void setMoveRMBScrollAnchor(Bool b) { m_moveRMBScrollAnchor = b; }
 
-	// The camera scroll moved from the right button to the middle one; the two INI fields keep their
-	// shipped names because InGameUI.ini sets them and an unknown field is a parse error.
+	// The right-drag camera scroll these two fields were named for is back on the right button.
 	Bool shouldMoveScrollAnchor( void ) const { return m_moveRMBScrollAnchor; }
 
 private:
