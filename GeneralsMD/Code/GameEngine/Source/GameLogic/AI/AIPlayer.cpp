@@ -5751,6 +5751,60 @@ static Real teamPower( Team *team )
 	return power;
 }
 
+/** A script, or one it hands the team on to, that sends the team at the enemy: an attack order, a wait
+	* on the flag the skirmish scripts raise to launch a wave, or a count towards the next one.  Each
+	* player's copy of the scripts carries its index on every name, "_LAUNCH_ATTACK3".  China's 5th wave
+	* Dragon Tanks only count: the attack script their team names is not in the file, so they guarded
+	* the base for the whole match. */
+static Bool scriptAttacks( const Script *script, Int depth )
+{
+	if( script == NULL || depth > 4 )
+		return FALSE;
+	for( OrCondition *orCond = script->getOrCondition(); orCond; orCond = orCond->getNextOrCondition() )
+		for( Condition *cond = orCond->getFirstAndCondition(); cond; cond = cond->getNext() )
+			if( cond->getConditionType() == Condition::FLAG && cond->getParameter( 0 )->getString().startsWith( "_LAUNCH_ATTACK" ) )
+				return TRUE;
+	for( Int branch = 0; branch < 2; ++branch )
+	{
+		for( ScriptAction *action = branch ? script->getFalseAction() : script->getAction(); action; action = action->getNext() )
+		{
+			switch( action->getActionType() )
+			{
+				case ScriptAction::SKIRMISH_FOLLOW_APPROACH_PATH:
+				case ScriptAction::SKIRMISH_MOVE_TO_APPROACH_PATH:
+					return TRUE;
+			}
+			for( Int i = 0; i < action->getNumParameters(); ++i )
+			{
+				const Parameter *param = action->getParameter( i );
+				if( param->getParameterType() == Parameter::COUNTER && param->getString().startsWith( "_COUNTER_FOR_ATTACK" ) )
+					return TRUE;
+				// only a script the team is set to run; following every script a script names reached the
+				// subroutine lists and called the garrison teams and the base expanders attackers
+				const ScriptAction::ScriptActionType type = action->getActionType();
+				if( (type == ScriptAction::TEAM_EXECUTE_SEQUENTIAL_SCRIPT || type == ScriptAction::TEAM_EXECUTE_SEQUENTIAL_SCRIPT_LOOPING) &&
+						param->getParameterType() == Parameter::SCRIPT &&
+						scriptAttacks( TheScriptEngine->findScriptByName( param->getString() ), depth + 1 ) )
+					return TRUE;
+			}
+		}
+	}
+	return FALSE;
+}
+
+/** A team the skirmish scripts send at the enemy at some point, as against one they keep at home on
+	* guard: the tunnel guards, the fire base crew, the palace garrison. */
+Bool aiTeamAttacks( const TeamTemplateInfo *info )
+{
+	if( scriptAttacks( TheScriptEngine->findScriptByName( info->m_scriptOnCreate ), 0 ) ||
+			scriptAttacks( TheScriptEngine->findScriptByName( info->m_scriptOnIdle ), 0 ) )
+		return TRUE;
+	for( Int i = 0; i < MAX_GENERIC_SCRIPTS; ++i )
+		if( scriptAttacks( TheScriptEngine->findScriptByName( info->m_teamGenericScripts[ i ] ), 0 ) )
+			return TRUE;
+	return FALSE;
+}
+
 //----------------------------------------------------------------------------------------------------------
 /** C2, second attempt.  Teams went out as they came off the line - a lone artillery piece, a single bomb
 	* truck, one helicopter - and three brutal matches on Winter Wolf counted 29% of the AI's units dying
@@ -5841,6 +5895,8 @@ void AIPlayer::doWaves( void )
 {
 	if( (TheGameLogic->getFrame() + computeUpdatePhase( m_player->getPlayerIndex(), WAVE_CHECK_RATE )) % WAVE_CHECK_RATE != 0 )
 		return;
+
+	sendIdleAttackTeams();
 
 	Real power = 0.0f;
 	Int first = -1;
@@ -6053,6 +6109,77 @@ void AIPlayer::sendWave( AIGroup *wave, const AsciiString &approach, Int pathSuf
 
 	wave->groupFollowWaypointPathAsTeam( way, CMD_FROM_AI );
 	sendWaveThroughTunnels( wave, &center, way );
+}
+
+//----------------------------------------------------------------------------------------------------------
+/** The owner watched the computer pile its army up at home and never use it.  The skirmish scripts send
+	* an attack team only while their launch flag is up, and only a team standing inside the base when it
+	* goes up; a team finished a moment later guards the base until the next launch, and one that came
+	* back from a lost fight guards it for good.  Eight Brutal matches on Twilight Flame had 43 units idle
+	* at home on average after frame 18000, 23 of them in attack teams, one GLA at 38 Angry Mob members with
+	* 70,000 banked.  So an attack team that stands idle at home is called up here: it parks for the next
+	* wave, or goes on its own when it is a wave by itself or the staging point is full.  The guards stay,
+	* since the scripts never send them.  The same eight matches then had 17 idle at home, 9 in attack
+	* teams, and sent 319 waves instead of 134. */
+//----------------------------------------------------------------------------------------------------------
+void AIPlayer::sendIdleAttackTeams( void )
+{
+	if( !isSkirmishAI() || !getSkillProfile()->m_massBeforeAttacking || !m_baseCenterSet )
+		return;
+	Player *enemy = getAiEnemy();
+	if( enemy == NULL )
+		return;
+	const Int pathSuffix = enemy->getMpStartIndex() + 1;
+	const AsciiString center( "Center" );
+	const Real reachSqr = sqr( 2.0f * m_baseRadius );
+
+	for( Player::PlayerTeamList::const_iterator t = m_player->getPlayerTeams()->begin(); t != m_player->getPlayerTeams()->end(); ++t )
+	{
+		const TeamTemplateInfo *info = (*t)->getTemplateInfo();
+		if( info->m_isBaseDefense || info->m_isPerimeterDefense || !aiTeamAttacks( info ) )
+			continue;
+		for( DLINK_ITERATOR<Team> iter = (*t)->iterate_TeamInstanceList(); !iter.done(); iter.advance() )
+		{
+			Team *team = iter.cur();
+			if( !team->isActive() )
+				continue;		// still being built; it leaves when it is whole
+			Bool parked = FALSE;
+			for( Int i = 0; i < MAX_HELD_TEAMS; ++i )
+				if( m_heldUsed[ i ] && m_heldTeam[ i ] == team->getID() )
+					parked = TRUE;
+			if( parked )
+				continue;
+
+			// most of the members that can walk are at home with nothing to do.  Not all of them: an Angry
+			// Mob's members never stop milling round their nexus, and one straggler out on the map kept 22
+			// of them at home for a minute
+			Int members = 0;
+			Int waiting = 0;
+			for( DLINK_ITERATOR<Object> m = team->iterate_TeamMemberList(); !m.done(); m.advance() )
+			{
+				Object *obj = m.cur();
+				if( obj->isEffectivelyDead() || obj->getAI() == NULL || obj->isContained() || obj->isKindOf( KINDOF_IMMOBILE ) )
+					continue;
+				++members;
+				const StateID state = obj->getAI()->getCurrentStateID();
+				const Bool idle = state == AI_IDLE || state == AI_GUARD || state == AI_GUARD_RETALIATE;
+				if( idle && sqr( obj->getPosition()->x - m_baseCenter.x ) + sqr( obj->getPosition()->y - m_baseCenter.y ) <= reachSqr )
+					++waiting;
+			}
+			if( waiting == 0 || 2 * waiting < members )
+				continue;
+
+			DEBUG_LOG(("AI WAVE frame %d player %d calls up '%s', %d units idle at home\n", TheGameLogic->getFrame(),
+				m_player->getPlayerIndex(), team->getName().str(), waiting));
+			if( holdTeamForWave( team, center, pathSuffix ) )
+				continue;
+			AIGroup *group = TheAI->createGroup();
+			team->getTeamAsAIGroup( group );
+			Coord3D from;
+			group->getCenter( &from );
+			sendWave( group, chooseApproachLabel( &from, center, pathSuffix ), pathSuffix, 1, teamPower( team ), 0 );
+		}
+	}
 }
 
 //----------------------------------------------------------------------------------------------------------
