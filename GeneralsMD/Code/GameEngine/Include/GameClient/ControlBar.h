@@ -421,31 +421,51 @@ Int getBuildBatchCount( void );
 
 enum { MAX_COMMANDS_PER_SET = 18 };  // user interface max is 14 (but internally it's 18 for script only buttons!)
 
-/** The places the bar's page lays a command set out in: the command panel's three rows and the two
-	* worker bars.  See ControlBar_commandPlaces. */
+/** The command grid, six places across and three down, read along the rows.  A place is its key:
+	* COMMAND_SLOTnn is bound to place nn - 1, Q W E R T Y over A S D F G H over Z X C V B N as shipped.
+	* See ControlBar_commandPlaces. */
 enum CommandPlace
 {
-	COMMAND_PLACE_SKILL = 0,						///< the command panel's top row, the unit's own abilities and upgrades
-	COMMAND_PLACE_SKILLS = 5,
-	COMMAND_PLACE_ATTACK = 5,						///< its second row: attack, stop, attack move
-	COMMAND_PLACE_STOP,
-	COMMAND_PLACE_ATTACK_MOVE,
-	COMMAND_PLACE_EJECT,								///< its third row: eject, seek shelter, guard, hold position
-	COMMAND_PLACE_SHELTER,
-	COMMAND_PLACE_GUARD,
-	COMMAND_PLACE_HOLD,
-	COMMAND_PLACE_Q,										///< the Q worker bar, one place for each slot of the Q structure chord
-	COMMAND_PLACE_W = COMMAND_PLACE_Q + 8,	///< the W worker bar, the W chord's
-	COMMAND_PLACE_COUNT = COMMAND_PLACE_W + 8
+	COMMAND_PLACE_Q = 0,
+	COMMAND_PLACE_W,
+	COMMAND_PLACE_E,
+	COMMAND_PLACE_R,
+	COMMAND_PLACE_T,
+	COMMAND_PLACE_Y,
+	COMMAND_PLACE_A,
+	COMMAND_PLACE_S,
+	COMMAND_PLACE_D,
+	COMMAND_PLACE_F,
+	COMMAND_PLACE_G,
+	COMMAND_PLACE_H,
+	COMMAND_PLACE_Z,
+	COMMAND_PLACE_X,
+	COMMAND_PLACE_C,
+	COMMAND_PLACE_V,
+	COMMAND_PLACE_B,
+	COMMAND_PLACE_N,
+	COMMAND_PLACE_COUNT,
+	COMMAND_PLACE_COLUMNS = 6,
+
+	// the owner's fixed places, 2026-09-28: a unit's orders under the left hand, a building's on the right
+	COMMAND_PLACE_ATTACK = COMMAND_PLACE_A,
+	COMMAND_PLACE_STOP = COMMAND_PLACE_S,
+	COMMAND_PLACE_ATTACK_MOVE = COMMAND_PLACE_D,
+	COMMAND_PLACE_EJECT = COMMAND_PLACE_Z,		///< a transport's passengers out, or a building's garrison
+	COMMAND_PLACE_GUARD = COMMAND_PLACE_X,
+	COMMAND_PLACE_HOLD = COMMAND_PLACE_C,
+	COMMAND_PLACE_RALLY = COMMAND_PLACE_B,
+	COMMAND_PLACE_SELL = COMMAND_PLACE_N
 };
 
 /** Where each of `count` command slots stands: `types` is what each slot holds, GUI_COMMAND_NONE for
-	* an empty one, and `places` gets a CommandPlace for each or -1.  A stop, an attack move, a guard
-	* and an evacuate go to their own places; a structure, a unit to build and a passenger's exit go to
-	* the worker bars by slot, the first eight to Q and the rest to W, where the structure chord's keys
-	* find them; everything else runs along the top row in slot order and spills into the worker bars'
-	* free places. */
-void ControlBar_commandPlaces( const Int *types, Int count, Int *places );
+	* an empty one, and `places` gets a CommandPlace for each or -1.  Stop, attack move, guard, evacuate,
+	* rally point and sell go to their own places.  A set with an attack move has attack and hold
+	* position too, keys no command set has a button for, so their two places are kept for them; the
+	* return is TRUE then.  Everything else fills the free places in reading order, Q W E R T Y first:
+	* what the set builds (structures, units) in slot order, then the rest - abilities, upgrades,
+	* passengers - in slot order, so a building's upgrades come after its production. */
+Bool ControlBar_commandPlaces( const Int *types, Int count, Int *places );
 enum { MAX_RIGHT_HUD_UPGRADE_CAMEOS = 5};
 enum { MAX_MULTI_SELECT_GROUPS = 36 };	///< unit types a multi-selection tells apart (6x6 grid, Tab focus)
 enum { 
@@ -786,9 +806,18 @@ public:
 																											GadgetGameMessage gadgetMessage );
 	
 
-	/** press a command bar button by its slot index (0..MAX_COMMANDS_PER_SET-1), exactly as
-		a mouse click would.  This is what the COMMAND_SLOTnn grid keys are wired to. */
-	void pressCommandButton( Int index );
+	/** press the command at grid place `place` (a CommandPlace), exactly as a mouse click would.
+		This is what the COMMAND_SLOTnn grid keys are wired to.  Where the place holds one of the
+		orders every unit shares, or nothing, the key sends that order's own message, the one its
+		key sent before the grid took it: A force fire, S stop, D attack move, X guard, C hold. */
+	void pressCommandButton( Int place );
+
+	/** The place each command window stands at right now, -1 for a hidden one, and whether the
+		attack and hold places hold the page's two orders.  `places` has MAX_COMMANDS_PER_SET. */
+	Bool getCommandPlaces( Int *places ) const;
+
+	/** paint each command window's key, its place's, in its top left corner; `places` as above */
+	void labelCommandPlaces( const Int *places );
 
 	/** The general's powers are laid out SPECIAL_POWER_SHORTCUT_COLS to a row, so one key press
 		cannot reach eleven of them.  The first press picks a row (F1 is the row in the corner,
@@ -803,26 +832,24 @@ public:
 
 	/** What a press would do this instant, for whoever shows the bar somewhere other than the
 		screen - the hardware lighting is the one that does.  These run the same resolution the two
-		press calls above run, chords and all, and stop short of pressing: a second copy of that
-		logic kept elsewhere is a copy that goes stale, and this file has been bitten by one already.
-		button comes back as the window the press would reach.  For a press that only arms a chord
-		it is the first window in the armed group that would take the second key, or NULL when the
-		group holds nothing to press, so a caller can tell a chord worth starting from an empty one. */
+		press calls above run and stop short of pressing: a second copy of that logic kept elsewhere
+		is a copy that goes stale, and this file has been bitten by one already.  button comes back
+		as the window the press would reach.  For a tray key that only picks a row it is the first
+		window in that row, or NULL when the row holds nothing to press. */
 	enum PressOutcome
 	{
 		PRESS_DOES_NOTHING,		///< no button behind this key right now
-		PRESS_ARMS_CHORD,			///< first half of a two key chord
+		PRESS_ARMS_CHORD,			///< first half of the powers tray's two key press
 		PRESS_IS_REFUSED,			///< a button is there and it is disabled
 		PRESS_FIRES						///< the button would take it
 	};
 	PressOutcome peekCommandButtonPress( Int index, GameWindow **button );
 	PressOutcome peekSpecialPowerShortcutPress( Int index, GameWindow **button );
 
-	/** Where a press lands: a slot index, or one of these two.  The two functions below are the
-		whole decision and touch no window, so the tests can hold every row of it; the press calls
-		and the peek calls gather what is on the bar and ask them. */
+	/** Where a tray key lands: a slot index, or one of these two.  resolveTrayPress is the whole
+		decision and touches no window, so the tests can hold every row of it; the press and the peek
+		calls gather what is on the tray and ask it. */
 	enum { SLOT_NOTHING = -1, SLOT_ARMS_CHORD = -2 };
-	static Int resolveGridPress( Int index, Int chordGroup, Bool hasStructures, Bool indexIsStructure );
 	static Int resolveTrayPress( Int index, Int armedRow, Int visibleSlots );
 
 	/** The promotion screen answers the group keys while it is open: 1 to 5 name its five columns.
@@ -847,22 +874,8 @@ public:
 		Shift-Tab (-1) walk the focus between them */
 	void cycleMultiSelectFocus( Int direction );
 
-	/** a builder's structures are reached by a two-key chord: the Q cell (slot 0) arms the
-		structures in columns 1-4 (slots 0..7), the W cell (slot 2) the ones in columns 5-7
-		(slots 8..), then the next grid key picks the cell within the group by its own position */
-	enum { CHORD_SLOT_Q = 0, CHORD_SLOT_W = 2, CHORD_GROUP_SIZE = 8 };
-
-	/** a raw key while a chord is armed: the key of one of the group's own cells (the grid's
-		slots 0..7 - Q Z W X E C R V as shipped) resolves the chord and returns TRUE (the key is
-		eaten), anything else drops it */
-	Bool handleChordKey( Int mappableKey );
-	Bool isChordArmed( void ) const { return m_chordGroup >= 0; }
-
-	/** forget a half-typed chord.  An armed chord swallows the next grid key and turns it into
-		a structure to place, so anything that says the player has moved on
-		(a click, a new selection, a key that is not part of the chord, or simply time passing)
-		must drop it. */
-	void dropChord( void );
+	/** how long a half-finished two key press waits for its second key, the powers tray's row and
+		the promotion screen's marked column */
 	enum { CHORD_TIMEOUT_MS = 4000 };			///< real time, not frames: the client frame rate is uncapped
 
 	/// is the drawable the currently selected drawable for the context sensitive UI?
@@ -1207,9 +1220,10 @@ protected:
 	void arrangeSpecialPowerShortcutGrid( void );	///< re-lay the layout's single column as rows of SPECIAL_POWER_SHORTCUT_COLS
 	Int countVisibleSpecialPowerShortcuts( void );	///< how many slots carry a power right now, which is not the command set's size
 
-	/** Where a press lands with the chords as they stand.  The press calls and the peek calls both
-		go through these, which is the point of them. */
-	Int resolveCommandSlot( Int index, Bool *hasStructures ) const;
+	/** Where a key lands: the command slot at grid place `place`, or SLOT_NOTHING; and the tray slot
+		a shortcut key reaches with its row as it stands.  The press calls and the peek calls both go
+		through these, which is the point of them. */
+	Int resolveCommandSlot( Int place ) const;
 	Int resolveSpecialPowerShortcutSlot( Int index );
 
 	static const Image* calculateVeterancyOverlayForThing( const ThingTemplate *thingTemplate );
@@ -1327,9 +1341,6 @@ protected:
 	CommandButton *m_buildPageBackButton;									///< takes a page back to the menu buttons
 	Int m_buildPage;																			///< BUILD_PAGE_ROOT, or the page being shown
 	ObjectID m_buildPageObjectID;													///< builder the page belongs to; a new one starts at the menu
-	Int m_chordGroup;																			///< -1, or the structure group (0 = Q, 1 = W) armed by the first chord key
-	UnsignedInt m_chordStartMs;														///< millisecond the chord was armed on, for CHORD_TIMEOUT_MS
-	DrawableID m_chordDrawableID;													///< builder the armed chord addresses; the chord dies if the bar moves to another one
 
 	/** A player upgrade is researched once, so it goes to exactly one of the selected buildings -
 		* and the bar cannot see the queue an earlier click in this same frame just filled, because

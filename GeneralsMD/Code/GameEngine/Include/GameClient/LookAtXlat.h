@@ -53,15 +53,13 @@ private:
 	{
 		MAX_VIEW_LOCS = 8
 	};
-	// Modern drags the camera with the middle button and gives orders with the right one; Legacy
-	// drags it with the right button, the way the game shipped.
+	// the middle button drags the camera; the right one gives orders
 	enum
 	{
 		SCROLL_NONE = 0,
 		SCROLL_KEY,
 		SCROLL_SCREENEDGE,
-		SCROLL_MMB,				// middle-button drag pan, Modern
-		SCROLL_RMB				// right-button drag pan, Legacy
+		SCROLL_MMB				// middle-button drag pan
 	};
 	ICoord2D m_anchor;
 	ICoord2D m_originalAnchor;
@@ -75,7 +73,6 @@ private:
 	DrawableID m_lastPlaneID;
 	ViewLocation m_viewLocation[ MAX_VIEW_LOCS ];
 	Int m_scrollType;
-	Bool m_scrollMovesCursor;	// the scroll in progress swapped the cursor for the scroll arrows and puts it back when it stops
 	void setScrolling( Int );
 	void stopScrolling( void );
 	Bool networkCameraDue( const ViewLocation &view );

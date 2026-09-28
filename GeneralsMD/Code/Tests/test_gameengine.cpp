@@ -1057,22 +1057,6 @@ TEST(force_fire_is_the_attack_key_and_nothing_else)
 	CHECK( !CommandXlat_isForceAttackTargeting( false, true ) );
 }
 
-/* InGameUI.cpp: Legacy is the game as shipped, where holding ctrl is force fire.  Modern keeps ctrl for
-   the shared pace and force fires on the attack key alone. */
-extern Bool InGameUI_isForceFireOn( Bool forceAttackArmed, Bool ctrlHeld, Bool legacyInput );
-
-TEST(legacy_ctrl_force_fires_and_modern_ctrl_does_not)
-{
-	CHECK(  InGameUI_isForceFireOn( false, true,  true  ) );
-	CHECK( !InGameUI_isForceFireOn( false, true,  false ) );
-
-	/* the attack key arms it under either scheme */
-	CHECK(  InGameUI_isForceFireOn( true,  false, false ) );
-	CHECK(  InGameUI_isForceFireOn( true,  false, true  ) );
-
-	CHECK( !InGameUI_isForceFireOn( false, false, true  ) );
-}
-
 /* Player.cpp: the lobby's unit limit is 840 units shared out by the players who are not watching. */
 TEST(unit_limit_shares_840_between_the_players)
 {
@@ -3096,58 +3080,181 @@ TEST(controlbar_command_places_follow_the_owners_drawing)
 	Int places[ SLOTS ];
 	const Int N = GUI_COMMAND_NONE;
 
-	/* AmericaDozerCommandSet: structures in slots 1 to 9, 11 and 13, disarm mines in 14.  The first
-	   eight go to the Q bar at their slot, the rest to the W bar at their slot less eight, which is
-	   the place the structure chord's second key names; the disarm is an ability on the top row */
+	/* AmericaDozerCommandSet: structures in slots 1 to 9, 11 and 13, disarm mines in 14.  Nothing
+	   has a place of its own, so the structures fill the places in reading order and the disarm, an
+	   ability, comes after them */
 	const Int dozer[ SLOTS ] = { GUI_COMMAND_DOZER_CONSTRUCT, GUI_COMMAND_DOZER_CONSTRUCT, GUI_COMMAND_DOZER_CONSTRUCT,
 		GUI_COMMAND_DOZER_CONSTRUCT, GUI_COMMAND_DOZER_CONSTRUCT, GUI_COMMAND_DOZER_CONSTRUCT, GUI_COMMAND_DOZER_CONSTRUCT,
 		GUI_COMMAND_DOZER_CONSTRUCT, GUI_COMMAND_DOZER_CONSTRUCT, N, GUI_COMMAND_DOZER_CONSTRUCT, N,
 		GUI_COMMAND_DOZER_CONSTRUCT, GUI_COMMAND_FIRE_WEAPON };
-	ControlBar_commandPlaces( dozer, SLOTS, places );
+	CHECK( !ControlBar_commandPlaces( dozer, SLOTS, places ) );
 	CHECK_EQ( places[ 0 ], (Int)COMMAND_PLACE_Q );
-	CHECK_EQ( places[ 7 ], COMMAND_PLACE_Q + 7 );
-	CHECK_EQ( places[ 8 ], (Int)COMMAND_PLACE_W );
-	CHECK_EQ( places[ 10 ], COMMAND_PLACE_W + 2 );
-	CHECK_EQ( places[ 12 ], COMMAND_PLACE_W + 4 );
+	CHECK_EQ( places[ 5 ], (Int)COMMAND_PLACE_Y );
+	CHECK_EQ( places[ 6 ], (Int)COMMAND_PLACE_A );
+	CHECK_EQ( places[ 8 ], (Int)COMMAND_PLACE_D );
 	CHECK_EQ( places[ 9 ], -1 );
-	CHECK_EQ( places[ 13 ], (Int)COMMAND_PLACE_SKILL );
+	CHECK_EQ( places[ 10 ], (Int)COMMAND_PLACE_F );
+	CHECK_EQ( places[ 12 ], (Int)COMMAND_PLACE_G );
+	CHECK_EQ( places[ 13 ], (Int)COMMAND_PLACE_H );
 
 	/* AmericaVehicleHumveeCommandSet: three drones, five passengers, evacuate, attack move, guard,
-	   stop.  The orders take their own places whatever slot they were in; the passengers go to the Q
-	   bar by slot and the drones along the top */
+	   stop.  The orders take the owner's places whatever slot they were in - stop S, attack move D,
+	   eject Z, guard X - and A and C are kept for attack and hold position; the drones fill the top
+	   row and the passengers run on into F G */
 	const Int humvee[ SLOTS ] = { GUI_COMMAND_OBJECT_UPGRADE, GUI_COMMAND_OBJECT_UPGRADE, GUI_COMMAND_OBJECT_UPGRADE,
 		GUI_COMMAND_EXIT_CONTAINER, GUI_COMMAND_EXIT_CONTAINER, GUI_COMMAND_EXIT_CONTAINER, GUI_COMMAND_EXIT_CONTAINER,
 		GUI_COMMAND_EXIT_CONTAINER, GUI_COMMAND_EVACUATE, N, GUI_COMMAND_ATTACK_MOVE, N, GUI_COMMAND_GUARD, GUI_COMMAND_STOP };
-	ControlBar_commandPlaces( humvee, SLOTS, places );
-	CHECK_EQ( places[ 0 ], COMMAND_PLACE_SKILL + 0 );
-	CHECK_EQ( places[ 2 ], COMMAND_PLACE_SKILL + 2 );
-	CHECK_EQ( places[ 3 ], COMMAND_PLACE_Q + 3 );
-	CHECK_EQ( places[ 8 ], (Int)COMMAND_PLACE_EJECT );
-	CHECK_EQ( places[ 10 ], (Int)COMMAND_PLACE_ATTACK_MOVE );
-	CHECK_EQ( places[ 12 ], (Int)COMMAND_PLACE_GUARD );
-	CHECK_EQ( places[ 13 ], (Int)COMMAND_PLACE_STOP );
+	CHECK( ControlBar_commandPlaces( humvee, SLOTS, places ) );
+	CHECK_EQ( places[ 0 ], (Int)COMMAND_PLACE_Q );
+	CHECK_EQ( places[ 5 ], (Int)COMMAND_PLACE_Y );
+	CHECK_EQ( places[ 6 ], (Int)COMMAND_PLACE_F );
+	CHECK_EQ( places[ 7 ], (Int)COMMAND_PLACE_G );
+	CHECK_EQ( places[ 8 ], (Int)COMMAND_PLACE_Z );
+	CHECK_EQ( places[ 10 ], (Int)COMMAND_PLACE_D );
+	CHECK_EQ( places[ 12 ], (Int)COMMAND_PLACE_X );
+	CHECK_EQ( places[ 13 ], (Int)COMMAND_PLACE_S );
 
-	/* ChinaCommandCenterCommandSet: a dozer to build, seven powers, two upgrades, rally, sell.  Past
-	   the top row's five the rest spill into the worker bars' free places, and nothing lands on the
-	   places kept for orders */
+	/* ChinaCommandCenterCommandSet: a dozer to build, seven powers, two upgrades, rally, sell.  Rally
+	   stands on B and sell on N whatever slot they were in; the dozer first, then the rest in order */
 	const Int centre[ SLOTS ] = { GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_SPECIAL_POWER,
 		GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_SPECIAL_POWER,
 		GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_OBJECT_UPGRADE, GUI_COMMAND_OBJECT_UPGRADE, N, N,
 		GUI_COMMAND_SET_RALLY_POINT, GUI_COMMAND_SELL };
-	ControlBar_commandPlaces( centre, SLOTS, places );
+	CHECK( !ControlBar_commandPlaces( centre, SLOTS, places ) );
 	CHECK_EQ( places[ 0 ], (Int)COMMAND_PLACE_Q );
-	CHECK_EQ( places[ 5 ], COMMAND_PLACE_SKILL + 4 );
-	CHECK_EQ( places[ 6 ], COMMAND_PLACE_Q + 1 );
-	CHECK_EQ( places[ 13 ], COMMAND_PLACE_Q + 6 );
+	CHECK_EQ( places[ 1 ], (Int)COMMAND_PLACE_W );
+	CHECK_EQ( places[ 6 ], (Int)COMMAND_PLACE_A );
+	CHECK_EQ( places[ 9 ], (Int)COMMAND_PLACE_F );
+	CHECK_EQ( places[ 12 ], (Int)COMMAND_PLACE_B );
+	CHECK_EQ( places[ 13 ], (Int)COMMAND_PLACE_N );
+
+	/* a factory whose set opens on an upgrade, nine units after it, a garrison, rally and sell: the
+	   units take Q W E R T Y and A S D, the upgrade comes after them on F, the garrison's evacuate is
+	   Z like a transport's */
+	const Int factory[ SLOTS ] = { GUI_COMMAND_OBJECT_UPGRADE, GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_UNIT_BUILD,
+		GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_UNIT_BUILD,
+		GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_EVACUATE, N,
+		GUI_COMMAND_SET_RALLY_POINT, GUI_COMMAND_SELL };
+	CHECK( !ControlBar_commandPlaces( factory, SLOTS, places ) );
+	CHECK_EQ( places[ 1 ], (Int)COMMAND_PLACE_Q );
+	CHECK_EQ( places[ 6 ], (Int)COMMAND_PLACE_Y );
+	CHECK_EQ( places[ 7 ], (Int)COMMAND_PLACE_A );
+	CHECK_EQ( places[ 9 ], (Int)COMMAND_PLACE_D );
+	CHECK_EQ( places[ 0 ], (Int)COMMAND_PLACE_F );
+	CHECK_EQ( places[ 10 ], (Int)COMMAND_PLACE_Z );
+	CHECK_EQ( places[ 12 ], (Int)COMMAND_PLACE_B );
+	CHECK_EQ( places[ 13 ], (Int)COMMAND_PLACE_N );
+
+	/* the biggest set there is, the Boss general's dozer, fourteen structures: every one gets a place
+	   and no two share one */
+	Int boss[ SLOTS ];
+	for( Int slot = 0; slot < SLOTS; slot++ )
+		boss[ slot ] = GUI_COMMAND_DOZER_CONSTRUCT;
+	ControlBar_commandPlaces( boss, SLOTS, places );
 	Bool taken[ COMMAND_PLACE_COUNT ] = { FALSE };
 	for( Int slot = 0; slot < SLOTS; slot++ )
 	{
-		if( places[ slot ] < 0 )
+		CHECK( places[ slot ] >= 0 && places[ slot ] < COMMAND_PLACE_COUNT );
+		if( places[ slot ] < 0 || places[ slot ] >= COMMAND_PLACE_COUNT )
 			continue;
 		CHECK( !taken[ places[ slot ] ] );
-		CHECK( places[ slot ] < COMMAND_PLACE_SKILLS || places[ slot ] >= COMMAND_PLACE_Q );
 		taken[ places[ slot ] ] = TRUE;
 	}
+}
+
+/* CommandMapReforged.ini binds COMMAND_SLOTnn to the key of place nn - 1: the grid reads Q W E R T Y,
+   A S D F G H, Z X C V B N, so a place's key is where the owner put it on 2026-09-28 - a unit's attack
+   on A, stop on S, attack move on D, eject on Z, guard on X, hold on C; a building's sell on N, rally
+   point on B and evacuate on Z.  No other record may hold one of those letters bare, or it comes
+   first in the list and steals the key. */
+TEST(the_command_grid_keys_are_the_places_and_n_sells_and_b_rallies)
+{
+	FILE *fp = fopen( COMMAND_MAP_REFORGED_INI, "rb" );
+	CHECK( fp != NULL );
+	if( fp == NULL )
+		return;
+	std::string text;
+	char chunk[ 1024 ];
+	size_t got = 0;
+	while( ( got = fread( chunk, 1, sizeof( chunk ), fp ) ) > 0 )
+		text.append( chunk, got );
+	fclose( fp );
+
+	static const char GRID_KEYS[] = "QWERTYASDFGHZXCVBN";
+	CHECK_EQ( (Int)strlen( GRID_KEYS ), (Int)COMMAND_PLACE_COUNT );
+	CHECK_EQ( GRID_KEYS[ COMMAND_PLACE_ATTACK ], 'A' );
+	CHECK_EQ( GRID_KEYS[ COMMAND_PLACE_STOP ], 'S' );
+	CHECK_EQ( GRID_KEYS[ COMMAND_PLACE_ATTACK_MOVE ], 'D' );
+	CHECK_EQ( GRID_KEYS[ COMMAND_PLACE_EJECT ], 'Z' );
+	CHECK_EQ( GRID_KEYS[ COMMAND_PLACE_GUARD ], 'X' );
+	CHECK_EQ( GRID_KEYS[ COMMAND_PLACE_HOLD ], 'C' );
+	CHECK_EQ( GRID_KEYS[ COMMAND_PLACE_RALLY ], 'B' );
+	CHECK_EQ( GRID_KEYS[ COMMAND_PLACE_SELL ], 'N' );
+
+	// and the command types that land there, whatever slot of their set they sit in
+	enum { SLOTS = 8 };
+	const Int unit[ SLOTS ] = { GUI_COMMAND_STOP, GUI_COMMAND_GUARD, GUI_COMMAND_EVACUATE, GUI_COMMAND_ATTACK_MOVE,
+		GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_NONE, GUI_COMMAND_NONE, GUI_COMMAND_NONE };
+	Int places[ SLOTS ];
+	CHECK( ControlBar_commandPlaces( unit, SLOTS, places ) );
+	CHECK_EQ( GRID_KEYS[ places[ 0 ] ], 'S' );
+	CHECK_EQ( GRID_KEYS[ places[ 1 ] ], 'X' );
+	CHECK_EQ( GRID_KEYS[ places[ 2 ] ], 'Z' );
+	CHECK_EQ( GRID_KEYS[ places[ 3 ] ], 'D' );
+	CHECK_EQ( GRID_KEYS[ places[ 4 ] ], 'Q' );
+	const Int building[ SLOTS ] = { GUI_COMMAND_SELL, GUI_COMMAND_SET_RALLY_POINT, GUI_COMMAND_EVACUATE,
+		GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_NONE, GUI_COMMAND_NONE, GUI_COMMAND_NONE, GUI_COMMAND_NONE };
+	CHECK( !ControlBar_commandPlaces( building, SLOTS, places ) );
+	CHECK_EQ( GRID_KEYS[ places[ 0 ] ], 'N' );
+	CHECK_EQ( GRID_KEYS[ places[ 1 ] ], 'B' );
+	CHECK_EQ( GRID_KEYS[ places[ 2 ] ], 'Z' );
+	CHECK_EQ( GRID_KEYS[ places[ 3 ] ], 'Q' );
+
+	// every block as name, key and modifiers
+	Int slotsBound = 0;
+	std::string name, key, modifiers;
+	size_t at = 0;
+	while( at < text.size() )
+	{
+		size_t end = text.find( '\n', at );
+		if( end == std::string::npos )
+			end = text.size();
+		std::string line = text.substr( at, end - at );
+		at = end + 1;
+		const size_t comment = line.find( ';' );
+		if( comment != std::string::npos )
+			line.erase( comment );
+		char word[ 64 ] = { 0 };
+		char value[ 64 ] = { 0 };
+		if( sscanf( line.c_str(), " CommandMap %63s", word ) == 1 )
+		{
+			name = word;
+			key.clear();
+			modifiers = "NONE";
+		}
+		else if( sscanf( line.c_str(), " Key = %63s", value ) == 1 )
+			key = value;
+		else if( sscanf( line.c_str(), " Modifiers = %63s", value ) == 1 )
+			modifiers = value;
+		else if( sscanf( line.c_str(), " %63s", word ) == 1 && strcmp( word, "End" ) == 0 && !name.empty() )
+		{
+			Int slot = 0;
+			if( sscanf( name.c_str(), "COMMAND_SLOT%d", &slot ) == 1 )
+			{
+				CHECK( slot >= 1 && slot <= COMMAND_PLACE_COUNT );
+				if( slot >= 1 && slot <= COMMAND_PLACE_COUNT )
+				{
+					CHECK_STR( key.c_str(), ( std::string( "KEY_" ) + GRID_KEYS[ slot - 1 ] ).c_str() );
+					CHECK_STR( modifiers.c_str(), "NONE" );
+					slotsBound++;
+				}
+			}
+			else if( modifiers == "NONE" && key.size() == 5 && key.compare( 0, 4, "KEY_" ) == 0 )
+				CHECK( strchr( GRID_KEYS, key[ 4 ] ) == NULL );
+			name.clear();
+		}
+	}
+	CHECK_EQ( slotsBound, (Int)COMMAND_PLACE_COUNT );
 }
 
 TEST(controlbar_seconds_round_up_and_never_reach_zero_early)
@@ -11478,61 +11585,38 @@ TEST(gameplay_conveniences_are_forced_on_and_left_the_catalog)
 	delete scratch;
 }
 
-TEST(the_input_scheme_is_a_live_menu_choice_that_starts_modern)
+TEST(an_options_ini_naming_the_removed_input_scheme_and_wasd_keys_still_loads)
 {
-	/* Legacy is read on every click and key, so the row has to say APPLY_LIVE - a restart note on a
-		 setting that already took would send the player looking for a change that is not coming.  A
-		 player who never opens the menu keeps the game they already had. */
-	const OptionDef *def = findOptionDef( "InputScheme" );
-	CHECK( def != NULL );
-	if( def == NULL )
-		return;
-	CHECK_EQ( def->kind, OPTION_ENUM );
-	CHECK_EQ( def->apply, APPLY_LIVE );
-	CHECK_EQ( def->lo, 0 );
-	CHECK_EQ( def->hi, (Int)INPUT_SCHEME_COUNT - 1 );
-	CHECK( def->widgetName != NULL && def->widgetName[ 0 ] != '\0' );
+	/* InputScheme and WasdCamera were catalog rows until the Legacy mouse and the W A S D camera came
+		 out.  Every Options.ini saved while they existed still carries both, and UserPreferences::load
+		 puts every key it reads into the map.  The catalog only looks up its own keys, so the two are
+		 left lying there, and the rows around them still load. */
+	CHECK( findOptionDef( "InputScheme" ) == NULL );
+	CHECK( findOptionDef( "WasdCamera" ) == NULL );
 
 	GlobalData *saved = TheWritableGlobalData;
 	GlobalData *scratch = NEW GlobalData;
 	TheWritableGlobalData = scratch;
 
-	CHECK_EQ( scratch->m_inputScheme, (Int)INPUT_SCHEME_MODERN );
-	CHECK( !scratch->isLegacyInput() );
-	def->set( INPUT_SCHEME_LEGACY );
-	CHECK( scratch->isLegacyInput() );
-	CHECK_EQ( def->get(), (Int)INPUT_SCHEME_LEGACY );
+	const OptionDef *orderLines = findOptionDef( "OrderLines" );
+	const OptionDef *zoom = findOptionDef( "ZoomToCursor" );
+	CHECK( orderLines != NULL && zoom != NULL );
+	orderLines->set( 1 );
+	zoom->set( 1 );
 
-	TheWritableGlobalData = saved;
-	delete scratch;
-}
+	UserPreferences pref;
+	pref[ AsciiString( "InputScheme" ) ] = AsciiString( "1" );
+	pref[ AsciiString( "WasdCamera" ) ] = AsciiString( "yes" );
+	pref[ AsciiString( "OrderLines" ) ] = AsciiString( "no" );
+	pref[ AsciiString( "ZoomToCursor" ) ] = AsciiString( "no" );
+	loadOptionsFromPreferences( pref );
 
-TEST(wasd_camera_is_a_live_check_box_that_starts_off_and_needs_modern_input)
-{
-	/* The box moves eleven keys a player already has in their hands, so nobody gets it without asking.
-		 A tick saved under Modern is kept through a switch to Legacy, which plays the game's own map,
-		 and comes back with Modern. */
-	const OptionDef *def = findOptionDef( "WasdCamera" );
-	CHECK( def != NULL );
-	if( def == NULL )
-		return;
-	CHECK_EQ( def->kind, OPTION_BOOL );
-	CHECK_EQ( def->apply, APPLY_LIVE );
-	CHECK( def->widgetName != NULL && def->widgetName[ 0 ] != '\0' );
+	CHECK_EQ( orderLines->get(), 0 );
+	CHECK_EQ( zoom->get(), 0 );
 
-	GlobalData *saved = TheWritableGlobalData;
-	GlobalData *scratch = NEW GlobalData;
-	TheWritableGlobalData = scratch;
-
-	CHECK( !scratch->m_wasdCamera );
-	CHECK( !scratch->isWasdCamera() );
-	def->set( 1 );
-	CHECK( scratch->isWasdCamera() );
-	scratch->m_inputScheme = INPUT_SCHEME_LEGACY;
-	CHECK( !scratch->isWasdCamera() );
-	CHECK_EQ( def->get(), 1 );
-	scratch->m_inputScheme = INPUT_SCHEME_MODERN;
-	CHECK( scratch->isWasdCamera() );
+	// and saving over such a file leaves the old keys alone instead of tripping on them
+	saveOptionsToPreferences( pref );
+	CHECK_STR( pref[ AsciiString( "OrderLines" ) ].str(), "no" );
 
 	TheWritableGlobalData = saved;
 	delete scratch;
@@ -13969,44 +14053,6 @@ TEST(chroma_key_maps_agree_on_every_letter_and_digit)
 		CHECK_EQ(seen[cell], 0);
 		seen[cell] = 1;
 	}
-}
-
-// Where a grid key lands.  This is the decision pressCommandButton used to make inline, pulled
-// out so the keyboard lighting could ask the same question without pressing anything; every
-// row below is what the inline version did, read off it before it was moved.
-TEST(grid_press_follows_the_builders_two_key_chord)
-{
-	const Int NOTHING = ControlBar::SLOT_NOTHING;
-	const Int ARMS = ControlBar::SLOT_ARMS_CHORD;
-	const Int Q = ControlBar::CHORD_SLOT_Q;
-	const Int W = ControlBar::CHORD_SLOT_W;
-	const Int GROUP = ControlBar::CHORD_GROUP_SIZE;
-
-	// no structures on the bar: a slot is a slot, chord or no chord
-	CHECK_EQ(ControlBar::resolveGridPress(0, -1, FALSE, FALSE), 0);
-	CHECK_EQ(ControlBar::resolveGridPress(5, -1, FALSE, FALSE), 5);
-	CHECK_EQ(ControlBar::resolveGridPress(5, 0, FALSE, FALSE), 5);
-
-	// out of range names nothing
-	CHECK_EQ(ControlBar::resolveGridPress(-1, -1, FALSE, FALSE), NOTHING);
-	CHECK_EQ(ControlBar::resolveGridPress(MAX_COMMANDS_PER_SET, -1, TRUE, FALSE), NOTHING);
-
-	// a builder, nothing armed: Q and W arm, a structure's own key does nothing on its own,
-	// and a cell that is not a structure is still one press
-	CHECK_EQ(ControlBar::resolveGridPress(Q, -1, TRUE, TRUE), ARMS);
-	CHECK_EQ(ControlBar::resolveGridPress(W, -1, TRUE, FALSE), ARMS);
-	CHECK_EQ(ControlBar::resolveGridPress(4, -1, TRUE, TRUE), NOTHING);
-	CHECK_EQ(ControlBar::resolveGridPress(4, -1, TRUE, FALSE), 4);
-
-	// armed: the second key is a cell of the first group, shifted into the armed one
-	CHECK_EQ(ControlBar::resolveGridPress(0, 0, TRUE, TRUE), 0);
-	CHECK_EQ(ControlBar::resolveGridPress(3, 0, TRUE, FALSE), 3);
-	CHECK_EQ(ControlBar::resolveGridPress(0, 1, TRUE, TRUE), GROUP);
-	CHECK_EQ(ControlBar::resolveGridPress(3, 1, TRUE, FALSE), GROUP + 3);
-	CHECK_EQ(ControlBar::resolveGridPress(GROUP - 1, 1, TRUE, FALSE), GROUP + GROUP - 1);
-	// a second key from outside the first group's cells is not a cell of any group
-	CHECK_EQ(ControlBar::resolveGridPress(GROUP, 0, TRUE, FALSE), NOTHING);
-	CHECK_EQ(ControlBar::resolveGridPress(GROUP + 2, 1, TRUE, FALSE), NOTHING);
 }
 
 // The generals powers tray: the first key names a row, the second a power in it, and what the

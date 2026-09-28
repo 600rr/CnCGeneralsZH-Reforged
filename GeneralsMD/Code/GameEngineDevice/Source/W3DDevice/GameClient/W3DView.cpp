@@ -2693,10 +2693,9 @@ Int W3DView::iterateDrawablesInRegion( IRegion2D *screenRegion,
 		// hidden behind a building or lost in a crowd - and infantry at full zoom out is a handful of
 		// pixels of model under a bar that is easier to hit than the man.  Fallback order matters: a
 		// bar hangs in the air above its own unit and so overlaps whatever stands behind it, so it may
-		// only answer a click that would otherwise have missed everything.  Legacy input is the game
-		// as shipped, where a bar was only ever a picture.
+		// only answer a click that would otherwise have missed everything.
 		//
-		if (onlyDrawableToTest == NULL && !TheGlobalData->isLegacyInput())
+		if (onlyDrawableToTest == NULL)
 			onlyDrawableToTest = TheGameClient->pickDrawableByHealthBar(&screenRegion->lo);
 
 		if (onlyDrawableToTest == NULL) {

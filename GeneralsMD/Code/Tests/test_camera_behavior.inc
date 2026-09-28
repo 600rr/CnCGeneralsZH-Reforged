@@ -188,7 +188,7 @@ TEST(camera_margin_preferences_load_and_rebuild_constraints)
 	CHECK_EQ(f.view.constraintRecalcs, 1);
 }
 
-TEST(camera_wheel_anchors_zoom_to_cursor_only_under_modern_with_the_box_ticked)
+TEST(camera_wheel_anchors_zoom_to_cursor_only_with_the_box_ticked)
 {
 	// Pull request 5 asked for zoom to cursor to go; it stayed as a menu box instead.
 	const OptionDef *def = findOptionDef("ZoomToCursor");
@@ -220,14 +220,9 @@ TEST(camera_wheel_anchors_zoom_to_cursor_only_under_modern_with_the_box_ticked)
 	f.global->m_zoomToCursor = FALSE;
 	spinWheel();
 	CHECK_EQ(f.view.zoomAnchors, 1);
-
-	f.global->m_zoomToCursor = TRUE;
-	f.global->m_inputScheme = INPUT_SCHEME_LEGACY;
-	spinWheel();
-	CHECK_EQ(f.view.zoomAnchors, 1);
 }
 
-TEST(wasd_camera_scrolls_without_touching_the_cursor_and_only_with_the_box_ticked)
+TEST(arrow_keys_scroll_the_camera_and_w_a_s_d_stay_grid_keys)
 {
 	CHECK(bootOnce());
 	CameraInputFixture f;
@@ -240,8 +235,7 @@ TEST(wasd_camera_scrolls_without_touching_the_cursor_and_only_with_the_box_ticke
 		message->deleteInstance();
 	};
 
-	// Box off: D is a unit key and scrolls nothing; the arrow keys scroll behind the scroll arrows.
-	CHECK(!f.global->isWasdCamera());
+	// D is a command bar key and scrolls nothing; the arrow keys scroll behind the scroll arrows.
 	press(KEY_D, TRUE);
 	CHECK(!f.ui->scrolling);
 	press(KEY_D, FALSE);
@@ -253,19 +247,4 @@ TEST(wasd_camera_scrolls_without_touching_the_cursor_and_only_with_the_box_ticke
 	CHECK(f.ui->scrolling);
 	press(KEY_RIGHT, FALSE);
 	CHECK(!f.ui->scrolling);
-
-	// Box on: D scrolls, and the cursor is not touched on the way in or out.
-	f.global->m_wasdCamera = TRUE;
-	const Int cursorChanges = f.mouse.cursorChanges;
-	press(KEY_D, TRUE);
-	CHECK(f.ui->scrolling);
-	press(KEY_D, FALSE);
-	CHECK(!f.ui->scrolling);
-	CHECK_EQ(f.mouse.cursorChanges, cursorChanges);
-
-	// Legacy keeps the game's own keys: the box is ignored.
-	f.global->m_inputScheme = INPUT_SCHEME_LEGACY;
-	press(KEY_D, TRUE);
-	CHECK(!f.ui->scrolling);
-	press(KEY_D, FALSE);
 }

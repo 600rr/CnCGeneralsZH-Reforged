@@ -2,8 +2,8 @@
 <!--
   The command bar's frame, drawn where its three plates used to be, and the bar's own buttons, laid
   out the way the owner drew them on 2026-09-28 (docs/plans/HUD-REDESIGN.md): the radar in the
-  bottom left corner with the experience bar beside it, the command panel with the portrait bar on
-  it, the Q and W worker bars with the power bar standing up after them; over the radar the idle
+  bottom left corner with the experience bar beside it, the command grid with the portrait bar on
+  it and the power bar standing up after it; over the radar the idle
   worker's key on the skills key on the under-attack light, and the smoke signals; the money at the
   screen's top.  Laid out at ControlBarHudScale(), 70 percent of the uniform scale the tooltips and
   the boards use.  The command buttons, the radar, the money and the
@@ -41,13 +41,13 @@
                            its black line
     data-each="rankstars"  a star for every rank there is, {{lit}} "lit" up to the one reached, at
                            {{x}} inside the 58 wide key so the row is centred on it
-    data-each="commandcells" each {{cell.x}} .y .w .h: the command panel's places that hold a command
-                           (five abilities and upgrades; attack, stop, attack move; eject, seek
-                           shelter, guard, hold position), an empty one left as steel, and every
-                           place of the worker bars, eight each
+    data-each="commandcells" each {{cell.x}} .y .w .h: the command grid's places that hold a command,
+                           six by three, each its key (Q W E R T Y, A S D F G H, Z X C V B N), an
+                           empty one left as steel; its cells are a fifth bigger than the others
     {{attackkey.x}} ...    the attack and hold position places, where the page's own keys stand,
     {{holdkey.x}} ...      data-click="order:attack" and "order:hold", for a selection that attack
-                           moves; no command set has a button for either
+                           moves; no command set has a button for either.  .key is the key bound
+                           to that place, "A" and "H" as shipped
     data-each="portraitcells" the portrait bar's cells, the portrait's first and then only what it
                            holds, each {{cell.x}} .y .w .h
     {{skilltray.x}} ...    the general's powers' tray, a panel as {{centre.x}} is, only as big as the
@@ -69,14 +69,14 @@
                            {{panelN.shown}} is "hidden" when a minimised bar has stood it down
     {{left.x}} .y .w .h    the panels, each a container and a border outside it: .x and .y the
     {{centre.x}} ...       border's outer corner, .w and .h the container, exactly what it holds (the
-    {{portrait.x}} ...     radar and the experience bar; the command panel's places; the portrait
-    {{qbar.x}} ...         bar's; each worker bar's), and .bt .br .bb .bl the border's four widths,
-    {{wbar.x}} ...         out to the screen's edge on the sides against it
+    {{portrait.x}} ...     radar and the experience bar; the command grid and the power groove; the
+                           portrait bar's), and .bt .br .bb .bl the border's four widths, out to the
+                           screen's edge on the sides against it
     {{alerttab.x}} ...     the under-attack light, a tab on the radar panel's top edge at its left
     {{skillstab.x}} ...    hand end, and on it the skills key: the rank's stars, pressed through
                            data-click="press:ButtonGeneral" for the promotion screen
     {{idletab.x}} ...      the idle worker's key in a tab on the skills key
-    {{powerframe.x}} ...   the power bar's groove inside the W bar's frame, after its grid;
+    {{powerframe.x}} ...   the power bar's groove inside the command grid's frame, after the grid;
                            {{powerframe.inner}} the width inside the frame and its lip
     {{moneyplate.x}} ...   the money's plate hanging from the screen's top edge in its middle, and
     {{moneyblock.x}} ...   the dark well in it the money's window is moved into
@@ -271,6 +271,9 @@
   .order .glow { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background-size: 100% 100%; background-repeat: no-repeat; }
   .order:hover .glow { background-image: url(Cameo_hilited); }
   .held .order:hover .glow { background-image: url(Cameo_push); }
+  /* the key in the top left corner, the way the command buttons wear theirs */
+  .order .keyname { position: absolute; left: 0; top: 0; padding: 0 1px; line-height: 7px; font-size: 7px;
+                    background-color: rgba(0, 0, 0, 0.6); color: #ffffff; }
 
   /* the under-attack light: a red lamp in a tab on the radar's bezel, dark until the bar blinks it.
      The tab is 66 by 14 and the lamp a bar 54 by 10 with its rim */
@@ -359,20 +362,8 @@
     <div class="shade" style="right: -{{centre.br}}px; top: -{{centre.bt}}px; bottom: -{{centre.bb}}px"></div>
     <div class="sunk grid" style="width: {{centre.w}}px; height: {{centre.h}}px"></div>
   </div>
-  <div class="piece frame bezel solid {{qbar.shown}}" style="left: {{qbar.x}}px; top: {{qbar.y}}px; width: {{qbar.w}}px; height: {{qbar.h}}px; border-width: {{qbar.bt}}px {{qbar.br}}px {{qbar.bb}}px {{qbar.bl}}px">
-    <div class="steel" style="left: -{{qbar.bl}}px; right: -{{qbar.br}}px; top: -{{qbar.bt}}px; bottom: -{{qbar.bb}}px"></div>
-    <div class="lit" style="left: -{{qbar.bl}}px; top: -{{qbar.bt}}px; bottom: -{{qbar.bb}}px"></div>
-    <div class="shade" style="right: -{{qbar.br}}px; top: -{{qbar.bt}}px; bottom: -{{qbar.bb}}px"></div>
-    <div class="sunk grid" style="width: {{qbar.w}}px; height: {{qbar.h}}px"></div>
-  </div>
-  <div class="piece frame bezel solid {{wbar.shown}}" style="left: {{wbar.x}}px; top: {{wbar.y}}px; width: {{wbar.w}}px; height: {{wbar.h}}px; border-width: {{wbar.bt}}px {{wbar.br}}px {{wbar.bb}}px {{wbar.bl}}px">
-    <div class="steel" style="left: -{{wbar.bl}}px; right: -{{wbar.br}}px; top: -{{wbar.bt}}px; bottom: -{{wbar.bb}}px"></div>
-    <div class="lit" style="left: -{{wbar.bl}}px; top: -{{wbar.bt}}px; bottom: -{{wbar.bb}}px"></div>
-    <div class="shade" style="right: -{{wbar.br}}px; top: -{{wbar.bt}}px; bottom: -{{wbar.bb}}px"></div>
-    <div class="sunk grid" style="width: {{wbar.w}}px; height: {{wbar.h}}px"></div>
-  </div>
-  <!-- the power bar standing up in its groove at the W bar's right, the way the experience bar
-       stands beside the radar -->
+  <!-- the power bar standing up in its groove at the command grid's right, the way the experience
+       bar stands beside the radar -->
   <div class="piece groove solid stack {{powerframe.shown}}" style="left: {{powerframe.x}}px; top: {{powerframe.y}}px; width: {{powerframe.w}}px; height: {{powerframe.h}}px">
     <div class="cells {{power.state}}" style="width: {{powerframe.inner}}px"><div class="cell {{lit}}" data-each="powercells" style="top: {{y}}px; height: {{h}}px; width: {{powerframe.inner}}px"><div class="seg" style="width: {{powerframe.inner}}px; height: {{segh}}px"></div></div></div>
     <div class="lip"></div>
@@ -398,8 +389,8 @@
   </div>
   <div class="piece commandcell" data-each="commandcells" style="left: {{cell.x}}px; top: {{cell.y}}px; width: {{cell.w}}px; height: {{cell.h}}px"><div class="edge" style="left: -{{ring}}px; top: -{{ring}}px; right: -{{ring}}px; bottom: -{{ring}}px; border-width: {{ring}}px"></div><div class="bevel"></div></div>
   <div class="piece commandcell" data-each="portraitcells" style="left: {{cell.x}}px; top: {{cell.y}}px; width: {{cell.w}}px; height: {{cell.h}}px"><div class="edge" style="left: -{{ring}}px; top: -{{ring}}px; right: -{{ring}}px; bottom: -{{ring}}px; border-width: {{ring}}px"></div><div class="bevel"></div></div>
-  <div class="piece order attack {{attackkey.shown}}" data-click="order:attack" style="left: {{attackkey.x}}px; top: {{attackkey.y}}px; width: {{attackkey.w}}px; height: {{attackkey.h}}px"><div class="glow"></div></div>
-  <div class="piece order hold {{holdkey.shown}}" data-click="order:hold" style="left: {{holdkey.x}}px; top: {{holdkey.y}}px; width: {{holdkey.w}}px; height: {{holdkey.h}}px"><div class="glow"></div></div>
+  <div class="piece order attack {{attackkey.shown}}" data-click="order:attack" style="left: {{attackkey.x}}px; top: {{attackkey.y}}px; width: {{attackkey.w}}px; height: {{attackkey.h}}px"><div class="glow"></div><div class="keyname">{{attackkey.key}}</div></div>
+  <div class="piece order hold {{holdkey.shown}}" data-click="order:hold" style="left: {{holdkey.x}}px; top: {{holdkey.y}}px; width: {{holdkey.w}}px; height: {{holdkey.h}}px"><div class="glow"></div><div class="keyname">{{holdkey.key}}</div></div>
 
   <div class="piece frame bezel solid {{skilltray.shown}}" style="left: {{skilltray.x}}px; top: {{skilltray.y}}px; width: {{skilltray.w}}px; height: {{skilltray.h}}px; border-width: {{skilltray.bt}}px {{skilltray.br}}px {{skilltray.bb}}px {{skilltray.bl}}px">
     <div class="steel" style="left: -{{skilltray.bl}}px; right: -{{skilltray.br}}px; top: -{{skilltray.bt}}px; bottom: -{{skilltray.bb}}px"></div>

@@ -785,12 +785,14 @@ set_target_properties(test_gameengine PROPERTIES CXX_STANDARD 17)
 # fxlist_reforged_ini_parses_and_keeps_its_light runs the fork's own FXList file through the real
 # INI parser, so it needs the tracked master rather than whatever sits in Run/.
 # the_options_menu_buttons_all_wear_one_font reads the tracked layout master, not Run/'s copy.
-# the_spectator_page_names_only_on_off_options reads the tracked page master the same way.
+# the_spectator_page_names_only_on_off_options reads the tracked page master the same way, and
+# the_command_grid_keys_are_the_places_and_n_sells_and_b_rallies the tracked command map.
 target_compile_definitions(test_gameengine PRIVATE
   GAMEENGINE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/GameEngine"
   FXLIST_REFORGED_INI="${CMAKE_CURRENT_SOURCE_DIR}/Data/INI/FXListReforged.ini"
   OPTIONS_MENU_WND="${CMAKE_CURRENT_SOURCE_DIR}/Data/Window/Menus/OptionsMenu.wnd"
   SPECTATOR_HTML="${CMAKE_CURRENT_SOURCE_DIR}/Data/Window/Html/Spectator.html"
+  COMMAND_MAP_REFORGED_INI="${CMAKE_CURRENT_SOURCE_DIR}/Data/INI/CommandMapReforged.ini"
   PLATE_TEXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Data/Art/Textures")
 
 # The three hand-written self-checks predate the harness; run them from ctest
