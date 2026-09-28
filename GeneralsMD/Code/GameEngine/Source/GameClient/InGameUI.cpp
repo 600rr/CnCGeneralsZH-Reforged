@@ -1188,6 +1188,7 @@ InGameUI::InGameUI()
 	m_peaceCountdownDisplayString = NULL;
 	m_lastMoneyDisplayed = -1;
 	m_lastEarningDisplayed = 0;
+	m_moneyPlate = MoneyPlateWidth();
 	m_hudDrawCount = 0;
 	m_hudLastSampleFrame = 0;
 	m_hudLastSampleMs = 0;
@@ -11089,8 +11090,8 @@ enum
 	IDLE_TAB_WIDTH				= 38,		///< the idle worker's key in a tab on the skills key's, with its rim
 	IDLE_TAB_HEIGHT				= 22,
 	POWER_WIDTH						= 12,		///< the power bar's groove along the command grid's top, frame and lip
-	MONEY_WIDTH						= 104,	///< the money's well in its plate on the power bar's panel
-	MONEY_HEIGHT					= 18,
+	MONEY_TEXT_MARGIN			= 5,		///< the money's well each side of its figure, which sets the well's width
+	MONEY_HEIGHT					= 18,		///< the money's well in its plate on the power bar's panel
 	MONEY_PLATE_BORDER		= 5,		///< the plate's steel round the well
 	SKILL_GRID_GAP				= 12,		///< between the general's powers' tray and what it stands on
 	SKILL_TRAY_BORDER			= 6,		///< the tray's steel round its cells
@@ -11313,15 +11314,65 @@ static IRegion2D gridCell( const IRegion2D &box, Int column, Int row, Int width,
 }
 
 //-------------------------------------------------------------------------------------------------
-/** The money, a steel plate standing on the power bar's panel `powerBox` at its left end with the
-	* figure in a dark well, the owner's place of 2026-09-28.  The money's window is moved into the
-	* well, cut to its line of text.  Written as moneyplate and moneyblock. */
+/** Three seconds: the income beside the money changes once a second, so a figure bouncing across a
+	* digit, or an income flickering between +9/s and +10/s, never holds narrower for three updates in
+	* a row and the plate keeps still; a real drop, a building paid for, has settled by then and the
+	* plate follows while the eye is back on the battlefield.  The ease is short enough to read as a
+	* settle, and every page pixel it moves lays the page out again. */
+Int InGameUI_moneyPlateWidth( MoneyPlateWidth &plate, Int needed, UnsignedInt nowMs )
+{
+	if( needed >= plate.target )
+	{
+		plate.target = needed;
+		plate.pending = FALSE;
+	}
+	else if( !plate.pending )
+	{
+		plate.pending = TRUE;
+		plate.pendingSinceMs = nowMs;
+		plate.pendingWidth = needed;
+	}
+	else
+	{
+		plate.pendingWidth = max( plate.pendingWidth, needed );
+		if( nowMs - plate.pendingSinceMs >= MONEY_SHRINK_HOLD_MS )
+		{
+			plate.easeFrom = plate.shown;
+			plate.easeStartMs = nowMs;
+			plate.easing = TRUE;
+			plate.target = plate.pendingWidth;
+			plate.pending = FALSE;
+		}
+	}
+
+	plate.shown = plate.target;
+	if( plate.easing )
+	{
+		const UnsignedInt elapsed = nowMs - plate.easeStartMs;
+		if( elapsed >= MONEY_SHRINK_EASE_MS )
+			plate.easing = FALSE;
+		else
+		{
+			// eased out: quick at first, settling onto the new width
+			const Real left = 1.0f - (Real)elapsed / MONEY_SHRINK_EASE_MS;
+			plate.shown = max( plate.target, plate.target + REAL_TO_INT( ( plate.easeFrom - plate.target ) * left * left ) );
+		}
+	}
+	return plate.shown;
+}
+
 //-------------------------------------------------------------------------------------------------
-static void putMoney( HtmlValues &values, const IRegion2D &powerBox, Bool shown )
+/** The money, a steel plate standing on the power bar's panel `powerBox` at its left end with the
+	* figure in a dark well `wellWidth` screen pixels wide, the owner's place of 2026-09-28.  The
+	* money's window is moved into the well, cut to its line of text.  Written as moneyplate and
+	* moneyblock. */
+//-------------------------------------------------------------------------------------------------
+static void putMoney( HtmlValues &values, const IRegion2D &powerBox, Int wellWidth, Bool shown )
 {
 	const Real scale = ControlBarHudScale();
 	const Int border = REAL_TO_INT( MONEY_PLATE_BORDER * scale );
-	const IRegion2D plate = tabOn( powerBox, MONEY_WIDTH + 2 * MONEY_PLATE_BORDER, MONEY_HEIGHT + 2 * MONEY_PLATE_BORDER, FALSE );
+	IRegion2D plate = tabOn( powerBox, 0, MONEY_HEIGHT + 2 * MONEY_PLATE_BORDER, FALSE );
+	plate.hi.x = plate.lo.x + wellWidth + 2 * border;
 	IRegion2D money = plate;
 	money.lo.x += border;
 	money.hi.x -= border;
@@ -11595,7 +11646,13 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	putFrame( values, "powerpanel", power, powerBox, centreShown );
 	putPowerGroove( values, power, centreShown );
 	putPowerBar( values, lists[ "powercells" ] );	// after the groove, which it divides into cells
-	putMoney( values, powerBox, centreShown && !controlBarWindow( "MoneyDisplay" )->winIsHidden() );
+	// the money's well is as wide as the figure and a margin each side, following it through
+	// InGameUI_moneyPlateWidth on the client's clock
+	GameWindow *moneyWindow = controlBarWindow( "MoneyDisplay" );
+	const Int moneyNeeded = ( (TextData *)moneyWindow->winGetUserData() )->text->getWidth()
+													+ 2 * REAL_TO_INT( MONEY_TEXT_MARGIN * scale );
+	putMoney( values, powerBox, InGameUI_moneyPlateWidth( m_moneyPlate, moneyNeeded, nowMs ),
+						centreShown && !moneyWindow->winIsHidden() );
 
 	// each command button to its place.  A click only reaches a window inside every one of its parents,
 	// so the buttons' two cover the whole frame; the page's solids still decide what is battlefield

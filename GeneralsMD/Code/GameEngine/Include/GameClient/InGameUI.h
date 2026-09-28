@@ -349,6 +349,27 @@ struct SpectatorSuperweapon
 	const CommandButton *button;	///< the power's own, for its tooltip card; NULL for a power with none
 };
 
+/** The money plate's width as it follows the figure's: see InGameUI_moneyPlateWidth.  All zero is a
+	* plate never drawn. */
+struct MoneyPlateWidth
+{
+	Int target;								///< the width the plate settles at
+	Int shown;								///< the width it was last drawn at
+	Int easeFrom;							///< the width a shrink eases down from
+	UnsignedInt easeStartMs;
+	Bool easing;
+	Int pendingWidth;					///< the widest a narrower figure has needed while a shrink waits
+	UnsignedInt pendingSinceMs;
+	Bool pending;
+};
+
+/** The width to draw the money plate at, `needed` the width the figure takes now, `nowMs` the
+	* client's clock.  A wider figure widens it at once; a narrower one has to hold for
+	* MONEY_SHRINK_HOLD_MS before the plate eases down to it over MONEY_SHRINK_EASE_MS, and anything
+	* wider in that wait calls the shrink off.  Never narrower than `needed`. */
+enum { MONEY_SHRINK_HOLD_MS = 3000, MONEY_SHRINK_EASE_MS = 200 };
+Int InGameUI_moneyPlateWidth( MoneyPlateWidth &plate, Int needed, UnsignedInt nowMs );
+
 // ------------------------------------------------------------------------------------------------
 /** Basic functionality common to all in-game user interfaces */
 // ------------------------------------------------------------------------------------------------ 
@@ -1517,6 +1538,7 @@ protected:
 	DisplayString *							m_peaceCountdownDisplayString;	///< the big digit of its last ten seconds
 	Int													m_lastMoneyDisplayed;		///< so the money gadget is only written when the amount changes
 	Int													m_lastEarningDisplayed;	///< or the money earned a second beside it
+	MoneyPlateWidth							m_moneyPlate;						///< the money plate's width, following the figure's
 	UnsignedInt									m_hudDrawCount;					///< rendered frames counted by drawHudOverlay itself
 	UnsignedInt									m_hudLastSampleFrame;		///< m_hudDrawCount the fps sample was last refreshed on
 	UnsignedInt									m_hudLastSampleMs;			///< wall clock of that sample

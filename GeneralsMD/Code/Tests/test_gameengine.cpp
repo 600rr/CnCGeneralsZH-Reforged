@@ -3170,6 +3170,46 @@ TEST(controlbar_command_places_follow_the_owners_drawing)
 		CHECK_EQ( places[ slot ], bossPlaces[ slot ] );
 }
 
+/* The money plate follows its figure's width: wider at once, narrower only once the narrower figure
+   has held for MONEY_SHRINK_HOLD_MS, and then eased down over MONEY_SHRINK_EASE_MS. */
+TEST(the_money_plate_grows_at_once_and_shrinks_only_after_a_hold)
+{
+	const Int WIDE = 120, NARROW = 100;
+	const UnsignedInt START = 100000;
+
+	MoneyPlateWidth plate = MoneyPlateWidth();
+	CHECK_EQ( InGameUI_moneyPlateWidth( plate, NARROW, START ), NARROW );
+	CHECK_EQ( InGameUI_moneyPlateWidth( plate, WIDE, START + 16 ), WIDE );
+
+	// narrower: held until the hold is up, then eased, never under the figure, and settled at the end
+	UnsignedInt now = START + 1000;
+	CHECK_EQ( InGameUI_moneyPlateWidth( plate, NARROW, now ), WIDE );
+	CHECK_EQ( InGameUI_moneyPlateWidth( plate, NARROW, now + MONEY_SHRINK_HOLD_MS - 1 ), WIDE );
+	CHECK_EQ( InGameUI_moneyPlateWidth( plate, NARROW, now + MONEY_SHRINK_HOLD_MS ), WIDE );
+	Int last = WIDE;
+	for( UnsignedInt step = 16; step < MONEY_SHRINK_EASE_MS; step += 16 )
+	{
+		const Int width = InGameUI_moneyPlateWidth( plate, NARROW, now + MONEY_SHRINK_HOLD_MS + step );
+		CHECK( width <= last && width >= NARROW );
+		last = width;
+	}
+	CHECK_EQ( InGameUI_moneyPlateWidth( plate, NARROW, now + MONEY_SHRINK_HOLD_MS + MONEY_SHRINK_EASE_MS ), NARROW );
+
+	// a wider figure in the wait calls the shrink off, and the next narrower one starts the wait again
+	now += 10000;
+	CHECK_EQ( InGameUI_moneyPlateWidth( plate, WIDE, now ), WIDE );
+	CHECK_EQ( InGameUI_moneyPlateWidth( plate, NARROW, now + 1000 ), WIDE );
+	CHECK_EQ( InGameUI_moneyPlateWidth( plate, WIDE, now + 2500 ), WIDE );
+	CHECK_EQ( InGameUI_moneyPlateWidth( plate, NARROW, now + 3000 ), WIDE );
+	CHECK_EQ( InGameUI_moneyPlateWidth( plate, NARROW, now + 3000 + MONEY_SHRINK_HOLD_MS - 1 ), WIDE );
+
+	// 9990 and 10010 in turn every second while building: the plate never moves
+	now += 20000;
+	for( Int second = 0; second < 30; second++ )
+		for( UnsignedInt frame = 0; frame < 1000; frame += 16 )
+			CHECK_EQ( InGameUI_moneyPlateWidth( plate, second % 2 ? NARROW : WIDE, now + second * 1000 + frame ), WIDE );
+}
+
 /* CommandMapReforged.ini binds COMMAND_SLOTnn to the key of place nn - 1: the grid reads Q W E R T Y,
    A S D F G H, Z X C V B N, so a place's key is where the owner put it on 2026-09-28 - a unit's attack
    on A, stop on S, attack move on D, eject on Z, guard on X, hold on C, move on V; a building's sell
