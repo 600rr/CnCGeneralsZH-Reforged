@@ -10299,23 +10299,39 @@ void InGameUI::drawSuperweaponStrip( void )
 	Int trayStep = 0;
 	stripTrayMetrics( &traySize, &cameoSize, &trayHole, &trayStep );
 
+	// the HUD Size option grows this strip with the bar: the player's step on top of the bar's own
+	const Real hudStep = ControlBarHudScale() / ControlBarHudScaleFor( TheDisplay->getWidth(), TheDisplay->getHeight() );
+	traySize.x = REAL_TO_INT_CEIL( traySize.x * hudStep );
+	traySize.y = REAL_TO_INT_CEIL( traySize.y * hudStep );
+	cameoSize.x = REAL_TO_INT_CEIL( cameoSize.x * hudStep );
+	cameoSize.y = REAL_TO_INT_CEIL( cameoSize.y * hudStep );
+	trayHole.x = REAL_TO_INT_CEIL( trayHole.x * hudStep );
+	trayHole.y = REAL_TO_INT_CEIL( trayHole.y * hudStep );
+	trayStep = REAL_TO_INT_CEIL( trayStep * hudStep );
+
 	const Int trayW = traySize.x;
 	const Int trayH = traySize.y;
 	const Int cameoW = cameoSize.x;
 	const Int cameoH = cameoSize.y;
 	const Image *tray = TheControlBar ? TheControlBar->getSpecialPowerTrayImage() : NULL;
 
-	const Int gap = stripPixels( PRODUCTION_STRIP_GAP );
-	const Int more = stripPixels( PRODUCTION_STRIP_MORE );
+	const Int gap = REAL_TO_INT_CEIL( stripPixels( PRODUCTION_STRIP_GAP ) * hudStep );
+	const Int more = REAL_TO_INT_CEIL( stripPixels( PRODUCTION_STRIP_MORE ) * hudStep );
 	const Int plate = stripPixels( 3 );
 
 	//
-	// The corner clock plate owns the top right, so the strip starts under it whenever it is up -
-	// a countdown drawn behind the readout is one nobody can read.
+	// The corner readout owns the top right - the clock plate, or with the bar's page up the network
+	// box, which is a page of its own - so the strip starts under whichever is up.  A countdown
+	// drawn behind the readout is one nobody can read.
 	//
-	Int top = plate;
-	if( m_hudOverlayBottom + plate > top )
-		top = m_hudOverlayBottom + plate;
+	Int cornerBottom = m_hudOverlayBottom;
+	if( m_controlBarPageShown && m_netOverlay != NULL )
+	{
+		const Int netBottom = m_netOverlay->bottomOf( "#net" );
+		if( netBottom > cornerBottom )
+			cornerBottom = netBottom;
+	}
+	const Int top = cornerBottom + plate;
 
 	//
 	// one pulse for the whole strip rather than one per icon, so every charged superweapon breathes
