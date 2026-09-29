@@ -1159,6 +1159,8 @@ InGameUI::InGameUI()
 	m_placeAngleType = NULL;
 	m_placementLegal = TRUE;
 	m_placementNudge.zero();
+	m_placementRowGap = 0.0f;
+	m_placementRowGapWheel = 0.0f;
 
 	m_videoStream = NULL;
 	m_videoBuffer = NULL;
@@ -6620,6 +6622,12 @@ void InGameUI::destroyPlacementIcons( void )
 //-------------------------------------------------------------------------------------------------
 void InGameUI::placeBuildAvailable( const ThingTemplate *build, Drawable *buildDrawable )
 {
+	//
+	// Each placement starts packed. The wheel opens the row while its line is being drawn, and that
+	// gap belongs to the line, not to the next building.
+	//
+	m_placementRowGap = 0.0f;
+	m_placementRowGapWheel = 0.0f;
 
 	// if building something, no radius cursor, thankew
 	if (build != NULL)
@@ -6947,6 +6955,37 @@ Bool InGameUI::placesRow( void )
 }
 
 //-------------------------------------------------------------------------------------------------
+/** One grid square a notch, added to the packed step.  A notch toward the user closes it back,
+	* and it stops at the buildings touching: tighter than that is two structures on one footprint.
+	* Fractions pile up, so a touchpad swipe that arrives as halves still moves the row. */
+//-------------------------------------------------------------------------------------------------
+void InGameUI::adjustPlacementRowGap( Real spin )
+{
+	const Real cell = (Real)PLACEMENT_CELL;
+	const Real cap = 20.0f * cell;
+
+	m_placementRowGapWheel += spin;
+	const Int steps = (Int)m_placementRowGapWheel;
+	if( steps == 0 )
+		return;
+
+	m_placementRowGapWheel -= (Real)steps;
+	m_placementRowGap += (Real)steps * cell;
+
+	if( m_placementRowGap < 0.0f )
+	{
+		m_placementRowGap = 0.0f;
+		m_placementRowGapWheel = 0.0f;
+	}
+	else if( m_placementRowGap > cap )
+	{
+		m_placementRowGap = cap;
+		m_placementRowGapWheel = 0.0f;
+	}
+
+}  // end adjustPlacementRowGap
+
+//-------------------------------------------------------------------------------------------------
 /** Every piece faces 'angle', the heading on the ghost before the drag began: the drag is spent on
 	* the row, so it cannot aim as well.  The row stops where the money does, which is what the logic
 	* would do to the orders past it anyway (canMakeUnit per MSG_DOZER_CONSTRUCT); the player sees the
@@ -6976,7 +7015,8 @@ void InGameUI::computePlacementRow( const ThingTemplate *what, Real angle, const
 
 	Coord2D step;
 	const Int count = placementRow( end->x - start->x, end->y - start->y, (Real)Cos( angle ),
-																	(Real)Sin( angle ), halfFacing, minor, most, &step );
+																	(Real)Sin( angle ), halfFacing, minor, most, &step,
+																	m_placementRowGap );
 	positions->clear();
 	for( Int i = 0; i < count; i++ )
 	{

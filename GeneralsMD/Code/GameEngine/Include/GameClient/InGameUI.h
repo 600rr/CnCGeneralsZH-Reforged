@@ -694,20 +694,24 @@ public:  // ********************************************************************
 		* turned onto the row's own line stands face to face with the next, and one turned across it
 		* corner to corner, which is the closest a straight row of those can get.  The step is not
 		* rounded to the build grid: a Power Plant is 44 across and the grid is 10, and rounding it
-		* up left 6 of dirt at every joint.  Never fewer than one, never more than 'most'.  Inline
+		* up left 6 of dirt at every joint.  'extraGap' is world units the wheel adds on top of that
+		* touch while the line is being drawn.  Zero packs them flush, and a negative value is
+		* ignored, so the row never overlaps.  Never fewer than one, never more than 'most'.  Inline
 		* and static so a test can reach it without linking the whole in-game UI. */
 	static Int placementRow( Real dx, Real dy, Real headingCos, Real headingSin, Real halfFacing,
-													 Real halfSide, Int most, Coord2D *step )
+													 Real halfSide, Int most, Coord2D *step, Real extraGap = 0.0f )
 	{
 		step->x = 0.0f;
 		step->y = 0.0f;
 		const Real length = (Real)sqrt( dx * dx + dy * dy );
 		if( length > 0.0f )
 		{
-			const Real touch = placementTouchDistance( dx / length, dy / length, headingCos, headingSin,
-																								 2.0f * halfFacing, 2.0f * halfSide );
-			step->x = dx / length * touch;
-			step->y = dy / length * touch;
+			Real span = placementTouchDistance( dx / length, dy / length, headingCos, headingSin,
+																					2.0f * halfFacing, 2.0f * halfSide );
+			if( extraGap > 0.0f )
+				span += extraGap;
+			step->x = dx / length * span;
+			step->y = dy / length * span;
 		}
 
 		Int count = 1;
@@ -724,6 +728,8 @@ public:  // ********************************************************************
 
 	/// would dragging the anchor lay a row of the pending structure, rather than aim one?
 	Bool placesRow( void );
+	/// wheel notches while that row is being drawn: one grid square of gap a notch, never below flush
+	void adjustPlacementRowGap( Real spin );
 	/// the centres of that row from 'start' toward 'end', as many as MaxLineBuildObjects and the money allow
 	void computePlacementRow( const ThingTemplate *what, Real angle, const Coord3D *start,
 														const Coord3D *end, std::vector<Coord3D> *positions ) const;
@@ -1360,6 +1366,8 @@ protected:
 	const ThingTemplate *				m_placeAngleType;												///< the structure that heading was chosen for; another type starts square again
 	Bool												m_placementLegal;												///< last legality verdict for the spot under the structure being placed
 	Coord3D											m_placementNudge;												///< how far the last legality check had to slide the structure to make it fit
+	Real												m_placementRowGap;											///< extra world units between a shift-dragged row, on top of the buildings touching
+	Real												m_placementRowGapWheel;									///< fractional notches not yet worth a whole grid square
 
 	/// a structure ordered here, and the logic frame it was ordered on - see recordPendingPlacement
 	struct PendingPlacement

@@ -2318,6 +2318,15 @@ TEST(placement_row_packs_the_footprint_along_the_drag)
 	CHECK_EQ(InGameUI::placementRow(1000.0f, 0.0f, 1.0f, 0.0f, 20.0f, 15.0f, 5, &step), 5);
 	CHECK_EQ(InGameUI::placementRow(1000.0f, 0.0f, 1.0f, 0.0f, 20.0f, 15.0f, 0, &step), 1);
 	CHECK_EQ(InGameUI::placementRow(0.0f, 0.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step), 1);
+
+	/* ten units of extra gap on the 40.5 touch: the same drag that held four now holds three */
+	CHECK_EQ(InGameUI::placementRow(122.0f, 0.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step, 10.0f), 3);
+	CHECK_NEAR(step.x, 50.5f, 0.0001f);
+	CHECK_NEAR(step.y, 0.0f, 0.0001f);
+
+	/* a negative gap is ignored: the row never packs tighter than the footprints allow */
+	InGameUI::placementRow(100.0f, 0.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step, -20.0f);
+	CHECK_NEAR(step.x, 40.5f, 0.0001f);
 }
 
 
