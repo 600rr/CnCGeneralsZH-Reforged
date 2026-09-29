@@ -146,8 +146,8 @@ public:
 //-------------------------------------------------------------------------------------------------
 enum AISkillLevel
 {
-	AISKILL_EASY = 0,			///< slow and brave: looks around, but reacts far too late
-	AISKILL_MEDIUM,				///< + unit retreat, closest-target focus, expands on its own
+	AISKILL_EASY = 0,			///< slow and brave: looks around, answers late, never retreats or counters
+	AISKILL_MEDIUM,				///< half a counter, spends past 6000, unit retreat, expands on its own
 	AISKILL_BRUTAL,				///< the baseline: counters what you field, masses, no reaction delay
 
 	AISKILL_COUNT

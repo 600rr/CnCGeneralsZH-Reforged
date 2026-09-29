@@ -2658,8 +2658,8 @@ Bool AIPlayer::selectTeamToBuild( void )
 	// terms ride on top:
 	//
 	//   - how well the team answers what this AI can *see* the enemy fielding (B1), scaled by the
-	//     rung's counterCompositionWeight - zero on the bottom two rungs, which is EA's behaviour
-	//     exactly, up to one at the top;
+	//     rung's counterCompositionWeight - zero on Easy, which is EA's behaviour exactly, half
+	//     on Normal, and one on Hard;
 	//   - what this AI is trying to do (D8): an aggressive one leans towards attack teams, a
 	//     defensive one towards the teams the data flags as base or perimeter defence.  A
 	//     preference, not a bonus - both spend the same money.
