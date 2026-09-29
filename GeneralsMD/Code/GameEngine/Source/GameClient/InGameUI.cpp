@@ -11711,13 +11711,18 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	TheControlBar->placeWindowAt( controlBarWindow( "CenterBackground" ), frameRect );
 	TheControlBar->placeWindowAt( controlBarWindow( "CommandWindow" ), frameRect );
 
-	// a cell only for a place a command stands in; an empty one is the panel's steel
+	// a cell only for a place a command stands in; an empty one is the panel's steel.  A building
+	// going up and one counting down to a unit hide the command group, and their own button takes
+	// its place before the cells are drawn
 	IRegion2D place[ COMMAND_PLACE_COUNT ];
+	for( Int each = 0; each < COMMAND_PLACE_COUNT; each++ )
+		place[ each ] = gridCell( commandBox, each % COMMAND_COLUMNS, each / COMMAND_COLUMNS,
+															COMMAND_CELL_WIDTH, COMMAND_CELL_HEIGHT );
+	if( centreShown )
+		TheControlBar->placeContextOnGrid( frameRect, place, taken );
 	std::vector< HtmlValues > &commandCells = lists[ "commandcells" ];
 	for( Int each = 0; each < COMMAND_PLACE_COUNT; each++ )
 	{
-		place[ each ] = gridCell( commandBox, each % COMMAND_COLUMNS, each / COMMAND_COLUMNS,
-															COMMAND_CELL_WIDTH, COMMAND_CELL_HEIGHT );
 		if( !centreShown || !taken[ each ] )
 			continue;
 		HtmlValues entry;
