@@ -563,7 +563,7 @@ public:  // ********************************************************************
 	void beginAttackCircle( const ICoord2D& pt );
 	void updateAttackCircle( const ICoord2D& pt );
 	Bool issueAttackCircle( void );		///< FALSE when the press never became a drag, so it was an ordinary attack click
-	Int issueAttackLine( const std::vector<Coord3D>& line );	///< every enemy a line drawn with the attack key runs across, as a target list in line order
+	Int issueAttackLine( const std::vector<Coord3D>& line );	///< enemies the stroke crosses, shared along it across the units that can shoot
 	Bool isAttackListTarget( const Object *obj, const Player *local ) const;	///< would the circle or the attack line take this
 	void cancelAttackCircle( void ) { m_isAttackCircling = FALSE; }
 	Bool isAttackCircling( void ) const { return m_isAttackCircling; }

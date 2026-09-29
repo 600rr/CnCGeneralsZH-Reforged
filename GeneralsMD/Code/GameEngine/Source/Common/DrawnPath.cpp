@@ -130,6 +130,39 @@ void orderAlongPath( std::vector<Object *>& movers, const std::vector<Coord3D>& 
 }
 
 //-------------------------------------------------------------------------------------------------
+void orderAlongPath( std::vector<AttackAssignSlot>& slots, const std::vector<Coord3D>& path,
+										 const std::vector<Real>& arc )
+{
+	const Int count = (Int)slots.size();
+
+	std::vector<Real> keys;
+	keys.reserve( count );
+	for( Int i = 0; i < count; i++ )
+		keys.push_back( distanceAlongPath( path, arc, slots[ i ].x, slots[ i ].y ) );
+
+	// Same insertion sort as the unit list. A few dozen guns, a few hundred enemies on a stroke,
+	// and the comparator is a total order, so the answer does not depend on who was found first.
+	for( Int i = 1; i < count; i++ )
+	{
+		AttackAssignSlot held = slots[ i ];
+		const Real heldKey = keys[ i ];
+
+		Int j = i - 1;
+		while( j >= 0 )
+		{
+			if( keys[ j ] < heldKey || (keys[ j ] == heldKey && slots[ j ].id < held.id) )
+				break;
+			slots[ j + 1 ] = slots[ j ];
+			keys[ j + 1 ] = keys[ j ];
+			j--;
+		}
+
+		slots[ j + 1 ] = held;
+		keys[ j + 1 ] = heldKey;
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
 /** Upper half, +x ray included, is 0. Lower half, -x ray included, is 1. The origin counts as
 	* the +x ray so a man standing on the centre sorts with the start of the sweep. */
 //-------------------------------------------------------------------------------------------------

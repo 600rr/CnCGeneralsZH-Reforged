@@ -67,8 +67,14 @@ struct AttackAssignSlot
 	Real y;
 };
 
-/// Who shoots, and which target in the sorted target list. Both indexes are into lists that
-/// orderAroundPoint has already sorted.
+/// The same order as the unit list above, for a position and an id. Nearest the start of the
+/// curve first, and the id breaks a tie. The attack line stands both the guns and the enemies
+/// this way.
+extern void orderAlongPath( std::vector<AttackAssignSlot>& slots, const std::vector<Coord3D>& path,
+														const std::vector<Real>& arc );
+
+/// Who shoots, and which target in the sorted target list. Both indexes are into lists already
+/// sorted the same way, around a circle or along a stroke.
 struct AttackAssignPair
 {
 	Int attacker;
@@ -81,7 +87,7 @@ struct AttackAssignPair
 extern void orderAroundPoint( std::vector<AttackAssignSlot>& slots, Real centerX, Real centerY );
 
 /// Pair attackers with targets so the counts differ by one at most. Both counts are the lengths
-/// of lists already stood around the same centre. With at least as many attackers as targets,
+/// of lists already sorted in the order the gesture drew. With at least as many attackers as targets,
 /// each attacker takes one target and the extras share, in contiguous blocks. With more targets
 /// than attackers, every target is still shot and each attacker queues a contiguous run of them.
 /// Either side empty writes nothing.

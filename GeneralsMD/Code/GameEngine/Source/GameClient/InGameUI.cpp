@@ -5768,11 +5768,13 @@ Bool InGameUI::isAttackListTarget( const Object *obj, const Player *local ) cons
 }
 
 //-------------------------------------------------------------------------------------------------
-/** The line drawn with the attack key: every enemy it runs across goes on the target list, in the
-	* order the line reaches it, so the direction it was drawn in is the direction the group fights
-	* along.  "Across" is the line passing over the object's own footprint, give or take a few feet for
-	* a hand that is not steady.  Returns how many targets went out; with none, the caller fires on
-	* the ground along the line instead. */
+/** The line drawn with the attack key: every enemy it runs across is shared across the units that
+	* can shoot, in the order both sides stand along the stroke, nearest the start first.  The shots
+	* are dealt the same way as the circle, so the counts differ by one at most, and each unit works
+	* down its own share.  "Across" is the line passing over the object's own footprint, give or take
+	* a few feet for a hand that is not steady.  Returns how many enemies the line crossed.  With
+	* none, the caller fires on the ground along the line instead.  Enemies that nobody selected can
+	* shoot still count, so the ground is not fired in their place. */
 //-------------------------------------------------------------------------------------------------
 Int InGameUI::issueAttackLine( const std::vector<Coord3D>& line )
 {
@@ -5809,8 +5811,9 @@ Int InGameUI::issueAttackLine( const std::vector<Coord3D>& line )
 	ObjectIterator *iter = ThePartitionManager->iterateObjectsInRange( &center, reach, FROM_CENTER_2D, NULL );
 	MemoryPoolObjectHolder holder( iter );
 
-	// how far along the line each target is, so they can go out in the order the line meets them
-	std::vector< std::pair<Real, ObjectID> > targets;
+	// enemies the stroke actually crosses. who stands where along it is sorted afterwards, guns and
+	// enemies the same way, so the deal does not depend on the order the range query handed them over
+	std::vector<AttackAssignSlot> targets;
 	for( Object *obj = iter->first(); obj; obj = iter->next() )
 	{
 		if( !isAttackListTarget( obj, local ) )
@@ -5842,21 +5845,89 @@ Int InGameUI::issueAttackLine( const std::vector<Coord3D>& line )
 		}
 
 		if( along >= 0.0f )
-			targets.push_back( std::make_pair( along, obj->getID() ) );
+		{
+			AttackAssignSlot slot;
+			slot.id = obj->getID();
+			slot.x = pos->x;
+			slot.y = pos->y;
+			targets.push_back( slot );
+		}
 	}
 
-	std::sort( targets.begin(), targets.end() );
-
-	for( size_t i = 0; i < targets.size(); ++i )
+	// who can actually shoot. a dozer standing in the selection is not given somebody else's target.
+	// a passenger whose transport is also selected is left out too: the transport's own order already
+	// tells everyone inside it to fire. the circle collects the same list.
+	std::vector<AttackAssignSlot> attackers;
+	std::vector<AttackAssignPair> pairs;
+	if( !targets.empty() )
 	{
-		const Bool startsList = i == 0 && !isInWaypointMode();
-		markNextOrderQueued( startsList ? ORDER_QUEUE_FRESH : ORDER_QUEUE_APPEND );
-		GameMessage *attack = TheMessageStream->appendMessage( GameMessage::MSG_DO_ATTACK_OBJECT );
-		attack->appendObjectIDArgument( targets[ i ].second );
+		const DrawableList *selected = getAllSelectedLocalDrawables();
+		std::vector<const Object *> shooters;
+		shooters.reserve( selected->size() );
+		for( DrawableListCIt it = selected->begin(); it != selected->end(); ++it )
+		{
+			const Object *obj = (*it) ? (*it)->getObject() : NULL;
+			if( obj == NULL || obj->isEffectivelyDead() || !obj->isAbleToAttack() )
+				continue;
+			shooters.push_back( obj );
+		}
+
+		attackers.reserve( shooters.size() );
+		for( std::vector<const Object *>::const_iterator it = shooters.begin(); it != shooters.end(); ++it )
+		{
+			const Object *obj = *it;
+			const Object *container = obj->getContainedBy();
+			if( container != NULL )
+			{
+				Bool containerSelected = FALSE;
+				for( std::vector<const Object *>::const_iterator other = shooters.begin(); other != shooters.end(); ++other )
+				{
+					if( *other == container )
+					{
+						containerSelected = TRUE;
+						break;
+					}
+				}
+				if( containerSelected )
+					continue;
+			}
+
+			AttackAssignSlot slot;
+			slot.id = obj->getID();
+			slot.x = obj->getPosition()->x;
+			slot.y = obj->getPosition()->y;
+			attackers.push_back( slot );
+		}
+
+		std::vector<Real> arc;
+		buildPathArcLengths( line, arc );
+		orderAlongPath( attackers, line, arc );
+		orderAlongPath( targets, line, arc );
+		assignAttacks( (Int)attackers.size(), (Int)targets.size(), pairs );
+
+		ObjectID previousAttacker = INVALID_ID;
+		for( std::vector<AttackAssignPair>::const_iterator pair = pairs.begin(); pair != pairs.end(); ++pair )
+		{
+			const AttackAssignSlot& attacker = attackers[ pair->attacker ];
+			const AttackAssignSlot& target = targets[ pair->target ];
+			if( attacker.id == target.id )
+				continue;
+
+			const Bool firstForThisAttacker = attacker.id != previousAttacker;
+			previousAttacker = attacker.id;
+
+			// each unit's first shot starts that unit's list. the rest of its run is queued behind it.
+			// shift appends the whole run onto whatever that one unit was already doing.
+			const Bool startsList = firstForThisAttacker && !isInWaypointMode();
+			markNextOrderQueued( startsList ? ORDER_QUEUE_FRESH : ORDER_QUEUE_APPEND );
+			GameMessage *attack = TheMessageStream->appendMessage( GameMessage::MSG_DO_ATTACK_OBJECT );
+			attack->appendObjectIDArgument( target.id );
+			attack->appendObjectIDArgument( attacker.id );
+		}
 	}
 
-	DEBUG_LOG(("attack line: %d points, %d targets, %d selected\n", (Int)line.size(), (Int)targets.size(),
-						 getSelectCount()));
+	DEBUG_LOG(("attack line: %d points, %d targets, %d attackers, %d shots\n", (Int)line.size(),
+						 (Int)targets.size(), (Int)attackers.size(), (Int)pairs.size()));
 	return (Int)targets.size();
 }
 

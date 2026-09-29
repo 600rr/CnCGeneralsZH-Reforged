@@ -1362,6 +1362,57 @@ TEST(attack_circle_stands_both_sides_around_the_centre)
 	}
 }
 
+/* DrawnPath.cpp: the attack line stands both sides along the stroke, nearest the start first,
+   the same total order a move line uses. The deal itself is assignAttacks. */
+TEST(attack_line_stands_both_sides_along_the_stroke)
+{
+	/* an L: 100 along x, then 100 along y. */
+	std::vector<Coord3D> path;
+	path.push_back( drawnPathPoint(   0.0f,   0.0f ) );
+	path.push_back( drawnPathPoint( 100.0f,   0.0f ) );
+	path.push_back( drawnPathPoint( 100.0f, 100.0f ) );
+
+	std::vector<Real> arc;
+	buildPathArcLengths( path, arc );
+
+	/* shuffled. off the stroke but nearest the start, then the same point twice so the id
+	   breaks the tie, then the corner, then halfway up the second leg. */
+	std::vector<AttackAssignSlot> slots;
+	slots.push_back( attackSlot( 4, 100.0f,  50.0f ) );
+	slots.push_back( attackSlot( 8,  50.0f,   0.0f ) );
+	slots.push_back( attackSlot( 2,  50.0f,   0.0f ) );
+	slots.push_back( attackSlot( 1,   0.0f,  10.0f ) );
+	slots.push_back( attackSlot( 3, 100.0f,   0.0f ) );
+
+	std::vector<AttackAssignSlot> reversed = slots;
+	std::reverse( reversed.begin(), reversed.end() );
+
+	orderAlongPath( slots, path, arc );
+	orderAlongPath( reversed, path, arc );
+
+	const int expect[] = { 1, 2, 8, 3, 4 };
+	CHECK_EQ( 5, (int)slots.size() );
+	for( int i = 0; i < 5; i++ )
+	{
+		CHECK_EQ( expect[i], (int)slots[i].id );
+		CHECK_EQ( expect[i], (int)reversed[i].id );
+	}
+
+	/* the enemy nearest the start is the first target, and the gun nearest the start takes it. */
+	std::vector<AttackAssignSlot> enemies;
+	enemies.push_back( attackSlot( 20, 100.0f, 50.0f ) );
+	enemies.push_back( attackSlot( 10,   0.0f,  0.0f ) );
+	orderAlongPath( enemies, path, arc );
+
+	std::vector<AttackAssignPair> pairs;
+	assignAttacks( (Int)slots.size(), (Int)enemies.size(), pairs );
+	CHECK_EQ( 5, (int)pairs.size() );
+	CHECK_EQ( 0, pairs[0].attacker );
+	CHECK_EQ( 0, pairs[0].target );
+	CHECK_EQ( 1, (int)slots[0].id );
+	CHECK_EQ( 10, (int)enemies[0].id );
+}
+
 /* AssaultTransportAIUpdate.cpp: the troop crawler deploys its passengers at a target and used to
    leave them walking behind it for the rest of the attack move once that target died - and on a
    plain attack order it re-boarded them the instant the target died, once per dead enemy.  Both
