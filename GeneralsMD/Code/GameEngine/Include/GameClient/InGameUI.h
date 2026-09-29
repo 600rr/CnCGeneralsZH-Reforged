@@ -696,33 +696,48 @@ public:  // ********************************************************************
 		* rounded to the build grid: a Power Plant is 44 across and the grid is 10, and rounding it
 		* up left 6 of dirt at every joint.  'extraGap' is world units the wheel adds on top of that
 		* touch while the line is being drawn.  Zero packs them flush, and a negative value is
-		* ignored, so the row never overlaps.  Never fewer than one, never more than 'most'.  Inline
-		* and static so a test can reach it without linking the whole in-game UI. */
+		* ignored, so the row never overlaps.  The first piece stands on the anchor and the last on
+		* the cursor.  As many as that spacing allows go between them, and any slack is spread along
+		* the line so the last one still lands on the cursor.  Opening the gap takes pieces out of
+		* the middle.  A drag keeps both ends even when the asked gap is longer than the line, unless
+		* 'most' allows only one.  Never fewer than one, never more than 'most'.  Inline and static
+		* so a test can reach it without linking the whole in-game UI. */
 	static Int placementRow( Real dx, Real dy, Real headingCos, Real headingSin, Real halfFacing,
 													 Real halfSide, Int most, Coord2D *step, Real extraGap = 0.0f )
 	{
 		step->x = 0.0f;
 		step->y = 0.0f;
 		const Real length = (Real)sqrt( dx * dx + dy * dy );
+
+		Int count = 1;
 		if( length > 0.0f )
 		{
 			Real span = placementTouchDistance( dx / length, dy / length, headingCos, headingSin,
 																					2.0f * halfFacing, 2.0f * halfSide );
 			if( extraGap > 0.0f )
 				span += extraGap;
-			step->x = dx / length * span;
-			step->y = dy / length * span;
-		}
+			if( span < 0.01f )
+				span = 0.01f;
 
-		Int count = 1;
-		const Real stepSqr = step->x * step->x + step->y * step->y;
-		if( stepSqr > 0.0f )
-			count += REAL_TO_INT_FLOOR( ( dx * step->x + dy * step->y ) / stepSqr );
+			// one gap per step, and a drag always has the piece under the cursor as well as the anchor.
+			// the 0.001 covers a quotient that lands a hair under a whole number: the drag and the
+			// touch are the same geometry, and a table sine leaves it at 1.999
+			Int gaps = REAL_TO_INT_FLOOR( length / span + 0.001f );
+			if( gaps < 1 )
+				gaps = 1;
+			count = gaps + 1;
+		}
 
 		if( count > most )
 			count = most;
 		if( count < 1 )
 			count = 1;
+
+		if( count >= 2 )
+		{
+			step->x = dx / (Real)( count - 1 );
+			step->y = dy / (Real)( count - 1 );
+		}
 		return count;
 	}
 

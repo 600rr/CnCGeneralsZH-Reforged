@@ -2258,74 +2258,91 @@ TEST(placement_grid_snap_puts_footprint_edges_on_cell_lines)
 	CHECK_NEAR(InGameUI::snapPlacementAxis(13.0f, 0.0f), 14.5f, 0.0001f);
 }
 
-TEST(placement_row_packs_the_footprint_along_the_drag)
+TEST(placement_row_pins_both_ends_and_opens_the_middle)
 {
 	Coord2D step;
 	const Real half = 0.70710678f;	/* cos and sin of an eighth of a turn */
 
-	/* facing along x, a 40 by 30 footprint: one piece per 40 dragged and the hair the logic's
-	 * clearance test needs between them, the first free */
-	CHECK_EQ(InGameUI::placementRow(119.0f, 0.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step), 3);
+	/* facing along x, a 40 by 30 footprint. three exact gaps of 40.5: four pieces, the last
+	 * on the cursor, the step the footprint and the hair the clearance test needs */
+	CHECK_EQ(InGameUI::placementRow(121.5f, 0.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step), 4);
 	CHECK_NEAR(step.x, 40.5f, 0.0001f);
 	CHECK_NEAR(step.y, 0.0f, 0.0001f);
-	CHECK_EQ(InGameUI::placementRow(122.0f, 0.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step), 4);
+	CHECK_NEAR(step.x * 3.0f, 121.5f, 0.0001f);
 
-	/* backwards runs backwards */
-	CHECK_EQ(InGameUI::placementRow(-100.0f, 0.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step), 3);
+	/* a length that is not a multiple still ends on the cursor: the spare is spread, the
+	 * step grows past 40.5, and both ends stay */
+	CHECK_EQ(InGameUI::placementRow(130.0f, 0.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step), 4);
+	CHECK_NEAR(step.x, 130.0f / 3.0f, 0.0001f);
+	CHECK(step.x > 40.5f);
+
+	/* backwards runs backwards, and the last piece is the far end */
+	CHECK_EQ(InGameUI::placementRow(-81.0f, 0.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step), 3);
 	CHECK_NEAR(step.x, -40.5f, 0.0001f);
 	CHECK_NEAR(step.y, 0.0f, 0.0001f);
 
-	/* a line dragged 20 degrees off the axis runs at 20 degrees, not flat: the pieces meet through
-	 * the facing face, 40 / cos 20 apart, and the hair */
+	/* a line dragged 20 degrees off the axis runs at 20 degrees, not flat, and the pieces
+	 * meet through the facing face */
 	const Real twenty = 20.0f * PI / 180.0f;
-	InGameUI::placementRow(100.0f * Cos(twenty), 100.0f * Sin(twenty), 1.0f, 0.0f, 20.0f, 15.0f, 50, &step);
+	const Real touch20 = 40.0f / Cos(twenty) + 0.5f;
+	const Real drag20 = touch20 * 2.0f;
+	CHECK_EQ(InGameUI::placementRow(drag20 * Cos(twenty), drag20 * Sin(twenty), 1.0f, 0.0f,
+	                                20.0f, 15.0f, 50, &step), 3);
 	CHECK_NEAR(step.y / step.x, Sin(twenty) / Cos(twenty), 0.0001f);
-	CHECK_NEAR(sqrt(step.x * step.x + step.y * step.y), 40.0f / Cos(twenty) + 0.5f, 0.001f);
+	CHECK_NEAR(sqrt(step.x * step.x + step.y * step.y), touch20, 0.001f);
 
-	/* along y the step is the footprint's other side */
-	InGameUI::placementRow(0.0f, -90.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step);
+	/* along y the step is the footprint's other side, two exact gaps */
+	CHECK_EQ(InGameUI::placementRow(0.0f, -61.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step), 3);
 	CHECK_NEAR(step.x, 0.0f, 0.0001f);
 	CHECK_NEAR(step.y, -30.5f, 0.0001f);
 
 	/* a diagonal slides each piece along the last one's long side instead of meeting it corner
 	 * to corner: 30 on each axis and the hair, where 40 by 30 left a triangle of ground */
-	CHECK_EQ(InGameUI::placementRow(80.0f, 80.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step), 3);
-	CHECK_NEAR(step.x, 30.0f + 0.5f * half, 0.001f);
-	CHECK_NEAR(step.y, 30.0f + 0.5f * half, 0.001f);
+	const Real diag = 30.0f + 0.5f * half;
+	CHECK_EQ(InGameUI::placementRow(diag * 2.0f, diag * 2.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step), 3);
+	CHECK_NEAR(step.x, diag, 0.001f);
+	CHECK_NEAR(step.y, diag, 0.001f);
 
 	/* turned a quarter, the footprint's sides swap axes, Cos's float dust and all */
-	InGameUI::placementRow(100.0f, 0.0f, -0.00000004f, 1.0f, 20.0f, 15.0f, 50, &step);
+	CHECK_EQ(InGameUI::placementRow(61.0f, 0.0f, -0.00000004f, 1.0f, 20.0f, 15.0f, 50, &step), 3);
 	CHECK_NEAR(step.x, 30.5f, 0.0001f);
 
-	/* turned an eighth, a row along the structure's own line stands face to face with the
-	 * next: a step 40 long, and the hair */
-	InGameUI::placementRow(100.0f, 100.0f, half, half, 20.0f, 15.0f, 50, &step);
+	/* turned an eighth, a row along the structure's own line stands face to face: a step 40.5
+	 * long. across that line it meets on the short side */
+	CHECK_EQ(InGameUI::placementRow(81.0f * half, 81.0f * half, half, half, 20.0f, 15.0f, 50, &step), 3);
 	CHECK_NEAR(step.x * step.x + step.y * step.y, 40.5f * 40.5f, 0.01f);
-	InGameUI::placementRow(-100.0f, 100.0f, half, half, 20.0f, 15.0f, 50, &step);
+	CHECK_EQ(InGameUI::placementRow(-61.0f * half, 61.0f * half, half, half, 20.0f, 15.0f, 50, &step), 3);
 	CHECK_NEAR(step.x * step.x + step.y * step.y, 30.5f * 30.5f, 0.01f);
 
 	/* and across the structure's line the row can do no better than corner to corner: the
 	 * shorter half-side's diagonal, 30 / cos 45 */
-	InGameUI::placementRow(100.0f, 0.0f, half, half, 20.0f, 15.0f, 50, &step);
-	CHECK_NEAR(step.x, 30.0f / half + 0.5f, 0.001f);
+	const Real corner = 30.0f / half + 0.5f;
+	CHECK_EQ(InGameUI::placementRow(corner * 2.0f, 0.0f, half, half, 20.0f, 15.0f, 50, &step), 3);
+	CHECK_NEAR(step.x, corner, 0.001f);
 	CHECK_NEAR(step.y, 0.0f, 0.0001f);
 
 	/* the step is the footprint, not the build grid's next whole cell */
-	InGameUI::placementRow(100.0f, 0.0f, 1.0f, 0.0f, 22.0f, 30.0f, 50, &step);
+	CHECK_EQ(InGameUI::placementRow(89.0f, 0.0f, 1.0f, 0.0f, 22.0f, 30.0f, 50, &step), 3);
 	CHECK_NEAR(step.x, 44.5f, 0.0001f);
 
-	/* never more than the cap, never fewer than one, and no drag is one piece */
+	/* never more than the cap, and what is affordable still reaches both ends */
 	CHECK_EQ(InGameUI::placementRow(1000.0f, 0.0f, 1.0f, 0.0f, 20.0f, 15.0f, 5, &step), 5);
+	CHECK_NEAR(step.x * 4.0f, 1000.0f, 0.001f);
 	CHECK_EQ(InGameUI::placementRow(1000.0f, 0.0f, 1.0f, 0.0f, 20.0f, 15.0f, 0, &step), 1);
 	CHECK_EQ(InGameUI::placementRow(0.0f, 0.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step), 1);
 
-	/* ten units of extra gap on the 40.5 touch: the same drag that held four now holds three */
-	CHECK_EQ(InGameUI::placementRow(122.0f, 0.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step, 10.0f), 3);
-	CHECK_NEAR(step.x, 50.5f, 0.0001f);
+	/* ten units of extra gap: a line that held four flush now holds three, and the two ends
+	 * are still the anchor and the cursor */
+	CHECK_EQ(InGameUI::placementRow(121.5f, 0.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step, 10.0f), 3);
+	CHECK_NEAR(step.x, 60.75f, 0.0001f);
 	CHECK_NEAR(step.y, 0.0f, 0.0001f);
 
+	/* a gap longer than the line leaves the two ends and nothing between them */
+	CHECK_EQ(InGameUI::placementRow(121.5f, 0.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step, 500.0f), 2);
+	CHECK_NEAR(step.x, 121.5f, 0.0001f);
+
 	/* a negative gap is ignored: the row never packs tighter than the footprints allow */
-	InGameUI::placementRow(100.0f, 0.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step, -20.0f);
+	InGameUI::placementRow(81.0f, 0.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &step, -20.0f);
 	CHECK_NEAR(step.x, 40.5f, 0.0001f);
 }
 
