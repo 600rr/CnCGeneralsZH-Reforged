@@ -1543,7 +1543,13 @@ Real ControlBarHudScale( void )
 	if( TheDisplay == NULL )
 		return 1.0f;
 
-	return ControlBarHudScaleFor( TheDisplay->getWidth(), TheDisplay->getHeight() );
+	// the player's HudScale option on top, 100/115/130/150%
+	static const Real steps[] = { 1.0f, 1.15f, 1.3f, 1.5f };
+	Int step = TheGlobalData ? TheGlobalData->m_hudScale : 0;
+	if( step < 0 || step > 3 )
+		step = 0;
+
+	return ControlBarHudScaleFor( TheDisplay->getWidth(), TheDisplay->getHeight() ) * steps[ step ];
 }
 
 //-------------------------------------------------------------------------------------------------

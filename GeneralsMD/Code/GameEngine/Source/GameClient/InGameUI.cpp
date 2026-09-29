@@ -10280,10 +10280,10 @@ void InGameUI::addSuperweaponIcon( const Image *image, Int seconds, Int percent,
 //-------------------------------------------------------------------------------------------------
 void InGameUI::drawSuperweaponStrip( void )
 {
-	// watching, the spectator page's left panel lists the countdowns instead
-	// playing under the bar's page, the countdowns are on the Tab scoreboard
-	if( m_superweaponIconCount < 1 || stripSwitchedOff( &GlobalData::m_showSuperweaponStrip ) || m_spectatorPageShown ||
-			( m_controlBarPageShown && !localPlayerWatching() ) )
+	// a player gets the strip, top right; an observer or a replay does not - the spectator page
+	// and the Tab scoreboard carry the countdowns for them
+	if( m_superweaponIconCount < 1 || m_spectatorPageShown || localPlayerWatching() ||
+			( TheRecorder && TheRecorder->getMode() == RECORDERMODETYPE_PLAYBACK ) )
 		return;
 
 	if( TheGameLogic == NULL || !TheGameLogic->isInGame() || TheGameLogic->isInShellGame() )
