@@ -1165,6 +1165,28 @@ Bool aiShouldMass( Real waitingThreat, Real enemyVisibleThreat, Real massFractio
 }
 
 //-------------------------------------------------------------------------------------------------
+Bool aiWantsAnotherFactory( Int finished, Int constructing, Int idle, Int deepest, Bool unlimited )
+{
+	if( constructing > 0 )
+		return FALSE;					// one is already going up
+	if( unlimited )
+		return TRUE;
+	if( finished <= 0 )
+		return TRUE;					// the last one is gone, so put one back
+	if( idle > 0 )
+		return FALSE;					// a factory with nothing in it is the spare
+	return deepest >= 2;			// busy, and a unit is waiting behind the one being built
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool aiWantsAnotherTechBuilding( Int standing, Int onTheWay )
+{
+	if( onTheWay > 0 )
+		return FALSE;
+	return standing < AI_TECH_BUILDING_COPIES;
+}
+
+//-------------------------------------------------------------------------------------------------
 Real aiScoutScore( UnsignedInt now, UnsignedInt lastSeenFrame, Real distance, UnsignedInt freshFrames )
 {
 	// 0 == never looked, and now - 0 is bigger than any real age, so those sort to the front by itself

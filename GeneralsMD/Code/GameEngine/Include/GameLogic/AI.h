@@ -296,6 +296,22 @@ Real aiRetreatRatio( Real myHealth, Real myPower, Real enemyHealth, Real enemyPo
 Bool aiShouldMass( Real waitingThreat, Real enemyVisibleThreat, Real massFraction,
 									 Bool timeExpired, Bool baseUnderAttack );
 
+/** Another factory of this kind.  finished are standing and done, constructing are already on the
+	* way, idle are finished factories with an empty queue, deepest is the longest queue among them.
+	*
+	* A queue-gated kind (tanks, infantry) gets another when every finished factory is busy and one of
+	* them has a unit waiting behind the one under construction, and a replacement when none are left.
+	* An unlimited kind (airfields, and the income buildings that follow the same rule) gets another
+	* whenever one is not already going up.  One already on the way is the building this would ask for. */
+Bool aiWantsAnotherFactory( Int finished, Int constructing, Int idle, Int deepest, Bool unlimited );
+
+/** How many copies of the faction tech building (strategy center, propaganda center, palace) to
+	* keep up so one of them blowing up does not take the tree with it. */
+static const Int AI_TECH_BUILDING_COPIES = 3;
+
+/** Another of those, when fewer than AI_TECH_BUILDING_COPIES are standing and none is already on the way. */
+Bool aiWantsAnotherTechBuilding( Int standing, Int onTheWay );
+
 /** How badly one place wants looking at, per step walked there.  A3's scouting is never a search -
 	* the start positions are public, the lobby shows them - so the question is not "where is he" but
 	* "whose picture is worth the walk", and the answer is the stalest one per unit of distance:
