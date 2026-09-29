@@ -5624,13 +5624,14 @@ Bool InGameUI::getAttackCircleGround( Coord3D& center, Real& radius ) const
 }
 
 //-------------------------------------------------------------------------------------------------
-/** Everything hostile standing in the circle becomes a list of attacks, nearest first, and the group
-	* is put on the head of it.  Without shift the list replaces whatever the group was doing; with it,
-	* the list goes on the end of the group's shift queue.  Shroud decides membership: a target the
-	* player cannot see is not in the circle, whatever the partition manager knows about it.  The
-	* targets go through the same queue a shift-clicked attack uses, so the whole list is drawn on the
-	* ground as threads and markers instead of only the one target the group happens to be shooting
-	* at. */
+/** The enemies standing in the circle are shared across the units that can shoot.  Both sides are
+	* stood in the order they sit around the centre the player drew, the same order a move line uses
+	* along its curve, and the shots are then dealt so the counts differ by one at most.  With enough
+	* guns each takes one target.  With more targets than guns, each gun queues its own run of them
+	* instead of the whole selection walking one list.  The pair is two ids on the attack message, the
+	* target first, so every other machine fires what this one decided and nobody recomputes the
+	* circle.  Without shift, a unit's first shot replaces whatever it was doing; with shift, the run
+	* goes on the end of that unit's own queue.  Shroud decides which enemies count. */
 //-------------------------------------------------------------------------------------------------
 Bool InGameUI::issueAttackCircle( void )
 {
@@ -5647,25 +5648,91 @@ Bool InGameUI::issueAttackCircle( void )
 
 	const Player *local = ThePlayerList->getLocalPlayer();
 
-	ObjectIterator *iter = ThePartitionManager->iterateObjectsInRange( &center, radius,
-																																		FROM_CENTER_2D, NULL,
-																																		ITER_SORTED_NEAR_TO_FAR );
+	// who can actually shoot. a dozer standing in the selection is not given somebody else's target.
+	// a passenger whose transport is also selected is left out too: the transport's own order already
+	// tells everyone inside it to fire.
+	const DrawableList *selected = getAllSelectedLocalDrawables();
+	std::vector<const Object *> shooters;
+	shooters.reserve( selected->size() );
+	for( DrawableListCIt it = selected->begin(); it != selected->end(); ++it )
+	{
+		const Object *obj = (*it) ? (*it)->getObject() : NULL;
+		if( obj == NULL || obj->isEffectivelyDead() || !obj->isAbleToAttack() )
+			continue;
+		shooters.push_back( obj );
+	}
+
+	std::vector<AttackAssignSlot> attackers;
+	attackers.reserve( shooters.size() );
+	for( std::vector<const Object *>::const_iterator it = shooters.begin(); it != shooters.end(); ++it )
+	{
+		const Object *obj = *it;
+		const Object *holder = obj->getContainedBy();
+		if( holder != NULL )
+		{
+			Bool holderSelected = FALSE;
+			for( std::vector<const Object *>::const_iterator other = shooters.begin(); other != shooters.end(); ++other )
+			{
+				if( *other == holder )
+				{
+					holderSelected = TRUE;
+					break;
+				}
+			}
+			if( holderSelected )
+				continue;
+		}
+
+		AttackAssignSlot slot;
+		slot.id = obj->getID();
+		slot.x = obj->getPosition()->x;
+		slot.y = obj->getPosition()->y;
+		attackers.push_back( slot );
+	}
+
+	std::vector<AttackAssignSlot> targets;
+	ObjectIterator *iter = ThePartitionManager->iterateObjectsInRange( &center, radius, FROM_CENTER_2D, NULL );
 	MemoryPoolObjectHolder holder( iter );
-	Int targetCount = 0;
 	for( Object *obj = iter->first(); obj; obj = iter->next() )
 	{
 		if( !isAttackListTarget( obj, local ) )
 			continue;
 
-		const Bool startsList = targetCount == 0 && !isInWaypointMode();
-		markNextOrderQueued( startsList ? ORDER_QUEUE_FRESH : ORDER_QUEUE_APPEND );
-		GameMessage *attack = TheMessageStream->appendMessage( GameMessage::MSG_DO_ATTACK_OBJECT );
-		attack->appendObjectIDArgument( obj->getID() );
-		targetCount++;
+		AttackAssignSlot slot;
+		slot.id = obj->getID();
+		slot.x = obj->getPosition()->x;
+		slot.y = obj->getPosition()->y;
+		targets.push_back( slot );
 	}
 
-	DEBUG_LOG(("attack circle: radius %.0f, %d targets, %d selected\n", radius, targetCount,
-						 getSelectCount()));
+	orderAroundPoint( attackers, center.x, center.y );
+	orderAroundPoint( targets, center.x, center.y );
+
+	std::vector<AttackAssignPair> pairs;
+	assignAttacks( (Int)attackers.size(), (Int)targets.size(), pairs );
+
+	ObjectID previousAttacker = INVALID_ID;
+	for( std::vector<AttackAssignPair>::const_iterator pair = pairs.begin(); pair != pairs.end(); ++pair )
+	{
+		const AttackAssignSlot& attacker = attackers[ pair->attacker ];
+		const AttackAssignSlot& target = targets[ pair->target ];
+		if( attacker.id == target.id )
+			continue;
+
+		const Bool firstForThisAttacker = attacker.id != previousAttacker;
+		previousAttacker = attacker.id;
+
+		// each unit's first shot starts that unit's list. the rest of its run is queued behind it.
+		// shift appends the whole run onto whatever that one unit was already doing.
+		const Bool startsList = firstForThisAttacker && !isInWaypointMode();
+		markNextOrderQueued( startsList ? ORDER_QUEUE_FRESH : ORDER_QUEUE_APPEND );
+		GameMessage *attack = TheMessageStream->appendMessage( GameMessage::MSG_DO_ATTACK_OBJECT );
+		attack->appendObjectIDArgument( target.id );
+		attack->appendObjectIDArgument( attacker.id );
+	}
+
+	DEBUG_LOG(("attack circle: radius %.0f, %d targets, %d attackers, %d shots\n", radius,
+						 (Int)targets.size(), (Int)attackers.size(), (Int)pairs.size()));
 	return TRUE;
 }
 

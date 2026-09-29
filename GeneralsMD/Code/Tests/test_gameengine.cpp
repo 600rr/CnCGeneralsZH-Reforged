@@ -1245,6 +1245,123 @@ TEST(drawn_path_orders_units_by_where_they_already_stand)
 	CHECK_NEAR( 200.0f, distanceAlongPath( path, arc, 100.0f, 400.0f ), 0.001f );
 }
 
+/* DrawnPath.cpp: the attack circle stands both sides around its centre and deals the shots so the
+   counts differ by one at most. 10 guns on 3 targets is 3, 4, 3. 3 guns on 10 targets queue
+   3, 4, 3. */
+#include <algorithm>
+
+static AttackAssignSlot attackSlot( Int id, Real x, Real y )
+{
+	AttackAssignSlot slot;
+	slot.id = (ObjectID)id;
+	slot.x = x;
+	slot.y = y;
+	return slot;
+}
+
+TEST(attack_circle_splits_shots_as_evenly_as_the_counts_allow)
+{
+	std::vector<AttackAssignPair> pairs;
+
+	/* ten guns, three targets: each gun one shot, the shares 3, 4 and 3, middle block the long one. */
+	assignAttacks( 10, 3, pairs );
+	CHECK_EQ( 10, (int)pairs.size() );
+	int onTarget[3] = { 0, 0, 0 };
+	for( int i = 0; i < 10; i++ )
+	{
+		CHECK_EQ( i, pairs[i].attacker );
+		CHECK( pairs[i].target >= 0 && pairs[i].target < 3 );
+		onTarget[ pairs[i].target ]++;
+	}
+	CHECK_EQ( 3, onTarget[0] );
+	CHECK_EQ( 4, onTarget[1] );
+	CHECK_EQ( 3, onTarget[2] );
+
+	/* three guns, ten targets: every target is shot once, and the queues are 3, 4, 3 in order. */
+	assignAttacks( 3, 10, pairs );
+	CHECK_EQ( 10, (int)pairs.size() );
+	int perAttacker[3] = { 0, 0, 0 };
+	for( int i = 0; i < 10; i++ )
+	{
+		CHECK_EQ( i, pairs[i].target );
+		CHECK( pairs[i].attacker >= 0 && pairs[i].attacker < 3 );
+		if( i > 0 )
+			CHECK( pairs[i].attacker >= pairs[i - 1].attacker );
+		perAttacker[ pairs[i].attacker ]++;
+	}
+	CHECK_EQ( 3, perAttacker[0] );
+	CHECK_EQ( 4, perAttacker[1] );
+	CHECK_EQ( 3, perAttacker[2] );
+
+	/* one each, in the order they stand. */
+	assignAttacks( 5, 5, pairs );
+	CHECK_EQ( 5, (int)pairs.size() );
+	for( int i = 0; i < 5; i++ )
+	{
+		CHECK_EQ( i, pairs[i].attacker );
+		CHECK_EQ( i, pairs[i].target );
+	}
+
+	/* one target: everybody shoots it. one attacker: that one queues the lot. */
+	assignAttacks( 6, 1, pairs );
+	CHECK_EQ( 6, (int)pairs.size() );
+	for( int i = 0; i < 6; i++ )
+		CHECK_EQ( 0, pairs[i].target );
+
+	assignAttacks( 1, 4, pairs );
+	CHECK_EQ( 4, (int)pairs.size() );
+	for( int i = 0; i < 4; i++ )
+	{
+		CHECK_EQ( 0, pairs[i].attacker );
+		CHECK_EQ( i, pairs[i].target );
+	}
+
+	/* nothing to shoot, or nobody to shoot it. */
+	assignAttacks( 0, 4, pairs );
+	CHECK_EQ( 0, (int)pairs.size() );
+	assignAttacks( 4, 0, pairs );
+	CHECK_EQ( 0, (int)pairs.size() );
+
+	/* seven and three still differ by one, and every index is used. */
+	assignAttacks( 7, 3, pairs );
+	CHECK_EQ( 7, (int)pairs.size() );
+	int seven[3] = { 0, 0, 0 };
+	for( int i = 0; i < 7; i++ )
+		seven[ pairs[i].target ]++;
+	CHECK_EQ( 2, seven[0] );
+	CHECK_EQ( 3, seven[1] );
+	CHECK_EQ( 2, seven[2] );
+}
+
+TEST(attack_circle_stands_both_sides_around_the_centre)
+{
+	/* shuffled on purpose. counter-clockwise from +x, nearer first on the same ray, id after that,
+	   and a man standing on the centre itself leads. */
+	std::vector<AttackAssignSlot> slots;
+	slots.push_back( attackSlot( 4,   0.0f, -10.0f ) ); /* -y */
+	slots.push_back( attackSlot( 1,  10.0f,   0.0f ) ); /* +x, far */
+	slots.push_back( attackSlot( 8,  10.0f,   0.0f ) ); /* +x, far, higher id */
+	slots.push_back( attackSlot( 2,   0.0f,  10.0f ) ); /* +y */
+	slots.push_back( attackSlot( 5,   0.0f,   0.0f ) ); /* centre */
+	slots.push_back( attackSlot( 6,   5.0f,   0.0f ) ); /* +x, near */
+	slots.push_back( attackSlot( 3, -10.0f,   0.0f ) ); /* -x */
+	slots.push_back( attackSlot( 9,  10.0f,  10.0f ) ); /* diagonal, between +x and +y */
+
+	std::vector<AttackAssignSlot> reversed = slots;
+	std::reverse( reversed.begin(), reversed.end() );
+
+	orderAroundPoint( slots, 0.0f, 0.0f );
+	orderAroundPoint( reversed, 0.0f, 0.0f );
+
+	const int expect[] = { 5, 6, 1, 8, 9, 2, 3, 4 };
+	CHECK_EQ( 8, (int)slots.size() );
+	for( int i = 0; i < 8; i++ )
+	{
+		CHECK_EQ( expect[i], (int)slots[i].id );
+		CHECK_EQ( expect[i], (int)reversed[i].id );
+	}
+}
+
 /* AssaultTransportAIUpdate.cpp: the troop crawler deploys its passengers at a target and used to
    leave them walking behind it for the rest of the attack move once that target died - and on a
    plain attack order it re-boarded them the instant the target died, once per dead enemy.  Both
@@ -9960,6 +10077,43 @@ TEST(massing_waits_for_a_force_but_never_waits_for_ever)
 	CHECK( !data.m_skill[ AISKILL_EASY ].m_massBeforeAttacking );
 	CHECK( !data.m_skill[ AISKILL_MEDIUM ].m_massBeforeAttacking );
 	CHECK( data.m_skill[ AISKILL_BRUTAL ].m_massBeforeAttacking );
+}
+
+
+/** Another factory when the queue is backing up, and another tech building until three are standing.
+	 Easy and Normal never reach the caller: economy buildings stay off below Brutal. */
+TEST(extra_factory_follows_the_queue_and_tech_stops_at_three)
+{
+	// nothing left standing: put one back
+	CHECK( aiWantsAnotherFactory( 0, 0, 0, 0, FALSE ) );
+
+	// one already going up is the building this would ask for
+	CHECK( !aiWantsAnotherFactory( 0, 1, 0, 0, FALSE ) );
+	CHECK( !aiWantsAnotherFactory( 2, 1, 0, 4, FALSE ) );
+
+	// a factory with an empty queue is the spare
+	CHECK( !aiWantsAnotherFactory( 2, 0, 1, 3, FALSE ) );
+
+	// every finished factory is busy, and a unit is waiting behind the one being built
+	CHECK( aiWantsAnotherFactory( 2, 0, 0, 2, FALSE ) );
+
+	// busy, but the queue is only the unit under construction
+	CHECK( !aiWantsAnotherFactory( 1, 0, 0, 1, FALSE ) );
+
+	// airfields and the income buildings: another whenever one is not already going up,
+	// even while a finished one sits idle
+	CHECK( aiWantsAnotherFactory( 3, 0, 2, 0, TRUE ) );
+	CHECK( !aiWantsAnotherFactory( 3, 1, 0, 5, TRUE ) );
+
+	CHECK( aiWantsAnotherTechBuilding( 0, 0 ) );
+	CHECK( aiWantsAnotherTechBuilding( AI_TECH_BUILDING_COPIES - 1, 0 ) );
+	CHECK( !aiWantsAnotherTechBuilding( 2, 1 ) );
+	CHECK( !aiWantsAnotherTechBuilding( AI_TECH_BUILDING_COPIES, 0 ) );
+
+	TAiData ladder;
+	CHECK( !ladder.m_skill[ AISKILL_EASY ].m_economyBuildings );
+	CHECK( !ladder.m_skill[ AISKILL_MEDIUM ].m_economyBuildings );
+	CHECK( ladder.m_skill[ AISKILL_BRUTAL ].m_economyBuildings );
 }
 
 

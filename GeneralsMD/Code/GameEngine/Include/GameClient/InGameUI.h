@@ -557,9 +557,9 @@ public:  // ********************************************************************
 	const AllyCursor& getAllyCursor( Int playerIndex ) const { return m_allyCursors[ playerIndex ]; }
 	Real getAllyCursorFade( Int playerIndex ) const;					///< 0 when there is nothing to draw, 1 for a live cursor
 
-	// A circle dragged out with the left button while the attack key is armed.  Everything hostile
-	// and visible inside it joins the shift queue below, and the selection works down that list one
-	// target at a time: the next one is ordered the moment the current one stops existing.
+	// A circle dragged out with the left button while the attack key is armed.  The enemies inside
+	// it are shared across the units that can shoot, in the order both sides stand around the
+	// circle, and each unit works down its own share.
 	void beginAttackCircle( const ICoord2D& pt );
 	void updateAttackCircle( const ICoord2D& pt );
 	Bool issueAttackCircle( void );		///< FALSE when the press never became a drag, so it was an ordinary attack click
