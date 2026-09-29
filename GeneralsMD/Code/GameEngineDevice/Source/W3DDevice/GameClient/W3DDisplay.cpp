@@ -2038,6 +2038,7 @@ static void captureVideoFrame(void);
 extern Real TheSceneDrawMS;
 extern Real TheUIDrawMS;
 extern Real TheParticleUpdateMS;
+extern UnsignedInt TheSceneDrawCalls;
 
 static Real w3dElapsedMS( const Int64 &from, const Int64 &to )
 {
@@ -2379,6 +2380,7 @@ AGAIN:
 				QueryPerformanceCounter( (LARGE_INTEGER *)&tUIEnd );
 				TheSceneDrawMS = w3dElapsedMS( tSceneStart, tSceneEnd );
 				TheUIDrawMS = w3dElapsedMS( tSceneEnd, tUIEnd );
+				TheSceneDrawCalls = DX8Wrapper::Get_Draw_Calls();
 #endif
 
 				// end of video example code
