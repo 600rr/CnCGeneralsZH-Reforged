@@ -10734,7 +10734,7 @@ TEST(a_stacked_tray_does_not_lie_over_the_one_below_it)
 					<= (Int)InGameUI::PRODUCTION_STRIP_TRAY_H );
 
 	//
-	// the superweapon strip stands in the same trays, three rows of six of them, and that pile has
+	// the superweapon strip stands in rows of six, as many as it is allowed to grow to, and that pile has
 	// to fit under the corner clock plate rather than run off the bottom of the 800x600 it is
 	// written in - at the full tray now, which is the taller pile of the two
 	//

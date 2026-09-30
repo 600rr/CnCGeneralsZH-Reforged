@@ -1113,7 +1113,7 @@ public:  // ********************************************************************
 	// whatever timers are live, so nothing here outlives the draw that filled it in.
 	//
 	enum { SUPERWEAPON_STRIP_COLS = 6 };		///< cameos in one row, the soonest at the right hand end
-	enum { SUPERWEAPON_STRIP_ROWS = 3 };		///< rows of them, and the rest become a "+N"
+	enum { SUPERWEAPON_STRIP_ROWS = 7 };		///< rows the strip can grow to, as many as fit the top half of the screen; past 42 the latest to land have no cell
 	enum { SUPERWEAPON_STRIP_MAX = SUPERWEAPON_STRIP_COLS * SUPERWEAPON_STRIP_ROWS };
 
 	enum { SKILL_STRIP_COLS = 6 };			///< bought promotions in one row, under the countdowns
@@ -1500,7 +1500,9 @@ protected:
 	const Image *productionStripTray( void );	///< the bar's tray, mirrored, kept until the bar changes side
 	void stripTrayMetrics( ICoord2D *tray, ICoord2D *cameo, ICoord2D *hole, Int *step );	///< that tray's size, its cameo hole, and the column step
 	void drawStripSeconds( Int which, Int x, Int y, Int w, Int h, Int seconds );	///< countdown written inside a cameo
-	void drawStripQuantity( Int which, Int x, Int y, Int w, Int quantity );	///< the "xN" in a cameo's top right corner
+	void drawStripQuantity( Int which, Int x, Int y, Int w, Int h, Int quantity );	///< the "xN" in a cameo's top right corner
+	///< one of the strips' own strings set to 'text', a point smaller at a time until a readout on 'cell' holds it
+	DisplayString *fitStripString( DisplayString *&string, const UnicodeString &text, Int points, const IRegion2D &cell );
 	void addSuperweaponIcon( const Image *image, Int seconds, Int percent, Bool ready, Color color );
 	void drawSuperweaponStrip( void );		///< those icons, top right, soonest at the right hand end
 	void drawSkillStrip( void );					///< the watched player's bought promotions, under those
@@ -1546,6 +1548,11 @@ protected:
 	HtmlOverlay *								m_promotionFrontOverlay;		///< the grid's frames, drawn over the promotions
 	HtmlOverlay *								m_cellFrontOverlay[ CELL_GRID_COUNT ];
 	std::vector< HtmlValues >		m_cellFrontCells[ CELL_GRID_COUNT ];	///< each grid's cells as the bar's page last placed them
+	enum { ORDER_KEYS = 3 };																					///< the page's attack, hold position and move keys
+	IRegion2D										m_orderKeyCell[ ORDER_KEYS ];					///< where the page last put each, screen pixels
+	Bool												m_orderKeysShown;
+	DisplayString *							m_orderKeyString[ ORDER_KEYS ];				///< each one's letter, on the command buttons' plate
+	Int													m_orderKeyPoints;											///< the size those were last lettered at: HUD Size changes in a match
 	Bool												m_promotionPageLoaded;
 	std::string									m_promotionPage;
 	Int													m_promotionShownMs;				///< how far the promotion screen has come up, -1 before its first picture
@@ -1665,6 +1672,7 @@ protected:
 	Int													m_productionStripStep;			///< from one themed cameo to the next, across
 	HtmlOverlay *								m_queueOverlay;							///< Window/Html/Queue.html under the cameos
 	HtmlOverlay *								m_queueFrontOverlay;				///< and its frames over them
+	HtmlOverlay *								m_superweaponOverlay;				///< the same page under the superweapon strip's cameos, top right
 	Bool												m_queuePageLoaded;
 	std::string									m_queuePage;
 
@@ -1687,7 +1695,6 @@ protected:
 	enum
 	{
 		STRIP_OVERFLOW_PRODUCTION = 0,		///< the "+N" closing the production column
-		STRIP_OVERFLOW_SUPERWEAPON,				///< and the superweapon strip's
 		STRIP_OVERFLOW_STRINGS
 	};
 
@@ -1703,7 +1710,6 @@ protected:
 	//
 	SuperweaponIconSlot					m_superweaponIcons[ SUPERWEAPON_STRIP_MAX ];
 	Int													m_superweaponIconCount;		///< icons drawn
-	Int													m_superweaponIconTotal;		///< timers live, drawn or not; the difference is the "+N"
 
 	Coord2D											m_superweaponPosition;
 	Real												m_superweaponFlashDuration;
@@ -1839,5 +1845,28 @@ protected:
 
 // the singleton
 extern InGameUI *TheInGameUI;
+
+//
+// A readout on a cell of the HUD: a countdown, a key, a price, a power figure, a count.  Every one
+// of them stands on a solid plate in a corner of the cell's inner rectangle, which is the cell less
+// the frame the page draws over its edge, so no plate lies under a border and no digit is cut by
+// one.  The strips in InGameUI.cpp and the command buttons' badges in W3DPushButton.cpp both draw
+// through these.
+//
+enum HudReadoutCorner
+{
+	HUD_READOUT_TOP_LEFT,
+	HUD_READOUT_TOP_RIGHT,
+	HUD_READOUT_BOTTOM_LEFT,
+	HUD_READOUT_BOTTOM_RIGHT,
+	HUD_READOUT_CENTRE
+};
+
+/** Whether `text` as drawn is no wider than a readout on `cell` may be: the inner rectangle less the
+	* plate's own margins.  Text that does not fit is set a point smaller until it does. */
+extern Bool HudReadout_fits( DisplayString *text, const IRegion2D &cell );
+
+/** The plate in `corner` of `cell`'s inner rectangle and `text` on it. */
+extern void HudReadout_draw( DisplayString *text, const IRegion2D &cell, HudReadoutCorner corner, Color textColor );
 
 #endif // _IN_GAME_UI_H_
