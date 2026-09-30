@@ -370,6 +370,10 @@ struct MoneyPlateWidth
 enum { MONEY_SHRINK_HOLD_MS = 3000, MONEY_SHRINK_EASE_MS = 200 };
 Int InGameUI_moneyPlateWidth( MoneyPlateWidth &plate, Int needed, UnsignedInt nowMs );
 
+/** The IncomeRate option: TRUE when the income beside the money is written per minute, for a
+	* player earning `perSecond` dollars a second.  See IncomeRateModeType for what automatic picks. */
+Bool InGameUI_incomePerMinute( Int incomeRateMode, Int perSecond );
+
 // ------------------------------------------------------------------------------------------------
 /** Basic functionality common to all in-game user interfaces */
 // ------------------------------------------------------------------------------------------------ 
@@ -466,7 +470,8 @@ public:  // ********************************************************************
 	void drawCellGridFront( Int grid );
 	void drawScoreboard( void );																						///< that scoreboard, over everything
 	void sampleEarnings( void );																						///< every player's money earned, once a game second
-	Int earnedPerSecond( Int playerIndex ) const;														///< what that player earned a second over the readings held
+	Int earnedOver( Int playerIndex, Int seconds ) const;										///< what that player earned in that many seconds, at the rate of the readings held
+	Int earnedPerSecond( Int playerIndex ) const { return earnedOver( playerIndex, 1 ); }
 	/** Window/Html/Tooltip.html is there to draw with, in a match. */
 	Bool isTooltipPageReady( void );
 	/** The tooltip page: the command bar's build tooltip over the hovered button while one is up,
@@ -1624,6 +1629,7 @@ protected:
 	DisplayString *							m_peaceCountdownDisplayString;	///< the big digit of its last ten seconds
 	Int													m_lastMoneyDisplayed;		///< so the money gadget is only written when the amount changes
 	Int													m_lastEarningDisplayed;	///< or the money earned a second beside it
+	Bool												m_lastEarningPerMinute;	///< or whether that was written per minute
 	MoneyPlateWidth							m_moneyPlate;						///< the money plate's width, following the figure's
 	UnsignedInt									m_hudDrawCount;					///< rendered frames counted by drawHudOverlay itself
 	UnsignedInt									m_hudLastSampleFrame;		///< m_hudDrawCount the fps sample was last refreshed on

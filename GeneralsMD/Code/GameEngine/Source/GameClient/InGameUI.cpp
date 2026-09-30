@@ -1190,6 +1190,7 @@ InGameUI::InGameUI()
 	m_peaceCountdownDisplayString = NULL;
 	m_lastMoneyDisplayed = -1;
 	m_lastEarningDisplayed = 0;
+	m_lastEarningPerMinute = FALSE;
 	m_moneyPlate = MoneyPlateWidth();
 	m_hudDrawCount = 0;
 	m_hudLastSampleFrame = 0;
@@ -3913,15 +3914,22 @@ void InGameUI::update( void )
 	{
 		Int currentMoney = moneyPlayer->getMoney()->countMoney();
 		Int currentEarning = earnedPerSecond( moneyPlayer->getPlayerIndex() );
+		// the IncomeRate option: the same half minute of readings, counted per minute
+		const Bool perMinute = InGameUI_incomePerMinute( TheGlobalData->m_incomeRateMode, currentEarning );
+		if( perMinute )
+			currentEarning = earnedOver( moneyPlayer->getPlayerIndex(), 60 );
 
-		if( m_lastMoneyDisplayed != currentMoney || m_lastEarningDisplayed != currentEarning )
+		if( m_lastMoneyDisplayed != currentMoney || m_lastEarningDisplayed != currentEarning ||
+				m_lastEarningPerMinute != perMinute )
 		{
 			UnicodeString buffer;
 
-			buffer.format( TheGameText->fetch( "GUI:ControlBarMoneyEarning" ), currentMoney, currentEarning );
+			buffer.format( TheGameText->fetch( perMinute ? "GUI:ControlBarMoneyEarningMinute" : "GUI:ControlBarMoneyEarning" ),
+										 currentMoney, currentEarning );
 			GadgetStaticTextSetText( moneyWin, buffer );
 			m_lastMoneyDisplayed = currentMoney;
 			m_lastEarningDisplayed = currentEarning;
+			m_lastEarningPerMinute = perMinute;
 
 		}  // end if
 
@@ -9653,7 +9661,7 @@ void InGameUI::drawHudOverlay( void )
 
 	// the command bar page's network box reads these whether the plate is switched on or not; the
 	// plate itself stands down while the page is up, the box is where they are written then
-	const Bool plate = TheGlobalData->m_showHudOverlay && !m_controlBarPageShown;
+	const Bool plate = TheGlobalData->m_showHudOverlay && TheGlobalData->m_showNetBox && !m_controlBarPageShown;
 
 	// only once a real game is under way - not in the shell, and not on the menu's background map
 	if( TheGameLogic == NULL || !TheGameLogic->isInGame() || TheGameLogic->isInShellGame() )
@@ -10779,11 +10787,12 @@ void InGameUI::sampleEarnings( void )
 }
 
 //-------------------------------------------------------------------------------------------------
-/** Money a player earned a second between the oldest reading held and the newest, rounded; 0
-	* until there are two.  It is shared over the whole half minute even before the readings reach
-	* back that far, so the first truck of a match reads as a trickle rather than a fortune. */
+/** Money a player earned in `over` seconds at the rate between the oldest reading held and the
+	* newest, rounded; 0 until there are two.  It is shared over the whole half minute even before the
+	* readings reach back that far, so the first truck of a match reads as a trickle rather than a
+	* fortune. */
 //-------------------------------------------------------------------------------------------------
-Int InGameUI::earnedPerSecond( Int playerIndex ) const
+Int InGameUI::earnedOver( Int playerIndex, Int over ) const
 {
 	if( m_earnedReadingCount < 2 )
 		return 0;
@@ -10791,7 +10800,16 @@ Int InGameUI::earnedPerSecond( Int playerIndex ) const
 	const EarnedReading &oldest = m_earnedReadings[ 0 ];
 	const EarnedReading &newest = m_earnedReadings[ m_earnedReadingCount - 1 ];
 	const Int seconds = max( (Int)( newest.second - oldest.second ), (Int)EARNINGS_WINDOW_SECONDS );
-	return ( newest.earned[ playerIndex ] - oldest.earned[ playerIndex ] + seconds / 2 ) / seconds;
+	return ( ( newest.earned[ playerIndex ] - oldest.earned[ playerIndex ] ) * over + seconds / 2 ) / seconds;
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool InGameUI_incomePerMinute( Int incomeRateMode, Int perSecond )
+{
+	if( incomeRateMode == INCOME_RATE_AUTOMATIC )
+		return perSecond < INCOME_RATE_AUTOMATIC_PER_SECOND_FROM;
+
+	return incomeRateMode == INCOME_RATE_PER_MINUTE;
 }
 
 /** One seat on the scoreboard page.  `full` is whether the local player may see the numbers: his
@@ -11708,6 +11726,10 @@ static const char *const NET_PAGE = "Window\\Html\\Net.html";
 	* own: they change several times a second, and each change lays its page out again. */
 void InGameUI::drawNetPage( void )
 {
+	// ShowNetBox: the player switched the corner box off
+	if( !TheGlobalData->m_showNetBox )
+		return;
+
 	if( !m_netPageLoaded )
 	{
 		m_netPageLoaded = TRUE;

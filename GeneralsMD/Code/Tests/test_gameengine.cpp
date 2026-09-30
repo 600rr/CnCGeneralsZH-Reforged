@@ -12296,6 +12296,143 @@ TEST(texture_filter_defaults_to_anisotropic)
 	delete scratch;
 }
 
+/* Three rows on the Controls page.  The zoom one may only ever bring the camera nearer: the far
+	 limit is how much of the map a player sees, Options.ini is outside the mismatch check, and a row
+	 whose range let the floor climb past the ceiling would push the ceiling up with it in
+	 W3DView::setDefaultView. */
+TEST(start_zoom_closer_zoom_and_drag_threshold_are_rows_that_change_nothing_until_asked)
+{
+	const OptionDef *start = findOptionDef( "StartAtMaxZoom" );
+	const OptionDef *closer = findOptionDef( "CloserZoom" );
+	const OptionDef *drag = findOptionDef( "DragTolerance" );
+	CHECK( start != NULL && closer != NULL && drag != NULL );
+	if( start == NULL || closer == NULL || drag == NULL )
+		return;
+
+	CHECK_EQ( (Int)start->kind, (Int)OPTION_BOOL );
+	CHECK_EQ( (Int)closer->kind, (Int)OPTION_INT );
+	CHECK_EQ( (Int)drag->kind, (Int)OPTION_INT );
+	CHECK( strstr( start->widgetName, "CheckStartAtMaxZoom" ) != NULL );
+	CHECK( strstr( closer->widgetName, "SliderCloserZoom" ) != NULL );
+	CHECK( strstr( drag->widgetName, "SliderDragTolerance" ) != NULL );
+
+	GlobalData *saved = TheWritableGlobalData;
+	GlobalData *scratch = NEW GlobalData;
+	TheWritableGlobalData = scratch;
+
+	// an Options.ini with none of the three keys plays the way the last version did
+	CHECK_EQ( start->get(), 1 );
+	CHECK_EQ( closer->get(), 0 );
+	CHECK_EQ( drag->get(), 25 );	// DragTolerance in INIZH.big's Mouse.ini
+	CHECK( drag->lo > 0 && drag->lo <= 25 && drag->hi >= 25 );
+
+	start->set( 0 );
+	CHECK_EQ( (Int)scratch->m_startAtMaxZoom, 0 );
+	drag->set( 8 );
+	CHECK_EQ( scratch->m_dragTolerance, 8 );
+	closer->set( 40 );
+	CHECK_EQ( scratch->m_closerZoomPercent, 40 );
+
+	// the slider's left end is GameData.ini's own limit, and no position on it is above that
+	CHECK_EQ( closer->lo, 0 );
+	CHECK( closer->hi < 100 );
+	CHECK_NEAR( View_closestCameraHeight( 120.0f, closer->lo ), 120.0f, 0.001f );
+	CHECK_NEAR( View_closestCameraHeight( 120.0f, 60 ), 48.0f, 0.001f );
+	for( Int percent = closer->lo; percent <= closer->hi; ++percent )
+	{
+		const Real height = View_closestCameraHeight( 120.0f, percent );
+		CHECK( height > 0.0f && height <= 120.0f );
+	}
+
+	TheWritableGlobalData = saved;
+	delete scratch;
+}
+
+/* The corner box is the player's to switch off, under a key of its own.  ShowHudOverlay left the
+	 catalog with a "no" still sitting in old Options.ini files, and a row under that name would
+	 read it back and take the box away from people who never asked. */
+TEST(net_box_is_a_check_box_that_starts_on_under_its_own_key)
+{
+	const OptionDef *def = findOptionDef( "ShowNetBox" );
+	CHECK( def != NULL );
+	if( def == NULL )
+		return;
+	CHECK_EQ( (Int)def->kind, (Int)OPTION_BOOL );
+	CHECK_EQ( (Int)def->apply, (Int)APPLY_LIVE );
+	CHECK( strstr( def->widgetName, "CheckNetBox" ) != NULL );
+	CHECK( findOptionDef( "ShowHudOverlay" ) == NULL );
+
+	GlobalData *saved = TheWritableGlobalData;
+	GlobalData *scratch = NEW GlobalData;
+	TheWritableGlobalData = scratch;
+
+	CHECK( scratch->m_showNetBox );
+	def->set( 0 );
+	CHECK( !scratch->m_showNetBox );
+	// the older plate's own switch is not this one's to move
+	CHECK( scratch->m_showHudOverlay );
+
+	TheWritableGlobalData = saved;
+	delete scratch;
+}
+
+/* The income beside the money, per second as it always was until the player picks otherwise.
+	 Automatic is the one with a rule in it: under ten dollars a second the whole number rounds most
+	 of the income away, $135 a minute reading "+2/s", so that is where it goes per minute. */
+TEST(income_rate_stays_per_second_until_picked_and_automatic_turns_at_ten_a_second)
+{
+	const OptionDef *def = findOptionDef( "IncomeRate" );
+	CHECK( def != NULL );
+	if( def == NULL )
+		return;
+	CHECK_EQ( (Int)def->kind, (Int)OPTION_ENUM );
+	CHECK_EQ( def->hi, (Int)INCOME_RATE_MODE_COUNT - 1 );
+	CHECK( strstr( def->widgetName, "ComboBoxIncomeRate" ) != NULL );
+
+	GlobalData *saved = TheWritableGlobalData;
+	GlobalData *scratch = NEW GlobalData;
+	TheWritableGlobalData = scratch;
+
+	CHECK_EQ( def->get(), (Int)INCOME_RATE_PER_SECOND );
+	def->set( INCOME_RATE_AUTOMATIC );
+	CHECK_EQ( scratch->m_incomeRateMode, (Int)INCOME_RATE_AUTOMATIC );
+
+	TheWritableGlobalData = saved;
+	delete scratch;
+
+	CHECK( !InGameUI_incomePerMinute( INCOME_RATE_PER_SECOND, 0 ) );
+	CHECK( !InGameUI_incomePerMinute( INCOME_RATE_PER_SECOND, 500 ) );
+	CHECK( InGameUI_incomePerMinute( INCOME_RATE_PER_MINUTE, 0 ) );
+	CHECK( InGameUI_incomePerMinute( INCOME_RATE_PER_MINUTE, 500 ) );
+	CHECK( InGameUI_incomePerMinute( INCOME_RATE_AUTOMATIC, 0 ) );
+	CHECK( InGameUI_incomePerMinute( INCOME_RATE_AUTOMATIC, 2 ) );
+	CHECK( InGameUI_incomePerMinute( INCOME_RATE_AUTOMATIC, 9 ) );
+	CHECK( !InGameUI_incomePerMinute( INCOME_RATE_AUTOMATIC, 10 ) );
+	CHECK( !InGameUI_incomePerMinute( INCOME_RATE_AUTOMATIC, 40 ) );
+}
+
+TEST(empty_building_slots_are_a_check_box_that_starts_on)
+{
+	const OptionDef *def = findOptionDef( "EmptyBuildingPips" );
+	CHECK( def != NULL );
+	if( def == NULL )
+		return;
+	CHECK_EQ( (Int)def->kind, (Int)OPTION_BOOL );
+	CHECK_EQ( (Int)def->apply, (Int)APPLY_LIVE );
+	CHECK( strstr( def->widgetName, "CheckEmptyBuildingPips" ) != NULL );
+
+	GlobalData *saved = TheWritableGlobalData;
+	GlobalData *scratch = NEW GlobalData;
+	TheWritableGlobalData = scratch;
+
+	CHECK( scratch->m_showEmptyBuildingPips );
+	def->set( 0 );
+	CHECK( !scratch->m_showEmptyBuildingPips );
+
+	TheWritableGlobalData = saved;
+	delete scratch;
+}
+
 TEST(high_static_lod_keeps_the_picture_settings)
 {
 	StaticGameLODInfo high;

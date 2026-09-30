@@ -1132,6 +1132,8 @@ GlobalData::GlobalData()
 	m_snapCameraRotateTo45 = TRUE;
 	m_zoomToCursor = TRUE;
 	m_isometricCamera = FALSE;
+	m_closerZoomPercent = 0;
+	m_dragTolerance = 25;		// what Mouse.ini in INIZH.big says, so nothing moves until the slider does
 	// a left drag with the move, attack move or guard key armed draws a formation line
 	m_formationDrag = TRUE;
 	m_showAllyCursors = TRUE;
@@ -1147,6 +1149,9 @@ GlobalData::GlobalData()
 	m_buildPlacementOpacity = PLACEMENT_SILHOUETTE_OPACITY;
 	m_buildPlacementShadows = TRUE;
 	m_showHudOverlay = TRUE;
+	m_showNetBox = TRUE;
+	m_incomeRateMode = INCOME_RATE_PER_SECOND;
+	m_showEmptyBuildingPips = TRUE;
 	m_showPlacementRangeRing = TRUE;
 	m_showSkillStrip = TRUE;
 	m_showSuperweaponStrip = TRUE;

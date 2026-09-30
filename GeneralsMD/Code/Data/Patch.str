@@ -710,6 +710,30 @@ TOOLTIP:ZoomToCursor
 "The wheel zooms towards whatever the cursor is over instead of the middle of the screen. Modern controls only."
 END
 
+GUI:StartAtMaxZoom
+"Start Zoomed Out"
+END
+
+TOOLTIP:StartAtMaxZoom
+"A match opens with the camera as far out as the wheel goes. Off, it opens at the height the map was framed for."
+END
+
+GUI:CloserZoom
+"Closer Zoom"
+END
+
+TOOLTIP:CloserZoom
+"How much nearer the ground the wheel may bring the camera. 0% is the game's own limit."
+END
+
+GUI:DragTolerance
+"Drag Threshold"
+END
+
+TOOLTIP:DragTolerance
+"How many pixels the mouse may move with a button held before a click becomes a drag. Raise it if selection boxes start by accident, lower it if drags read as clicks."
+END
+
 GUI:IsometricCamera
 "Isometric Camera"
 END
@@ -788,6 +812,46 @@ END
 
 TOOLTIP:HudOverlay
 "The extra readouts across the top of the screen: power, income and the production strip."
+END
+
+GUI:NetBox
+"Clock And Frame Rate Box"
+END
+
+TOOLTIP:NetBox
+"The box in the top right corner with the match clock, the frame rates and the connection. Off, the superweapon timers move up into the corner."
+END
+
+GUI:OptionsGroupHud
+"HUD"
+END
+
+GUI:IncomeRate
+"Income Shown"
+END
+
+GUI:IncomeRate0
+"Per Second"
+END
+
+GUI:IncomeRate1
+"Per Minute"
+END
+
+GUI:IncomeRate2
+"Automatic"
+END
+
+TOOLTIP:IncomeRate
+"What the income beside your money is counted over. Automatic shows it per minute while you earn less than $10 a second, where a whole number per second hides most of the change, and per second above that."
+END
+
+GUI:EmptyBuildingPips
+"Empty Building Slots"
+END
+
+TOOLTIP:EmptyBuildingPips
+"The row of empty slots over a building with nobody inside, like the ten over a Barracks. Off, a building shows its slots only while someone is in it."
 END
 
 GUI:ArchiveReplays
@@ -1328,6 +1392,10 @@ END
 
 GUI:ControlBarMoneyEarning
 "$ %d  +%d/s"
+END
+
+GUI:ControlBarMoneyEarningMinute
+"$ %d  +%d/min"
 END
 
 CONTROLBAR:MoneyDescription

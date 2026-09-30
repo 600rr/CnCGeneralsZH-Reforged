@@ -75,6 +75,20 @@ enum HealthBarModeType
 /** The HudScale option's steps, 100/115/130/150% of the bottom HUD's own size (ControlBarHudScale). */
 enum { HUD_SCALE_COUNT = 4 };
 
+/** The IncomeRate option: what the income beside the money is counted over.  Automatic is per
+	* minute below INCOME_RATE_AUTOMATIC_PER_SECOND_FROM dollars a second and per second from there
+	* up: under that a whole number of dollars a second rounds most of the income away, which is
+	* what "+2/s" for $135 a minute does. */
+enum IncomeRateModeType
+{
+	INCOME_RATE_PER_SECOND	= 0,	///< "+40/s", what the bar has always shown
+	INCOME_RATE_PER_MINUTE	= 1,	///< "+2400/min"
+	INCOME_RATE_AUTOMATIC		= 2,
+
+	INCOME_RATE_MODE_COUNT	= 3,
+};
+enum { INCOME_RATE_AUTOMATIC_PER_SECOND_FROM = 10 };
+
 /** The language the game's words are shown in.  English is the string table EA shipped; every other
 	* entry names a translation GameText lays over it.  Speech and video stay what the install has. */
 enum TextLanguageType
@@ -394,6 +408,8 @@ public:
 	Bool m_buildPlacementShadows;		///< whether that structure casts a shadow while it rides the cursor
 	Bool m_zoomToCursor;				///< the mouse wheel zooms toward whatever the cursor is over
 	Bool m_isometricCamera;				///< the tactical view from far off down a narrow cone, near enough orthographic
+	Int m_closerZoomPercent;			///< percent taken off MinCameraHeight, so the wheel comes nearer the ground; 0 = as GameData.ini has it
+	Int m_dragTolerance;				///< pixels the pointer may travel with a button held before the press is a drag; replaces Mouse.ini's DragTolerance
 	Bool m_formationDrag;				///< with the move, attack move or guard key armed, a left drag spreads the selection along the line drawn
 	Bool m_showAllyCursors;				///< in a network game, draw where each ally's mouse is pointing
 	Bool m_chromaLighting;				///< put the state of the match on Razer hardware
@@ -401,6 +417,9 @@ public:
 	Int m_textureFilterMode;			///< 0 bilinear, 1 trilinear, 2 anisotropic
 	Int m_anisotropyLevel;				///< samples anisotropic filtering may take; 0 = whatever the card offers
 	Bool m_showHudOverlay;				///< draw the fps / elapsed time / income line in the corner
+	Bool m_showNetBox;					///< the player's own switch for that corner: the network box, or the plate where the bar has no page
+	Int m_incomeRateMode;				///< IncomeRateModeType: the income beside the money per second, per minute or whichever reads better
+	Bool m_showEmptyBuildingPips;		///< the row of empty slots over a building nobody is in
 	Bool m_showPlacementRangeRing;		///< while placing a structure, ring its weapon range
 	Bool m_showSkillStrip;					///< watching, every general's bought promotions, bottom right
 	Bool m_showSuperweaponStrip;		///< the superweapon countdown cameos, top right

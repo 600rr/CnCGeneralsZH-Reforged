@@ -15277,6 +15277,30 @@ TOOLTIP:ZoomToCursor
 "Tekerlek, ekranın ortası yerine imlecin üzerinde durduğu yere doğru yakınlaştırır. Yalnızca Modern kontrollerde."
 END
 
+GUI:StartAtMaxZoom
+"Uzak Kamerayla Başla"
+END
+
+TOOLTIP:StartAtMaxZoom
+"Maç, kamera tekerleğin gittiği en uzak noktadayken açılır. Kapalıyken haritanın kendisi için ayarlanan yükseklikte açılır."
+END
+
+GUI:CloserZoom
+"Daha Yakın Kamera"
+END
+
+TOOLTIP:CloserZoom
+"Tekerleğin kamerayı yere ne kadar daha yaklaştırabileceği. Yüzde 0 oyunun kendi sınırıdır."
+END
+
+GUI:DragTolerance
+"Sürükleme Eşiği"
+END
+
+TOOLTIP:DragTolerance
+"Bir tuş basılıyken fare kaç piksel oynarsa tıklamanın sürüklemeye döneceği. Seçim kutuları yanlışlıkla açılıyorsa yükseltin, sürüklemeler tıklama sayılıyorsa düşürün."
+END
+
 GUI:IsometricCamera
 "İzometrik Kamera"
 END
@@ -15355,6 +15379,46 @@ END
 
 TOOLTIP:HudOverlay
 "Ekranın üst kısmındaki ek göstergeler: enerji, gelir ve üretim şeridi."
+END
+
+GUI:NetBox
+"Saat ve Kare Hızı Kutusu"
+END
+
+TOOLTIP:NetBox
+"Sağ üst köşedeki kutu: maç saati, kare hızları ve bağlantı. Kapalıyken süper silah sayaçları köşeye çıkar."
+END
+
+GUI:OptionsGroupHud
+"Arayüz"
+END
+
+GUI:IncomeRate
+"Gelir Gösterimi"
+END
+
+GUI:IncomeRate0
+"Saniyelik"
+END
+
+GUI:IncomeRate1
+"Dakikalık"
+END
+
+GUI:IncomeRate2
+"Otomatik"
+END
+
+TOOLTIP:IncomeRate
+"Paranızın yanındaki gelirin hangi süreye göre yazılacağı. Otomatik, saniyede 10 dolardan az kazanırken dakikalık yazar, çünkü o düzeyde saniyelik tam sayı değişimin çoğunu göstermez; üstünde saniyelik yazar."
+END
+
+GUI:EmptyBuildingPips
+"Boş Bina Yuvaları"
+END
+
+TOOLTIP:EmptyBuildingPips
+"İçinde kimse olmayan binanın üstündeki boş yuva sırası, örneğin Kışlanın üstündeki on yuva. Kapalıyken bina yuvalarını yalnızca içinde biri varken gösterir."
 END
 
 GUI:ArchiveReplays
@@ -15815,6 +15879,10 @@ END
 
 GUI:ControlBarMoneyEarning
 "$ %d  +%d/sn"
+END
+
+GUI:ControlBarMoneyEarningMinute
+"$ %d  +%d/dk"
 END
 
 GUI:ScoreboardKills
