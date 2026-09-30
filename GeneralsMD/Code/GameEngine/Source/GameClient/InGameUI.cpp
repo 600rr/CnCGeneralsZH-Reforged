@@ -11778,8 +11778,8 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	putSignalRise( values, nowMs - m_signalsRiseStartMs );
 
 	// the command grid against the radar's panel, six by three, every place its key: the orders in the
-	// owner's places (ControlBar_commandPlaces) and everything else packed toward the top left, what a
-	// set builds before its abilities and upgrades.  Over the grid's frame the power bar lies in a
+	// owner's places (ControlBar_commandPlaces), passengers in the bottom right corner and everything
+	// else in rows by what it is for.  Over the grid's frame the power bar lies in a
 	// groove of its own panel, and the money stands on that panel's left end
 	const IRegion2D commandBox = gridBox( leftBox.hi.x + border, foot, COMMAND_COLUMNS, COMMAND_ROWS,
 																				COMMAND_CELL_WIDTH, COMMAND_CELL_HEIGHT );

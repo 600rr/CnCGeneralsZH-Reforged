@@ -223,10 +223,29 @@ static GameWindow *contextButtonAtPlace( Int place )
 }
 
 //-------------------------------------------------------------------------------------------------
-/** What a set builds, which takes the free places before the rest of the set. */
-static Bool isProduction( Int type )
+Int ControlBar_commandGroup( const CommandButton *command )
 {
-	return type == GUI_COMMAND_UNIT_BUILD || type == GUI_COMMAND_DOZER_CONSTRUCT;
+	switch( command->getCommandType() )
+	{
+		case GUI_COMMAND_UNIT_BUILD:			return COMMAND_GROUP_PRODUCTION;
+		case GUI_COMMAND_EXIT_CONTAINER:	return COMMAND_GROUP_PASSENGER;
+		case GUI_COMMAND_DOZER_CONSTRUCT:	break;
+		default:													return COMMAND_GROUP_ABILITY;
+	}
+
+	const ThingTemplate *structure = command->getThingTemplate();
+	if( structure == NULL )
+		return COMMAND_GROUP_UTILITY;
+	// a fake carries FS_FAKE and nothing else; three of the five are decoys of factories, so the fake
+	// set stands on the row the real factories stand on
+	if( structure->isKindOf( KINDOF_FS_FACTORY ) || structure->isKindOf( KINDOF_FS_BARRACKS ) ||
+			structure->isKindOf( KINDOF_FS_WARFACTORY ) || structure->isKindOf( KINDOF_FS_AIRFIELD ) ||
+			structure->isKindOf( KINDOF_COMMANDCENTER ) || structure->isKindOf( KINDOF_FS_FAKE ) )
+		return COMMAND_GROUP_PRODUCTION;
+	// the demo trap is no FS_ anything, only DEMOTRAP
+	if( structure->isKindOf( KINDOF_FS_BASE_DEFENSE ) || structure->isKindOf( KINDOF_DEMOTRAP ) )
+		return COMMAND_GROUP_DEFENSE;
+	return COMMAND_GROUP_UTILITY;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -246,14 +265,25 @@ Int ControlBar_namedCommandPlace( const char *buttonName )
 }
 
 //-------------------------------------------------------------------------------------------------
-Bool ControlBar_commandPlaces( const Int *types, const Int *pinned, Int count, Int *places )
+static Int freeInRow( const Bool *taken, Int row )
 {
-	// the owner's order of 2026-09-28: down the columns two rows at a time, toward the top left
-	static const Int FILL[ COMMAND_PLACE_COUNT ] =
+	Int free = 0;
+	for( Int column = 0; column < COMMAND_PLACE_COLUMNS; column++ )
+		free += taken[ row * COMMAND_PLACE_COLUMNS + column ] ? 0 : 1;
+	return free;
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool ControlBar_commandPlaces( const Int *types, const Int *groups, const Int *pinned, Int count, Int *places )
+{
+	enum { ROWS = COMMAND_PLACE_COUNT / COMMAND_PLACE_COLUMNS };
+	// passengers from the bottom right corner outward, a column of the A and Z rows at a time, then
+	// along Q from the right.  The places they get are handed out in reading order
+	static const Int CORNER[ COMMAND_PLACE_COUNT ] =
 	{
-		COMMAND_PLACE_Q, COMMAND_PLACE_A, COMMAND_PLACE_W, COMMAND_PLACE_Z, COMMAND_PLACE_S, COMMAND_PLACE_E,
-		COMMAND_PLACE_X, COMMAND_PLACE_D, COMMAND_PLACE_R, COMMAND_PLACE_C, COMMAND_PLACE_F, COMMAND_PLACE_T,
-		COMMAND_PLACE_V, COMMAND_PLACE_G, COMMAND_PLACE_Y, COMMAND_PLACE_B, COMMAND_PLACE_H, COMMAND_PLACE_N
+		COMMAND_PLACE_H, COMMAND_PLACE_N, COMMAND_PLACE_G, COMMAND_PLACE_B, COMMAND_PLACE_F, COMMAND_PLACE_V,
+		COMMAND_PLACE_D, COMMAND_PLACE_C, COMMAND_PLACE_S, COMMAND_PLACE_X, COMMAND_PLACE_A, COMMAND_PLACE_Z,
+		COMMAND_PLACE_Y, COMMAND_PLACE_T, COMMAND_PLACE_R, COMMAND_PLACE_E, COMMAND_PLACE_W, COMMAND_PLACE_Q
 	};
 
 	Bool taken[ COMMAND_PLACE_COUNT ] = { FALSE };
@@ -275,21 +305,65 @@ Bool ControlBar_commandPlaces( const Int *types, const Int *pinned, Int count, I
 		}
 	}
 
-	// production first, then the rest: a factory whose set opens on an upgrade still puts its units
-	// on Q A W before the upgrade
-	for( Int pass = 0; pass < 2; pass++ )
+	Int passengers = 0;
+	Bool builds = FALSE;
+	for( Int slot = 0; slot < count; slot++ )
 	{
-		const Bool wantProduction = ( pass == 0 );
+		if( places[ slot ] >= 0 || types[ slot ] == GUI_COMMAND_NONE )
+			continue;
+		passengers += groups[ slot ] == COMMAND_GROUP_PASSENGER ? 1 : 0;
+		builds = builds || groups[ slot ] == COMMAND_GROUP_PRODUCTION;
+	}
+
+	Bool corner[ COMMAND_PLACE_COUNT ] = { FALSE };
+	for( Int each = 0; each < COMMAND_PLACE_COUNT && passengers > 0; each++ )
+	{
+		if( !taken[ CORNER[ each ] ] )
+		{
+			corner[ CORNER[ each ] ] = taken[ CORNER[ each ] ] = TRUE;
+			passengers--;
+		}
+	}
+	Int next = 0;
+	for( Int slot = 0; slot < count; slot++ )
+	{
+		if( places[ slot ] >= 0 || types[ slot ] == GUI_COMMAND_NONE || groups[ slot ] != COMMAND_GROUP_PASSENGER )
+			continue;
+		while( next < COMMAND_PLACE_COUNT && !corner[ next ] )
+			next++;
+		if( next < COMMAND_PLACE_COUNT )
+			places[ slot ] = next++;
+	}
+
+	// the rows, one group at a time; a group that outgrows its row goes on in the row with the most
+	// places left, the nearer to its own on a tie
+	static const Int GROUPS[] = { COMMAND_GROUP_PRODUCTION, COMMAND_GROUP_DEFENSE, COMMAND_GROUP_UTILITY, COMMAND_GROUP_ABILITY };
+	for( Int each = 0; each < (Int)ARRAY_SIZE( GROUPS ); each++ )
+	{
+		const Int group = GROUPS[ each ];
+		const Int own = group == COMMAND_GROUP_ABILITY ? ( builds ? 1 : 0 ) : group;
+		Int row = own;
 		for( Int slot = 0; slot < count; slot++ )
 		{
-			if( places[ slot ] >= 0 || types[ slot ] == GUI_COMMAND_NONE || isProduction( types[ slot ] ) != wantProduction )
+			if( places[ slot ] >= 0 || types[ slot ] == GUI_COMMAND_NONE || groups[ slot ] != group )
 				continue;
-			for( Int each = 0; each < COMMAND_PLACE_COUNT; each++ )
+			// the overflow stays in the row it went to until that row is full too
+			if( freeInRow( taken, row ) == 0 )
 			{
-				if( !taken[ FILL[ each ] ] )
+				for( Int other = 0; other < ROWS; other++ )
 				{
-					places[ slot ] = FILL[ each ];
-					taken[ FILL[ each ] ] = TRUE;
+					const Int free = freeInRow( taken, other ), best = freeInRow( taken, row );
+					if( free > best || ( free == best && free > 0 && abs( other - own ) < abs( row - own ) ) )
+						row = other;
+				}
+			}
+			for( Int column = 0; column < COMMAND_PLACE_COLUMNS; column++ )
+			{
+				const Int place = row * COMMAND_PLACE_COLUMNS + column;
+				if( !taken[ place ] )
+				{
+					places[ slot ] = place;
+					taken[ place ] = TRUE;
 					break;
 				}
 			}
@@ -306,6 +380,7 @@ Bool ControlBar::getCommandPlaces( Int *places ) const
 	// unit put their own button on the grid in placeContextOnGrid.
 	const Bool groupShown = !m_contextParent[ CP_COMMAND ]->winIsHidden();
 	Int types[ MAX_COMMANDS_PER_SET ];
+	Int groups[ MAX_COMMANDS_PER_SET ];
 	Int pinned[ MAX_COMMANDS_PER_SET ];
 	for( Int slot = 0; slot < MAX_COMMANDS_PER_SET; slot++ )
 	{
@@ -313,9 +388,10 @@ Bool ControlBar::getCommandPlaces( Int *places ) const
 		const CommandButton *command = ( groupShown && window && !BitTest( window->winGetStatus(), WIN_STATUS_HIDDEN ) )
 																	 ? (const CommandButton *)GadgetButtonGetData( window ) : NULL;
 		types[ slot ] = command ? command->getCommandType() : GUI_COMMAND_NONE;
+		groups[ slot ] = command ? ControlBar_commandGroup( command ) : COMMAND_GROUP_ABILITY;
 		pinned[ slot ] = command ? ControlBar_namedCommandPlace( command->getName().str() ) : -1;
 	}
-	return ControlBar_commandPlaces( types, pinned, MAX_COMMANDS_PER_SET, places );
+	return ControlBar_commandPlaces( types, groups, pinned, MAX_COMMANDS_PER_SET, places );
 }
 
 //-------------------------------------------------------------------------------------------------
