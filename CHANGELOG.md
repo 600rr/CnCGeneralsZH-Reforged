@@ -735,6 +735,7 @@ A third pass went through the generals' powers, promotions and unit abilities.
 ## Twenty-two-year-old bugs, found by testing
 
 - Pressing Continue after a campaign mission goes straight to the next one. The main menu used to wake up behind the score screen on the way out, show its buttons and start loading its own background battle, so the menu sat on screen over the next mission's load.
+- The main menu no longer opens with a man screaming. The battleship in the battle behind the menu shells GLA infantry, and each of them died out loud, the first one eight frames in. The guns, the explosions and the jungle still play.
 - A civilian car no longer drives into your base in the first minute of every game. A map's civilians are owned by a computer player like any other, and the scouting pass looks for anything of that player's that can drive - so it was picking a parked car out of the scenery and sending it to a start position. A side with no faction and no build list has nothing to learn from the map and does not scout.
 - A rifleman pulled off an oil derrick mid-capture left it flashing and chiming for the rest of the match, and the derrick changed hands anyway with nobody standing on it. Walking away now stops the capture, whether you or the computer gave the order.
 - Every countdown on screen was a second too long. Rounding up a whole number of seconds gave a whole number plus one, so a ten second build said eleven - production queues, buildings going up, superweapons, all of it.
