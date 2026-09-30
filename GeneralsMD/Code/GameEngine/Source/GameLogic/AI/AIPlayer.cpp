@@ -5996,7 +5996,37 @@ Bool AIPlayer::isOutOnOrders( const Object *obj ) const
 	const StateID state = obj->getAI()->getCurrentStateID();
 	if( state == AI_IDLE || state == AI_GUARD || state == AI_GUARD_RETALIATE || state == AI_MOVE_AND_TIGHTEN )
 		return FALSE;
-	return sqr( obj->getPosition()->x - m_baseCenter.x ) + sqr( obj->getPosition()->y - m_baseCenter.y ) > sqr( 2.0f * m_baseRadius );
+	return !isAtHome( obj->getPosition() );
+}
+
+/** Within the reach the home guard answers to, two base radii from the base center. */
+Bool AIPlayer::isAtHome( const Coord3D *pos ) const
+{
+	return sqr( pos->x - m_baseCenter.x ) + sqr( pos->y - m_baseCenter.y ) <= sqr( 2.0f * m_baseRadius );
+}
+
+/** Something of ours was hit in the last thirty seconds and an enemy that can shoot, one this AI knows
+	* of, stands at home.  The attacked frame alone is set by a hit on anything anywhere, and a tank at
+	* the enemy's base would have kept every wave at home. */
+Bool AIPlayer::isBaseUnderAttack( void ) const
+{
+	const UnsignedInt attacked = m_player->getAttackedFrame();
+	if( !m_baseCenterSet || attacked == 0 || attacked + 30 * LOGICFRAMES_PER_SECOND <= TheGameLogic->getFrame() )
+		return FALSE;
+
+	PartitionFilterAlive filterAlive;
+	PartitionFilterOnMap filterOnMap;
+	PartitionFilter *filters[] = { &filterAlive, &filterOnMap, NULL };
+	ObjectIterator *iter = ThePartitionManager->iterateObjectsInRange( &m_baseCenter, 2.0f * m_baseRadius, FROM_CENTER_2D, filters );
+	MemoryPoolObjectHolder hold( iter );
+	for( Object *obj = iter->first(); obj; obj = iter->next() )
+	{
+		if( obj->isKindOf( KINDOF_PROJECTILE ) || m_player->getRelationship( obj->getTeam() ) != ENEMIES )
+			continue;
+		if( obj->isAbleToAttack() && observerKnowsAbout( obj, m_player->getPlayerIndex() ) )
+			return TRUE;
+	}
+	return FALSE;
 }
 
 /** What a team has to put into a wave, and those members into the group when one is given.  Not the
@@ -6087,7 +6117,11 @@ Bool aiTeamAttacks( const TeamTemplateInfo *info )
 //----------------------------------------------------------------------------------------------------------
 Bool AIPlayer::holdTeamForWave( Team *team, const AsciiString &approach, Int pathSuffix )
 {
-	if( team == NULL || !isSkirmishAI() || !holdsTeamsForWaves() )
+	// a base being hit keeps what its scripts would send out, on every rung, until the fight at home is over
+	if( team == NULL || !isSkirmishAI() )
+		return FALSE;
+	const Bool underAttack = isBaseUnderAttack();
+	if( !underAttack && !holdsTeamsForWaves() )
 		return FALSE;
 	const TeamTemplateInfo *info = team->getPrototype()->getTemplateInfo();
 	if( info->m_isBaseDefense || info->m_isPerimeterDefense )
@@ -6109,7 +6143,7 @@ Bool AIPlayer::holdTeamForWave( Team *team, const AsciiString &approach, Int pat
 	}
 	if( freeSlot < 0 )
 		return FALSE;		// the staging point is full, so this one goes as the script said
-	if( aiReleaseWaveAt( m_pressure, waitingPower( team, NULL ), WAVE_POWER, 0, WAVE_MAX_HOLD_FRAMES ) )
+	if( !underAttack && aiReleaseWaveAt( m_pressure, waitingPower( team, NULL ), WAVE_POWER, 0, WAVE_MAX_HOLD_FRAMES ) )
 		return FALSE;		// a wave on its own waits for nobody
 
 	m_heldUsed[ freeSlot ] = TRUE;
@@ -6141,9 +6175,10 @@ Bool AIPlayer::holdTeamForWave( Team *team, const AsciiString &approach, Int pat
 				break;
 			}
 		}
-		// an outmatched AI gathers at home, where the wave is also the garrison
+		// an outmatched AI gathers at home, where the wave is also the garrison, and so does one whose base
+		// is being hit
 		Coord3D hold;
-		if( getSkillProfile()->m_useInfluenceMapForAttackLane && m_pressure != AIPRESSURE_DEFEND &&
+		if( getSkillProfile()->m_useInfluenceMapForAttackLane && m_pressure != AIPRESSURE_DEFEND && !underAttack &&
 				forwardHoldPoint( m_heldLabel[ firstParked ], m_heldSuffix[ firstParked ], &enemyPos, &hold ) )
 		{
 			DEBUG_LOG(("AI HOLD frame %d player %d gathers at (%.0f,%.0f) on %s%d\n", TheGameLogic->getFrame(),
@@ -6345,10 +6380,18 @@ void AIPlayer::doWaves( void )
 	if( first < 0 )
 		return;
 	loadGunships();
+	// no wave walks out of a base that is being hit
+	if( isBaseUnderAttack() )
+	{
+		DEBUG_LOG(("AI WAVE frame %d player %d keeps %d teams at home, the base is under attack\n", TheGameLogic->getFrame(),
+			m_player->getPlayerIndex(), teams));
+		return;
+	}
 	const UnsignedInt heldFrames = TheGameLogic->getFrame() - m_heldSince;
 	// a full staging point goes whatever it adds up to: sixteen GLA teams of one man each are 3,200, and
 	// every team formed behind them would leave alone
-	if( teams < MAX_HELD_TEAMS && !aiReleaseWaveAt( m_pressure, power, WAVE_POWER, heldFrames, WAVE_MAX_HOLD_FRAMES ) )
+	// and a rung that does not mass lets go the moment the fight at home is over
+	if( teams < MAX_HELD_TEAMS && holdsTeamsForWaves() && !aiReleaseWaveAt( m_pressure, power, WAVE_POWER, heldFrames, WAVE_MAX_HOLD_FRAMES ) )
 		return;
 
 	const AsciiString requested = m_heldLabel[ first ];
@@ -6550,6 +6593,10 @@ void AIPlayer::sendWave( AIGroup *wave, const AsciiString &approach, Int pathSuf
 void AIPlayer::sendIdleAttackTeams( void )
 {
 	if( !isSkirmishAI() || (m_pressure != AIPRESSURE_FINISH && !getSkillProfile()->m_massBeforeAttacking) || !m_baseCenterSet )
+		return;
+	// a team standing at home while the base is hit is its garrison: guarding, or idle beside a fight it
+	// will pick up, it is not called away
+	if( isBaseUnderAttack() )
 		return;
 	Player *enemy = getAiEnemy();
 	if( enemy == NULL )
@@ -6825,6 +6872,12 @@ void AIPlayer::doRetreats( void )
 			centre.x /= count;
 			centre.y /= count;
 			centre.z = TheTerrainLogic->getGroundHeight( centre.x, centre.y );
+
+			// A fight at home is not broken off: home is where the retreat goes.  Ordered to the base
+			// centre, the defenders of an early rush stopped shooting and walked, every decision tick,
+			// while sixteen rebels took the base apart untouched for a minute.
+			if( isAtHome( &centre ) )
+				continue;
 
 			//
 			// Both sides of the exchange, measured the same way: everything of ours in this fight
@@ -7441,10 +7494,11 @@ void AIPlayer::tacticsFor( Object *obj )
 	if( myRange <= 0.0f )
 		return;
 
-	// a hurt unit on ground it cannot win goes home, where the next wave will pick it up
+	// a hurt unit on ground it cannot win goes home, where the next wave will pick it up; one already
+	// at home has nowhere better to be and fights where it stands
 	const BodyModuleInterface *body = obj->getBodyModule();
 	const Real friendsHere = m_influence.friendAt( pos->x, pos->y );
-	if( body && body->getHealth() < body->getMaxHealth() * HURT_HEALTH_SHARE && threatHere > friendsHere )
+	if( body && body->getHealth() < body->getMaxHealth() * HURT_HEALTH_SHARE && threatHere > friendsHere && !isAtHome( pos ) )
 	{
 		DEBUG_LOG(("AI TACTICS frame %d player %d pulls a hurt '%s' out, %.0f against %.0f\n", now, m_player->getPlayerIndex(),
 			obj->getTemplate()->getName().str(), threatHere, friendsHere));
@@ -8360,6 +8414,25 @@ void AIPlayer::doCapture( void )
 	// we know about but cannot reach from here is walked to first and asked again next check.
 	//
 	SpecialPowerModuleInterface *mod = capturer->findSpecialPowerModuleInterface( SPECIAL_INFANTRY_CAPTURE_BUILDING );
+
+	//
+	// The Ranger, the Red Guard and the Rebel all come out of the barracks with the capture paused
+	// until the player buys it there, and nothing bought it: the capturer walked up to a derrick and
+	// stood on it all match.  Buy it (buildUpgrade waits for the money and ignores a repeat) and keep
+	// the capturer home until it is in.
+	//
+	static const AsciiString captureUpgradeName( "Upgrade_InfantryCaptureBuilding" );
+	const UpgradeTemplate *captureUpgrade = TheUpgradeCenter->findUpgrade( captureUpgradeName );
+	if( mod && captureUpgrade && mod->getPercentReady() < 1.0f && !m_player->hasUpgradeComplete( captureUpgrade ) )
+	{
+		const Bool queued = m_player->hasUpgradeInProduction( captureUpgrade );
+		buildUpgrade( captureUpgradeName );
+		if( !queued && m_player->hasUpgradeInProduction( captureUpgrade ) )
+			DEBUG_LOG(("AI player %d buys the capture upgrade for a '%s'\n", m_player->getPlayerIndex(),
+				target->getTemplate()->getName().str()));
+		return;
+	}
+
 	if( mod && TheActionManager->canCaptureBuilding( capturer, target, CMD_FROM_AI ) )
 	{
 		mod->doSpecialPowerAtObject( target, 0 );
