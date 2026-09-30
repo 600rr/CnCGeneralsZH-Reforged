@@ -401,14 +401,16 @@ void ControlBar::populateCommand( Object *obj )
 	buildCommandLayout( obj, commandSet, slot );
 
 	// a builder standing in for an empty selection offers its buildings, not its orders: nobody
-	// asked that dozer to go and clear mines, the owner's call
+	// asked that dozer to go and clear mines, or a Demolition worker to blow itself up, the owner's call
 	if( m_standInBuilderID != INVALID_DRAWABLE_ID && obj->getDrawable()
 			&& obj->getDrawable()->getID() == m_standInBuilderID )
 	{
 		for( i = 0; i < MAX_COMMANDS_PER_SET; i++ )
-			if( slot[ i ] && ControlBar_namedCommandPlace( slot[ i ]->getName().str() ) == COMMAND_PLACE_CLEAR_MINES )
+		{
+			const Int place = slot[ i ] ? ControlBar_namedCommandPlace( slot[ i ]->getName().str() ) : -1;
+			if( place == COMMAND_PLACE_CLEAR_MINES || place == COMMAND_PLACE_EXPLOSIVE )
 				slot[ i ] = NULL;
-	}
+		}	}
 
 	// populate the button with commands defined
 	const CommandButton *commandButton;
