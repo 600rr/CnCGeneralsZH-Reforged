@@ -1300,6 +1300,63 @@ GUI:HudFog
 "Fog of war"
 END
 
+// The cheat panel the console's "trainer" command opens, Window/Html/Cheats.html.
+GUI:CheatPanelTitle
+"Cheats"
+END
+
+GUI:CheatMoney
+"Cash"
+END
+
+GUI:CheatPoints
+"General's points"
+END
+
+GUI:CheatRankUp
+"Rank up"
+END
+
+GUI:CheatHeroic
+"Heroic units"
+END
+
+GUI:CheatReveal
+"Reveal the map"
+END
+
+GUI:CheatPower
+"Unlimited power"
+END
+
+GUI:CheatNoCooldown
+"No cooldowns"
+END
+
+GUI:CheatGod
+"God mode"
+END
+
+GUI:CheatInstantBuild
+"Instant build"
+END
+
+GUI:CheatOneHitKill
+"One-hit kills"
+END
+
+GUI:CheatOn
+"ON"
+END
+
+GUI:CheatOff
+"OFF"
+END
+
+GUI:CheatApply
+"GO"
+END
+
 // after a superweapon's name in the event feed over the radar, the moment it can fire
 GUI:HudSuperweaponReady
 "ready to fire"

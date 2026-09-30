@@ -15797,6 +15797,62 @@ GUI:HudFog
 "Savaş sisi"
 END
 
+GUI:CheatPanelTitle
+"Hileler"
+END
+
+GUI:CheatMoney
+"Para"
+END
+
+GUI:CheatPoints
+"General Puanı"
+END
+
+GUI:CheatRankUp
+"Rütbe atla"
+END
+
+GUI:CheatHeroic
+"Kahraman birlikler"
+END
+
+GUI:CheatReveal
+"Haritayı aç"
+END
+
+GUI:CheatPower
+"Sınırsız elektrik"
+END
+
+GUI:CheatNoCooldown
+"Bekleme yok"
+END
+
+GUI:CheatGod
+"Ölümsüzlük"
+END
+
+GUI:CheatInstantBuild
+"Anında inşa"
+END
+
+GUI:CheatOneHitKill
+"Tek vuruşta öldür"
+END
+
+GUI:CheatOn
+"AÇIK"
+END
+
+GUI:CheatOff
+"KAPALI"
+END
+
+GUI:CheatApply
+"YAP"
+END
+
 GUI:HudSuperweaponReady
 "ateşe hazır"
 END
