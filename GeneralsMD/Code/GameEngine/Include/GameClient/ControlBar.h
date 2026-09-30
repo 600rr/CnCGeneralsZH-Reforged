@@ -487,7 +487,7 @@ Int ControlBar_commandGroup( const class CommandButton *command );
 	* the return is TRUE then.  Passengers gather in the bottom right corner.  The rest go by rows, the
 	* owner's of 2026-09-30: production along Q, defenses along A, other structures along Z, and
 	* abilities along Q, or along A under a set's production.  A row fills left to right in slot order;
-	* what does not fit goes to the row with the most places left. */
+	* what does not fit goes on in the next row down with room, then in the rows above. */
 Bool ControlBar_commandPlaces( const Int *types, const Int *groups, const Int *pinned, Int count, Int *places );
 enum { MAX_RIGHT_HUD_UPGRADE_CAMEOS = 5};
 enum { MAX_MULTI_SELECT_GROUPS = 36 };	///< unit types a multi-selection tells apart (6x6 grid, Tab focus)

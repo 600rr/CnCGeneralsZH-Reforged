@@ -335,8 +335,9 @@ Bool ControlBar_commandPlaces( const Int *types, const Int *groups, const Int *p
 			places[ slot ] = next++;
 	}
 
-	// the rows, one group at a time; a group that outgrows its row goes on in the row with the most
-	// places left, the nearer to its own on a tie
+	// the rows, one group at a time; a group that outgrows its row goes on in the next row down with
+	// room, and only then in the rows above, nearest first, so it still reads in slot order after its
+	// own row: a command center's powers run on from A to Z rather than back up beside its dozer
 	static const Int GROUPS[] = { COMMAND_GROUP_PRODUCTION, COMMAND_GROUP_DEFENSE, COMMAND_GROUP_UTILITY, COMMAND_GROUP_ABILITY };
 	for( Int each = 0; each < (Int)ARRAY_SIZE( GROUPS ); each++ )
 	{
@@ -347,14 +348,16 @@ Bool ControlBar_commandPlaces( const Int *types, const Int *groups, const Int *p
 		{
 			if( places[ slot ] >= 0 || types[ slot ] == GUI_COMMAND_NONE || groups[ slot ] != group )
 				continue;
-			// the overflow stays in the row it went to until that row is full too
 			if( freeInRow( taken, row ) == 0 )
 			{
-				for( Int other = 0; other < ROWS; other++ )
+				for( Int step = 1; step < 2 * ROWS; step++ )
 				{
-					const Int free = freeInRow( taken, other ), best = freeInRow( taken, row );
-					if( free > best || ( free == best && free > 0 && abs( other - own ) < abs( row - own ) ) )
+					const Int other = step < ROWS ? own + step : own - ( step - ROWS + 1 );
+					if( other >= 0 && other < ROWS && freeInRow( taken, other ) > 0 )
+					{
 						row = other;
+						break;
+					}
 				}
 			}
 			for( Int column = 0; column < COMMAND_PLACE_COLUMNS; column++ )

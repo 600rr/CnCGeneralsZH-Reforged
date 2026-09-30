@@ -3395,20 +3395,20 @@ TEST(controlbar_command_places_go_in_rows_by_what_they_are_for)
 		CHECK_EQ( places[ slot ], chinookPlaces[ slot ] );
 
 	/* ChinaCommandCenterCommandSet: a dozer to build, seven powers, two upgrades, rally, sell.  The
-	   dozer on Q, the abilities under it along A, and the three A cannot hold on W E R, the row with
-	   the most room left */
+	   dozer on Q, the abilities under it along A, and the three A cannot hold go on along Z, so the
+	   nine read in order and none stands beside the dozer */
 	const Int centre[ SLOTS ] = { GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_SPECIAL_POWER,
 		GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_SPECIAL_POWER,
 		GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_OBJECT_UPGRADE, GUI_COMMAND_OBJECT_UPGRADE, N, N,
 		GUI_COMMAND_SET_RALLY_POINT, GUI_COMMAND_SELL };
 	const Int centreGroups[ SLOTS ] = { pr, ab, ab, ab, ab, ab, ab, ab, ab, ab, ab, ab, ab, ab };
 	CHECK( !ControlBar_commandPlaces( centre, centreGroups, nothingPinned, SLOTS, places ) );
-	const Int centrePlaces[ SLOTS ] = { Q, A, S, D, F, G, H, W, E, R, -1, -1, B, M };
+	const Int centrePlaces[ SLOTS ] = { Q, A, S, D, F, G, H, Z, X, CC, -1, -1, B, M };
 	for( Int slot = 0; slot < SLOTS; slot++ )
 		CHECK_EQ( places[ slot ], centrePlaces[ slot ] );
 
 	/* a factory whose set opens on an upgrade, nine units after it, a garrison, rally and sell: six
-	   units fill Q, the other three go on along A, the row with the most room, and the upgrade
+	   units fill Q, the other three go on along A, the next row down, and the upgrade
 	   follows them.  The upgrade never takes a place before the units */
 	const Int factory[ SLOTS ] = { GUI_COMMAND_OBJECT_UPGRADE, GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_UNIT_BUILD,
 		GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_UNIT_BUILD, GUI_COMMAND_UNIT_BUILD,
@@ -3449,8 +3449,8 @@ TEST(controlbar_command_places_go_in_rows_by_what_they_are_for)
 	for( Int slot = 0; slot < SLOTS; slot++ )
 		CHECK_EQ( places[ slot ], bossPlaces[ slot ] );
 
-	/* seven structures that are neither: six along Z, the seventh on A, the emptier of the other
-	   rows and the nearer on a tie with Q */
+	/* seven structures that are neither: six along Z, and with no row under Z the
+	   seventh goes up to A, the nearest row above */
 	const Int many[ SLOTS ] = { C, C, C, C, C, C, C, N, N, N, N, N, N, N };
 	const Int manyGroups[ SLOTS ] = { ut, ut, ut, ut, ut, ut, ut, ab, ab, ab, ab, ab, ab, ab };
 	ControlBar_commandPlaces( many, manyGroups, nothingPinned, SLOTS, places );
