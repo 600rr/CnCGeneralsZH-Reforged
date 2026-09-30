@@ -8,6 +8,10 @@ found and fixed â€” EA's own, not port damage.**
 
 ---
 
+## Groups attack-move at their own speed
+
+- An attack move used to hold the whole group to its slowest member when you held Ctrl on the click, and the computer's groups did that every time. A damaged truck walked the tanks in. Each unit now goes at its own speed. A replay recorded before this, of a group attack-moving that way, will not play back the same.
+
 ## The frame rate cap is gone
 
 - The picture now runs uncapped; the rules keep their own steady clock.
