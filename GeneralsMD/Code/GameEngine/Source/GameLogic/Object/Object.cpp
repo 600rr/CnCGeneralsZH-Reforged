@@ -4099,8 +4099,14 @@ void Object::onDisabledEdge(Bool becomingDisabled)
 	for( BehaviorModule **module = m_behaviors; *module; ++module )
 		(*module)->onDisabledEdge( becomingDisabled );
 
+	//
+	// Going into any container holds the object, and held is a disabled type, so this is also what a
+	// builder hears on the step into a tunnel mouth - before it is recorded as inside anything.  One
+	// that took the tunnel as the shorter way to its job (DozerActionPickActionPosState::update) is
+	// not giving the job up: it keeps it and carries on from the far mouth.
+	//
 	DozerAIInterface *dozerAI = getAI() ? getAI()->getDozerAIInterface() : NULL;
-	if( becomingDisabled  &&  dozerAI )
+	if( becomingDisabled  &&  dozerAI  &&  !( isDisabledByType( DISABLED_HELD ) && getAI()->hasTunnelTrip() ) )
 	{
 		// Have to say goodbye to the thing we might be building or repairing so someone else can do it.
 		if( dozerAI->getCurrentTask() != DOZER_TASK_INVALID )
@@ -4336,7 +4342,15 @@ void Object::xfer( Xfer *xfer )
 	{
 		Matrix3D mtx = *getTransformMatrix();
 		xfer->xferMatrix3D(&mtx);
-		setTransformMatrix(&mtx);
+
+		//
+		// Only a load has a matrix to take in.  Setting it again on the way out re-derives the cached
+		// angle from the matrix, a few bits off the angle setOrientation stored, and a replay checkpoint
+		// is a save taken mid-playback: the playback then turned its idle units from a different angle
+		// than the recording had.
+		//
+		if( xfer->getXferMode() == XFER_LOAD )
+			setTransformMatrix(&mtx);
 	}
 	else
 	{

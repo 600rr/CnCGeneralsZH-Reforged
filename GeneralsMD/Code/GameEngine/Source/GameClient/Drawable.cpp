@@ -5669,7 +5669,11 @@ void Drawable::xfer( Xfer *xfer )
 		{
 			Matrix3D mtx = *getTransformMatrix();
 			xfer->xferMatrix3D(&mtx);
-			setTransformMatrix(&mtx);
+
+			// as in Object::xfer: a save has nothing to set, and a replay checkpoint is a save taken
+			// mid-playback, which must leave the cached angle as it found it
+			if( xfer->getXferMode() == XFER_LOAD )
+				setTransformMatrix(&mtx);
 		}
 		else
 		{
