@@ -68,10 +68,15 @@
 //-------------------------------------------------------------------------------------------------
 /** Which builder takes a structure job: the free one nearest the site, or failing that the
 	* nearest one at all.  Free = no build/repair task and not hauling supplies; a builder that
-	* is merely walking somewhere counts.  Fed from the selection. */
+	* is merely walking somewhere counts.  Fed from the selection, or from every builder of the
+	* player when no builder is selected (the control bar's stand-in builder context).  Only a
+	* builder whose command set has the structure counts: a GLA worker switched to its fake
+	* structures builds those and the real ones only from the other page, and a captured dozer
+	* builds its own side's. */
 //-------------------------------------------------------------------------------------------------
 struct BuilderPick
 {
+	const ThingTemplate *place;
 	Coord3D loc;
 	Object *idle;
 	Real idleDistSqr;
@@ -89,6 +94,8 @@ static void considerBuilder( Object *candidate, BuilderPick *pick )
 	DozerAIInterface *dozer = ai ? ai->getDozerAIInterface() : NULL;
 	if( dozer == NULL )
 		return;
+	if( !TheBuildAssistant->isPossibleToMakeUnit( candidate, pick->place ) )
+		return;
 
 	Real dx = candidate->getPosition()->x - pick->loc.x;
 	Real dy = candidate->getPosition()->y - pick->loc.y;
@@ -105,6 +112,11 @@ static void considerBuilder( Object *candidate, BuilderPick *pick )
 		pick->idle = candidate;
 		pick->idleDistSqr = distSqr;
 	}
+}
+
+static void considerBuilderProc( Object *obj, void *userData )
+{
+	considerBuilder( obj, (BuilderPick *)userData );
 }
 #include "GameLogic/Module/BodyModule.h"
 #include "GameLogic/Module/OpenContain.h"
@@ -1833,11 +1845,12 @@ void GameLogic::logicMessageDispatcher( GameMessage *msg, AIGroup *orderedGroup 
 			angle = msg->getArgument( 2 )->real;
 
 			//
-			// the job goes to the idle selected builder nearest the site.  A builder already on a
-			// job is only taken when no idle one is selected, and with no builder selected at all
-			// nothing is built.
+			// the job goes to the idle builder nearest the site - among the selected builders,
+			// or, with no builder selected (the stand-in builder command bar), among all the
+			// player's builders.  A builder already on a job is only taken when no idle one exists.
 			//
 			BuilderPick pick;
+			pick.place = place;
 			pick.loc = loc;
 			pick.idle = pick.any = NULL;
 			pick.idleDistSqr = pick.anyDistSqr = 1e30f;
@@ -1847,6 +1860,8 @@ void GameLogic::logicMessageDispatcher( GameMessage *msg, AIGroup *orderedGroup 
 				for( VecObjectID::const_iterator it = ids.begin(); it != ids.end(); ++it )
 					considerBuilder( TheGameLogic->findObjectByID( *it ), &pick );
 			}
+			if( pick.any == NULL && thisPlayer )
+				thisPlayer->iterateObjects( considerBuilderProc, &pick );
 			Object *constructorObject = pick.idle ? pick.idle : pick.any;
 
 			if( place == NULL || constructorObject == NULL )
