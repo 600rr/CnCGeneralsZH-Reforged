@@ -741,11 +741,73 @@ public:  // ********************************************************************
 		return count;
 	}
 
-	/// would dragging the anchor lay a row of the pending structure, rather than aim one?
+	/** An alt-dragged grid, the row's twin in two directions.  The anchor and a cursor 'dx'/'dy'
+		* away are opposite corners of a rectangle squared up with the structure's heading, and the
+		* pieces fill it line by line: 'perLine' of them stand along the heading 'alongStep' apart, and
+		* the lines stand 'acrossStep' apart.  Piece i is alongStep * ( i % perLine ) + acrossStep *
+		* ( i / perLine ) from the anchor, which is the order they are drawn and ordered in.  Each
+		* side packs the way the row does, flush through the face it meets plus 'extraGap', with the
+		* slack spread so the far corner keeps a piece.  The one difference: a side shorter than a
+		* step holds one piece, not two, or a drag that is nearly a line would come out as two lines
+		* lying on each other.  'most' caps the total, so the last line can come up short, and the
+		* lines are counted from what it leaves: five pieces three to a line are two lines, the
+		* second on the far side.  Never fewer than one.  Inline and static for the same test. */
+	static Int placementGrid( Real dx, Real dy, Real headingCos, Real headingSin, Real halfFacing,
+														Real halfSide, Int most, Coord2D *alongStep, Coord2D *acrossStep,
+														Int *perLine, Real extraGap = 0.0f )
+	{
+		alongStep->x = 0.0f;
+		alongStep->y = 0.0f;
+		acrossStep->x = 0.0f;
+		acrossStep->y = 0.0f;
+
+		// the drag, measured along the heading and across it
+		const Real along = dx * headingCos + dy * headingSin;
+		const Real across = dy * headingCos - dx * headingSin;
+
+		const Real gap = extraGap > 0.0f ? extraGap : 0.0f;
+		const Real alongSpan = placementTouchDistance( headingCos, headingSin, headingCos, headingSin,
+																									 2.0f * halfFacing, 2.0f * halfSide ) + gap;
+		const Real acrossSpan = placementTouchDistance( -headingSin, headingCos, headingCos, headingSin,
+																										2.0f * halfFacing, 2.0f * halfSide ) + gap;
+
+		if( most < 1 )
+			most = 1;
+
+		// the same hair under a whole number as the row's
+		Int count = REAL_TO_INT_FLOOR( (Real)fabs( along ) / alongSpan + 0.001f ) + 1;
+		if( count > most )
+			count = most;
+
+		Int lines = REAL_TO_INT_FLOOR( (Real)fabs( across ) / acrossSpan + 0.001f ) + 1;
+		const Int linesPaidFor = ( most + count - 1 ) / count;
+		if( lines > linesPaidFor )
+			lines = linesPaidFor;
+
+		if( count >= 2 )
+		{
+			alongStep->x = along * headingCos / (Real)( count - 1 );
+			alongStep->y = along * headingSin / (Real)( count - 1 );
+		}
+		if( lines >= 2 )
+		{
+			acrossStep->x = -across * headingSin / (Real)( lines - 1 );
+			acrossStep->y = across * headingCos / (Real)( lines - 1 );
+		}
+
+		*perLine = count;
+		const Int total = count * lines;
+		return total > most ? most : total;
+	}
+
+	/// would dragging the anchor lay pieces of the pending structure, a row or a grid, rather than aim one?
 	Bool placesRow( void );
+	/// of those two, the grid: alt is held.  Alt with shift is the grid as well
+	Bool placesGrid( void ) const;
 	/// wheel notches while that row is being drawn: one grid square of gap a notch, never below flush
 	void adjustPlacementRowGap( Real spin );
-	/// the centres of that row from 'start' toward 'end', as many as MaxLineBuildObjects and the money allow
+	/// the centres of that row from 'start' toward 'end', or of the grid between those two corners,
+	/// as many as MaxLineBuildObjects and the money allow
 	void computePlacementRow( const ThingTemplate *what, Real angle, const Coord3D *start,
 														const Coord3D *end, std::vector<Coord3D> *positions ) const;
 
@@ -1186,6 +1248,7 @@ public:  // ********************************************************************
 	virtual void addIdleWorker( Object *obj );
 	virtual void removeIdleWorker( Object *obj, Int playerNumber );
 	virtual void selectNextIdleWorker( void );
+	void selectNextIdleUnit( void );	///< the same cycle for fighting units standing with no order
 
 	virtual void recreateControlBar( void );
 	virtual void notifyResolutionChange( void );

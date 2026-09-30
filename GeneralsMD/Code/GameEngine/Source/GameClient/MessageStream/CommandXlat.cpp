@@ -2850,6 +2850,14 @@ GameMessageDisposition CommandTranslator::translateGameMessage(const GameMessage
 			break;
 		}		// end select next idle worker
 
+		case GameMessage::MSG_META_SELECT_NEXT_IDLE_UNIT:
+		{
+			TheInGameUI->selectNextIdleUnit();
+
+			disp = DESTROY_MESSAGE;
+			break;
+		}		// end select next idle unit
+
 		case GameMessage::MSG_META_COMMAND_SLOT01:
 		case GameMessage::MSG_META_COMMAND_SLOT02:
 		case GameMessage::MSG_META_COMMAND_SLOT03:

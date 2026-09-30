@@ -195,6 +195,7 @@ found and fixed â€” EA's own, not port damage.**
 - Attack move stays armed for as long as shift is down, whether you pressed its key or clicked its button on the bar, so every point you queue is an attack move. Orders given on the minimap are the orders they would be on the battlefield: an armed attack move is an attack move there too, and shift adds to the queue. Passing the pointer over the minimap no longer puts an armed attack move down.
 - What the circle picks up is what you can see, and a stealthed unit is not that. Shroud was the only test, so a hidden tank parked in ground you had already cleared went on the list like anything else: drag a circle over open country and the group opened fire on air, one order per hidden unit, which is a stealth detector drawn with the mouse. An undetected unit is not in the circle.
 - Ctrl+D takes every unit of the kinds you have selected that is on the screen, and pressed twice inside half a second takes them across the whole map. One tank selected and two keystrokes is your whole armour, wherever it is standing. It was on Shift+Ctrl+E, which is three fingers for something you do in every fight, and it only ever reached across the map when the screen had nothing left to give - so the wide selection happened to you instead of being asked for.
+- U takes you to the next combat unit standing with no orders: it is selected and the view centres on it. Press again for the one after. Idle workers stay on I.
 
 ## Aircraft, guards, and orders that used to be ignored
 
@@ -569,6 +570,7 @@ A third pass went through the generals' powers, promotions and unit abilities.
 - One row above the command bar carries everything your base is building anywhere.
 - Ordered by time left, so it reads as the order things arrive.
 - Select a building and what it is making moves to the front of that row, ahead of everything else, still soonest first among itself. It used to get a whole second row of its own under the base's, which said the same thing twice and pushed the strip further up the screen; now the head of the strip is the building you are looking at and the tail is the rest of your base.
+- Click an ally's War Factory, Barracks or Airfield and its production queue comes up at the front of your own strip, counting down as it builds. It is there to look at: you cannot cancel anything in it.
 - Click a picture to jump the camera there; Ctrl-click cancels it.
 - One picture is one order, cut to match the command bar's artwork.
 - The strip is half the size it was: it says the same thing and takes back the screen it was eating.
@@ -668,6 +670,7 @@ A third pass went through the generals' powers, promotions and unit abilities.
 - Holding shift and clicking out a row of buildings no longer stops halfway and selects one.
 - Hold shift and drag, and the row is one stroke. Press where the first building goes, drag the way the row runs, and a ghost appears for every building that fits end to end along the line, all facing the way the first one was turned. The row runs exactly the way you drag it, at 20 degrees as happily as along the map's edge, and packs the buildings as close as their shape allows: one turned onto the line of the row stands wall to wall with the next, and a factory keeps its door lane clear. A row of Power Plants turned square to the map packs 44 apart; it used to go down on whole grid squares, 50 apart, with a strip of dirt at every joint. It stops at the last building your bank can pay for. A ghost that lands on a rock or someone's tank turns red and is left out when you let go; the rest go up. With two or three workers selected the buildings are shared out to the nearest free one, and the ones nobody is free for wait as plans until a worker comes off its job. A plain drag still turns the building, and walls still tile the way they always did.
 - While that row is on the cursor, the wheel opens and closes the space between the buildings, one grid square a notch. The one where you pressed and the one under the cursor stay put; what changes is how many stand between them and how far apart those are. It will not pack them any tighter than they already sit against each other, and it will not take either end away to make the gap. Letting go places the row and takes the building off the cursor, so the next click is not another one. Holding shift and clicking them out one at a time still keeps the ghost up.
+- Hold Alt and drag while placing a building, and you lay out a block of them instead of a row. Ghosts stand for as many as your money covers, a blocked spot is skipped, and your builders work through the block in order.
 - Buildings need a worker selected. With nothing selected the command bar used to borrow one of your dozers and offer its buildings anyway. It stays empty now until you pick a worker, and a replay recorded with a building placed that way plays back without it.
 - Turning a building no longer turns everything you build afterwards. A wheeled heading still carries from one wall to the next, but the next supply centre comes out facing the way it was designed to.
 - A building you point at blocked ground slides to the nearest spot it fits, and lands there.
@@ -685,7 +688,7 @@ A third pass went through the generals' powers, promotions and unit abilities.
 
 ## Where the money is, and where it is coming from
 
-- Supply piles and docks say what is left in them, in cash, over the pile. No more guessing which expansion is worth taking from the art on the model.
+- Supply piles and docks say what is left in them, in cash, over the pile. No more guessing which expansion is worth taking from the art on the model. Point at a pile and the tooltip puts a percentage beside the cash: what is left of what the pile started with.
 - Every build button carries its price in the top right corner, opposite the build time already in the other one. It was only ever in the tooltip, which means hovering one button at a time to compare two of them.
 - A structure's button says what it does to the power grid, in the fourth corner: what it draws, or what a plant puts back. Money and time were already on the button and power is the third thing a base spends; it was the one figure you had to hover for, which is the wrong way round for the building you are putting up because the lights went out.
 - A worker fetching or handing over a box shows a bar while it works.

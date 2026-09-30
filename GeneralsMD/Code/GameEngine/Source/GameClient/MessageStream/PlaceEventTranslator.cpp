@@ -390,7 +390,9 @@ GameMessageDisposition PlaceEventTranslator::translateGameMessage(const GameMess
 				if( row )
 				{
 					//
-					// A shift-dragged row is one order per structure, each asked on its own: a piece
+					// A shift-dragged row, or an alt-dragged grid (computePlacementRow hands back
+					// either, in the order the ghosts were drawn), is one order per structure, each
+					// asked on its own: a piece
 					// that lands on a rock is left out and the rest still go up.  The logic hands each
 					// order to the idle selected builder nearest it, and once they are all busy the rest
 					// stand at 0% for whichever comes free first (BuildAssistant::buildObjectNow).

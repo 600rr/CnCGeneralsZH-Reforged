@@ -6177,7 +6177,18 @@ void InGameUI::createMouseoverHint( const GameMessage *msg )
 			{
 				Int boxes = warehouseModule->getBoxesStored();
 				Int value = boxes * TheGlobalData->m_baseValuePerSupplyBox;
-				warehouseFeedback.format(TheGameText->fetch("TOOLTIP:SupplyWarehouse"), value);
+				Int startingBoxes = warehouseModule->getStartingBoxes();
+				if( startingBoxes > 0 )
+				{
+					// what is left against what the pile began the match with; it can be stocked past that
+					Int percent = min( 100, boxes * 100 / startingBoxes );
+					warehouseFeedback.format(TheGameText->fetch("TOOLTIP:SupplyWarehousePercent"), value, percent);
+				}
+				else
+				{
+					// a map or a mod that starts the pile empty gives no total to take a share of: cash alone
+					warehouseFeedback.format(TheGameText->fetch("TOOLTIP:SupplyWarehouse"), value);
+				}
 				str.concat(warehouseFeedback);
 				// the lobby's supply pile limit: say so when this player's gatherers would be turned away
 				if( warehouseModule->isClosedToPlayer( ThePlayerList->getLocalPlayer() ) )
@@ -7087,12 +7098,26 @@ void InGameUI::snapPlacementToGrid( Coord3D *world, const ThingTemplate *what, R
 }  // end snapPlacementToGrid
 
 //-------------------------------------------------------------------------------------------------
-/** Shift held on the drag: a wall already tiles from any drag, so it is left to do that. */
+/** Shift or alt held on the drag: a wall already tiles from any drag, so it is left to do that.
+	* Everything that asks this wants to know whether the drag lays pieces instead of aiming one, and
+	* that is the same answer for a row and a grid; computePlacementRow is where the two part. */
 //-------------------------------------------------------------------------------------------------
 Bool InGameUI::placesRow( void )
 {
-	return m_pendingPlaceType != NULL && TheKeyboard && TheKeyboard->isShift() &&
+	return m_pendingPlaceType != NULL && TheKeyboard &&
+				 ( TheKeyboard->isShift() || TheKeyboard->isAlt() ) &&
 				 !TheBuildAssistant->isLineBuildTemplate( m_pendingPlaceType );
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Alt makes it a grid, and wins over shift when both are down: a grid dragged along the
+	* structure's own line is already a row.  Let go of alt with shift still held and the same drag
+	* is the shift row again; let go of both and it aims one structure.  Asked only once placesRow
+	* has said yes. */
+//-------------------------------------------------------------------------------------------------
+Bool InGameUI::placesGrid( void ) const
+{
+	return TheKeyboard->isAlt();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -7154,16 +7179,33 @@ void InGameUI::computePlacementRow( const ThingTemplate *what, Real angle, const
 			most = affordable;
 	}
 
+	// a row is one line of a grid: everything on line 0, and no step to a next one
 	Coord2D step;
-	const Int count = placementRow( end->x - start->x, end->y - start->y, (Real)Cos( angle ),
-																	(Real)Sin( angle ), halfFacing, minor, most, &step,
-																	m_placementRowGap );
+	Coord2D lineStep;
+	lineStep.x = 0.0f;
+	lineStep.y = 0.0f;
+	Int count;
+	Int perLine;
+	if( placesGrid() )
+	{
+		count = placementGrid( end->x - start->x, end->y - start->y, (Real)Cos( angle ),
+													 (Real)Sin( angle ), halfFacing, minor, most, &step, &lineStep, &perLine,
+													 m_placementRowGap );
+	}
+	else
+	{
+		count = placementRow( end->x - start->x, end->y - start->y, (Real)Cos( angle ),
+													(Real)Sin( angle ), halfFacing, minor, most, &step,
+													m_placementRowGap );
+		perLine = count;
+	}
+
 	positions->clear();
 	for( Int i = 0; i < count; i++ )
 	{
 		Coord3D pos;
-		pos.x = start->x + step.x * i;
-		pos.y = start->y + step.y * i;
+		pos.x = start->x + step.x * ( i % perLine ) + lineStep.x * ( i / perLine );
+		pos.y = start->y + step.y * ( i % perLine ) + lineStep.y * ( i / perLine );
 		pos.z = TheTerrainLogic->getGroundHeight( pos.x, pos.y );
 		positions->push_back( pos );
 	}
@@ -12818,8 +12860,10 @@ void InGameUI::drawProductionStripColumn( Int left, Int bottomY )
 		// so: it goes red and wears a minus. Without it a ctrl-click is a guess about which cameo
 		// the cursor is really on, and an accidental cancel costs the whole item.
 		//
-		// a building already standing on the map is not cancelled from here - it is sold or blown up
-		if( !slot->isStructure && TheKeyboard && TheKeyboard->isCtrl() && TheMouse )
+		// a building already standing on the map is not cancelled from here - it is sold or blown up,
+		// and an ally's item is not yours to cancel, so it does not offer to
+		if( !slot->isStructure && producer && producer->isLocallyControlled() &&
+				TheKeyboard && TheKeyboard->isCtrl() && TheMouse )
 		{
 			const MouseIO *io = TheMouse->getMouseStatus();
 			draw->cancelHover = io && io->pos.x >= draw->x && io->pos.x < draw->x + cameoW &&
@@ -13049,11 +13093,17 @@ void InGameUI::drawProductionStrip( void )
 	// follows it. It goes in before the sweep over everything else, and the sweep skips it, so
 	// nothing is drawn or counted twice.
 	//
+	// A mutual ally's building leads it the same way: click his War Factory and what it is turning
+	// out stands ahead of your own queue, to read and nothing else.  The cancel is refused twice
+	// over for a cameo that is not yours, in handleProductionStripClick and again in the logic.
+	// An enemy's or a neutral's never gets here, and a watcher left above.
+	//
 	ObjectID selected = INVALID_ID;
 	if( getSelectCount() == 1 && !m_selectedDrawables.empty() )
 	{
 		Object *sel = m_selectedDrawables.front()->getObject();
-		if( sel && sel->getControllingPlayer() == player )
+		if( sel && ( sel->getControllingPlayer() == player ||
+								 isAllyOfLocalPlayer( sel->getControllingPlayer()->getPlayerIndex() ) ) )
 		{
 			selected = sel->getID();
 			appendProducerQueue( sel, m_productionStrip, &m_productionStripCount, PRODUCTION_STRIP_ROW_MAX,
@@ -13659,6 +13709,69 @@ void InGameUI::selectNextIdleWorker( void )
 		// center on the unit
 		TheTacticalView->lookAt(selectThisObject->getPosition());
 	}
+}
+
+// A unit of the local player's that is standing on the field with no order: not a dozer, a worker
+// or a supply truck (those have the idle-worker key), not a structure, not riding in anything.
+static Bool isIdleCombatUnit( const Object *obj )
+{
+	if( !obj->isLocallyControlled() || obj->isEffectivelyDead() || obj->isContained() || !obj->isMobile() )
+		return FALSE;
+
+	if( !obj->isKindOf( KINDOF_SELECTABLE ) || obj->isKindOf( KINDOF_NO_SELECT ) || obj->isKindOf( KINDOF_IGNORED_IN_GUI ) )
+		return FALSE;
+
+	if( obj->isKindOf( KINDOF_STRUCTURE ) || obj->isKindOf( KINDOF_DOZER ) || obj->isKindOf( KINDOF_HARVESTER ) )
+		return FALSE;
+
+	// a player owns things with no AI module at all
+	const AIUpdateInterface *ai = obj->getAI();
+	return ai && ai->isIdle();
+}
+
+void InGameUI::selectNextIdleUnit( void )
+{
+	// Nothing keeps a list of these the way the dozers keep m_idleWorkers, so the key walks the
+	// object list, which is in creation order and stays put between presses.  A lone selected unit
+	// is the place to carry on from; with nothing or a group selected the walk starts over.
+	const Object *current = getSelectCount() == 1 ? getFirstSelectedDrawable()->getObject() : NULL;
+	Object *first = NULL;
+	Object *selectThisObject = NULL;
+	Bool passedCurrent = FALSE;
+
+	for( Object *obj = TheGameLogic->getFirstObject(); obj; obj = obj->getNextObject() )
+	{
+		if( isIdleCombatUnit( obj ) )
+		{
+			if( passedCurrent )
+			{
+				selectThisObject = obj;
+				break;
+			}
+			if( !first )
+				first = obj;
+		}
+		if( obj == current )
+			passedCurrent = TRUE;
+	}
+
+	// past the last one the cycle wraps to the first
+	if( !selectThisObject )
+		selectThisObject = first;
+	if( !selectThisObject )
+		return;
+
+	deselectAllDrawables();
+	GameMessage *teamMsg = TheMessageStream->appendMessage( GameMessage::MSG_CREATE_SELECTED_GROUP );
+
+	//New group or add to group? Passed in value is true if we are creating a new group.
+	teamMsg->appendBooleanArgument( TRUE );
+	teamMsg->appendObjectIDArgument( selectThisObject->getID() );
+
+	selectDrawable( selectThisObject->getDrawable() );
+
+	// center on the unit
+	TheTacticalView->lookAt(selectThisObject->getPosition());
 }
 
 Int InGameUI::getIdleWorkerCount( void )

@@ -1033,6 +1033,10 @@ TOOLTIP:SupplyWarehouse
 "\n $%d kaldı"
 END
 
+TOOLTIP:SupplyWarehousePercent
+"\n $%d kaldı (%d%%)"
+END
+
 TOOLTIP:SupplyPileFull
 "\n Dolu: yığın sınırı toplayıcılarınızı almıyor"
 END
@@ -14631,6 +14635,14 @@ END
 
 GUI:SelectNextIdleWorkerDescription
 "Yapacak işi olmayan sonraki dozeri veya işçiyi seçer ve görüntüyü ona odaklar."
+END
+
+GUI:SelectNextIdleUnit
+"Sonraki Boştaki Birliği Seç"
+END
+
+GUI:SelectNextIdleUnitDescription
+"Emri olmayan sonraki savaş birliğini seçer ve görüntüyü ona odaklar."
 END
 
 GUI:CommandSlot01

@@ -224,6 +224,7 @@ public:
 		MSG_META_SELECT_NEXT_WORKER,                ///< select 'next' worker
 		MSG_META_SELECT_PREV_WORKER,                ///< select 'prev' worker
 		MSG_META_SELECT_NEXT_IDLE_WORKER,           ///< select 'next' idle worker
+		MSG_META_SELECT_NEXT_IDLE_UNIT,             ///< select 'next' fighting unit standing with no order
 
 		// command-bar grid hot keys: one per place of the 6 x 3 command grid, read along the rows
 		// (01-06 the top row, 07-12 the middle one, 13-18 the bottom); see CommandPlace

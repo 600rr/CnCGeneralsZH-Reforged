@@ -2514,6 +2514,65 @@ TEST(placement_row_pins_both_ends_and_opens_the_middle)
 	CHECK_NEAR(step.x, 40.5f, 0.0001f);
 }
 
+TEST(placement_grid_fills_the_dragged_rectangle_in_lines)
+{
+	Coord2D along, across;
+	Int perLine = 0;
+	const Real half = 0.70710678f;	/* cos and sin of an eighth of a turn */
+
+	/* facing along x, the same 40 by 30 footprint. two exact steps each way: three lines of
+	 * three, 40.5 apart along the facing and 30.5 across it */
+	CHECK_EQ(InGameUI::placementGrid(81.0f, 61.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &along, &across, &perLine), 9);
+	CHECK_EQ(perLine, 3);
+	CHECK_NEAR(along.x, 40.5f, 0.0001f);
+	CHECK_NEAR(along.y, 0.0f, 0.0001f);
+	CHECK_NEAR(across.x, 0.0f, 0.0001f);
+	CHECK_NEAR(across.y, 30.5f, 0.0001f);
+
+	/* the order is line by line: piece 5 is the last of the second line */
+	CHECK_NEAR(along.x * (5 % perLine) + across.x * (5 / perLine), 81.0f, 0.0001f);
+	CHECK_NEAR(along.y * (5 % perLine) + across.y * (5 / perLine), 30.5f, 0.0001f);
+
+	/* a rectangle that is not a multiple keeps a piece on the far corner: the spare is spread */
+	CHECK_EQ(InGameUI::placementGrid(90.0f, 70.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &along, &across, &perLine), 9);
+	CHECK_NEAR(along.x * 2.0f, 90.0f, 0.0001f);
+	CHECK_NEAR(across.y * 2.0f, 70.0f, 0.0001f);
+
+	/* dragged up and to the left, it fills up and to the left */
+	CHECK_EQ(InGameUI::placementGrid(-81.0f, 61.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &along, &across, &perLine), 9);
+	CHECK_NEAR(along.x, -40.5f, 0.0001f);
+	CHECK_NEAR(across.y, 30.5f, 0.0001f);
+
+	/* a drag that is nearly a line is one line, not two lying on each other, and no drag is one piece */
+	CHECK_EQ(InGameUI::placementGrid(81.0f, 10.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &along, &across, &perLine), 3);
+	CHECK_EQ(perLine, 3);
+	CHECK_NEAR(across.y, 0.0f, 0.0001f);
+	CHECK_EQ(InGameUI::placementGrid(10.0f, 61.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &along, &across, &perLine), 3);
+	CHECK_EQ(perLine, 1);
+	CHECK_NEAR(along.x, 0.0f, 0.0001f);
+	CHECK_EQ(InGameUI::placementGrid(0.0f, 0.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &along, &across, &perLine), 1);
+
+	/* turned an eighth, the rectangle turns with the structure: the same 81 by 61 measured
+	 * along its line and across it is the same three by three */
+	CHECK_EQ(InGameUI::placementGrid((81.0f - 61.0f) * half, (81.0f + 61.0f) * half, half, half,
+	                                 20.0f, 15.0f, 50, &along, &across, &perLine), 9);
+	CHECK_EQ(perLine, 3);
+	CHECK_NEAR(along.x * along.x + along.y * along.y, 40.5f * 40.5f, 0.01f);
+	CHECK_NEAR(across.x * across.x + across.y * across.y, 30.5f * 30.5f, 0.01f);
+	CHECK(across.x < 0.0f);
+
+	/* money for five: three on the first line, two on a second that stands on the far side */
+	CHECK_EQ(InGameUI::placementGrid(81.0f, 61.0f, 1.0f, 0.0f, 20.0f, 15.0f, 5, &along, &across, &perLine), 5);
+	CHECK_EQ(perLine, 3);
+	CHECK_NEAR(across.y, 61.0f, 0.0001f);
+	CHECK_EQ(InGameUI::placementGrid(81.0f, 61.0f, 1.0f, 0.0f, 20.0f, 15.0f, 0, &along, &across, &perLine), 1);
+
+	/* ten units of wheel gap open both directions: two by two, corners kept */
+	CHECK_EQ(InGameUI::placementGrid(81.0f, 61.0f, 1.0f, 0.0f, 20.0f, 15.0f, 50, &along, &across, &perLine, 10.0f), 4);
+	CHECK_NEAR(along.x, 81.0f, 0.0001f);
+	CHECK_NEAR(across.y, 61.0f, 0.0001f);
+}
+
 
 /* The shipped AIData.ini values, so the numbers below are the ones a real game uses. */
 static const Real AIDATA_TEAM_SECONDS   = 10.0f;
