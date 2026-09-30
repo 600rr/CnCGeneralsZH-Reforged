@@ -10382,6 +10382,56 @@ TEST(a_parked_wave_goes_when_it_is_worth_sending_or_has_waited_long_enough)
 }
 
 
+/** The wave is sized by the AI's chance against its enemy: an army at home facing nothing goes, and
+	 one facing three times itself stays until it is worth sending. */
+TEST(pressure_rises_with_the_chance_of_winning_and_falls_back_with_it)
+{
+	const Real WAVE = 6000.0f;
+	const UnsignedInt MAX_HOLD = 2700;
+
+	CHECK_NEAR( 0.5f, aiWinChance( 4000.0f, 4000.0f ), 0.0001f );
+	CHECK( aiWinChance( 8000.0f, 1000.0f ) > aiWinChance( 8000.0f, 4000.0f ) );
+	// one rifleman against an empty field is not a rout
+	CHECK( aiWinChance( 200.0f, 0.0f ) < 0.65f );
+
+	CHECK_EQ( AIPRESSURE_NORMAL, aiPressureLevel( 0.5f, TRUE, AIPRESSURE_NORMAL ) );
+	CHECK_EQ( AIPRESSURE_PRESS, aiPressureLevel( aiWinChance( 9000.0f, 3000.0f ), TRUE, AIPRESSURE_NORMAL ) );
+	CHECK_EQ( AIPRESSURE_DEFEND, aiPressureLevel( aiWinChance( 3000.0f, 9000.0f ), FALSE, AIPRESSURE_NORMAL ) );
+
+	// he has nothing left: everything goes, but only on the word of someone looking at his base
+	const Real routed = aiWinChance( 9000.0f, 0.0f );
+	CHECK_EQ( AIPRESSURE_FINISH, aiPressureLevel( routed, TRUE, AIPRESSURE_NORMAL ) );
+	CHECK_EQ( AIPRESSURE_NORMAL, aiPressureLevel( routed, FALSE, AIPRESSURE_NORMAL ) );
+	CHECK_EQ( AIPRESSURE_PRESS, aiPressureLevel( routed, FALSE, AIPRESSURE_PRESS ) );
+	CHECK_EQ( AIPRESSURE_FINISH, aiPressureLevel( routed, FALSE, AIPRESSURE_FINISH ) );
+
+	// a chance sitting inside a threshold keeps the level it has: 0.58 to 0.66 changed level six
+	// times in a minute before the margin was a tenth
+	CHECK_EQ( AIPRESSURE_PRESS, aiPressureLevel( 0.58f, TRUE, AIPRESSURE_PRESS ) );
+	CHECK_EQ( AIPRESSURE_NORMAL, aiPressureLevel( 0.58f, TRUE, AIPRESSURE_NORMAL ) );
+	CHECK_EQ( AIPRESSURE_NORMAL, aiPressureLevel( 0.54f, TRUE, AIPRESSURE_PRESS ) );
+	CHECK_EQ( AIPRESSURE_FINISH, aiPressureLevel( 0.76f, FALSE, AIPRESSURE_FINISH ) );
+	CHECK_EQ( AIPRESSURE_PRESS, aiPressureLevel( 0.74f, FALSE, AIPRESSURE_FINISH ) );
+	CHECK_EQ( AIPRESSURE_DEFEND, aiPressureLevel( 0.42f, FALSE, AIPRESSURE_DEFEND ) );
+	CHECK_EQ( AIPRESSURE_NORMAL, aiPressureLevel( 0.42f, FALSE, AIPRESSURE_NORMAL ) );
+
+	// ahead, a lone artillery piece goes at once
+	CHECK( aiReleaseWaveAt( AIPRESSURE_PRESS, 900.0f, WAVE, 0, MAX_HOLD ) );
+	CHECK( aiReleaseWaveAt( AIPRESSURE_FINISH, 900.0f, WAVE, 0, MAX_HOLD ) );
+	CHECK( !aiReleaseWaveAt( AIPRESSURE_FINISH, 0.0f, WAVE, MAX_HOLD, MAX_HOLD ) );
+
+	// an even match is the wave as it was
+	CHECK( !aiReleaseWaveAt( AIPRESSURE_NORMAL, 900.0f, WAVE, 100, MAX_HOLD ) );
+	CHECK( aiReleaseWaveAt( AIPRESSURE_NORMAL, 900.0f, WAVE, MAX_HOLD, MAX_HOLD ) );
+
+	// outmatched: twice the wave, twice the wait, and never a trickle however long it has waited
+	CHECK( !aiReleaseWaveAt( AIPRESSURE_DEFEND, 6000.0f, WAVE, MAX_HOLD, MAX_HOLD ) );
+	CHECK( aiReleaseWaveAt( AIPRESSURE_DEFEND, 12000.0f, WAVE, 0, MAX_HOLD ) );
+	CHECK( aiReleaseWaveAt( AIPRESSURE_DEFEND, 6000.0f, WAVE, 2 * MAX_HOLD, MAX_HOLD ) );
+	CHECK( !aiReleaseWaveAt( AIPRESSURE_DEFEND, 900.0f, WAVE, 20 * MAX_HOLD, MAX_HOLD ) );
+}
+
+
 TEST(the_ladder_switches_on_reading_the_map_and_buying_at_the_top)
 {
 	TAiData data;

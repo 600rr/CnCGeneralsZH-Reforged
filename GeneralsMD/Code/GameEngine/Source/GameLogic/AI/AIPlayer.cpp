@@ -321,6 +321,9 @@ m_role(AIROLE_AGGRESSIVE)
 		m_heldSuffix[ held ] = 0;
 	}
 	m_heldSince = 0;
+	m_pressure = AIPRESSURE_NORMAL;
+	m_knownEnemyPower = 0.0f;
+	m_pressureEnemy = -1;
 
 	for( Int strike = 0; strike < MAX_REMEMBERED_STRIKES; ++strike )
 	{
@@ -548,11 +551,11 @@ void AIPlayer::checkForSupplyCenter( BuildListInfo *info, Object *bldg )
 	}
 }
 
-/** A warehouse with boxes left, not an enemy's, within reach of this supply center. */
-static Bool hasSuppliesNear( Player *player, const Object *supplyCenter )
+/** A warehouse with boxes left, not an enemy's, within reach of this supply center.  Any of them:
+	* this asked the nearest one only, and an emptied pile hid the full one behind it. */
+static Bool hasSuppliesNear( Player *player, const Object *supplyCenter, Real reach )
 {
-	Coord3D center = *supplyCenter->getPosition();
-	Real radius = SUPPLY_CENTER_CLOSE_DIST + supplyCenter->getGeometryInfo().getBoundingCircleRadius();
+	Real radius = reach + supplyCenter->getGeometryInfo().getBoundingCircleRadius();
 
 	PartitionFilterAcceptByKindOf f1(MAKE_KINDOF_MASK(KINDOF_SUPPLY_SOURCE), KINDOFMASK_NONE);
 	PartitionFilterPlayer f2(player, false);	// Only find other.
@@ -560,17 +563,16 @@ static Bool hasSuppliesNear( Player *player, const Object *supplyCenter )
 
 	PartitionFilter *filters[] = { &f1, &f2, &filterMapStatus, 0 };
 
-	Object *supplySource = ThePartitionManager->getClosestObject(&center, radius, FROM_BOUNDINGSPHERE_2D, filters);
-	if (!supplySource) {
-		return FALSE;
-	}
 	static const NameKeyType key_warehouseUpdate = NAMEKEY("SupplyWarehouseDockUpdate");
-	SupplyWarehouseDockUpdate *warehouseModule = (SupplyWarehouseDockUpdate*)supplySource->findUpdateModule( key_warehouseUpdate );
-	if( warehouseModule )	{
-		if (warehouseModule->getBoxesStored()*TheGlobalData->m_baseValuePerSupplyBox <= 0) return FALSE;
-		if( player->getRelationship(supplySource->getTeam()) == ENEMIES ) return FALSE;
+	ObjectIterator *iter = ThePartitionManager->iterateObjectsInRange(supplyCenter->getPosition(), radius, FROM_BOUNDINGSPHERE_2D, filters);
+	MemoryPoolObjectHolder hold(iter);
+	for (Object *supplySource = iter->first(); supplySource; supplySource = iter->next()) {
+		SupplyWarehouseDockUpdate *warehouseModule = (SupplyWarehouseDockUpdate*)supplySource->findUpdateModule( key_warehouseUpdate );
+		if (!warehouseModule) return TRUE;
+		if (warehouseModule->getBoxesStored()*TheGlobalData->m_baseValuePerSupplyBox > 0 &&
+				player->getRelationship(supplySource->getTeam()) != ENEMIES) return TRUE;
 	}
-	return TRUE;
+	return FALSE;
 }
 
 struct IdleTruckSearch
@@ -578,6 +580,7 @@ struct IdleTruckSearch
 	Player *player;
 	const Object *center;
 	Object *truck;
+	Bool waiting;		///< a gatherer stands idle beside a center that still has boxes
 };
 
 static void considerIdleTruck( Object *obj, void *userData )
@@ -593,19 +596,30 @@ static void considerIdleTruck( Object *obj, void *userData )
 	if( dozerAI && dozerAI->isAnyTaskPending() )
 		return;		// a GLA worker between jobs
 	const Object *dock = TheGameLogic->findObjectByID( truckAI->getPreferredDockID() );
-	if( dock && dock != search->center && hasSuppliesNear( search->player, dock ) )
-		return;		// its own center still has boxes to fetch
+	if( dock && dock != search->center && hasSuppliesNear( search->player, dock, SUPPLY_CENTER_CLOSE_DIST ) )
+	{
+		// its own center still has boxes to fetch and it stands idle all the same: the pile has no
+		// room for it, and it would have none for a new one
+		search->waiting = TRUE;
+		return;
+	}
+	// the truck looks for a pile as far as its own scan reaches once it is at the center, and a
+	// Chinook's reaches far past the ground beside the center
+	if( !hasSuppliesNear( search->player, search->center, truckAI->getWarehouseScanDistance() ) )
+		return;
 	search->truck = obj;
 }
 
-/** A truck of this player's standing about with nothing to fetch. */
-static Object *findIdleTruck( Player *player, const Object *center )
+/** A truck of this player's standing about with nothing to fetch, that could fetch from this center. */
+static Object *findIdleTruck( Player *player, const Object *center, Bool *waiting )
 {
 	IdleTruckSearch search;
 	search.player = player;
 	search.center = center;
 	search.truck = NULL;
+	search.waiting = FALSE;
 	player->iterateObjects( considerIdleTruck, &search );
+	*waiting = search.waiting;
 	return search.truck;
 }
 
@@ -672,7 +686,7 @@ void AIPlayer::queueSupplyTruck( void )
 					continue; // don't consider rebuild holes.
 				}
 				// Make sure we have a supplies near it.
-				if (!hasSuppliesNear(m_player, supplyCenter)) {
+				if (!hasSuppliesNear(m_player, supplyCenter, SUPPLY_CENTER_CLOSE_DIST)) {
 					continue;
 				}
 				// Ok, it has supplies available near it.
@@ -756,18 +770,31 @@ void AIPlayer::queueSupplyTruck( void )
 				 and looks again only as far as its scan reaches, so the trucks of a picked-clean pile stood
 				 round it for the rest of the match while this center bought new ones, three times what it
 				 wanted: a Hard China kept nine trucks, eight of them idle, from frame 5000 on. An idle one
-				 comes here first, and a center with nothing beside it gets no truck at all. */
+				 comes here first, and a center with nothing beside it gets no truck at all.
+
+				 The idle one was only looked for when a pile stood right beside the center, two hundred
+				 units, and a USA center whose near pile was gone sent nobody for the one a Chinook could
+				 reach from it. The Chinooks hung over the command center and more were bought for the
+				 centers that still had boxes. Now the idle one is asked for first, against its own reach,
+				 and no center buys while a gatherer of another stands idle beside boxes it cannot get at. */
 			Object *center = TheGameLogic->findObjectByID(info->getObjectID());
+			Bool truckWaiting = FALSE;
 			if (center && !center->isKindOf(KINDOF_REBUILD_HOLE)) {
-				if (!hasSuppliesNear(m_player, center)) {
-					continue;
-				}
-				Object *idleTruck = findIdleTruck(m_player, center);
+				Object *idleTruck = findIdleTruck(m_player, center, &truckWaiting);
 				if (idleTruck) {
+					DEBUG_LOG(("AI GATHERER frame %d player %d sends idle '%s' %d to center %d at (%.0f,%.0f), %d of %d there\n",
+						TheGameLogic->getFrame(), m_player->getPlayerIndex(), idleTruck->getTemplate()->getName().str(), idleTruck->getID(),
+						center->getID(), center->getPosition()->x, center->getPosition()->y, max(info->getCurrentGatherers(), 0) + 1, desiredGatherers));
 					info->setCurrentGatherers(max(info->getCurrentGatherers(), 0) + 1);
 					idleTruck->getAI()->aiDock(center, CMD_FROM_PLAYER);	// from the player, so it stays his preferred dock (see above)
 					return;
 				}
+				if (!hasSuppliesNear(m_player, center, SUPPLY_CENTER_CLOSE_DIST)) {
+					continue;
+				}
+			}
+			if (truckWaiting) {
+				continue;
 			}
 			if (totalHarvesters >= desiredGatherers*3) {
 				continue; // we got lotsa gatherers.
@@ -801,6 +828,9 @@ void AIPlayer::queueSupplyTruck( void )
 						AsciiString teamName = "Supply truck - building one at the ";
 						teamName.concat(factory->getTemplate()->getName());
 						TheScriptEngine->AppendDebugMessage(teamName, false);
+						DEBUG_LOG(("AI GATHERER frame %d player %d buys '%s' for center %d, %d of %d there, %d harvesters in all, %d in the bank\n",
+							TheGameLogic->getFrame(), m_player->getPlayerIndex(), tTemplate->getName().str(), info->getObjectID(),
+							info->getCurrentGatherers(), desiredGatherers, totalHarvesters, m_player->getMoney()->countMoney()));
 						m_teamDelay = 0;
 						if (info->getCurrentGatherers()==-1) {
 							// First one is automatic. jba.
@@ -908,6 +938,24 @@ static const Int BUILD_SEARCH_CELLS = 5;
 static const Int SKIRMISH_BUILD_SEARCH_CELLS = 60;
 static const Int BUILD_PROBES_PER_FRAME = 32;			///< isLocationLegalToBuild calls one frame may spend
 static const Int BUILD_EXPANSIONS_PER_FRAME = 512;	///< cells one frame may take off the flood's queue
+
+/** How far from the base center, in base radii, a building that stays home may stand.  Two, the
+	* reach the home guard already answers to (the 2.0f * m_baseRadius lists).  1.25 was tried first:
+	* over ten Brutal matches on Twilight Flame the drop zones asked for fell from 87 to 13 and the
+	* Scud Storms from 46 to 6, with the money in the bank and no room to put them. */
+static const Real BASE_EDGE_REACH = 2.0f;
+
+/** What a computer buys for itself and can only keep at home: the buildings that pay out on a timer,
+	* the superweapons and the tech building they wait on.  The search for room used to walk outward
+	* until the map ended and the dozer's flood reached sixty cells past that, so a full base put its
+	* black markets and its Scud Storm out on ground nobody held.  These go inside the base or at its
+	* edge, or are not built. */
+static Bool staysHome( const ThingTemplate *tmpl )
+{
+	return tmpl->isKindOf( KINDOF_FS_SUPPLY_DROPZONE ) || tmpl->isKindOf( KINDOF_FS_BLACK_MARKET ) ||
+		tmpl->isKindOf( KINDOF_FS_INTERNET_CENTER ) || tmpl->isKindOf( KINDOF_FS_SUPERWEAPON ) ||
+		tmpl->isKindOf( KINDOF_FS_ADVANCED_TECH );
+}
 
 // ------------------------------------------------------------------------------------------------
 /** Whether the building search may flood through a cell: ground a vehicle could cross, the AI's own
@@ -1046,6 +1094,9 @@ Object *AIPlayer::buildStructureWithDozer(const ThingTemplate *bldgPlan, BuildLi
 			const Int searchRadius = isSkirmishAI() ? SKIRMISH_BUILD_SEARCH_CELLS : BUILD_SEARCH_CELLS;
 			const Int searchWidth = 2*searchRadius + 1;
 			const Int probeStride = isSkirmishAI() ? 2 : 1;		// the rings tried every other cell for a skirmish AI too
+			// A home building the skirmish AI asked for stays within the base's edge and away from an
+			// enemy.  The flood only tested that the building fits.
+			const Bool home = isSkirmishAI() && info->isPriorityBuild() && m_baseCenterSet && staysHome(bldgPlan);
 			ICoord2D origin;
 			TheAI->pathfinder()->worldToCell(&pos, &origin);
 			if (m_buildSearchCells.empty() || m_buildSearchPlan != bldgPlan ||
@@ -1090,12 +1141,14 @@ Object *AIPlayer::buildStructureWithDozer(const ThingTemplate *bldgPlan, BuildLi
 				if (TheAI->pathfinder()->getCell(LAYER_GROUND, cell.x, cell.y)->getType() != PathfindCell::CELL_CLEAR) continue;
 				newPos.x = pos.x + dx*PATHFIND_CELL_SIZE_F;
 				newPos.y = pos.y + dy*PATHFIND_CELL_SIZE_F;
+				if (home && sqr(newPos.x - m_baseCenter.x) + sqr(newPos.y - m_baseCenter.y) > sqr(BASE_EDGE_REACH*m_baseRadius)) continue;
 				++probes;
 				valid = TheBuildAssistant->isLocationLegalToBuild( &newPos, bldgPlan, angle,
 																						 BuildAssistant::CLEAR_PATH |
 																						 BuildAssistant::TERRAIN_RESTRICTIONS |
 																						 BuildAssistant::NO_OBJECT_OVERLAP,
 																						 dozer, m_player ) == LBC_OK;
+				if (valid && home && !isLocationSafe(&newPos, bldgPlan)) valid = false;
 				if (valid) break;
 			}
 			const Bool searchUnfinished = !valid && m_buildSearchNext < (Int)m_buildSearchCells.size();
@@ -1616,6 +1669,7 @@ void AIPlayer::onUnitProduced( Object *factory, Object *unit )
 											// The supply truck ai issues dock commands, and they become confused.
 											// Thus, player.  jba.  ;(
 											ai->aiDock(obj, CMD_FROM_PLAYER);
+											break;	// one truck, one center: it was counted at every center that wanted one
 										}
 									}
 							}
@@ -2854,6 +2908,9 @@ void AIPlayer::buildUpgrade(const AsciiString &upgrade)
 /** Defenses buildBySupplies puts beside one warehouse. */
 static const Int MAX_DEFENSES_PER_WAREHOUSE = 2;
 
+/** The furthest dock from its base center a computer with a base expands to, in world units. */
+static const Real EXPANSION_MAX_DISTANCE = 2000.0f;
+
 struct OwnedNearCount
 {
 	const ThingTemplate *tmpl;
@@ -2893,9 +2950,9 @@ static Int countOwnedNear( Player *player, const ThingTemplate *tmpl, const Coor
 // ------------------------------------------------------------------------------------------------
 /** Build a supply center near a supply source with minimumCash or more resources. */
 // ------------------------------------------------------------------------------------------------
-void AIPlayer::buildBySupplies(Int minimumCash, const AsciiString& thingName)
+void AIPlayer::buildBySupplies(Int minimumCash, const AsciiString& thingName, Bool holdableOnly)
 {
-	Object *bestSupplyWarehouse = findSupplyCenter(minimumCash);
+	Object *bestSupplyWarehouse = findSupplyCenter(minimumCash, holdableOnly);
 	const ThingTemplate* tTemplate = TheThingFactory->findTemplate(thingName);
 	// tTemplate was dereferenced here and only null-checked a few lines further down, so a bad
 	// building name in the "Build supply center" script action faulted.
@@ -2943,10 +3000,12 @@ void AIPlayer::buildBySupplies(Int minimumCash, const AsciiString& thingName)
 
  		// validate the the position to build at is valid
 		Bool valid=false;
+		Bool blocked=false;
 		Coord3D newPos = location;
 		if( TheBuildAssistant->isLocationLegalToBuild( &location, tTemplate, angle,
 																									 BuildAssistant::NO_OBJECT_OVERLAP,
 																									 NULL, m_player ) != LBC_OK ) {
+			blocked = true;
 			// Warn. 
 			const Coord3D *warehouseLocation = bestSupplyWarehouse->getPosition();
 			AsciiString debugMessage;
@@ -3019,7 +3078,16 @@ void AIPlayer::buildBySupplies(Int minimumCash, const AsciiString& thingName)
 			location = newPos;
 		}
 		TheTerrainVisual->removeAllBibs();	// isLocationLegalToBuild adds bib feedback, turn it off.  jba.
+		if (holdableOnly && blocked && !valid) {
+			// No room beside the dock.  A script's request still goes down on the taken spot and the
+			// dozer's flood looks for room; the AI's own expansion is not built.
+			return;
+		}
 		location.z = 0; // All build list locations are ground relative.
+		DEBUG_LOG(("AI EXPAND frame %d player %d builds '%s' at (%.0f,%.0f) by dock %d, %d in the bank, %.0f from a base of radius %.0f%s\n",
+			TheGameLogic->getFrame(), m_player->getPlayerIndex(), thingName.str(), location.x, location.y, bestSupplyWarehouse->getID(),
+			m_player->getMoney()->countMoney(), sqrt( sqr( location.x - m_baseCenter.x ) + sqr( location.y - m_baseCenter.y ) ), m_baseRadius,
+			holdableOnly ? ", its own choice" : ""));
 		m_player->addToPriorityBuildList(thingName, &location, angle);
 		m_curWarehouseID = bestSupplyWarehouse->getID();
 	}
@@ -3235,7 +3303,7 @@ void AIPlayer::buildSpecificBuildingNearestTeam( const AsciiString &thingName, c
 // ------------------------------------------------------------------------------------------------
 /** Find a supply center we haven't built a supply depot near yet. */
 // ------------------------------------------------------------------------------------------------
-Object *AIPlayer::findSupplyCenter(Int minimumCash)
+Object *AIPlayer::findSupplyCenter(Int minimumCash, Bool holdableOnly)
 {
 	Object *bestSupplyWarehouse = NULL;
 	Real bestDistSqr = 0;
@@ -3294,6 +3362,14 @@ Object *AIPlayer::findSupplyCenter(Int minimumCash)
 				dx = obj->getPosition()->x - m_baseCenter.x;
 				dy = obj->getPosition()->y - m_baseCenter.y;
 				Real distSqr = dx*dx + dy*dy;
+				// An AI expanding on its own takes a dock it can hold: within EXPANSION_MAX_DISTANCE of
+				// home, nearer its own base than any enemy's, and with no enemy standing at it.  The test
+				// below only knows the one enemy this AI is attacking, and lets through a dock a fifth
+				// nearer him than us.  A script's choice of dock is left as it was.
+				if (holdableOnly && (distSqr > sqr(EXPANSION_MAX_DISTANCE) || !isOurSideOfMap(obj->getPosition()) ||
+						!isLocationSafe(obj->getPosition(), obj->getTemplate()))) {
+					continue;
+				}
 				if (enemy) {
 					// make sure this isn't closer to our enemy than us.
 					dx = obj->getPosition()->x - enemyCenter.x;
@@ -4468,6 +4544,38 @@ Bool AIPlayer::dozerInQueue( void )
 	return false;
 }
 
+/** A building of this name the AI asked for is on the build list and not yet standing. */
+static Bool hasPendingRequest( Player *player, const AsciiString &name )
+{
+	for( BuildListInfo *info = player->getBuildList(); info; info = info->getNext() )
+	{
+		if( info->isPriorityBuild() && info->getTemplateName() == name &&
+				info->getObjectID() == INVALID_ID && info->isBuildable() )
+			return TRUE;
+	}
+	return FALSE;
+}
+
+/** Something of this player's that can shoot stands within reach of a point: a base defense, a
+	* team on guard. */
+static Bool hasGuardNear( Player *player, const Coord3D *pos, Real reach )
+{
+	PartitionFilterPlayer mine( player, true );
+	PartitionFilterAlive alive;
+	PartitionFilterRejectByKindOf notHarvester( MAKE_KINDOF_MASK( KINDOF_HARVESTER ), KINDOFMASK_NONE );
+	PartitionFilterRejectByKindOf notDozer( MAKE_KINDOF_MASK( KINDOF_DOZER ), KINDOFMASK_NONE );
+	PartitionFilter *filters[] = { &mine, &alive, &notHarvester, &notDozer, NULL };
+
+	ObjectIterator *iter = ThePartitionManager->iterateObjectsInRange( pos, reach, FROM_BOUNDINGSPHERE_2D, filters );
+	MemoryPoolObjectHolder hold( iter );
+	for( Object *obj = iter->first(); obj; obj = iter->next() )
+	{
+		if( obj->isAbleToAttack() && !obj->testStatus( OBJECT_STATUS_UNDER_CONSTRUCTION ) )
+			return TRUE;
+	}
+	return FALSE;
+}
+
 //----------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------
 /** Notice that there is money to be had, and go and take it.
@@ -4518,15 +4626,27 @@ void AIPlayer::doExpansion( void )
 	// dock", so the same dock was picked again every minute, a fresh copy queued, and its placement
 	// search run again: 2,300 checks, 23-33ms, each time.  The base builder still owns the queued one.
 	//
-	for( BuildListInfo *info = m_player->getBuildList(); info; info = info->getNext() )
-	{
-		if( info->isPriorityBuild() && info->getTemplateName() == supplyCenterName &&
-				info->getObjectID() == INVALID_ID && info->isBuildable() )
-			return;
-	}
+	if( hasPendingRequest( m_player, supplyCenterName ) )
+		return;
 
 	const ThingTemplate *tmpl = TheThingFactory->findTemplate( supplyCenterName, FALSE );
 	if( tmpl == NULL )
+		return;
+
+	//
+	// One expansion at a time.  The last one, if its supply center still stands, its pile still has
+	// boxes and it is out past the base, gets something of ours that shoots beside it before the
+	// next is opened; every minute opened another, each as bare as the one before.  The wait lasts
+	// only as long as a gun for it is on the build list and can be built: a profile that defends
+	// nothing, a side with no gun, a dock with no room for one or two guns already standing there
+	// all let the next expansion go ahead.
+	//
+	const Object *last = TheGameLogic->findObjectByID( m_curWarehouseID );
+	if( profile->m_defendExpansions && last && isHeldExpansion( last ) &&
+			sqr( last->getPosition()->x - m_baseCenter.x ) + sqr( last->getPosition()->y - m_baseCenter.y ) > sqr( 2.0f * m_baseRadius ) &&
+			hasSuppliesNear( m_player, last, 0.0f ) &&
+			!hasGuardNear( m_player, last->getPosition(), TheAI->getAiData()->m_supplyCenterSafeRadius ) &&
+			buildExpansionDefense() )
 		return;
 
 	// pay for it out of what is spare, not out of the army's money
@@ -4539,25 +4659,32 @@ void AIPlayer::doExpansion( void )
 	// this AI already has a centre beside, and one that is closer to the enemy than to us.
 	//
 	const Int WORTH_TAKING = 1000;
-	if( findSupplyCenter( WORTH_TAKING ) == NULL )
+	if( findSupplyCenter( WORTH_TAKING, TRUE ) == NULL )
 		return;
 
-	buildBySupplies( WORTH_TAKING, supplyCenterName );
+	buildBySupplies( WORTH_TAKING, supplyCenterName, TRUE );
 
-	if( profile->m_defendExpansions )
+	// the gun follows a supply center that was asked for: buildBySupplies puts it at the dock it
+	// chose last, and a call that found no room chose none
+	if( profile->m_defendExpansions && hasPendingRequest( m_player, supplyCenterName ) )
+		buildExpansionDefense();
+}
+
+/** This side's first base defense, beside the dock buildBySupplies chose last.  True while one is
+	* on the build list and this player can build it. */
+Bool AIPlayer::buildExpansionDefense( void )
+{
+	for( const AISideInfo *resInfo = TheAI->getAiData()->m_sideInfo; resInfo; resInfo = resInfo->m_next )
 	{
-		const AISideInfo *resInfo = TheAI->getAiData()->m_sideInfo;
-		while( resInfo )
-		{
-			if( resInfo->m_side == m_player->getSide() )
-			{
-				if( resInfo->m_baseDefenseStructure1.isNotEmpty() )
-					buildBySupplies( WORTH_TAKING, resInfo->m_baseDefenseStructure1 );
-				break;
-			}
-			resInfo = resInfo->m_next;
-		}
+		if( resInfo->m_side != m_player->getSide() )
+			continue;
+		const ThingTemplate *defense = TheThingFactory->findTemplate( resInfo->m_baseDefenseStructure1, FALSE );
+		if( defense == NULL )
+			return FALSE;
+		buildBySupplies( 1000, resInfo->m_baseDefenseStructure1 );	// the amount only picks a dock when the last one is gone
+		return m_player->canBuild( defense ) && hasPendingRequest( m_player, resInfo->m_baseDefenseStructure1 );
 	}
+	return FALSE;
 }
 
 //----------------------------------------------------------------------------------------------------------
@@ -4594,6 +4721,10 @@ static const Int MAX_ECONOMY_DOZERS = 4;
 	* and starts the next call there, so a full opening base does not end the search. */
 static const Int PLACEMENT_ANGLES = 12;
 static const Int PLACEMENT_RINGS = 2;
+
+/** Rings a call tries for a building that stays home (staysHome).  It has no outward walk to carry
+	* on with next time, and a spot past the base's edge costs no legality check. */
+static const Int HOME_PLACEMENT_RINGS = 6;
 
 /** How far either side of a waypoint an approach counts the guns along it. */
 static const Real APPROACH_WATCH_RADIUS = 250.0f;
@@ -5110,11 +5241,13 @@ void AIPlayer::doEconomy( void )
 	const Int INCOME_KINDS = 3;
 	static const KindOfType INCOME[ INCOME_KINDS ] = {
 		KINDOF_FS_SUPPLY_DROPZONE, KINDOF_FS_BLACK_MARKET, KINDOF_FS_INTERNET_CENTER };
+	Bool homeFull = FALSE;		// an income building was wanted and the base had no room for it
 	for( Int i = 0; i < INCOME_KINDS; ++i )
 	{
 		const ThingTemplate *tmpl = buildableOfKind( dozer, GUI_COMMAND_DOZER_CONSTRUCT, INCOME[ i ] );
-		if( tmpl && !priorityBuildPending( m_player, tmpl ) )
-			placeNear( tmpl, &m_baseCenter, m_baseRadius, TRUE );
+		// from half way out to the edge: placeNear keeps these inside the base (staysHome)
+		if( tmpl && !priorityBuildPending( m_player, tmpl ) && !placeNear( tmpl, &m_baseCenter, 0.5f * m_baseRadius, FALSE ) )
+			homeFull = TRUE;
 	}
 
 	// ... and what does not pay back for twice it, so the opening build order is not what pays for it
@@ -5159,8 +5292,12 @@ void AIPlayer::doEconomy( void )
 		}
 		else
 		{
+			// The income building the base had no room for used to go up out on the map, and that was
+			// where a GLA's money went: it has no airfield to spend on, and one banked 136,939 by the
+			// end of a match.  With home full the money goes into production, a factory a pass whether
+			// or not its queue is backing up, the way the airfields always have.
 			for( Int i = 0; i < 2; ++i )
-				if( queueExtraFactory( dozer, QUEUED_KINDS[ i ], FALSE ) )
+				if( queueExtraFactory( dozer, QUEUED_KINDS[ i ], homeFull ) )
 					return;
 		}
 	}
@@ -5331,15 +5468,20 @@ Bool AIPlayer::isHeldExpansion( const Object *warehouse )
 	m_player->iterateObjects( findSupplyCenterNear, &search );
 	if( !search.found )
 		return FALSE;
+	return isOurSideOfMap( &search.at );
+}
 
-	const Real oursSqr = sqr( search.at.x - m_baseCenter.x ) + sqr( search.at.y - m_baseCenter.y );
+/** The point is no nearer any living enemy's base, as far as this AI knows where that is, than ours. */
+Bool AIPlayer::isOurSideOfMap( const Coord3D *pos )
+{
+	const Real oursSqr = sqr( pos->x - m_baseCenter.x ) + sqr( pos->y - m_baseCenter.y );
 	for( Int i = 0; i < ThePlayerList->getPlayerCount(); ++i )
 	{
 		Player *them = ThePlayerList->getNthPlayer( i );
 		if( them == m_player || m_player->getRelationship( them->getDefaultTeam() ) != ENEMIES || !them->hasAnyObjects() )
 			continue;
 		Coord3D theirs;
-		if( enemyStartGuess( i, &theirs ) && sqr( search.at.x - theirs.x ) + sqr( search.at.y - theirs.y ) < oursSqr )
+		if( enemyStartGuess( i, &theirs ) && sqr( pos->x - theirs.x ) + sqr( pos->y - theirs.y ) < oursSqr )
 			return FALSE;
 	}
 	return TRUE;
@@ -5374,11 +5516,12 @@ void AIPlayer::buildAsap( const ThingTemplate *tmpl )
 		spot.x -= dir.x * m_baseRadius * POWER_SETBACK;
 		spot.y -= dir.y * m_baseRadius * POWER_SETBACK;
 	}
-	if( placeNear( tmpl, &spot, 0.0f, TRUE ) )
+	if( placeNear( tmpl, &spot, 0.0f, FALSE ) )
 		return;
 
-	/* A superweapon's footprint rarely fits one of placeNear's two dozen tries in a grown base, so the
-		 request goes down behind the base anyway and the dozer's flood search looks for the room.  A
+	/* A superweapon's footprint rarely fits one of placeNear's tries in a grown base, so the request
+		 goes down behind the base anyway and the dozer's flood search looks for the room, no further
+		 than the base's edge (staysHome).  A
 		 base with none floods seven thousand cells for nothing, and giveUpOnSpot drops the request, so
 		 it is only put down every sixth check: asked every check, one Hard GLA spent 3,687 frames of a
 		 match flooding for a Scud Storm with the rest of its base waiting behind it. */
@@ -5525,6 +5668,14 @@ Bool AIPlayer::placeNear( const ThingTemplate *tmpl, const Coord3D *center, Real
 	const Real structureRadius = tmpl->getTemplateGeometryInfo().getBoundingCircleRadius();
 	const Real placeAngle = tmpl->getPlacementViewAngle();
 
+	// A building that stays home does not walk outward, and leaves the ring the others have reached
+	// alone: it tries every ring that can still be inside the base's edge, on every call.
+	const Bool home = staysHome( tmpl );
+	const Real homeReachSqr = sqr( BASE_EDGE_REACH * m_baseRadius );
+	const Int rings = home ? HOME_PLACEMENT_RINGS : PLACEMENT_RINGS;
+	if( home )
+		walkOutward = FALSE;
+
 	Int startRing = 0;
 	if( walkOutward )
 	{
@@ -5550,7 +5701,7 @@ Bool AIPlayer::placeNear( const ThingTemplate *tmpl, const Coord3D *center, Real
 		startRing = m_placementRing;
 	}
 
-	for( Int ring = startRing; ring < startRing + PLACEMENT_RINGS; ++ring )
+	for( Int ring = startRing; ring < startRing + rings; ++ring )
 	{
 		const Real distance = innerRadius + structureRadius * (2 * ring + 1);
 		for( Int step = 0; step < PLACEMENT_ANGLES; ++step )
@@ -5560,6 +5711,8 @@ Bool AIPlayer::placeNear( const ThingTemplate *tmpl, const Coord3D *center, Real
 			pos.x += distance * Cos( angle );
 			pos.y += distance * Sin( angle );
 			pos.z = 0;
+			if( home && sqr( pos.x - m_baseCenter.x ) + sqr( pos.y - m_baseCenter.y ) > homeReachSqr )
+				continue;
 
 			const Bool legal = TheBuildAssistant->isLocationLegalToBuild( &pos, tmpl, placeAngle,
 												BuildAssistant::CLEAR_PATH | BuildAssistant::TERRAIN_RESTRICTIONS | BuildAssistant::NO_OBJECT_OVERLAP,
@@ -5569,8 +5722,9 @@ Bool AIPlayer::placeNear( const ThingTemplate *tmpl, const Coord3D *center, Real
 			{
 				if( walkOutward )
 					m_placementRing = ring;
-				DEBUG_LOG(("AI ECONOMY frame %d player %d builds '%s' at (%.0f,%.0f), %d in the bank\n", TheGameLogic->getFrame(),
-					m_player->getPlayerIndex(), tmpl->getName().str(), pos.x, pos.y, m_player->getMoney()->countMoney()));
+				DEBUG_LOG(("AI ECONOMY frame %d player %d builds '%s' at (%.0f,%.0f), %d in the bank, %.0f from a base of radius %.0f\n", TheGameLogic->getFrame(),
+					m_player->getPlayerIndex(), tmpl->getName().str(), pos.x, pos.y, m_player->getMoney()->countMoney(),
+					sqrt( sqr( pos.x - m_baseCenter.x ) + sqr( pos.y - m_baseCenter.y ) ), m_baseRadius));
 				m_player->addToPriorityBuildList( tmpl->getName(), &pos, placeAngle );
 				return TRUE;
 			}
@@ -5578,6 +5732,9 @@ Bool AIPlayer::placeNear( const ThingTemplate *tmpl, const Coord3D *center, Real
 	}
 	if( walkOutward )
 		m_placementRing = startRing + PLACEMENT_RINGS;
+	if( home )
+		DEBUG_LOG(("AI ECONOMY frame %d player %d has no room for '%s' within %.0f of its base, %d in the bank\n", TheGameLogic->getFrame(),
+			m_player->getPlayerIndex(), tmpl->getName().str(), BASE_EDGE_REACH * m_baseRadius, m_player->getMoney()->countMoney()));
 	return FALSE;
 }
 
@@ -5831,14 +5988,34 @@ static void addHomeHelicopter( Object *obj, void *userData )
 	}
 }
 
-static Real teamPower( Team *team )
+/** Away from home with something to do: on a road, in a fight, hunting.  Whatever is done with the
+	* rest of its team, this one is left to it.  One still walking to the point its wave gathers at is
+	* waiting, not out. */
+Bool AIPlayer::isOutOnOrders( const Object *obj ) const
+{
+	const StateID state = obj->getAI()->getCurrentStateID();
+	if( state == AI_IDLE || state == AI_GUARD || state == AI_GUARD_RETALIATE || state == AI_MOVE_AND_TIGHTEN )
+		return FALSE;
+	return sqr( obj->getPosition()->x - m_baseCenter.x ) + sqr( obj->getPosition()->y - m_baseCenter.y ) > sqr( 2.0f * m_baseRadius );
+}
+
+/** What a team has to put into a wave, and those members into the group when one is given.  Not the
+	* members already out on orders.  A team is topped up at home while the rest of it fights, and the
+	* wave code took the team whole: one Hard USA's 'Artillery F' had three new members idle at home, was
+	* called up as six, and the three at the enemy's base turned round to walk the approach path again
+	* from the middle of the map.  That side had 58,000 of army and between five and eight units at the
+	* enemy's base. */
+Real AIPlayer::waitingPower( Team *team, AIGroup *group ) const
 {
 	Real power = 0.0f;
 	for( DLINK_ITERATOR<Object> iter = team->iterate_TeamMemberList(); !iter.done(); iter.advance() )
 	{
 		Object *obj = iter.cur();
-		if( obj && !obj->isEffectivelyDead() )
-			power += aiCombatPower( obj );
+		if( obj->isEffectivelyDead() || obj->getAI() == NULL || isOutOnOrders( obj ) )
+			continue;
+		power += aiCombatPower( obj );
+		if( group && !obj->isContained() )
+			group->add( obj );		// a rider goes with its gunship, not on its own orders
 	}
 	return power;
 }
@@ -5910,7 +6087,7 @@ Bool aiTeamAttacks( const TeamTemplateInfo *info )
 //----------------------------------------------------------------------------------------------------------
 Bool AIPlayer::holdTeamForWave( Team *team, const AsciiString &approach, Int pathSuffix )
 {
-	if( team == NULL || !isSkirmishAI() || !getSkillProfile()->m_massBeforeAttacking )
+	if( team == NULL || !isSkirmishAI() || !holdsTeamsForWaves() )
 		return FALSE;
 	const TeamTemplateInfo *info = team->getPrototype()->getTemplateInfo();
 	if( info->m_isBaseDefense || info->m_isPerimeterDefense )
@@ -5932,7 +6109,7 @@ Bool AIPlayer::holdTeamForWave( Team *team, const AsciiString &approach, Int pat
 	}
 	if( freeSlot < 0 )
 		return FALSE;		// the staging point is full, so this one goes as the script said
-	if( teamPower( team ) >= WAVE_POWER )
+	if( aiReleaseWaveAt( m_pressure, waitingPower( team, NULL ), WAVE_POWER, 0, WAVE_MAX_HOLD_FRAMES ) )
 		return FALSE;		// a wave on its own waits for nobody
 
 	m_heldUsed[ freeSlot ] = TRUE;
@@ -5964,8 +6141,9 @@ Bool AIPlayer::holdTeamForWave( Team *team, const AsciiString &approach, Int pat
 				break;
 			}
 		}
+		// an outmatched AI gathers at home, where the wave is also the garrison
 		Coord3D hold;
-		if( getSkillProfile()->m_useInfluenceMapForAttackLane &&
+		if( getSkillProfile()->m_useInfluenceMapForAttackLane && m_pressure != AIPRESSURE_DEFEND &&
 				forwardHoldPoint( m_heldLabel[ firstParked ], m_heldSuffix[ firstParked ], &enemyPos, &hold ) )
 		{
 			DEBUG_LOG(("AI HOLD frame %d player %d gathers at (%.0f,%.0f) on %s%d\n", TheGameLogic->getFrame(),
@@ -5974,9 +6152,163 @@ Bool AIPlayer::holdTeamForWave( Team *team, const AsciiString &approach, Int pat
 		}
 	}
 	AIGroup *group = TheAI->createGroup();
-	team->getTeamAsAIGroup( group );
-	group->groupTightenToPosition( &staging, FALSE, CMD_FROM_AI );
+	waitingPower( team, group );
+	if( group->isEmpty() )
+		TheAI->destroyGroup( group );
+	else
+		group->groupTightenToPosition( &staging, FALSE, CMD_FROM_AI );
 	return TRUE;
+}
+
+//----------------------------------------------------------------------------------------------------------
+/** One player's army as an observer knows it: everything that moves and shoots, in aiCombatPower's
+	* currency.  observer -1 is the player counting its own.  An enemy carried inside something is not
+	* counted, since isUnknownTo answers "known" for whatever has no place on the map. */
+struct KnownArmy
+{
+	Int observer;
+	Real power;
+	Int buildings;		///< his buildings the observer knows of, and the sum of where they stand
+	Real buildingsX;
+	Real buildingsY;
+};
+
+static void addKnownArmy( Object *obj, void *userData )
+{
+	KnownArmy *army = (KnownArmy *)userData;
+	if( obj->isEffectivelyDead() || obj->isKindOf( KINDOF_PROJECTILE ) )
+		return;
+	if( army->observer >= 0 && (obj->isContained() || !observerKnowsAbout( obj, army->observer )) )
+		return;
+	if( obj->isKindOf( KINDOF_STRUCTURE ) )
+	{
+		++army->buildings;
+		army->buildingsX += obj->getPosition()->x;
+		army->buildingsY += obj->getPosition()->y;
+	}
+	else if( !obj->isKindOf( KINDOF_MONEY_HACKER ) )
+		army->power += aiCombatPower( obj );
+}
+
+/** How much of the enemy army this AI believes in is kept for each look at his base that does not find
+	* it, and how much of the way back to an army like its own the belief goes for each look not taken. */
+static const Real KNOWN_ARMY_KEPT = 0.9f;
+static const Real UNSEEN_ARMY_GROWS = 0.02f;
+
+/** How often the guards at home are sent hunting once the enemy is finished.  Not every wave tick: a
+	* guard whose script puts it straight back on guard would be sent again every two seconds. */
+static const Int GUARD_HUNT_RATE = 30 * LOGICFRAMES_PER_SECOND;
+
+/** As far as AIHuntState looks for a victim. */
+static const Real HUNT_REACH = 9999.9f;
+
+/** The rungs that park attack teams, and when.  Hard does until it is ahead.  Medium sends each team
+	* as it forms, as it always did, except into an enemy that outmatches it; it knows when to leave a
+	* losing fight, and this is the same judgement made before the walk.  Easy never waits. */
+Bool AIPlayer::holdsTeamsForWaves( void ) const
+{
+	const AIDifficultyProfile *profile = getSkillProfile();
+	if( profile->m_massBeforeAttacking )
+		return m_pressure <= AIPRESSURE_NORMAL;
+	return m_pressure == AIPRESSURE_DEFEND && profile->m_retreatTtkRatio > 0.0f;
+}
+
+/** Who the last push takes out of a team the scripts keep at home.  The workers, the hackers, the
+	* scouts and whoever is out capturing keep their jobs, and a jet flies its own sorties. */
+Bool AIPlayer::leavesToFinish( const Object *obj ) const
+{
+	if( aiCombatPower( obj ) <= 0.0f || !obj->isAbleToAttack() || obj->isKindOf( KINDOF_STRUCTURE ) || obj->isKindOf( KINDOF_HARVESTER ) ||
+			obj->isKindOf( KINDOF_DOZER ) || obj->isKindOf( KINDOF_MONEY_HACKER ) )
+		return FALSE;
+	if( obj->isKindOf( KINDOF_AIRCRAFT ) && !isHelicopter( obj ) )
+		return FALSE;
+	const ObjectID id = obj->getID();
+	for( Int slot = 0; slot < MAX_AI_SCOUTS; ++slot )
+		if( m_scoutID[ slot ] == id )
+			return FALSE;
+	return id != m_capturerID && id != m_ferryID && id != m_hijackerID;
+}
+
+//----------------------------------------------------------------------------------------------------------
+/** The owner watched a computer with an army at home and an enemy with nothing left go on waiting
+	* for a wave.  The wave was sized against a constant, whoever it was for.  So the AI now rates its
+	* chance against its current enemy, its own army against what it knows of his, and the wave code
+	* reads the level that chance gives (aiPressureLevel).
+	*
+	* What it knows of his army is what it can see, and an army at home behind the fog is not in sight.
+	* So the figure is a belief.  It starts at an army the size of this AI's own and is never less than
+	* what is in sight.  It comes down only while the middle of his base is in view and the army is not,
+	* a tenth for each look, which is forty seconds of standing in an empty base before the guards are
+	* called out.  With nobody looking it climbs back towards an army the size of this AI's own: an enemy
+	* left alone is an even match again in a couple of minutes.  His base is where the buildings this AI
+	* knows of stand, not his start position: the AI's army can be inside his base with the start still
+	* unlocated, since only a scout pins it, and the guess meanwhile is the nearest start nobody has
+	* walked to.
+	*
+	* Three simpler versions were played on Twilight Flame first.  Taking what was in sight at his base
+	* for the whole of it had one Hard China call 4,100 against an army its owner counted at 22,700 and
+	* rising, and send its guards out to finish him for nine minutes.  Remembering the most ever seen
+	* had both sides four minutes in at 21,300 against 800 and 14,700 against 1,200, each pressing an
+	* enemy it had seen one corner of, and the waves were never massed again.  Looking at the guessed
+	* start had a USA at (4367,3119) watching an empty start at (4426,1630) beside its own base, its
+	* belief falling a tenth every two seconds, while the GLA it was fighting stood at (460,1679). */
+//----------------------------------------------------------------------------------------------------------
+void AIPlayer::updatePressure( void )
+{
+	Player *enemy = getAiEnemy();
+	if( enemy == NULL )
+		return;
+	const Int me = m_player->getPlayerIndex();
+
+	KnownArmy mine = { -1, 0.0f, 0, 0.0f, 0.0f };
+	m_player->iterateObjects( addKnownArmy, &mine );
+	KnownArmy his = { me, 0.0f, 0, 0.0f, 0.0f };
+	enemy->iterateObjects( addKnownArmy, &his );
+
+	Bool baseInSight = FALSE;
+	if( his.buildings > 0 )
+	{
+		Coord3D middle;
+		middle.x = his.buildingsX / his.buildings;
+		middle.y = his.buildingsY / his.buildings;
+		middle.z = 0.0f;
+		baseInSight = ThePartitionManager->getShroudStatusForPlayer( me, &middle ) == CELLSHROUD_CLEAR;
+	}
+
+	// a new enemy, a save from before this was kept, or an enemy none of whose buildings has been seen:
+	// an even match until somebody looks
+	if( enemy->getPlayerIndex() != m_pressureEnemy || his.buildings == 0 )
+	{
+		m_pressureEnemy = enemy->getPlayerIndex();
+		m_knownEnemyPower = mine.power;
+	}
+	else if( baseInSight )
+		m_knownEnemyPower *= KNOWN_ARMY_KEPT;
+	else if( m_knownEnemyPower < mine.power )
+		m_knownEnemyPower += (mine.power - m_knownEnemyPower) * UNSEEN_ARMY_GROWS;
+	if( his.power > m_knownEnemyPower )
+		m_knownEnemyPower = his.power;
+
+	const Real chance = aiWinChance( mine.power, m_knownEnemyPower );
+	AIPressure level = aiPressureLevel( chance, baseInSight, m_pressure );
+
+	// the guards stay while anybody else is still in the game to walk into the base they left
+	if( level == AIPRESSURE_FINISH )
+	{
+		for( Int i = 0; i < ThePlayerList->getPlayerCount(); ++i )
+		{
+			Player *other = ThePlayerList->getNthPlayer( i );
+			if( other != enemy && other != m_player && m_player->getRelationship( other->getDefaultTeam() ) == ENEMIES &&
+					other->hasAnyUnits() && other->hasAnyBuildFacility() )
+				level = AIPRESSURE_PRESS;
+		}
+	}
+	if( level == m_pressure )
+		return;
+	static const char *const names[ AIPRESSURE_COUNT ] = { "defend", "normal", "press", "finish" };
+	DEBUG_LOG(("AI PRESSURE frame %d player %d chance %.2f level %s, %.0f power against %.0f believed\n", TheGameLogic->getFrame(),
+		me, chance, names[ level ], mine.power, m_knownEnemyPower));
+	m_pressure = level;
 }
 
 //----------------------------------------------------------------------------------------------------------
@@ -5988,7 +6320,9 @@ void AIPlayer::doWaves( void )
 	if( (TheGameLogic->getFrame() + computeUpdatePhase( m_player->getPlayerIndex(), WAVE_CHECK_RATE )) % WAVE_CHECK_RATE != 0 )
 		return;
 
+	updatePressure();
 	sendIdleAttackTeams();
+	sendIdleUnitsHunting();
 
 	Real power = 0.0f;
 	Int first = -1;
@@ -6003,7 +6337,7 @@ void AIPlayer::doWaves( void )
 			m_heldUsed[ i ] = FALSE;
 			continue;
 		}
-		power += teamPower( team );
+		power += waitingPower( team, NULL );
 		if( first < 0 )
 			first = i;
 		++teams;
@@ -6012,7 +6346,9 @@ void AIPlayer::doWaves( void )
 		return;
 	loadGunships();
 	const UnsignedInt heldFrames = TheGameLogic->getFrame() - m_heldSince;
-	if( !aiReleaseWave( power, WAVE_POWER, heldFrames, WAVE_MAX_HOLD_FRAMES ) )
+	// a full staging point goes whatever it adds up to: sixteen GLA teams of one man each are 3,200, and
+	// every team formed behind them would leave alone
+	if( teams < MAX_HELD_TEAMS && !aiReleaseWaveAt( m_pressure, power, WAVE_POWER, heldFrames, WAVE_MAX_HOLD_FRAMES ) )
 		return;
 
 	const AsciiString requested = m_heldLabel[ first ];
@@ -6025,14 +6361,8 @@ void AIPlayer::doWaves( void )
 			continue;
 		m_heldUsed[ i ] = FALSE;
 		Team *team = TheTeamFactory->findTeamByID( m_heldTeam[ i ] );
-		if( team == NULL )
-			continue;
-		for( DLINK_ITERATOR<Object> iter = team->iterate_TeamMemberList(); !iter.done(); iter.advance() )
-		{
-			Object *obj = iter.cur();
-			if( obj && !obj->isEffectivelyDead() && obj->getAI() && !obj->isContained() )
-				wave->add( obj );		// a rider goes with its gunship, not on its own orders
-		}
+		if( team )
+			waitingPower( team, wave );
 	}
 
 	/* The helicopters at home go too.  A player watched China build helicopters and never send them:
@@ -6212,11 +6542,14 @@ void AIPlayer::sendWave( AIGroup *wave, const AsciiString &approach, Int pathSuf
 	* 70,000 banked.  So an attack team that stands idle at home is called up here: it parks for the next
 	* wave, or goes on its own when it is a wave by itself or the staging point is full.  The guards stay,
 	* since the scripts never send them.  The same eight matches then had 17 idle at home, 9 in attack
-	* teams, and sent 319 waves instead of 134. */
+	* teams, and sent 319 waves instead of 134.
+	*
+	* Against an enemy with next to no army left (AIPRESSURE_FINISH) every rung calls its attack teams up
+	* this way, and sendIdleUnitsHunting takes the guards. */
 //----------------------------------------------------------------------------------------------------------
 void AIPlayer::sendIdleAttackTeams( void )
 {
-	if( !isSkirmishAI() || !getSkillProfile()->m_massBeforeAttacking || !m_baseCenterSet )
+	if( !isSkirmishAI() || (m_pressure != AIPRESSURE_FINISH && !getSkillProfile()->m_massBeforeAttacking) || !m_baseCenterSet )
 		return;
 	Player *enemy = getAiEnemy();
 	if( enemy == NULL )
@@ -6242,15 +6575,16 @@ void AIPlayer::sendIdleAttackTeams( void )
 			if( parked )
 				continue;
 
-			// most of the members that can walk are at home with nothing to do.  Not all of them: an Angry
-			// Mob's members never stop milling round their nexus, and one straggler out on the map kept 22
-			// of them at home for a minute
+			// most of the members that can walk and are not out on orders are at home with nothing to do.
+			// Not all of them: an Angry Mob's members never stop milling round their nexus, and one
+			// straggler out on the map kept 22 of them at home for a minute
 			Int members = 0;
 			Int waiting = 0;
 			for( DLINK_ITERATOR<Object> m = team->iterate_TeamMemberList(); !m.done(); m.advance() )
 			{
 				Object *obj = m.cur();
-				if( obj->isEffectivelyDead() || obj->getAI() == NULL || obj->isContained() || obj->isKindOf( KINDOF_IMMOBILE ) )
+				if( obj->isEffectivelyDead() || obj->getAI() == NULL || obj->isContained() || obj->isKindOf( KINDOF_IMMOBILE ) ||
+						isOutOnOrders( obj ) )
 					continue;
 				++members;
 				const StateID state = obj->getAI()->getCurrentStateID();
@@ -6266,12 +6600,82 @@ void AIPlayer::sendIdleAttackTeams( void )
 			if( holdTeamForWave( team, center, pathSuffix ) )
 				continue;
 			AIGroup *group = TheAI->createGroup();
-			team->getTeamAsAIGroup( group );
+			const Real power = waitingPower( team, group );
 			Coord3D from;
 			group->getCenter( &from );
-			sendWave( group, chooseApproachLabel( &from, center, pathSuffix ), pathSuffix, 1, teamPower( team ), 0 );
+			sendWave( group, chooseApproachLabel( &from, center, pathSuffix ), pathSuffix, 1, power, 0 );
 		}
 	}
+}
+
+//----------------------------------------------------------------------------------------------------------
+/** Sixteen Hard matches on Twilight Flame had a side four to one ahead and calling its enemy finished
+	* for up to 40% of the match without winning it.  One of them, a USA with 46,625 of army against a
+	* GLA it counted at 6,584, had 9,250 of that standing idle at the end of its approach path, a
+	* Tomahawk's walk from buildings it had orders about and none to shoot: a wave sent from here has no
+	* script to carry on with when the path runs out.  So a member of an attack team standing idle away
+	* from home is sent hunting, which is what the scripts do with a team of their own at that point.
+	* Not a parked team, which is idle at its hold point on purpose, and not while this AI is
+	* outmatched.  On every wave tick: a hunt is dropped by the next kiting step or retreat, and looked
+	* at every thirty seconds a quarter of the units at the enemy's base were idle at each look.
+	*
+	* Against an enemy with next to no army left (AIPRESSURE_FINISH) the guards go as well: the base
+	* defence teams, the teams whose scripts never attack and the strays in the default team have
+	* nothing left to guard against.  Only a unit the hunt has a victim for.  An ECM tank with nothing
+	* but buildings left to find went back on guard and was sent out again every thirty seconds. */
+//----------------------------------------------------------------------------------------------------------
+void AIPlayer::sendIdleUnitsHunting( void )
+{
+	if( !isSkirmishAI() || !m_baseCenterSet || m_pressure == AIPRESSURE_DEFEND )
+		return;
+	const Bool finish = m_pressure == AIPRESSURE_FINISH;
+	const Bool guardsGo = finish &&
+		(TheGameLogic->getFrame() + computeUpdatePhase( m_player->getPlayerIndex(), WAVE_CHECK_RATE )) % GUARD_HUNT_RATE == 0;
+	const Real reachSqr = sqr( 2.0f * m_baseRadius );
+	Int hunters = 0;
+	Int guards = 0;
+
+	for( Player::PlayerTeamList::const_iterator t = m_player->getPlayerTeams()->begin(); t != m_player->getPlayerTeams()->end(); ++t )
+	{
+		const TeamTemplateInfo *info = (*t)->getTemplateInfo();
+		const Bool attacks = !info->m_isBaseDefense && !info->m_isPerimeterDefense && aiTeamAttacks( info );
+		if( !attacks && !guardsGo )
+			continue;
+		for( DLINK_ITERATOR<Team> iter = (*t)->iterate_TeamInstanceList(); !iter.done(); iter.advance() )
+		{
+			Team *team = iter.cur();
+			if( !team->isActive() )
+				continue;		// still being built
+			Bool parked = FALSE;
+			for( Int i = 0; i < MAX_HELD_TEAMS; ++i )
+				if( m_heldUsed[ i ] && m_heldTeam[ i ] == team->getID() )
+					parked = TRUE;
+			if( parked )
+				continue;
+
+			for( DLINK_ITERATOR<Object> m = team->iterate_TeamMemberList(); !m.done(); m.advance() )
+			{
+				Object *obj = m.cur();
+				if( obj->isEffectivelyDead() || obj->getAI() == NULL || obj->isContained() || obj->isKindOf( KINDOF_IMMOBILE ) ||
+						!leavesToFinish( obj ) )
+					continue;
+				const StateID state = obj->getAI()->getCurrentStateID();
+				const Bool atHome = sqr( obj->getPosition()->x - m_baseCenter.x ) + sqr( obj->getPosition()->y - m_baseCenter.y ) <= reachSqr;
+				// an attack team's members at home are sendIdleAttackTeams' to call up together
+				if( attacks ? (state != AI_IDLE || atHome) : (state != AI_IDLE && state != AI_GUARD && state != AI_GUARD_RETALIATE) )
+					continue;
+				if( TheAI->findClosestEnemy( obj, HUNT_REACH, AI::CAN_ATTACK, obj->getAI()->getAttackInfo() ) == NULL )
+					continue;
+				obj->getAI()->aiHunt( CMD_FROM_AI );
+				++hunters;
+				if( !attacks )
+					++guards;
+			}
+		}
+	}
+	if( hunters > 0 )
+		DEBUG_LOG(("AI WAVE frame %d player %d sends %d idle units hunting, %d of them off guard\n", TheGameLogic->getFrame(),
+			m_player->getPlayerIndex(), hunters, guards));
 }
 
 //----------------------------------------------------------------------------------------------------------
@@ -8596,7 +9000,7 @@ void AIPlayer::xfer( Xfer *xfer )
 {
 
 	// version
-	XferVersion currentVersion = 11;		// 2: scout  3: rung and role  4: scouting stamps  5: the capturer  6: parked waves  7: superweapon aims  8: the hijacker  9: tactical steps  10: the ferry and dropped riders  11: the outward placement ring
+	XferVersion currentVersion = 12;		// 2: scout  3: rung and role  4: scouting stamps  5: the capturer  6: parked waves  7: superweapon aims  8: the hijacker  9: tactical steps  10: the ferry and dropped riders  11: the outward placement ring  12: the pressure level
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -8852,6 +9256,13 @@ void AIPlayer::xfer( Xfer *xfer )
 	// into the opening rings the base has already filled
 	if( version >= 11 )
 		xfer->xferInt( &m_placementRing );
+	// how hard it is leaning on its enemy, and the army of his it remembers; an older save starts even
+	if( version >= 12 )
+	{
+		xfer->xferUser( &m_pressure, sizeof( AIPressure ) );
+		xfer->xferReal( &m_knownEnemyPower );
+		xfer->xferInt( &m_pressureEnemy );
+	}
 
 	// the ladder rung and the role, which are rolled once and must come back the same way
 	if( version >= 3 )
