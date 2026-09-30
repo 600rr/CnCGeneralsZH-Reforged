@@ -901,6 +901,12 @@ TOOLTIP:Language
 "The language of menus, orders, briefings and subtitles. Voices and videos stay as installed. Takes effect the next time the game starts."
 END
 
+// The line under it when the lobby's Pile Limit has the pile closed to the player looking at it.
+
+TOOLTIP:SupplyPileFull
+"\n Taken: the pile limit keeps your gatherers out"
+END
+
 // The numbers the build tooltip adds under a unit's description: its build time, then its best
 // weapon's damage and range.  ControlBarPopupDescription.cpp puts the gap between the two.
 
@@ -1097,6 +1103,22 @@ END
 
 GUI:TechRespawnFormat
 "After %d min"
+END
+
+GUI:SupplyPileLimit
+"Pile Limit"
+END
+
+TOOLTIP:SupplyPileLimit
+"How many players may gather from one supply dock or supply pile at the same time. With 1, a pile belongs to whoever reaches it first, and every other player's supply trucks, Workers and Chinooks go to another pile or wait at home. Allies count as separate players. A pile is free again a minute after the last load was taken from it."
+END
+
+GUI:SupplyPileLimitOff
+"No Limit"
+END
+
+GUI:SupplyPileLimitFormat
+"%d per pile"
 END
 
 GUI:ProRules

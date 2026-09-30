@@ -353,6 +353,7 @@ void LANAPI::OnGameStart( void )
       pref.setInt( "ProRules", m_currentGame->getProRules() ? 1 : 0 );
       pref.setInt( "IncomeSharing", m_currentGame->getIncomeSharing() );
       pref.setInt( "TechRespawn", m_currentGame->getTechRespawn() );
+      pref.setInt( "SupplyPileLimit", m_currentGame->getSupplyPileLimit() );
       pref.setStartingCash( m_currentGame->getStartingCash() );
     }
 		pref.write();

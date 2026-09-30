@@ -13702,6 +13702,45 @@ TEST(tech_respawn_starts_off_and_clamps_the_wire_value)
 	TheWritableGlobalData = saved;
 }
 
+#include "GameLogic/Module/SupplyWarehouseDockUpdate.h"
+
+/* The supply pile limit arrives as PL= in the host's options string and is clamped like the rest.
+	 SupplyWarehouseDockUpdate.cpp then decides whom a pile is closed to from the players already on
+	 it, one bit a player index. */
+TEST(supply_pile_limit_starts_off_clamps_and_closes_a_full_pile)
+{
+	GlobalData *saved = TheWritableGlobalData;
+	TheWritableGlobalData = NEW GlobalData;
+
+	SkirmishGameInfo game;
+	game.init();
+	CHECK_EQ( game.getSupplyPileLimit(), 0 );
+	game.setSupplyPileLimit( 2 );
+	CHECK_EQ( game.getSupplyPileLimit(), 2 );
+	game.setSupplyPileLimit( -3 );
+	CHECK_EQ( game.getSupplyPileLimit(), 0 );
+	game.setSupplyPileLimit( 1000 );
+	CHECK_EQ( game.getSupplyPileLimit(), (Int)MAX_SLOTS );
+	game.reset();
+	CHECK_EQ( game.getSupplyPileLimit(), 0 );
+
+	delete TheWritableGlobalData;
+	TheWritableGlobalData = saved;
+
+	/* no limit closes nothing, however many players are on the pile */
+	CHECK( !SupplyPileLimitCloses( 0, 0xFF, 9 ) );
+
+	/* limit 1: an empty pile is open, player 2's pile is closed to player 3 and open to player 2 */
+	CHECK( !SupplyPileLimitCloses( 1, 0, 3 ) );
+	CHECK(  SupplyPileLimitCloses( 1, 1u << 2, 3 ) );
+	CHECK( !SupplyPileLimitCloses( 1, 1u << 2, 2 ) );
+
+	/* limit 2: a second player still fits, a third does not, and either of the two comes back */
+	CHECK( !SupplyPileLimitCloses( 2, 1u << 2, 3 ) );
+	CHECK(  SupplyPileLimitCloses( 2, ( 1u << 2 ) | ( 1u << 3 ), 4 ) );
+	CHECK( !SupplyPileLimitCloses( 2, ( 1u << 2 ) | ( 1u << 3 ), 3 ) );
+}
+
 #include "Common/SpecialPowerType.h"
 
 /* Pro Rules name what they ban by the ending every general's copy shares, so each check below

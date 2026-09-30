@@ -6179,6 +6179,9 @@ void InGameUI::createMouseoverHint( const GameMessage *msg )
 				Int value = boxes * TheGlobalData->m_baseValuePerSupplyBox;
 				warehouseFeedback.format(TheGameText->fetch("TOOLTIP:SupplyWarehouse"), value);
 				str.concat(warehouseFeedback);
+				// the lobby's supply pile limit: say so when this player's gatherers would be turned away
+				if( warehouseModule->isClosedToPlayer( ThePlayerList->getLocalPlayer() ) )
+					str.concat( TheGameText->fetch( "TOOLTIP:SupplyPileFull" ) );
 			}
 
       if (player)

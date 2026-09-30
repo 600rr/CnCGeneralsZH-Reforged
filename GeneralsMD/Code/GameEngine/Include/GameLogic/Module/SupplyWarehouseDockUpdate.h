@@ -61,6 +61,13 @@ public:
 	Int m_regenMaxBoxes;					///< ceiling, -1 for whatever it started with
 };
 
+class Player;
+
+/** The lobby's supply pile limit: is a pile that gatheringPlayers are working, one bit a player
+	* index, closed to this player?  Never to one of the players already on it, and never with no
+	* limit set. */
+Bool SupplyPileLimitCloses( Int limit, UnsignedInt gatheringPlayers, Int playerIndex );
+
 //-------------------------------------------------------------------------------------------------
 class SupplyWarehouseDockUpdate : public DockUpdate
 {
@@ -88,11 +95,22 @@ public:
 	/// how many cash buildings stand close enough to work this point
 	Int countNearbyCollectors( void ) const;
 
+	// The lobby's supply pile limit.  Both dock questions say no to a gatherer it closes the pile to:
+	// the first is what ResourceGatheringManager asks before it picks a pile, the second is the
+	// reservation itself, which is all that stands between a player's own order and the pile.
+	virtual Bool isClearToApproach( Object const* docker ) const;
+	virtual Bool reserveApproachPosition( Object* docker, Coord3D *position, Int *index );
+
+	/// are as many other players gathering here as the lobby's supply pile limit allows?
+	Bool isClosedToPlayer( const Player *player ) const;
+
 protected:
 
+	UnsignedInt gatheringPlayers( void ) const;	///< who holds this pile under the limit, one bit a player index
 
 	Int m_boxesStored;
 	UnsignedInt m_nextRegenFrame;		///< when the next box arrives, 0 until the first one is scheduled
+	UnsignedInt m_lastGatherFrame[MAX_PLAYER_COUNT];	///< frame each player last loaded here, 0 for never
 
 };
 
