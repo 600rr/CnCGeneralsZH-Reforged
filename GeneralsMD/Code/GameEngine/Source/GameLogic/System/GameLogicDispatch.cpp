@@ -259,6 +259,26 @@ static void doSetRallyPoint( Object *obj, const Coord3D& pos )
 
 }
 
+// ------------------------------------------------------------------------------------------------
+/** The building goes back to what it was before its first rally point: whatever it makes stops
+	* at the natural rally point by the door. */
+// ------------------------------------------------------------------------------------------------
+static void doClearRallyPoint( Object *obj )
+{
+	// the id came off the message, so it may name something that produces nothing
+	ExitInterface *exitInterface = obj->getObjectExitInterface();
+	if( exitInterface )
+		exitInterface->clearRallyPoint();
+
+	DEBUG_LOG(( "RALLY CLEAR: frame %d object %d\n", TheGameLogic->getFrame(), (Int)obj->getID() ));
+
+	// mark the UI as dirty so that we re-evaluate the selection and take the flag down
+	Drawable *draw = obj->getDrawable();
+	if( obj->isLocallyControlled() && draw && draw->isSelected() )
+		TheControlBar->markUIDirty();
+
+}
+
 static Object * getSingleObjectFromSelection(const AIGroup *currentlySelectedGroup)
 {
 	// an empty group is not the same as no group: the iterator below was taken from an empty
@@ -668,6 +688,20 @@ void GameLogic::logicMessageDispatcher( GameMessage *msg, AIGroup *orderedGroup 
 			if (obj && obj->getControllingPlayer() == thisPlayer)
 			{
 				doSetRallyPoint( obj, dest );
+			}
+
+			break;
+
+		}
+
+		//---------------------------------------------------------------------------------------------
+		case GameMessage::MSG_CLEAR_RALLY_POINT:
+		{
+			// the same owner check MSG_SET_RALLY_POINT makes, for the same reason
+			Object *obj = TheGameLogic->findObjectByID( msg->getArgument( 0 )->objectID );
+			if (obj && obj->getControllingPlayer() == thisPlayer)
+			{
+				doClearRallyPoint( obj );
 			}
 
 			break;
