@@ -50,9 +50,11 @@
                            them.  The game letters each with the key bound to its place
     data-each="portraitcells" the portrait bar's cells, the portrait's first and then only what it
                            holds, each {{cell.x}} .y .w .h
-    {{skilltray.x}} ...    the general's powers' tray, a panel as {{centre.x}} is, only as big as the
-                           powers shown; data-each="skillcells" a cell behind each power, each
-                           {{cell.x}} .y .w .h
+    {{skilltray.x}} ...    the general's powers' tray, a panel as {{centre.x}} is, round the full rows
+                           of three (or the one short row when there are fewer than three);
+                           {{skillstep.x}} ... the step a last row of one or two stands in on top of
+                           it, {{skillstep.shown}} "hidden" when there is none; data-each="skillcells"
+                           a cell behind each power, each {{cell.x}} .y .w .h
     {{signals.x}} ...      the step of smoke signal buttons on the radar panel's top edge;
                            data-click="signal:attack", "signal:defend" or "signal:look" sends one
                            to the middle of the view; {{signals.shown}} is "hidden" where the keys
@@ -322,6 +324,13 @@
      as big as the powers shown, a dark cell behind each; its bottom edge is shaded, since it stands
      over the battlefield rather than on the screen's edge */
   .bezel .base { position: absolute; height: 1px; background-color: #0c1114; }
+  /* a last row of one or two powers stands on the tray under it as a step, as the superweapon
+     strip's short row hangs under its tray: no bottom of its own, and its well's bottom edge is the
+     well's steel, the gap between two rows */
+  .bezel.step .base { display: none; }
+  .bezel.step .sunk { border-bottom-color: #23272c; }
+  .china .bezel.step .sunk { border-bottom-color: #290f09; }
+  .gla .bezel.step .sunk { border-bottom-color: #282311; }
 
   /* the smoke signals: a step on the radar's bezel's top edge at its right hand end, dark down its
      own right.  Three keys in it side by side: a crosshair to attack, a shield to defend, an eye to
@@ -408,6 +417,12 @@
     <div class="lit" style="left: -{{skilltray.bl}}px; top: -{{skilltray.bt}}px; bottom: -{{skilltray.bb}}px"></div>
     <div class="base" style="left: -{{skilltray.bl}}px; right: -{{skilltray.br}}px; bottom: -{{skilltray.bb}}px"></div>
     <div class="sunk grid" style="width: {{skilltray.w}}px; height: {{skilltray.h}}px"></div>
+  </div>
+  <div class="piece frame bezel step solid {{skillstep.shown}}" style="left: {{skillstep.x}}px; top: {{skillstep.y}}px; width: {{skillstep.w}}px; height: {{skillstep.h}}px; border-width: {{skillstep.bt}}px {{skillstep.br}}px {{skillstep.bb}}px {{skillstep.bl}}px">
+    <div class="steel" style="left: -{{skillstep.bl}}px; right: -{{skillstep.br}}px; top: -{{skillstep.bt}}px; bottom: -{{skillstep.bb}}px"></div>
+    <div class="shine" style="left: -{{skillstep.bl}}px; right: -{{skillstep.br}}px; top: -{{skillstep.bt}}px"></div>
+    <div class="lit" style="left: -{{skillstep.bl}}px; top: -{{skillstep.bt}}px; bottom: -{{skillstep.bb}}px"></div>
+    <div class="sunk grid" style="width: {{skillstep.w}}px; height: {{skillstep.h}}px"></div>
   </div>
   <div class="piece commandcell" data-each="skillcells" style="left: {{cell.x}}px; top: {{cell.y}}px; width: {{cell.w}}px; height: {{cell.h}}px"><div class="edge" style="left: -{{ring}}px; top: -{{ring}}px; right: -{{ring}}px; bottom: -{{ring}}px; border-width: {{ring}}px"></div><div class="bevel"></div></div>
 

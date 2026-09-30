@@ -11946,9 +11946,6 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	const Int powersShown = TheControlBar->placeSpecialPowerShortcutGrid( centreShown ? &corner : NULL, cell, cellGap );
 
 	std::vector< HtmlValues > &places = lists[ "skillcells" ];
-	IRegion2D powers;
-	powers.lo = corner;
-	powers.hi = corner;
 	for( Int slot = 0; slot < powersShown; slot++ )
 	{
 		const Int column = slot % SPECIAL_POWER_SHORTCUT_COLS;
@@ -11958,18 +11955,40 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 		place.hi.y = corner.y - row * ( cell.y + cellGap );
 		place.lo.x = place.hi.x - cell.x;
 		place.lo.y = place.hi.y - cell.y;
-		powers.lo.x = min( powers.lo.x, place.lo.x );
-		powers.lo.y = min( powers.lo.y, place.lo.y );
 		HtmlValues entry;
 		putCell( entry, place, pageRing( cellGap, scale ), scale );
 		places.push_back( entry );
 	}
+
+	// the tray is cut to each row, as the superweapon strip's is: the full rows of three stand in one
+	// plate, and a last row of one or two stands on top of it in steel only as wide as it is, against
+	// the screen's edge, rather than the whole tray widening round an empty corner
+	const Int fullRows = powersShown / SPECIAL_POWER_SHORTCUT_COLS;
+	const Int lastColumns = powersShown % SPECIAL_POWER_SHORTCUT_COLS;
+	IRegion2D powers;
+	powers.hi = corner;
+	powers.lo.x = corner.x - ( fullRows > 0 ? SPECIAL_POWER_SHORTCUT_COLS : lastColumns ) * ( cell.x + cellGap ) + cellGap;
+	powers.lo.y = corner.y - max( fullRows, 1 ) * ( cell.y + cellGap ) + cellGap;
 	IRegion2D tray = powers;
 	tray.lo.x -= trayBorder;
 	tray.lo.y -= trayBorder;
 	tray.hi.x = TheDisplay->getWidth();
 	tray.hi.y += trayBorder;
 	putFrame( values, "skilltray", powers, tray, powersShown > 0 );
+
+	// the step: its bottom is the gap between its row and the one under it
+	const Bool stepShown = powersShown > 0 && fullRows > 0 && lastColumns > 0;
+	IRegion2D step;
+	step.hi.x = corner.x;
+	step.hi.y = powers.lo.y - cellGap;
+	step.lo.x = corner.x - lastColumns * ( cell.x + cellGap ) + cellGap;
+	step.lo.y = step.hi.y - cell.y;
+	IRegion2D stepTray = step;
+	stepTray.lo.x -= trayBorder;
+	stepTray.lo.y -= trayBorder;
+	stepTray.hi.x = TheDisplay->getWidth();
+	stepTray.hi.y = powers.lo.y;
+	putFrame( values, "skillstep", step, stepTray, stepShown );
 
 	// each grid's frames again in front of its buttons, drawn by a window after them
 	m_cellFrontCells[ CELL_GRID_COMMAND ] = commandCells;
