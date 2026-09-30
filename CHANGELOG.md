@@ -81,6 +81,7 @@ found and fixed â€” EA's own, not port damage.**
 - It now goes and takes the money that is lying around, out of spare cash so the army never pays for it.
 - On Hard the expansion comes with a defence structure facing the enemy, placed in the same job. An undefended expansion is a gift.
 - Measured: a third more army in the field and a quarter more money spent over the match.
+- With Share Income set to All Income it leaves its allies' piles alone. Every payment is already split across the team, so a computer that put a supply centre beside its ally's pile added nothing and emptied that pile twice as fast. It now expands only to piles nobody on its side is working. Over eight 2v2 matches on Twilight Flame, loads taken from an ally's pile went from 396 to 54 and the team's income stayed where it was. Replays recorded before this change play out differently.
 
 ## The computer spends its money
 

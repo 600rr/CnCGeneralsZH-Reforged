@@ -3282,7 +3282,7 @@ Object *AIPlayer::findSupplyCenter(Int minimumCash)
 
 				PartitionFilter *mine[] = { &f1, &f2, &filterMapStatus, 0 };
 				PartitionFilter *ours[] = { &f1, &f2Ally, &filterMapStatus, 0 };
-				PartitionFilter **filters = (m_role == AIROLE_SUPPORTIVE) ? ours : mine;
+				PartitionFilter **filters = (m_role == AIROLE_SUPPORTIVE || TheGameLogic->getIncomeSharing() == INCOME_SHARING_ALL) ? ours : mine;
 
 				Object *supplyCenter = ThePartitionManager->getClosestObject(&center, radius, FROM_BOUNDINGSPHERE_2D, filters);
 				if (supplyCenter) {
