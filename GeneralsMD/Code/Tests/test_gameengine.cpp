@@ -13923,6 +13923,26 @@ TEST(the_superweapon_rule_is_a_mode_with_one_exception)
 	CHECK_EQ( SuperweaponBuildCap( SUPERWEAPONS_NONE, laserGeneral ), (Int)SUPERWEAPON_CAP_BANNED );
 	CHECK_EQ( SuperweaponBuildCap( SUPERWEAPONS_NONE, superweaponGeneral ), 1 );
 
+	// except the silo, one for everybody, built for China's upgrades: its missile is what No refuses
+	CHECK_EQ( SuperweaponBuildCap( SUPERWEAPONS_NONE, gla, AsciiString( "ChinaNuclearMissileLauncher" ) ), 1 );
+	CHECK_EQ( SuperweaponBuildCap( SUPERWEAPONS_NONE, gla, AsciiString( "Nuke_ChinaNuclearMissileLauncher" ) ), 1 );
+	CHECK_EQ( SuperweaponBuildCap( SUPERWEAPONS_NONE, superweaponGeneral, AsciiString( "SupW_AmericaNuclearMissileLauncher" ) ), 1 );
+	CHECK_EQ( SuperweaponBuildCap( SUPERWEAPONS_NONE, gla, AsciiString( "GLAScudStorm" ) ), (Int)SUPERWEAPON_CAP_BANNED );
+	CHECK_EQ( SuperweaponBuildCap( SUPERWEAPONS_NONE, laserGeneral, AsciiString( "Lazr_AmericaParticleCannonUplink" ) ), (Int)SUPERWEAPON_CAP_BANNED );
+	CHECK_EQ( SuperweaponBuildCap( SUPERWEAPONS_LIMIT, superweaponGeneral, AsciiString( "SupW_AmericaNuclearMissileLauncher" ) ), 4 );
+	CHECK_EQ( SuperweaponBuildCap( SUPERWEAPONS_ALLOW, gla, AsciiString( "ChinaNuclearMissileLauncher" ) ), (Int)SUPERWEAPON_CAP_UNLIMITED );
+
+	// and that missile is silenced under No or Pro Rules, every general's copy, and nothing else is
+	CHECK( SuperweaponMissileSilenced( SPECIAL_NEUTRON_MISSILE, FALSE, SUPERWEAPONS_NONE ) );
+	CHECK( SuperweaponMissileSilenced( NUKE_SPECIAL_NEUTRON_MISSILE, FALSE, SUPERWEAPONS_NONE ) );
+	CHECK( SuperweaponMissileSilenced( SUPW_SPECIAL_NEUTRON_MISSILE, FALSE, SUPERWEAPONS_NONE ) );
+	CHECK( SuperweaponMissileSilenced( SPECIAL_NEUTRON_MISSILE, TRUE, SUPERWEAPONS_ALLOW ) );
+	CHECK( !SuperweaponMissileSilenced( SPECIAL_NEUTRON_MISSILE, FALSE, SUPERWEAPONS_LIMIT ) );
+	CHECK( !SuperweaponMissileSilenced( SPECIAL_NEUTRON_MISSILE, FALSE, SUPERWEAPONS_ALLOW ) );
+	CHECK( !SuperweaponMissileSilenced( SPECIAL_PARTICLE_UPLINK_CANNON, TRUE, SUPERWEAPONS_NONE ) );
+	CHECK( !SuperweaponMissileSilenced( SPECIAL_SCUD_STORM, TRUE, SUPERWEAPONS_NONE ) );
+	CHECK( !SuperweaponMissileSilenced( SPECIAL_CLUSTER_MINES, FALSE, SUPERWEAPONS_NONE ) );
+
 	// a player with no template at all - the civilian seat - is nobody's exception
 	CHECK_EQ( SuperweaponBuildCap( SUPERWEAPONS_NONE, AsciiString::TheEmptyString ), (Int)SUPERWEAPON_CAP_BANNED );
 

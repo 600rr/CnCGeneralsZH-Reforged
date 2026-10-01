@@ -752,7 +752,7 @@ void InGameUI::addSuperweapon(Int playerIndex, const AsciiString& powerName, Obj
 	if (powerTemplate == NULL)
 		return;
 
-	// Pro Rules: a silo nobody may fire gets no countdown on everybody's screen and no "missile ready"
+	// Pro Rules or No Superweapons: a silo nobody may fire gets no countdown on everybody's screen and no "missile ready"
 	if (ProRulesRefuseSpecialPower(ThePlayerList->getNthPlayer(playerIndex), powerTemplate->getSpecialPowerType()))
 		return;
 
