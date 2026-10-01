@@ -420,9 +420,9 @@ private:
 	// and the lights are set once for a whole batch - so the block is built into a local, compared
 	// against the copy here, and written through only when it differs.
 	//
-	// Comparing bytes rather than flagging the setters dirty is deliberate: there are a dozen ways
-	// into these blocks, including three render states read straight out of the state block, and a
-	// setter nobody flagged would draw with the previous batch's lighting.
+	// The setters do flag the blocks now (ConstantsChanged below), but only to skip building them.
+	// The byte compare still decides the write: a flag says something was set, often to the value
+	// it already had in another order, and only the bytes say whether the buffer is different.
 	VertexConstantBlock HeldVertexConstants;
 	PixelConstantBlock HeldPixelConstants;
 	float HeldEngineConstants[ENGINE_SHADER_CONSTANTS][4];
@@ -434,6 +434,22 @@ private:
 	bool VertexConstantsHeld;
 	bool PixelConstantsHeld;
 	bool EngineConstantsHeld;
+
+	// Whether anything the draws read has changed since the last draw used it, so a draw that
+	// follows another with nothing set in between skips building what it would build identically:
+	// the two constant blocks with their three matrix products, both pipeline descriptions, and a
+	// sampler description a stage.  The terrain is the case this is for, hundreds of tiles in a row
+	// under one transform and one state.  Every setter that writes something a block, a description
+	// or a sampler reads sets the matching flag, and only when the value actually differs.  A new
+	// input to any of them needs its setter to raise the flag here, or the draw after it reads the
+	// previous batch's lighting.
+	bool ConstantsChanged;
+	bool PipelineChanged;
+	bool SamplerChanged[DX11_BACKEND_TEXTURE_STAGES];
+	// Whether Memos[LastMemo] is what the last Resolve handed back.  A refusal clears it, so a draw
+	// that was refused is refused again through the whole path and counted the same way.
+	bool LastResolveHeld;
+	void Note_Shadow_State_Changed() { ConstantsChanged = true; PipelineChanged = true; }
 	EngineShaderProgram VertexProgram;
 	EngineShaderProgram PixelProgram;
 
