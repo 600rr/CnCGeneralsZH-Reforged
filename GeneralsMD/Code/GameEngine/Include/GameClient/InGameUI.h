@@ -1120,7 +1120,7 @@ public:  // ********************************************************************
 	// whatever timers are live, so nothing here outlives the draw that filled it in.
 	//
 	enum { SUPERWEAPON_STRIP_COLS = 6 };		///< cameos in one row, the soonest at the right hand end
-	enum { SUPERWEAPON_STRIP_ROWS = 7 };		///< rows the strip can grow to, as many as fit the top half of the screen; past 42 the latest to land have no cell
+	enum { SUPERWEAPON_STRIP_ROWS = 7 };		///< rows the strip can grow to, past the top half of the screen from the fourth at 1280x720 and HUD Size 150%; past 42 the latest to land have no cell
 	enum { SUPERWEAPON_STRIP_MAX = SUPERWEAPON_STRIP_COLS * SUPERWEAPON_STRIP_ROWS };
 
 	enum { SKILL_STRIP_COLS = 6 };			///< bought promotions in one row, under the countdowns

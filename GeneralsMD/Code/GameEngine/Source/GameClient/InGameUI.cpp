@@ -11121,7 +11121,7 @@ static void putExperienceBar( HtmlValues &values, std::vector< HtmlValues > &cel
 
 	// the stars stand at pixel places centred on the key: centred as a line of text, the page measured
 	// the star glyph wider than it drew it and the row sat to the left
-	enum { RANK_KEY_WIDTH = 58, STAR_PITCH = 11, STAR_SIZE = 10 };
+	enum { RANK_KEY_WIDTH = 56, STAR_PITCH = 11, STAR_SIZE = 10 };
 	const Int rankCount = TheRankInfoStore->getRankLevelCount();
 	const Int firstStar = ( RANK_KEY_WIDTH - ( rankCount * STAR_PITCH - ( STAR_PITCH - STAR_SIZE ) ) ) / 2;
 	for( Int rank = 1; rank <= rankCount; rank++ )
@@ -11209,8 +11209,9 @@ static const Int UPGRADE_CAMEOS = 5;		///< UnitUpgrade1 to 5, a single unit's up
 /** The bar as the owner drew it on 2026-09-28, 800x600 pixels at ControlBarHudScale(): from the left,
 	* the radar with the experience bar beside it, then the command grid, six by three, with the power
 	* bar lying along its top and the money on the power bar's left end, then the portrait bar on the
-	* screen's bottom edge.  Over the radar the idle worker's key stands on the skills key, the skills
-	* key on the under-attack light at its left hand end, and the smoke signals at its right. */
+	* screen's bottom edge.  Since 2026-10-01 the radar's keys stand in the selection's header instead,
+	* the idle worker's key, the skills key and the under-attack light from its left, the smoke signals
+	* after them, and the radar has the height of its header too. */
 enum
 {
 	COMMAND_BUTTON_WIDTH	= 50,		///< a command button as ControlBar.wnd authors it, the promotion screen's cell
@@ -11231,25 +11232,28 @@ enum
 	EXPERIENCE_WIDTH			= 12,		///< the experience bar's groove, the radar's height
 	EXPERIENCE_GAP				= 4,		///< between it and the radar
 	PANEL_FOOT						= 4,		///< a grid's ring over the screen's bottom edge, the steel under it
-	SKILLS_TAB_WIDTH			= 66,		///< the skills key, the rank's stars, in a tab in the radar's header
-	ALERT_TAB_WIDTH				= 54,		///< the under-attack light, a lamp in a tab in the radar's header
-	SIGNAL_BUTTONS				= 3,		///< attack, defend, look
+	HEADER_SLOTS					= 7,		///< the selection's header, in slots of a seventh of it: the idle worker's key,
+																///< the skills key two, the under-attack light, and a smoke signal's key each
+	IDLE_SLOTS						= 1,
+	SKILLS_SLOTS					= 2,
+	ALERT_SLOTS						= 1,
+	SIGNAL_BUTTONS				= 3,		///< attack, defend, look, a slot each
 	SIGNAL_STEP_HEIGHT		= 24,		///< how far each smoke signal key rises into its place
-	IDLE_TAB_WIDTH				= 38,		///< the idle worker's key in a tab in the radar's header, with its rim
 	MONEY_TEXT_MARGIN			= 5,		///< the money's well each side of its figure, which sets the well's width
 	QUEUE_TRAY_BORDER			= 3,		///< the production queue's tray's, thinner, since the row runs over the battlefield
 	SKILL_CELL_GAP				= 2,		///< the steel between two cells of the powers and the production queue
 	QUEUE_TRAY_LINE				= 1,		///< the light and dark lines along that tray's edges
 	QUEUE_TRAY_WELL				= SKILL_CELL_GAP,	///< the well round its cells: a row stepped under another starts in it
 	QUEUE_TRAY_COLUMNS		= 5,		///< the production queue's cells to a row, rows growing up over the selection
-	HEADER_HEIGHT					= 22,		///< the strip over each of the console's wells, the radar's keys standing in it
+	HEADER_HEIGHT					= 22,		///< the strip over the selection's and the grid's wells; the radar's well reaches
+																///< up through it to the console's top line
 	HEADER_GAP						= 2,		///< between a header and its well
-	SIGNAL_COLUMN_WIDTH		= 36,		///< the smoke signals' well, a key wide, the three keys down it
 	SELECTION_ROWS				= 3,		///< the selection's well: three rows of PORTRAIT_PLACES cells for a group's types
 	PORTRAIT_SCALE				= 2,		///< a lone unit's portrait, two cells high
 	TOP_WELL_HEIGHT				= 22,		///< the top page's clock's well
 	MONEY_WELL_HEIGHT			= 16,		///< the money's well under it
-	TOP_BORDER						= 4,		///< the top page's steel round and between them
+	TOP_BORDER						= 4,		///< the top page's steel round each of them
+	TOP_BOX_GAP						= 2,		///< the battlefield between the clock's plate and the money's
 	CLOCK_WIDTH						= 64,		///< the top page's wells at their narrowest, in the middle of the screen
 	POWER_BAR_HEIGHT			= 12,		///< the power bar's groove in the command grid's header
 	POWER_BAR_MARGIN			= 6,		///< the header's steel each end of it
@@ -11363,19 +11367,18 @@ static Int powersTrayWidth( Real scale )
 	return COLUMNS * ( REAL_TO_INT( CELL_WIDTH * scale ) + gap ) + REAL_TO_INT( POWER_TRAY_EDGE * scale );
 }
 
-/** The four wells drawControlBarPage stands side by side, the radar, the smoke signals, the selection
-	* and the command grid, with the steel between and round them, and the general's powers' steel at
-	* its widest on the right: the console stands that much left of the middle, so the powers grow
-	* into room kept for them and nothing moves when one comes. */
+/** The three wells drawControlBarPage stands side by side, the radar, the selection and the command
+	* grid, with the steel between and round them, and the general's powers' steel at its widest on the
+	* right: the console stands that much left of the middle, so the powers grow into room kept for
+	* them and nothing moves when one comes. */
 Int InGameUI_consolePageWidth( void )
 {
-	const Int wellHeight = COMMAND_ROWS * ( COMMAND_CELL_HEIGHT + CELL_GAP );
-	const Int radar = wellHeight * RADAR_WIDTH / RADAR_HEIGHT + EXPERIENCE_GAP + EXPERIENCE_WIDTH;
+	const Int radarHeight = COMMAND_ROWS * ( COMMAND_CELL_HEIGHT + CELL_GAP ) + HEADER_GAP + HEADER_HEIGHT;
+	const Int radar = radarHeight * RADAR_WIDTH / RADAR_HEIGHT + EXPERIENCE_GAP + EXPERIENCE_WIDTH;
 	const Int selection = PORTRAIT_PLACES * ( CELL_WIDTH + CELL_GAP );
 	const Int grid = COMMAND_COLUMNS * ( COMMAND_CELL_WIDTH + CELL_GAP );
-	enum { WELLS = 4 };
-	return radar + SIGNAL_COLUMN_WIDTH + selection + grid + ( WELLS + 1 ) * PANEL_BORDER + powersTrayWidth( 1.0f ) +
-				 2 * CONSOLE_MARGIN;
+	enum { WELLS = 3 };
+	return radar + selection + grid + ( WELLS + 1 ) * PANEL_BORDER + powersTrayWidth( 1.0f ) + 2 * CONSOLE_MARGIN;
 }
 
 /** The screen's bottom edge as the bar stands on it: while the match's intro slides the bar up from
@@ -11446,15 +11449,15 @@ static IRegion2D wellHeader( const IRegion2D &well, Real scale )
 	return header;
 }
 
-/** A well of the console for the page, data-each="wells": {{well.x}} .y .w .h and the header strip
-	* over it, {{header.x}} .y .w .h. */
-static void putWell( std::vector< HtmlValues > &wells, const IRegion2D &well, Bool shown, Real scale )
+/** A well of the console for the page, data-each="wells": {{well.x}} .y .w .h and, when `headed`, the
+	* header strip over it, {{header.x}} .y .w .h. */
+static void putWell( std::vector< HtmlValues > &wells, const IRegion2D &well, Bool shown, Bool headed, Real scale )
 {
 	if( !shown )
 		return;
 	HtmlValues entry;
 	putPageRect( entry, "well", well, TRUE, scale );
-	putPageRect( entry, "header", wellHeader( well, scale ), TRUE, scale );
+	putPageRect( entry, "header", wellHeader( well, scale ), headed, scale );
 	wells.push_back( entry );
 }
 
@@ -11841,9 +11844,9 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	values[ "held" ] = m_controlBarPageHovered && TheMouse->getMouseStatus()->leftState != MBS_Up ? "held" : "";
 	values[ "blink" ] = !values[ "promotion" ].empty() && TheGameLogic->getFrame() % LOGICFRAMES_PER_SECOND > LOGICFRAMES_PER_SECOND / 2 ? "lit" : "";
 	// The console: one plate of steel standing on the middle of the screen's bottom edge, its wells side
-	// by side under one top line, a header strip over each - the radar with the experience bar beside
-	// it and its keys in its header, the smoke signals' column, the selection, and the command grid
-	// with the power bar in its header - and the general's powers growing out of its right hand end,
+	// by side under one top line - the radar with the experience bar beside it, the selection with the
+	// radar's keys and the smoke signals in its header, and the command grid with the power bar in
+	// its header - and the general's powers growing out of its right hand end,
 	// the owner's centred drawing of 2026-10-01 at ControlBarHudScale(), which is what the page is
 	// laid out at too.  Every well is a fixed size and the powers' widest is kept free beside it, so
 	// the console keeps its place through the match and nothing moves under the pointer; HUD Size
@@ -11864,32 +11867,31 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	// not there at all where the keys would do nothing either, a game with no allies to see the smoke
 	const Bool signalsShown = leftFound && signalsAllowed();
 
-	// every well is the command grid's height; the radar keeps its shape in it, the experience bar's
-	// groove beside it.  A watcher has no grid and no powers, and his console is the rest of it
+	// every well is the command grid's height and a header over it, but the radar's, which reaches up
+	// through the header's height to the console's top line and keeps its shape in that, the
+	// experience bar's groove beside it.  A watcher has no grid and no powers, and his console is the
+	// rest of it
 	const Int wellHeight = REAL_TO_INT( COMMAND_ROWS * ( COMMAND_CELL_HEIGHT + CELL_GAP ) * scale );
-	const Int radarWidth = wellHeight * RADAR_WIDTH / RADAR_HEIGHT;
+	const Int consoleTopLine = foot - wellHeight - REAL_TO_INT( ( HEADER_GAP + HEADER_HEIGHT ) * scale );
+	const Int radarWidth = ( foot - consoleTopLine ) * RADAR_WIDTH / RADAR_HEIGHT;
 	const Int radarWellWidth = radarWidth + REAL_TO_INT( ( EXPERIENCE_GAP + EXPERIENCE_WIDTH ) * scale );
-	const Int signalWellWidth = REAL_TO_INT( SIGNAL_COLUMN_WIDTH * scale );
 	const Int selectionWellWidth = REAL_TO_INT( PORTRAIT_PLACES * ( CELL_WIDTH + CELL_GAP ) * scale );
 	const Int gridWellWidth = REAL_TO_INT( COMMAND_COLUMNS * ( COMMAND_CELL_WIDTH + CELL_GAP ) * scale );
 	const ICoord2D cell = cellSize();
 	const Int cellGap = REAL_TO_INT( SKILL_CELL_GAP * scale );
 	Int consoleWidth = radarWellWidth + border + selectionWellWidth;
-	if( signalsShown )
-		consoleWidth += signalWellWidth + border;
 	if( centreShown )
 		consoleWidth += border + gridWellWidth + powersTrayWidth( scale );
 
 	Int wellLeft = ( (Int)TheDisplay->getWidth() - consoleWidth ) / 2;
-	const IRegion2D radarWell = nextWell( wellLeft, radarWellWidth, foot - wellHeight, foot, border );
-	const IRegion2D signalWell = signalsShown ? nextWell( wellLeft, signalWellWidth, foot - wellHeight, foot, border ) : radarWell;
+	const IRegion2D radarWell = nextWell( wellLeft, radarWellWidth, consoleTopLine, foot, border );
 	const IRegion2D selectionWell = nextWell( wellLeft, selectionWellWidth, foot - wellHeight, foot, border );
 	const IRegion2D gridWell = nextWell( wellLeft, gridWellWidth, foot - wellHeight, foot, border );
 
 	IRegion2D wells;
 	wells.lo.x = radarWell.lo.x;
 	wells.hi.x = centreShown ? gridWell.hi.x : selectionWell.hi.x;
-	wells.lo.y = radarWell.lo.y - REAL_TO_INT( ( HEADER_GAP + HEADER_HEIGHT ) * scale );
+	wells.lo.y = consoleTopLine;
 	wells.hi.y = foot;
 	const IRegion2D consoleBox = framed( wells, border );
 	const Bool consoleShown = leftFound || centreShown;
@@ -11900,10 +11902,9 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	m_queueCorner.y = m_consoleTop;
 
 	std::vector< HtmlValues > &wellList = lists[ "wells" ];
-	putWell( wellList, radarWell, leftFound, scale );
-	putWell( wellList, signalWell, signalsShown, scale );
-	putWell( wellList, selectionWell, consoleShown, scale );
-	putWell( wellList, gridWell, centreShown, scale );
+	putWell( wellList, radarWell, leftFound, FALSE, scale );
+	putWell( wellList, selectionWell, consoleShown, TRUE, scale );
+	putWell( wellList, gridWell, centreShown, TRUE, scale );
 
 	// the radar at the HUD's scale, layoutPanels having put it at the uniform one
 	IRegion2D radar = radarWell;
@@ -11914,29 +11915,36 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	putPageRect( values, "expframe", experience, leftFound, scale );
 	putExperienceBar( values, lists[ "expcells" ], lists[ "rankstars" ] );
 
-	// in the radar's header, from its left: the idle worker's key, the skills key - the rank's stars,
-	// and the button that opens the promotion screen - and the under-attack light.  A key that is not
-	// there leaves no gap: a watcher, or a player beaten, has no idle worker's key and no promotions
-	// to buy, and only the light is left at the header's left end
+	// in the selection's header, on its grid of HEADER_SLOTS from its left: the idle worker's key, the
+	// skills key - the rank's stars, and the button that opens the promotion screen - the under-attack
+	// light, and in a multiplayer game the three smoke signals.  A key that is not there leaves no gap:
+	// a watcher, or a player beaten, has no idle worker's key and no promotions to buy, and only the
+	// light is left at the header's left end.  Every edge is a whole slot from the header's left, each
+	// rounded once, so two tabs share theirs
 	const Bool idleShown = leftFound && centreShown;
 	const Bool skillsShown = leftFound && ThePlayerList->getLocalPlayer()->isPlayerActive();
-	IRegion2D header = radarWell;
-	header.hi.y = radarWell.lo.y - REAL_TO_INT( HEADER_GAP * scale );
-	header.lo.y = header.hi.y - REAL_TO_INT( HEADER_HEIGHT * scale );
-	IRegion2D idleTab = header;
-	idleTab.hi.x = idleTab.lo.x + ( idleShown ? (Int)REAL_TO_INT( IDLE_TAB_WIDTH * scale ) : 0 );
-	IRegion2D skillsTab = header;
-	skillsTab.lo.x = idleTab.hi.x;
-	skillsTab.hi.x = skillsTab.lo.x + ( skillsShown ? (Int)REAL_TO_INT( SKILLS_TAB_WIDTH * scale ) : 0 );
-	IRegion2D alertTab = header;
-	alertTab.lo.x = skillsTab.hi.x;
-	alertTab.hi.x = alertTab.lo.x + REAL_TO_INT( ALERT_TAB_WIDTH * scale );
+	const IRegion2D header = wellHeader( selectionWell, scale );
+	const Real slotWidth = (Real)selectionWellWidth / HEADER_SLOTS;
+	struct Slots
+	{
+		static IRegion2D take( const IRegion2D &header, Real slotWidth, Int &slot, Int count )
+		{
+			IRegion2D tab = header;
+			tab.lo.x = header.lo.x + REAL_TO_INT( slot * slotWidth );
+			slot += count;
+			tab.hi.x = header.lo.x + REAL_TO_INT( slot * slotWidth );
+			return tab;
+		}
+	};
+	Int slot = 0;
+	const IRegion2D idleTab = Slots::take( header, slotWidth, slot, idleShown ? IDLE_SLOTS : 0 );
+	const IRegion2D skillsTab = Slots::take( header, slotWidth, slot, skillsShown ? SKILLS_SLOTS : 0 );
+	const IRegion2D alertTab = Slots::take( header, slotWidth, slot, ALERT_SLOTS );
+	const IRegion2D signalTabs = Slots::take( header, slotWidth, slot, signalsShown ? SIGNAL_BUTTONS : 0 );
 	putPageRect( values, "idletab", idleTab, idleShown, scale );
 	putPageRect( values, "skillstab", skillsTab, skillsShown, scale );
 	putPageRect( values, "alerttab", alertTab, leftFound, scale );
-
-	// the three smoke signal buttons down their own well right of the radar's
-	putPageRect( values, "signals", signalWell, signalsShown, scale );
+	putPageRect( values, "signals", signalTabs, signalsShown, scale );
 	const UnsignedInt nowMs = timeGetTime();
 
 	// the idle worker's key flashes while a worker stands idle, which is when the bar enables its
@@ -11977,10 +11985,10 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	putPowerGroove( values, power, centreShown );
 	putPowerBar( values, lists[ "powercells" ] );	// after the groove, which it divides into cells
 
-	// The top page, hanging from the middle of the screen's top edge: the match clock, and the money
-	// under it, in one plate of steel; both wells are as wide as the wider of the two, so the plate
-	// grows from its middle when the figure does.  A watcher's are on the spectator page.  The money's
-	// well is as wide as the figure and a margin each side, following it through
+	// The top page, hanging from the middle of the screen's top edge: the match clock in a plate of its
+	// own, and the money in another hung a little under it, each as wide as what it holds, so the
+	// money's grows from its middle when the figure does.  A watcher's are on the spectator page.  The
+	// money's well is as wide as the figure and a margin each side, following it through
 	// InGameUI_moneyPlateWidth on the client's clock.  A static text wraps at its window's width less
 	// ten pixels, which the margin only covered from a scale of 1.0 up: at 1280x720 "$ 48500  +0/s"
 	// broke onto two lines and spilled out of the plate.  The window is one line, which the static
@@ -11993,29 +12001,36 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	moneyWindow->winSetStatus( WIN_STATUS_ONE_LINE );
 	moneyText->setWordWrap( 0 );
 	const Int moneyNeeded = moneyText->getWidth() + 2 * REAL_TO_INT( MONEY_TEXT_MARGIN * scale );
-	const Int topWidth = max( (Int)REAL_TO_INT( CLOCK_WIDTH * scale ), InGameUI_moneyPlateWidth( m_moneyPlate, moneyNeeded, nowMs ) );
+	const Int clockWidth = REAL_TO_INT( CLOCK_WIDTH * scale );
+	const Int moneyWidth = InGameUI_moneyPlateWidth( m_moneyPlate, moneyNeeded, nowMs );
 	IRegion2D clock;
-	clock.lo.x = ( (Int)TheDisplay->getWidth() - topWidth ) / 2;
-	clock.hi.x = clock.lo.x + topWidth;
+	clock.lo.x = ( (Int)TheDisplay->getWidth() - clockWidth ) / 2;
+	clock.hi.x = clock.lo.x + clockWidth;
 	clock.lo.y = topBorder;
 	clock.hi.y = clock.lo.y + REAL_TO_INT( TOP_WELL_HEIGHT * scale );
 	putPageRect( values, "clock", clock, topShown, scale );
 	values[ "clock" ] = spectatorClock( TheGameLogic->getFrame() );
+	IRegion2D clockBox = clock;
+	clockBox.lo.x -= topBorder;
+	clockBox.lo.y = 0;
+	clockBox.hi.x += topBorder;
+	clockBox.hi.y += topBorder;
+	putFrame( values, "clockbar", clock, clockBox, topShown );
 
-	IRegion2D money = clock;
-	money.lo.y = clock.hi.y + topBorder;
+	const Bool moneyShown = topShown && !moneyWindow->winIsHidden();
+	IRegion2D money;
+	money.lo.x = ( (Int)TheDisplay->getWidth() - moneyWidth ) / 2;
+	money.hi.x = money.lo.x + moneyWidth;
+	money.lo.y = clockBox.hi.y + REAL_TO_INT( TOP_BOX_GAP * scale ) + topBorder;
 	money.hi.y = money.lo.y + REAL_TO_INT( MONEY_WELL_HEIGHT * scale );
-	putMoney( values, money, topShown && !moneyWindow->winIsHidden() );
-
-	IRegion2D topWells = clock;
-	topWells.hi.y = money.hi.y;
-	IRegion2D topBox = topWells;
-	topBox.lo.x -= topBorder;
-	topBox.lo.y = 0;
-	topBox.hi.x += topBorder;
-	topBox.hi.y += topBorder;
-	putFrame( values, "topbar", topWells, topBox, topShown );
-	m_topBarBottom = topShown ? topBox.hi.y : 0;
+	putMoney( values, money, moneyShown );
+	IRegion2D moneyBox = money;
+	moneyBox.lo.x -= topBorder;
+	moneyBox.lo.y -= topBorder;
+	moneyBox.hi.x += topBorder;
+	moneyBox.hi.y += topBorder;
+	putFrame( values, "moneybar", money, moneyBox, moneyShown );
+	m_topBarBottom = moneyShown ? moneyBox.hi.y : topShown ? clockBox.hi.y : 0;
 	// the event feed hangs in the top left corner under the menu key, and under the top page's foot
 	// too, which on a 4:3 screen reaches over the feed's lines
 	m_feedTop = max( (Int)REAL_TO_INT( MENU_FOOT * scale ), m_topBarBottom );
@@ -13244,12 +13259,6 @@ void InGameUI::drawSuperweaponStrip( void )
 	if( TheGameLogic == NULL || !TheGameLogic->isInGame() || TheGameLogic->isInShellGame() )
 		return;
 
-	// a cameo is one of the general's power bar's, and the HUD Size option grows it with the bar:
-	// the player's step on top of the bar's own
-	ICoord2D traySize, cameoSize, trayHole;
-	Int trayStep = 0;
-	stripTrayMetrics( &traySize, &cameoSize, &trayHole, &trayStep );
-
 	//
 	// The strip is laid out in the screen's pixels, and its page with it: every length of the steel
 	// is turned into a whole number of screen pixels here, once, and everything after is sums of
@@ -13267,9 +13276,11 @@ void InGameUI::drawSuperweaponStrip( void )
 			return pixels > 1 ? pixels : 1;
 		}
 	};
-	const Real hudStep = scale / ControlBarHudScaleFor( TheDisplay->getWidth(), TheDisplay->getHeight() );
-	const Int cameoW = Whole::of( cameoSize.x, hudStep );
-	const Int cameoH = Whole::of( cameoSize.y, hudStep );
+	// a cameo is the size of a general's power's cell in the console, so a countdown up here reads
+	// the way the powers' own do
+	const ICoord2D cameo = cellSize();
+	const Int cameoW = cameo.x;
+	const Int cameoH = cameo.y;
 
 	// the production queue's steel: the gap between two of its cells, which here is the steel between
 	// two owners' frames, and its tray's border, which is the well and the line along its outer edge
