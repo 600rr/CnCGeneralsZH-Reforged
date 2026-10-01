@@ -12486,6 +12486,35 @@ TEST(income_rate_stays_per_second_until_picked_and_automatic_turns_at_ten_a_seco
 	CHECK( !InGameUI_incomePerMinute( INCOME_RATE_AUTOMATIC, 40 ) );
 }
 
+TEST(build_plans_are_numbered_in_the_order_their_builder_takes_them)
+{
+	// dozer 7 holds plans 40, 12 and 25 and is walking to 40; dozer 3 holds 30 alone
+	const Int ids[] = { 40, 12, 30, 25 };
+	const Int builders[] = { 7, 7, 3, 7 };
+	const Bool current[] = { TRUE, FALSE, FALSE, FALSE };
+	std::vector<BuildPlanNumber> plans;
+	for( Int i = 0; i < 4; ++i )
+	{
+		BuildPlanNumber plan;
+		plan.plan = (ObjectID)ids[ i ];
+		plan.builder = (ObjectID)builders[ i ];
+		plan.current = current[ i ];
+		plan.step = -1;
+		plans.push_back( plan );
+	}
+
+	InGameUI_numberBuildPlans( plans );
+
+	CHECK_EQ( (Int)plans[ 0 ].plan, 30 );
+	CHECK_EQ( plans[ 0 ].step, 0 );
+	CHECK_EQ( (Int)plans[ 1 ].plan, 40 );
+	CHECK_EQ( plans[ 1 ].step, 1 );
+	CHECK_EQ( (Int)plans[ 2 ].plan, 12 );
+	CHECK_EQ( plans[ 2 ].step, 2 );
+	CHECK_EQ( (Int)plans[ 3 ].plan, 25 );
+	CHECK_EQ( plans[ 3 ].step, 3 );
+}
+
 TEST(empty_building_slots_are_a_check_box_that_starts_on)
 {
 	const OptionDef *def = findOptionDef( "EmptyBuildingPips" );

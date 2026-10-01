@@ -10679,6 +10679,33 @@ Bool InGameUI_incomePerMinute( Int incomeRateMode, Int perSecond )
 	return incomeRateMode == INCOME_RATE_PER_MINUTE;
 }
 
+static bool buildPlanComesFirst( const BuildPlanNumber& a, const BuildPlanNumber& b )
+{
+	if( a.builder != b.builder )
+		return a.builder < b.builder;
+	if( a.current != b.current )
+		return a.current != FALSE;
+	return a.plan < b.plan;
+}
+
+void InGameUI_numberBuildPlans( std::vector<BuildPlanNumber>& plans )
+{
+	std::sort( plans.begin(), plans.end(), buildPlanComesFirst );
+
+	size_t first = 0;
+	while( first < plans.size() )
+	{
+		size_t end = first + 1;
+		while( end < plans.size() && plans[ end ].builder == plans[ first ].builder )
+			++end;
+
+		// a lone "1" says nothing, as on a unit's order markers
+		for( size_t i = first; i < end; ++i )
+			plans[ i ].step = end - first > 1 ? (Int)( i - first ) + 1 : 0;
+		first = end;
+	}
+}
+
 /** One seat on the scoreboard page.  `full` is whether the local player may see the numbers: his
 	* own side, or everybody when watching.  An enemy is a name, a colour and a team.  `perSecond` is
 	* what the seat has earned a second lately, beside {{income}}, its average over the match. */

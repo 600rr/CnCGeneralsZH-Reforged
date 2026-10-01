@@ -602,7 +602,7 @@ A third pass went through the generals' powers, promotions and unit abilities.
 - The production strip dims fresh orders the same way.
 - A second worker can take over a half-built building.
 - The nearest idle worker takes a new job, without yanking a busy one off.
-- Hand one worker a string of jobs and it does them in the order you gave them. Hold shift and put down three buildings while it is busy; each waits on the ground as a plan, and the worker goes from the first to the second to the third. It used to take whichever was nearest when it finished, so the barracks you placed first could be the last one up.
+- Hand one worker a string of jobs and it does them in the order you gave them. Hold shift and put down three buildings while it is busy; each waits on the ground as a plan, and the worker goes from the first to the second to the third. It used to take whichever was nearest when it finished, so the barracks you placed first could be the last one up. Each waiting plan now carries its turn as a number over the outline, 1 for the one going up next, counted separately for every worker that has more than one, so two dozers laying out one base never read as a single list. Only you see them.
 - A worker that is building something still offers you the whole build list.
 - The GLA's decoy build list toggles both ways now.
 - Workers go back to collecting supplies when they finish.
