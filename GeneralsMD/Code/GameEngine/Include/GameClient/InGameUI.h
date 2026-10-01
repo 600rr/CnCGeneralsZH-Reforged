@@ -1504,6 +1504,8 @@ protected:
 	void drawQueueTray( void );		///< the playing strip as a row in Window/Html/Queue.html's tray
 	void drawNetPage( void );			///< the network box, Window/Html/Net.html, with the command bar's page
 	void drawReadoutPage( const HtmlValues &values );	///< the clock and the health, Window/Html/Readout.html, over the bar's page
+	void alertSuperweapon( Player *owner, const UnicodeString &name, const char *label );	///< queue a banner: `name` and what happened to it
+	void drawAlertPage( void );		///< the superweapon banner, Window/Html/Alert.html, under the top page
 	std::string scoreboardHtml( void );	///< Window/Html/Scoreboard.html filled in for this frame
 	const Image *productionStripTray( void );	///< the bar's tray, mirrored, kept until the bar changes side
 	void stripTrayMetrics( ICoord2D *tray, ICoord2D *cameo, ICoord2D *hole, Int *step );	///< that tray's size, its cameo hole, and the column step
@@ -1553,6 +1555,14 @@ protected:
 	HtmlOverlay *								m_readoutOverlay;					///< Window/Html/Readout.html, the clock and the health over the bar's page
 	Bool												m_readoutPageLoaded;
 	std::string									m_readoutPage;
+	/// one superweapon banner waiting or up: what happened, already lettered, and whose it is
+	struct SuperweaponAlert { std::string text; std::string whose; };
+	std::vector< SuperweaponAlert >	m_alerts;								///< the banner up first, then the ones queued behind it
+	UnsignedInt									m_alertStartMs;						///< when the first one went up, on the client's clock
+	HtmlOverlay *								m_alertOverlay;						///< Window/Html/Alert.html, the banner under the top page
+	Bool												m_alertPageLoaded;
+	std::string									m_alertPage;
+	Int													m_alertBottom;						///< the banner's bottom on screen while it is up, else 0: the scoreboard hangs under it
 	HtmlOverlay *								m_tooltipOverlay;
 	Bool												m_tooltipPageLoaded;
 	std::string									m_tooltipPage;

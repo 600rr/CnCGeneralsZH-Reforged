@@ -1239,6 +1239,10 @@ InGameUI::InGameUI()
 	m_netPageLoaded = FALSE;
 	m_readoutOverlay = NULL;
 	m_readoutPageLoaded = FALSE;
+	m_alertStartMs = 0;
+	m_alertOverlay = NULL;
+	m_alertPageLoaded = FALSE;
+	m_alertBottom = 0;
 	m_promotionOverlay = NULL;
 	m_promotionFrontOverlay = NULL;
 	for( Int grid = 0; grid < CELL_GRID_COUNT; grid++ )
@@ -1387,6 +1391,8 @@ InGameUI::~InGameUI()
 	m_netOverlay = NULL;
 	delete m_readoutOverlay;
 	m_readoutOverlay = NULL;
+	delete m_alertOverlay;
+	m_alertOverlay = NULL;
 	delete m_promotionOverlay;
 	m_promotionOverlay = NULL;
 	delete m_promotionFrontOverlay;
@@ -4101,6 +4107,9 @@ void InGameUI::reset( void )
 	m_controlBarPageLoaded = FALSE;
 	m_netPageLoaded = FALSE;
 	m_readoutPageLoaded = FALSE;
+	m_alertPageLoaded = FALSE;
+	m_alerts.clear();
+	m_alertBottom = 0;
 	m_tooltipPageLoaded = FALSE;
 	m_promotionPageLoaded = FALSE;
 	m_quitMenuPageLoaded = FALSE;
@@ -4364,8 +4373,11 @@ void InGameUI::feedSpecialPower( const Object *source, const AsciiString &powerN
 	if( info != NULL )
 	{
 		if( !info->m_hiddenByScript && !info->m_hiddenByScience )
+		{
 			feedAct( owner, cameo, WideCharStringToMultiByte( source->getTemplate()->getDisplayName().str() ),
 							 "launched", "GUI:HudSuperweaponLaunched" );
+			alertSuperweapon( owner, source->getTemplate()->getDisplayName(), "GUI:HudAlertLaunched" );
+		}
 		return;
 	}
 	if( power->getRequiredScience() == SCIENCE_INVALID || button == NULL || !feedShows( owner ) )
@@ -4389,6 +4401,92 @@ void InGameUI::feedStructure( Object *structure, Bool finished )
 	feedAct( owner, structure->getTemplate()->getButtonImage(),
 					 WideCharStringToMultiByte( structure->getTemplate()->getDisplayName().str() ),
 					 finished ? "built" : "started", finished ? "GUI:HudStructureBuilt" : "GUI:HudStructureStarted" );
+	if( finished && superweapon )
+		alertSuperweapon( owner, structure->getTemplate()->getDisplayName(), "GUI:HudAlertBuilt" );
+}
+
+//-------------------------------------------------------------------------------------------------
+/** A banner for a superweapon built, charged or fired, queued behind any already up: the same three
+	* moments EVA calls out to every player, so it tells nobody anything EVA does not.  Whose it is
+	* is the colour alone, the owner's call: the local player's own neutral, an ally's blue, an enemy's
+	* red.  A watcher has no side and gets the neutral one. */
+//-------------------------------------------------------------------------------------------------
+void InGameUI::alertSuperweapon( Player *owner, const UnicodeString &name, const char *label )
+{
+	const Player *local = ThePlayerList->getLocalPlayer();
+	SuperweaponAlert alert;
+	UnicodeString text;
+	text.format( TheGameText->fetch( label ), name.str() );
+	alert.text = WideCharStringToMultiByte( text.str() );
+	if( !local->isPlayerActive() || owner == local )
+		alert.whose = "own";
+	else
+		alert.whose = local->getRelationship( owner->getDefaultTeam() ) == ENEMIES ? "enemy" : "ally";
+	if( m_alerts.empty() )
+		m_alertStartMs = timeGetTime();
+	m_alerts.push_back( alert );
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The banner up now, under the top page and centred on the console, fading out at the end of its
+	* time.  How long it holds is the owner's rule and goes by what waits behind it: alone, four
+	* seconds; with one more, two; with two or more, one.  It is asked again every frame, so a banner
+	* arriving while one is up can cut the one up short and never draws it out.  Timed on the client's
+	* wall clock, as the money plate's settle and the superweapon strip's breath are: a picture, not a
+	* thing the match counts.  Its page is laid out once per banner: the fade is the page's alpha,
+	* applied as it draws. */
+//-------------------------------------------------------------------------------------------------
+static const UnsignedInt ALERT_FADE_MS = 600;
+static const char *const ALERT_PAGE = "Window\\Html\\Alert.html";
+
+static UnsignedInt alertHoldMs( size_t waiting )
+{
+	static const UnsignedInt HOLD_ALONE_MS = 4000, HOLD_ONE_WAITING_MS = 2000, HOLD_MORE_WAITING_MS = 1000;
+	return waiting == 0 ? HOLD_ALONE_MS : waiting == 1 ? HOLD_ONE_WAITING_MS : HOLD_MORE_WAITING_MS;
+}
+
+void InGameUI::drawAlertPage( void )
+{
+	enum { ALERT_GAP = 14, ALERT_WIDTH = 360, ALERT_OPAQUE = 255 };	// the gap clear of the plates, the owner's "a bit lower"
+	m_alertBottom = 0;
+	const UnsignedInt nowMs = timeGetTime();
+	while( !m_alerts.empty() && nowMs - m_alertStartMs >= alertHoldMs( m_alerts.size() - 1 ) )
+	{
+		m_alerts.erase( m_alerts.begin() );
+		m_alertStartMs = nowMs;
+	}
+	if( m_alerts.empty() )
+		return;
+
+	if( !m_alertPageLoaded )
+	{
+		m_alertPageLoaded = TRUE;
+		readHtmlPage( ALERT_PAGE, m_alertPage );
+	}
+	if( m_alertPage.empty() )
+		return;
+	if( m_alertOverlay == NULL )
+	{
+		m_alertOverlay = new HtmlOverlay( m_superweaponNormalFont );
+		m_alertOverlay->setHud( TRUE );
+	}
+
+	const Real scale = ControlBarHudScale();
+	const SuperweaponAlert &alert = m_alerts.front();
+	HtmlValues values;
+	// the console stands with the powers' widest kept free on its right, so its axis with them is the
+	// screen's middle, the line the top page's plates hang on too
+	values[ "left" ] = std::to_string( REAL_TO_INT_FLOOR( TheDisplay->getWidth() / 2 / scale + 0.5f ) - ALERT_WIDTH / 2 );
+	values[ "width" ] = std::to_string( ALERT_WIDTH );
+	values[ "top" ] = std::to_string( REAL_TO_INT_FLOOR( m_topBarBottom / scale + 0.5f ) + ALERT_GAP );
+	values[ "whose" ] = alert.whose;
+	values[ "text" ] = alert.text;
+	m_alertOverlay->setPage( HtmlTemplate_expand( m_alertPage, values, HtmlLists(), lookupGameText ) );
+
+	const UnsignedInt left = alertHoldMs( m_alerts.size() - 1 ) - ( nowMs - m_alertStartMs );
+	m_alertOverlay->setAlpha( left < ALERT_FADE_MS ? (Int)( ALERT_OPAQUE * left / ALERT_FADE_MS ) : ALERT_OPAQUE );
+	m_alertOverlay->draw();
+	m_alertBottom = m_alertOverlay->bottomOf( "#alert" );
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -7951,6 +8049,8 @@ void InGameUI::postDraw( void )
                     feedAct( owningObject->getControllingPlayer(), superweaponCameo( info->getSpecialPowerTemplate() ),
                              WideCharStringToMultiByte( owningObject->getTemplate()->getDisplayName().str() ),
                              "ready", "GUI:HudSuperweaponReady" );
+                  alertSuperweapon( owningObject->getControllingPlayer(), owningObject->getTemplate()->getDisplayName(),
+                                    "GUI:HudAlertReady" );
 
                     SpecialPowerType type = module->getSpecialPowerTemplate()->getSpecialPowerType();
                   
@@ -11013,7 +11113,8 @@ std::string InGameUI::scoreboardHtml( void )
 	values[ "side" ] = spectatorSide();
 	values[ "clock" ] = spectatorClock( TheGameLogic->getFrame() );
 	values[ "boardx" ] = std::to_string( REAL_TO_INT_FLOOR( TheDisplay->getWidth() / scale - BOARD_WIDTH ) / 2 );
-	values[ "boardy" ] = std::to_string( REAL_TO_INT_FLOOR( ( m_controlBarPageShown ? m_topBarBottom : 0 ) / scale ) );
+	// under the top page, and under the superweapon banner while one is up
+	values[ "boardy" ] = std::to_string( REAL_TO_INT_FLOOR( ( m_controlBarPageShown ? max( m_topBarBottom, m_alertBottom ) : 0 ) / scale ) );
 	return HtmlTemplate_expand( m_scoreboardPage, values, lists, lookupGameText );
 }
 
@@ -12306,6 +12407,7 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	m_controlBarPageHovered = m_controlBarOverlay->hover( TheMouse->getMouseStatus()->pos );
 	m_controlBarOverlay->draw();
 	drawReadoutPage( values );
+	drawAlertPage();
 	drawNetPage();
 
 	m_controlBarSolids.clear();
