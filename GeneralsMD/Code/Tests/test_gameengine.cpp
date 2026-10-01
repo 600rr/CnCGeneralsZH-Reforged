@@ -14796,6 +14796,20 @@ TEST(html_template_fills_values_and_repeats_each)
 		"<li class=\"t1\" data-each=\"players\"><li>Bo</li></li></ul>"
 		"looked" );
 	CHECK_STR( HtmlTemplate_escape( "a\"b'c" ).c_str(), "a&quot;b&#39;c" );
+
+	// the page is cut once and kept by its text: new values still come through on the next call,
+	// and a page with other text is cut on its own rather than served the first one's blocks
+	values[ "title" ] = "U";
+	lists[ "players" ].pop_back();
+	CHECK_STR( HtmlTemplate_expand( page, values, lists, lookup ).c_str(),
+		"<p class=\"on\">U</p>"
+		"<ul><li class=\"t9\" data-each=\"players\"><li>&lt;b&gt;&amp;</li></li></ul>"
+		"looked" );
+	CHECK_STR( HtmlTemplate_expand( page + "{{title}}", values, lists, lookup ).c_str(),
+		"<p class=\"on\">U</p>"
+		"<ul><li class=\"t9\" data-each=\"players\"><li>&lt;b&gt;&amp;</li></li></ul>"
+		"lookedU" );
+	CHECK_STR( HtmlTemplate_expand( "a {{ open", values, lists, lookup ).c_str(), "a {{ open" );
 }
 
 // litehtml builds an element for every word and every white space character, so the page it is
