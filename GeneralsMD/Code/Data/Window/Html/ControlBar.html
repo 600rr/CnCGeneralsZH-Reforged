@@ -4,9 +4,10 @@
   out the way the owner drew them on 2026-10-01: the console standing on the middle of the screen's
   bottom edge, one plate of steel with a header strip and a well for each section side by side - the
   radar with the experience bar beside it and, in its header, the idle worker's key, the skills key
-  and the under-attack light; the smoke signals' column; the selection; the command grid; the
-  general's powers - and the top page hanging from the middle of the top edge, the money, the match
-  clock and the power bar.  Laid out at ControlBarHudScale(), 70 percent of the uniform scale the
+  and the under-attack light; the smoke signals' column; the selection; the command grid with the
+  power bar in its header - with the general's powers growing out of its right hand end, and the
+  top page hanging from the middle of the top edge, the match clock over the money.  Laid out at
+  ControlBarHudScale(), 70 percent of the uniform scale the
   tooltips and the boards use.  The command buttons, the radar, the money and the
   portrait are still the bar's windows and paint over this page.  The under-attack light, the power
   bar and the experience bar are the page's to draw: their windows take the clicks and draw
@@ -55,8 +56,11 @@
                            at {{x}} for each veterancy level, and the health bar's dark groove,
                            {{sel.healthshown}} "hidden" for an enemy in disguise.  The health's
                            figure and its lit length are Window/Html/Readout.html's
-    data-each="skillcells" a cell behind each of the general's powers in the console's right hand
-                           well, each {{cell.x}} .y .w .h
+    data-each="skillcells" a cell behind each of the general's powers, each {{cell.x}} .y .w .h
+    data-each="powersteel" the powers' steel, a column of it under each column of their cells from
+                           the left, {{plate.x}} .y .w .h, against the console's right hand end and
+                           down to the screen's bottom edge, each as high as its own cells, and
+                           {{shadeh}} how far down its right hand side no column beside it covers
     {{signals.x}} ...      the smoke signals' well, three keys down it;
                            data-click="signal:attack", "signal:defend" or "signal:look" sends one
                            to the middle of the view; {{signals.shown}} is "hidden" where the keys
@@ -76,18 +80,17 @@
     {{topbar.x}} ...       and a border outside it: .x and .y the border's outer corner, .w and .h
                            the container, and .bt .br .bb .bl the border's four widths
     data-each="wells"      each of the console's wells, {{well.x}} .y .w .h, and the header strip
-                           over it, {{header.x}} .y .w .h, {{title}} the section's name in it or
-                           nothing
+                           over it, {{header.x}} .y .w .h
     {{idletab.x}} ...      in the radar's header from its left: the idle worker's key,
     {{skillstab.x}} ...    {{idleflash}} "flash" for half of every 0.7 seconds of the client's clock
     {{alerttab.x}} ...     while one is idle; the skills key, the rank's stars, pressed through
                            data-click="press:ButtonGeneral" for the promotion screen; and the
                            under-attack light
-    {{powerframe.x}} ...   the power bar's groove right of the clock;
+    {{powerframe.x}} ...   the power bar's groove in the command grid's header strip;
                            {{powerframe.inner}} the height inside the frame and its lip
-    {{clock.x}} ...        the match clock's well in the middle of the top page, its figure
+    {{clock.x}} ...        the match clock's well at the top of the top page, its figure
                            Readout.html's
-    {{moneyblock.x}} ...   the money's well left of it, the money's window moved into it
+    {{moneyblock.x}} ...   the money's well under it, the money's window moved into it
     {{Name.x}} .y .w .h    the rectangle of the bar's window Name, {{Name.shown}} "shown" or "hidden"
                            and {{Name.state}} any of "disabled", "hilite", "pushed", for LeftHUD (the
                            radar), RightHUD (the portrait's box), CameoWindow (the portrait),
@@ -185,8 +188,11 @@
                   background-repeat: no-repeat; background-image: url(Icons/RankStar.svg); }
   .selinfo .health { position: absolute; left: 0; top: 40px; height: 8px; background-color: #0d1512; border-bottom: 1px solid #3f4650; }
 
-  /* each well's title in its header strip */
-  .header .title { position: absolute; left: 6px; top: 0; font-size: 9px; font-weight: bold; color: #c9d2d9; white-space: nowrap; }
+  /* the general's powers' steel, a column at a time: the console's steel with its light top line,
+     and a dark line down the part of its right hand side that faces the battlefield */
+  .powersteel .steel { left: 0; top: 0; right: 0; bottom: 0; }
+  .powersteel .shine { left: 0; right: 0; top: 0; }
+  .powersteel .shade { right: 0; top: 0; }
 
   /* the money's well on the top page.  The money's figure is the bar's own window over its well */
   .stack { box-sizing: border-box; margin: 0; }
@@ -357,7 +363,7 @@
     <div class="shade" style="right: -{{console.br}}px; top: -{{console.bt}}px; bottom: -{{console.bb}}px"></div>
   </div>
   <div data-each="wells">
-    <div class="piece header" style="left: {{header.x}}px; top: {{header.y}}px; width: {{header.w}}px; height: {{header.h}}px"><div class="title" style="line-height: {{header.h}}px">{{title}}</div></div>
+    <div class="piece header" style="left: {{header.x}}px; top: {{header.y}}px; width: {{header.w}}px; height: {{header.h}}px"></div>
     <div class="piece" style="left: {{well.x}}px; top: {{well.y}}px; width: {{well.w}}px; height: {{well.h}}px"><div class="hollow" style="width: {{well.w}}px; height: {{well.h}}px"></div></div>
   </div>
   <div class="piece groove solid stack {{expframe.shown}}" style="left: {{expframe.x}}px; top: {{expframe.y}}px; width: {{expframe.w}}px; height: {{expframe.h}}px">
@@ -374,7 +380,14 @@
     <div class="key signal look" data-click="signal:look" style="top: 94px; margin-top: {{signal2.drop}}px"><div class="icon"></div></div>
   </div>
 
-  <!-- the top page: the money, the match clock and the power bar in one plate from the top edge -->
+  <!-- the general's powers' steel, stepping down from the console's right hand end -->
+  <div class="piece bezel solid powersteel" data-each="powersteel" style="left: {{plate.x}}px; top: {{plate.y}}px; width: {{plate.w}}px; height: {{plate.h}}px">
+    <div class="steel"></div>
+    <div class="shine"></div>
+    <div class="shade" style="height: {{shadeh}}px"></div>
+  </div>
+
+  <!-- the top page: the match clock over the money in one plate from the top edge -->
   <div class="piece frame bezel solid {{topbar.shown}}" style="left: {{topbar.x}}px; top: {{topbar.y}}px; width: {{topbar.w}}px; height: {{topbar.h}}px; border-width: {{topbar.bt}}px {{topbar.br}}px {{topbar.bb}}px {{topbar.bl}}px">
     <div class="steel" style="left: -{{topbar.bl}}px; right: -{{topbar.br}}px; top: -{{topbar.bt}}px; bottom: -{{topbar.bb}}px"></div>
     <div class="lit" style="left: -{{topbar.bl}}px; top: -{{topbar.bt}}px; bottom: -{{topbar.bb}}px"></div>
@@ -390,7 +403,7 @@
   <div class="piece tab idle {{idletab.shown}} {{ButtonIdleWorker.state}} {{idleflash}}" style="left: {{idletab.x}}px; top: {{idletab.y}}px; width: {{idletab.w}}px; height: {{idletab.h}}px">
     <div class="key" data-click="press:ButtonIdleWorker"><div class="icon"></div><div class="veil"></div></div>
   </div>
-  <!-- the money, left of the clock; the figure is the bar's own window over its well -->
+  <!-- the money, under the clock; the figure is the bar's own window over its well -->
   <div class="piece moneywell {{moneyblock.shown}}" style="left: {{moneyblock.x}}px; top: {{moneyblock.y}}px; width: {{moneyblock.w}}px; height: {{moneyblock.h}}px"><div class="lip"></div></div>
   <!-- a lone unit's name, veterancy and health beside its portrait in the selection's well -->
   <div class="piece selinfo {{selinfo.shown}}" style="left: {{selinfo.x}}px; top: {{selinfo.y}}px; width: {{selinfo.w}}px; height: {{selinfo.h}}px">

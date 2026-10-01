@@ -52,7 +52,10 @@
   .china .well { background-color: rgba(26, 10, 8, 0.9); }
   .gla .well { background-color: rgba(22, 19, 8, 0.9); }
 
-  #board { position: absolute; width: 708px; padding-bottom: 3px; }
+  /* it hangs from the top page's foot, so its top edge is that page's steel carried on */
+  #board { position: absolute; width: 708px; padding-bottom: 3px; border-top: 3px solid #363b41; }
+  .china #board { border-top-color: #491d13; }
+  .gla #board { border-top-color: #473f23; }
 
   /* every column's left edge, shared by the captions and the seats; the Turkish captions are the
      long ones, so a number column is as wide as its caption rather than its digits, and

@@ -15901,18 +15901,6 @@ GUI:BarNetUnits
 "birim"
 END
 
-GUI:HudSelection
-"Seçim"
-END
-
-GUI:HudCommands
-"Komutlar"
-END
-
-GUI:HudPowers
-"Güçler"
-END
-
 GUI:ScoreboardAllies
 "TAKIMIN"
 END

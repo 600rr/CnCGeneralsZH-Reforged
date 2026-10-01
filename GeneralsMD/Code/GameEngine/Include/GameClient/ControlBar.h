@@ -847,9 +847,10 @@ public:
 	/** paint `button`'s key, the one `place` is bound to.  `place` below 0 clears it. */
 	void labelPlaceButton( GameWindow *button, Int place );
 
-	/** The general's powers are laid out SPECIAL_POWER_SHORTCUT_COLS to a row, so one key press
-		cannot reach eleven of them.  The first press picks a row (F1 is the row in the corner,
-		F2 the one above it) and the second picks a power inside that row (F1 is the rightmost),
+	/** The general's powers are laid out SPECIAL_POWER_SHORTCUT_COLS to a group, so one key press
+		cannot reach eleven of them.  The first press picks a group, which stands on the HUD as a
+		column (F1 is the column against the console, F2 the next) and the second picks a power
+		inside it (F1 is the bottom one),
 		which puts every power two keystrokes away: F1-F1, F2-F1, F2-F3.  This is what the
 		SHORTCUT_SLOTnn keys are wired to. */
 	void pressSpecialPowerShortcut( Int index );
@@ -1106,9 +1107,10 @@ public:
 		* solid panel. */
 	void setPageSolids( const std::vector< IRegion2D > *solids, const std::vector< IRegion2D > *holes = NULL );
 
-	/** The HUD page's place for the general's powers: the first in `corner`, the bottom right of the
-		* grid, each `cell` big with `gap` between them, a row of SPECIAL_POWER_SHORTCUT_COLS running
-		* left from it and the next row over it, the order the row keys count in.  The slots' own tray
+	/** The HUD page's place for the general's powers: the first in `corner`, the bottom left of the
+		* grid, each `cell` big with `gap` between them, a group of SPECIAL_POWER_SHORTCUT_COLS going
+		* up from it as a column and the next group the column right of it, the order the group keys
+		* count in.  The slots' own tray
 		* art is not drawn; the page draws their cells.  NULL hides the bar.  Screen pixels.  Asked every
 		* frame the page draws, so it holds against the bar's own layout.  Returns how many powers are
 		* shown, each in its place. */
