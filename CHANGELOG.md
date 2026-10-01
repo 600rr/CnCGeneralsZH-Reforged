@@ -8,6 +8,14 @@ found and fixed â€” EA's own, not port damage.**
 
 ---
 
+## The command bar moves to the middle
+
+- The command bar is one console standing in the middle of the bottom edge: the radar, the smoke signals in multiplayer, your selection, the build grid and the general's powers side by side, under one top line.
+- A single unit's name and health stand beside its portrait, and a veteran gets his gold stars there too. A group shows every type it holds in the same box, five to a row.
+- Your money and the match clock hang from the middle of the top edge with the power bar beside them. Hold Tab and the scoreboard drops down under them.
+- Your production queue stands on the console over your selection, five to a row. The event feed runs down from the menu key in the top left corner, and the chat sits under it.
+- HUD Size grows the console from its middle, and on a narrow screen it stops at the size that still fits.
+
 ## Groups attack-move at their own speed
 
 - An attack move used to hold the whole group to its slowest member when you held Ctrl on the click, and the computer's groups did that every time. A damaged truck walked the tanks in. Each unit now goes at its own speed. A replay recorded before this, of a group attack-moving that way, will not play back the same.

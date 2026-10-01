@@ -1,16 +1,16 @@
 <!DOCTYPE html>
 <!--
   Everything the player has coming, playing: one cameo for each item queued in any factory or going
-  up on the ground, the soonest first, in a row of cells growing right from the screen's left edge
-  over the radar's under-attack light.  The tray is the general's powers' tray on the other side of
-  the bar, mirrored.  The cameos, their clocks, their countdowns and the "+N" are the game's own and
+  up on the ground, the soonest first, in rows of five standing on the console over the selection's
+  well, each row growing right and the next one over it, in a tray of the console's steel.
+  The cameos, their clocks, their countdowns and the "+N" are the game's own and
   draw between the page's two layers.  Same materials as Window/Html/ControlBar.html.
 
   The game fills in, twice every frame the row is up (InGameUI::drawQueueTray):
     {{layer}}              "back" under the cameos, "front" over them: the cells' frames again, so
                            the steel lies over each picture's edge
     {{side}}               "america", "china" or "gla"
-    data-each="trays"      the tray, a panel as ControlBar.html's {{right.x}} is: {{tray.x}} and .y
+    data-each="trays"      the tray, a frame as ControlBar.html's {{console.x}} is: {{tray.x}} and .y
                            the border's outer corner, .w and .h the cells it holds, .bt .br .bb .bl
                            its border's four widths.  The queue has one
     data-each="cells"      a cell behind each cameo and the "+N", each {{cell.x}} .y .w .h, the

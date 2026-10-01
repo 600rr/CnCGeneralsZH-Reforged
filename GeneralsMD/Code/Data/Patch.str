@@ -1414,6 +1414,19 @@ GUI:BarNetUnits
 "units"
 END
 
+// the titles on the console's header strips
+GUI:HudSelection
+"Selection"
+END
+
+GUI:HudCommands
+"Commands"
+END
+
+GUI:HudPowers
+"Powers"
+END
+
 // the scoreboard on Tab
 GUI:ScoreboardAllies
 "YOUR SIDE"

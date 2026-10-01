@@ -1629,7 +1629,15 @@ Real ControlBarHudScale( void )
 	if( step < 0 || step > 3 )
 		step = 0;
 
-	return ControlBarHudScaleFor( TheDisplay->getWidth(), TheDisplay->getHeight() ) * steps[ step ];
+	return ControlBarHudScaleFit( ControlBarHudScaleFor( TheDisplay->getWidth(), TheDisplay->getHeight() ) * steps[ step ],
+																TheDisplay->getWidth() );
+}
+
+//-------------------------------------------------------------------------------------------------
+Real ControlBarHudScaleFit( Real scale, Int displayWidth )
+{
+	const Real widest = (Real)displayWidth / InGameUI_consolePageWidth();
+	return scale < widest ? scale : widest;
 }
 
 //-------------------------------------------------------------------------------------------------

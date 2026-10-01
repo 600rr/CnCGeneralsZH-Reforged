@@ -908,6 +908,8 @@ public:
 
 	/// is the drawable the currently selected drawable for the context sensitive UI?
 	Bool isDrivingContextUI( Drawable *draw ) const { return draw == m_currentSelectedDrawable; }
+	/// the drawable whose portrait and commands the bar is showing, NULL for none
+	Drawable *getContextDrawable( void ) const { return m_currentSelectedDrawable; }
 
 	//-----------------------------------------------------------------------------------------------
 	// the remaining methods are used to construct the command buttons and command sets for
@@ -1610,11 +1612,15 @@ extern Real ControlBarUniformScale( void );
 extern Real ControlBarUniformScaleFor( Int displayWidth, Int displayHeight );	///< ...for a screen you name
 
 /** The scale the bottom HUD's page and everything laid out on it are drawn at: the uniform scale cut
-	* to CONTROL_BAR_HUD_PERCENT of itself, the owner's "too big" of 2026-09-28, and never below 1.  The
-	* tooltips, the boards and the menus keep the uniform scale. */
+	* to CONTROL_BAR_HUD_PERCENT of itself, the owner's "too big" of 2026-09-28, with HUD Size on top,
+	* then fitted to the screen's width by ControlBarHudScaleFit.  ControlBarHudScaleFor, the scale
+	* before HUD Size and the fit, is never below 1; ControlBarHudScale is, on a screen narrower than
+	* the console, 800x600's 0.91.  The tooltips, the boards and the menus keep the uniform scale. */
 enum { CONTROL_BAR_HUD_PERCENT = 70 };
 extern Real ControlBarHudScale( void );
 extern Real ControlBarHudScaleFor( Int displayWidth, Int displayHeight );
+/** `scale` cut down until the console, InGameUI_consolePageWidth page pixels, fits `displayWidth`. */
+extern Real ControlBarHudScaleFit( Real scale, Int displayWidth );
 
 /** Undo the .wnd loader's separate-axis stretch over a whole layout: every window under 'root' is
 	* recovered to its authored 800x600 rectangle and put back at ControlBarUniformScale(), anchored

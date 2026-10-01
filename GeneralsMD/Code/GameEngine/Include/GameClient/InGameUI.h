@@ -370,6 +370,10 @@ struct MoneyPlateWidth
 enum { MONEY_SHRINK_HOLD_MS = 3000, MONEY_SHRINK_EASE_MS = 200 };
 Int InGameUI_moneyPlateWidth( MoneyPlateWidth &plate, Int needed, UnsignedInt nowMs );
 
+/** The command bar's console at its widest, every well up and a margin each side, in page pixels at
+	* a HUD scale of 1: what ControlBarHudScale fits HUD Size to. */
+Int InGameUI_consolePageWidth( void );
+
 /** The IncomeRate option: TRUE when the income beside the money is written per minute, for a
 	* player earning `perSecond` dollars a second.  See IncomeRateModeType for what automatic picks. */
 Bool InGameUI_incomePerMinute( Int incomeRateMode, Int perSecond );
@@ -453,6 +457,9 @@ public:  // ********************************************************************
 	/** A click that reached the world, on one of that page's own buttons: TRUE when it was one, and
 		* when `act` is set the button it names is pressed. */
 	Bool handleControlBarPageClick( const ICoord2D *mouse, Bool act );
+	/** TRUE when `pointer` is on the page's steel, a .solid it drew and none of its keys: the HUD's,
+		* never the battlefield's, even where no window of the bar stands. */
+	Bool isOnControlBarSteel( const ICoord2D &pointer ) const;
 	/** The general's promotion screen, Window/Html/Promotion.html, drawn as `parent`'s picture: the
 		* screen's windows keep their clicks and the promotions' own cameos paint over it. */
 	void drawPromotionPage( GameWindow *parent, Bool front );
@@ -1059,8 +1066,8 @@ public:  // ********************************************************************
 	// One cameo of the global production strip: which producer it belongs to, which entry of that
 	// producer's queue it is, and where it was drawn this frame.
 	//
-	enum { PRODUCTION_STRIP_ROW_MAX = 5 };	///< cameos one column will draw, stacked upward; whatever
-																					///  is left over closes it as a sixth cell wearing a "+N"
+	enum { PRODUCTION_STRIP_ROW_MAX = 9 };	///< cameos the strip will draw; whatever is left over closes
+																					///  it as a tenth cell wearing a "+N", two rows of five over the selection
 
 	//
 	// A queue slot is one slot of the general's power bar down in the corner, measurement for
@@ -1496,6 +1503,7 @@ protected:
 	void drawProductionStripColumn( Int left, Int bottomY );
 	void drawQueueTray( void );		///< the playing strip as a row in Window/Html/Queue.html's tray
 	void drawNetPage( void );			///< the network box, Window/Html/Net.html, with the command bar's page
+	void drawReadoutPage( const HtmlValues &values );	///< the clock and the health, Window/Html/Readout.html, over the bar's page
 	std::string scoreboardHtml( void );	///< Window/Html/Scoreboard.html filled in for this frame
 	const Image *productionStripTray( void );	///< the bar's tray, mirrored, kept until the bar changes side
 	void stripTrayMetrics( ICoord2D *tray, ICoord2D *cameo, ICoord2D *hole, Int *step );	///< that tray's size, its cameo hole, and the column step
@@ -1537,9 +1545,14 @@ protected:
 	Bool												m_controlBarPageShown;		///< drawn this frame, so its buttons can be clicked
 	std::string									m_controlBarPage;
 	Bool												m_controlBarPageHovered;	///< the pointer was on something the page drew, last frame
+	std::vector< IRegion2D >		m_controlBarSolids;				///< the page's .solid rectangles on screen, as last drawn
+	std::vector< IRegion2D >		m_controlBarKeys;					///< its data-click keys on screen, which stand in the solids
 	HtmlOverlay *								m_netOverlay;
 	Bool												m_netPageLoaded;
 	std::string									m_netPage;
+	HtmlOverlay *								m_readoutOverlay;					///< Window/Html/Readout.html, the clock and the health over the bar's page
+	Bool												m_readoutPageLoaded;
+	std::string									m_readoutPage;
 	HtmlOverlay *								m_tooltipOverlay;
 	Bool												m_tooltipPageLoaded;
 	std::string									m_tooltipPage;
@@ -1609,7 +1622,7 @@ protected:
 	void feedAct( Player *player, const Image *cameo, const std::string &what, const char *tag, const char *label );
 	void watchDozers( void );
 	void drawFeed( void );
-	Int feedFloor( void ) const;
+	Int feedTop( void ) const;
 	UnsignedInt									m_dozerCheckFrame;				///< the logic frame watchDozers last looked on
 	Bool												m_hadDozer[ MAX_PLAYER_COUNT ];	///< that player had a dozer or worker then
 	// the chat over the feed, Window/Html/Chat.html, the same lines kept a while
@@ -1621,8 +1634,10 @@ protected:
 	HtmlOverlay *								m_feedOverlay;
 	Bool												m_feedPageLoaded;
 	std::string									m_feedPage;
-	Int													m_feedFloor;							///< the radar's tab top on screen, from the bar's page
-	Int													m_queueTrayTop;						///< the queue row's top on screen, while it is drawn
+	Int													m_feedTop;								///< where the feed starts on screen, under the menu key, from the bar's page
+	ICoord2D										m_queueCorner;						///< the selection's well's left edge and the console's top on screen: the queue stands there
+	Int													m_consoleTop;							///< the console's top on screen, the build card stands over it
+	Int													m_topBarBottom;						///< the top page's bottom on screen, the scoreboard and the truce hang under it
 
 	Bool												m_placementRangeRingUp;	///< the structure on the cursor is armed, so its reach is drawn
 	Real												m_placementRingRadius;	///< how far from its centre it hits
