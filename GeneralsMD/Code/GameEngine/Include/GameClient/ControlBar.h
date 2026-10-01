@@ -1613,16 +1613,24 @@ extern Bool ControlBarPanelDesignToScreen( Int panel, const IRegion2D *design,
 extern Real ControlBarUniformScale( void );
 extern Real ControlBarUniformScaleFor( Int displayWidth, Int displayHeight );	///< ...for a screen you name
 
-/** The scale the bottom HUD's page and everything laid out on it are drawn at: the uniform scale cut
-	* to CONTROL_BAR_HUD_PERCENT of itself, the owner's "too big" of 2026-09-28, with HUD Size on top,
-	* then fitted to the screen's width by ControlBarHudScaleFit.  ControlBarHudScaleFor, the scale
-	* before HUD Size and the fit, is never below 1; ControlBarHudScale is, on a screen narrower than
-	* the console, 800x600's 0.91.  The tooltips, the boards and the menus keep the uniform scale. */
+/** The scale the bottom HUD's page and everything laid out on it are drawn at: the screen's height
+	* over 600, cut to CONTROL_BAR_HUD_PERCENT of itself, the owner's "too big" of 2026-09-28, with HUD
+	* Size on top, then fitted to the screen's width by ControlBarHudScaleFit.  It follows the height
+	* alone and is not rounded or floored, the owner's rule of 2026-10-01: the HUD covers the same part
+	* of the screen's height at every resolution, and a wider screen does not make it bigger.  1.26 at
+	* 1920x1080, as it was when it went by the narrower axis; 0.84 at 1280x720.  ControlBarHudScaleFor
+	* is the scale before HUD Size and the fit. */
 enum { CONTROL_BAR_HUD_PERCENT = 70 };
 extern Real ControlBarHudScale( void );
 extern Real ControlBarHudScaleFor( Int displayWidth, Int displayHeight );
 /** `scale` cut down until the console, InGameUI_consolePageWidth page pixels, fits `displayWidth`. */
 extern Real ControlBarHudScaleFit( Real scale, Int displayWidth );
+/** The in-match HUD's other pages - the event feed, the chat, the network box, the scoreboard, the
+	* build card, the observer's and the replay's strips - authored at the uniform scale's size: the HUD
+	* scale over CONTROL_BAR_HUD_PERCENT, so they keep their size beside the console at every
+	* resolution and HUD Size, and are what they were at 1920x1080.  The shell's pages, the quit menu
+	* and the promotion screen keep the uniform scale. */
+extern Real ControlBarHudPageScale( void );
 
 /** Undo the .wnd loader's separate-axis stretch over a whole layout: every window under 'root' is
 	* recovered to its authored 800x600 rectangle and put back at ControlBarUniformScale(), anchored

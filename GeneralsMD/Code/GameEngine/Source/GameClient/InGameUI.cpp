@@ -185,7 +185,7 @@ static const Real BLIND_SPOT_RING_WIDTH = PATHFIND_CELL_SIZE_F * 0.5f;	///< two 
 //-------------------------------------------------------------------------------------------------
 static Int stripPixels( Int nominal )
 {
-	return REAL_TO_INT_CEIL( nominal * ControlBarUniformScale() );
+	return REAL_TO_INT_CEIL( nominal * ControlBarHudPageScale() );
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2267,7 +2267,7 @@ static void fillReplayValues( HtmlValues &values, Int floor )
 
 	// Spectator.html's #replay with its padding and its borders, and a gap under it
 	enum { REPLAY_STRIP_WIDTH = 322, REPLAY_STRIP_HEIGHT = 52 };
-	const Real scale = ControlBarUniformScale();
+	const Real scale = ControlBarHudPageScale();
 	const UnsignedInt frame = TheGameLogic->getFrame();
 	const UnsignedInt length = replayLength();
 	values[ "replay" ] = "on";
@@ -2512,7 +2512,10 @@ void InGameUI::drawSpectatorPage( void )
 	if( m_spectatorPage.empty() )
 		return;
 	if( m_spectatorOverlay == NULL )
+	{
 		m_spectatorOverlay = new HtmlOverlay( m_superweaponNormalFont );
+		m_spectatorOverlay->setHudPage( TRUE );
+	}
 
 	// a unit selected turns the page to his side's steel the same frame, not half a second on
 	const UnsignedInt frame = TheGameLogic->getFrame();
@@ -4520,10 +4523,13 @@ void InGameUI::drawFeed( void )
 	if( m_feedPage.empty() )
 		return;
 	if( m_feedOverlay == NULL )
+	{
 		m_feedOverlay = new HtmlOverlay( m_superweaponNormalFont );
+		m_feedOverlay->setHudPage( TRUE );
+	}
 
 	HtmlValues values;
-	values[ "top" ] = std::to_string( REAL_TO_INT_FLOOR( feedTop() / ControlBarUniformScale() ) );
+	values[ "top" ] = std::to_string( REAL_TO_INT_FLOOR( feedTop() / ControlBarHudPageScale() ) );
 	m_feedOverlay->setPage( HtmlTemplate_expand( m_feedPage, values, lists, lookupGameText ) );
 	m_feedOverlay->draw();
 }
@@ -4587,7 +4593,7 @@ void InGameUI::drawChat( void )
 	// under the feed, clear of all FEED_LINES_KEPT of its lines so it does not move as the feed grows,
 	// and open, clear of the feed's whole history over it too; the lines stand on the typing bar, which
 	// stands under room for every line kept, so a line coming in does not move it
-	const Real scale = ControlBarUniformScale();
+	const Real scale = ControlBarHudPageScale();
 	const size_t feedLines = max( (size_t)FEED_LINES_KEPT, active ? m_feedLines.size() : 0 );
 	const Int bar = REAL_TO_INT_FLOOR( feedTop() / scale ) + (Int)feedLines * FEED_LINE_HEIGHT + FEED_FOOT + CHAT_OVER_FEED +
 									CHAT_LINES_KEPT * FEED_LINE_HEIGHT + FEED_FOOT;
@@ -4606,7 +4612,10 @@ void InGameUI::drawChat( void )
 	if( m_chatPage.empty() )
 		return;
 	if( m_chatOverlay == NULL )
+	{
 		m_chatOverlay = new HtmlOverlay( m_superweaponNormalFont );
+		m_chatOverlay->setHudPage( TRUE );
+	}
 
 	HtmlValues values;
 	values[ "bar" ] = std::to_string( bar );
@@ -10876,7 +10885,10 @@ void InGameUI::drawScoreboard( void )
 	if( m_scoreboardPage.empty() )
 		return;
 	if( m_scoreboardOverlay == NULL )
+	{
 		m_scoreboardOverlay = new HtmlOverlay( m_superweaponNormalFont );
+		m_scoreboardOverlay->setHudPage( TRUE );
+	}
 
 	// counted again twice a second, as the spectator page is: the money moves every frame, and every
 	// change lays the whole page out again
@@ -10982,7 +10994,7 @@ std::string InGameUI::scoreboardHtml( void )
 
 	// hanging from the top page's foot in the middle of the screen, the two one plate
 	enum { BOARD_WIDTH = 708 };
-	const Real scale = ControlBarUniformScale();
+	const Real scale = ControlBarHudPageScale();
 	HtmlValues values;
 	values[ "side" ] = spectatorSide();
 	values[ "clock" ] = spectatorClock( TheGameLogic->getFrame() );
@@ -11727,7 +11739,10 @@ void InGameUI::drawNetPage( void )
 	if( m_netPage.empty() )
 		return;
 	if( m_netOverlay == NULL )
+	{
 		m_netOverlay = new HtmlOverlay( m_superweaponNormalFont );
+		m_netOverlay->setHudPage( TRUE );
+	}
 
 	HtmlValues values = m_hudValues;
 	values[ "side" ] = spectatorSide();
@@ -14547,7 +14562,10 @@ Bool InGameUI::drawTooltipPage( const UnicodeString &cursorText, const RGBColor 
 		return TRUE;
 
 	if( m_tooltipOverlay == NULL )
+	{
 		m_tooltipOverlay = new HtmlOverlay( m_superweaponNormalFont );
+		m_tooltipOverlay->setHudPage( TRUE );
+	}
 
 	HtmlValues values;
 	HtmlLists lists;
@@ -14576,7 +14594,7 @@ Bool InGameUI::drawTooltipPage( const UnicodeString &cursorText, const RGBColor 
 	const Int screenWidth = TheDisplay->getWidth();
 	const Int screenHeight = TheDisplay->getHeight();
 	const ICoord2D &mouse = TheMouse->getMouseStatus()->pos;
-	const Int gap = REAL_TO_INT( TOOLTIP_ANCHOR_GAP * ControlBarUniformScale() );
+	const Int gap = REAL_TO_INT( TOOLTIP_ANCHOR_GAP * ControlBarHudPageScale() );
 	for( Int pass = 0; pass < TOOLTIP_LAYOUT_PASSES; pass++ )
 	{
 		IRegion2D box;
@@ -14599,7 +14617,7 @@ Bool InGameUI::drawTooltipPage( const UnicodeString &cursorText, const RGBColor 
 		}
 		box.hi.x = box.lo.x + m_tooltipSize.x;
 		box.hi.y = box.lo.y + m_tooltipSize.y;
-		putPageRect( values, "box", box, TRUE );
+		putPageRect( values, "box", box, TRUE, ControlBarHudPageScale() );
 		m_tooltipOverlay->setPage( HtmlTemplate_expand( m_tooltipPage, values, lists, lookupGameText ) );
 
 		std::vector< IRegion2D > laidOut;

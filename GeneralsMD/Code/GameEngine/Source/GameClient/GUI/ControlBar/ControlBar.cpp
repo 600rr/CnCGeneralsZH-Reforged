@@ -1613,8 +1613,13 @@ Real ControlBarUniformScale( void )
 //-------------------------------------------------------------------------------------------------
 Real ControlBarHudScaleFor( Int displayWidth, Int displayHeight )
 {
-	const Real s = ControlBarUniformScaleFor( displayWidth, displayHeight ) * CONTROL_BAR_HUD_PERCENT / 100.0f;
-	return s < 1.0f ? 1.0f : s;
+	return (Real)displayHeight / CONTROL_BAR_DESIGN_H * CONTROL_BAR_HUD_PERCENT / 100.0f;
+}
+
+//-------------------------------------------------------------------------------------------------
+Real ControlBarHudPageScale( void )
+{
+	return ControlBarHudScale() * 100.0f / CONTROL_BAR_HUD_PERCENT;
 }
 
 //-------------------------------------------------------------------------------------------------
