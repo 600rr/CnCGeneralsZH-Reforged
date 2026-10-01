@@ -1105,13 +1105,11 @@ void W3DDisplay::init( void )
 
 	}  // end if
 
-	// Which runtime the device really landed on.  The renderer creates an IDirect3DDevice9 itself
-	// now, so there is one answer here and no translating dll to name; -d3d12 was d3d8to9's opt-in
-	// and does nothing until RENDERER-ROADMAP.md's phase 5 puts a real Direct3D 12 backend behind
-	// the same seam.
+	// Which backend draws what is on screen.  d3d9.dll is loaded either way, because the Direct3D 9
+	// device is always made and the Direct3D 11 one mirrors it, so the loaded dll says nothing.
 	DEBUG_LOG(("W3DDisplay::init - renderer runtime: %s\n",
-						 GetModuleHandleA("d3d9.dll") ? "Direct3D 9 (native)"
-						                              : "no Direct3D 9 runtime loaded"));
+						 Direct3D11_Present_Is_Enabled() ? "Direct3D 11"
+						                                 : "Direct3D 9"));
 	// multisampling is opt-in with "-msaa" / "-msaa N" and silently degrades to whatever the
 	// device supports, so log what was actually granted
 	DEBUG_LOG(("W3DDisplay::init - multisampling: %ux\n", DX8Wrapper::Get_MultiSample_Level()));
