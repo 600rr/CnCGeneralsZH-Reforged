@@ -251,6 +251,7 @@ DX11BackendClass::DX11BackendClass()
 	EngineConstantsHeld = false;
 	ConstantsChanged = true;
 	PipelineChanged = true;
+	StateObjectsChanged = true;
 	for (unsigned sampler = 0; sampler < DX11_BACKEND_TEXTURE_STAGES; ++sampler) {
 		SamplerChanged[sampler] = true;
 	}
@@ -341,19 +342,19 @@ void DX11BackendClass::Release_Cached()
 	}
 	Pipelines.clear();
 
-	for (std::map<std::string, ID3D11BlendState *>::iterator entry = BlendStates.begin();
+	for (BlendStateMap::iterator entry = BlendStates.begin();
 			entry != BlendStates.end(); ++entry) {
 		entry->second->Release();
 	}
 	BlendStates.clear();
 
-	for (std::map<std::string, ID3D11DepthStencilState *>::iterator entry
+	for (DepthStencilStateMap::iterator entry
 			= DepthStencilStates.begin(); entry != DepthStencilStates.end(); ++entry) {
 		entry->second->Release();
 	}
 	DepthStencilStates.clear();
 
-	for (std::map<std::string, ID3D11RasterizerState *>::iterator entry = RasterizerStates.begin();
+	for (RasterizerStateMap::iterator entry = RasterizerStates.begin();
 			entry != RasterizerStates.end(); ++entry) {
 		entry->second->Release();
 	}
@@ -369,7 +370,7 @@ void DX11BackendClass::Release_Cached()
 	CurrentTarget = NULL;
 	CurrentDepth = NULL;
 
-	for (std::map<std::string, ID3D11SamplerState *>::iterator entry = SamplerStates.begin();
+	for (SamplerStateMap::iterator entry = SamplerStates.begin();
 			entry != SamplerStates.end(); ++entry) {
 		entry->second->Release();
 	}
@@ -667,6 +668,7 @@ void DX11BackendClass::Set_Render_State(D3DRENDERSTATETYPE state, DWORD value)
 		RenderStates.Set_Render_State(state, value);
 		ConstantsChanged = true;
 		PipelineChanged = true;
+		StateObjectsChanged = true;
 	}
 }
 
@@ -1762,8 +1764,7 @@ ID3D11BlendState * DX11BackendClass::Blend_State()
 		return LastBlendState;
 	}
 
-	const std::string key(reinterpret_cast<const char *>(&description), sizeof(description));
-	std::map<std::string, ID3D11BlendState *>::const_iterator existing = BlendStates.find(key);
+	BlendStateMap::const_iterator existing = BlendStates.find(description);
 	if (existing != BlendStates.end()) {
 		LastBlendDescription = description;
 		LastBlendState = existing->second;
@@ -1778,7 +1779,7 @@ ID3D11BlendState * DX11BackendClass::Blend_State()
 		Note_Refusal("the device refused a blend state");
 		return NULL;
 	}
-	BlendStates[key] = state;
+	BlendStates[description] = state;
 	LastBlendDescription = description;
 	LastBlendState = state;
 	return state;
@@ -1793,9 +1794,7 @@ ID3D11DepthStencilState * DX11BackendClass::Depth_Stencil_State()
 		return LastDepthStencilState;
 	}
 
-	const std::string key(reinterpret_cast<const char *>(&description), sizeof(description));
-	std::map<std::string, ID3D11DepthStencilState *>::const_iterator existing
-		= DepthStencilStates.find(key);
+	DepthStencilStateMap::const_iterator existing = DepthStencilStates.find(description);
 	if (existing != DepthStencilStates.end()) {
 		LastDepthStencilDescription = description;
 		LastDepthStencilState = existing->second;
@@ -1807,7 +1806,7 @@ ID3D11DepthStencilState * DX11BackendClass::Depth_Stencil_State()
 		Note_Refusal("the device refused a depth stencil state");
 		return NULL;
 	}
-	DepthStencilStates[key] = state;
+	DepthStencilStates[description] = state;
 	LastDepthStencilDescription = description;
 	LastDepthStencilState = state;
 	return state;
@@ -1822,9 +1821,7 @@ ID3D11RasterizerState * DX11BackendClass::Rasterizer_State()
 		return LastRasterizerState;
 	}
 
-	const std::string key(reinterpret_cast<const char *>(&description), sizeof(description));
-	std::map<std::string, ID3D11RasterizerState *>::const_iterator existing
-		= RasterizerStates.find(key);
+	RasterizerStateMap::const_iterator existing = RasterizerStates.find(description);
 	if (existing != RasterizerStates.end()) {
 		LastRasterizerDescription = description;
 		LastRasterizerState = existing->second;
@@ -1836,7 +1833,7 @@ ID3D11RasterizerState * DX11BackendClass::Rasterizer_State()
 		Note_Refusal("the device refused a rasterizer state");
 		return NULL;
 	}
-	RasterizerStates[key] = state;
+	RasterizerStates[description] = state;
 	LastRasterizerDescription = description;
 	LastRasterizerState = state;
 	return state;
@@ -1858,8 +1855,7 @@ ID3D11SamplerState * DX11BackendClass::Sampler_State(unsigned sampler)
 		return LastSamplerStates[sampler];
 	}
 
-	const std::string key(reinterpret_cast<const char *>(&description), sizeof(description));
-	std::map<std::string, ID3D11SamplerState *>::const_iterator existing = SamplerStates.find(key);
+	SamplerStateMap::const_iterator existing = SamplerStates.find(description);
 	if (existing != SamplerStates.end()) {
 		LastSamplerDescriptions[sampler] = description;
 		LastSamplerStates[sampler] = existing->second;
@@ -1872,7 +1868,7 @@ ID3D11SamplerState * DX11BackendClass::Sampler_State(unsigned sampler)
 		SamplerChanged[sampler] = true;
 		return NULL;
 	}
-	SamplerStates[key] = state;
+	SamplerStates[description] = state;
 	LastSamplerDescriptions[sampler] = description;
 	LastSamplerStates[sampler] = state;
 	return state;
@@ -1895,19 +1891,28 @@ void DX11BackendClass::Bind_State_Objects()
 	ID3D11DeviceContext * context = Device->Get_Context();
 	const bool known = Bound.Known;
 
-	ID3D11BlendState * blend = Blend_State();
+	// The memos stand for what the render states would build while none of them has changed; a
+	// lookup that came back null keeps the flag up, so the next draw asks again as it always did.
+	ID3D11BlendState * blend = LastBlendState;
+	ID3D11DepthStencilState * depth_stencil = LastDepthStencilState;
+	ID3D11RasterizerState * rasterizer = LastRasterizerState;
+	if (StateObjectsChanged || blend == NULL || depth_stencil == NULL || rasterizer == NULL) {
+		blend = Blend_State();
+		depth_stencil = Depth_Stencil_State();
+		rasterizer = Rasterizer_State();
+		StateObjectsChanged = blend == NULL || depth_stencil == NULL || rasterizer == NULL;
+	}
+
 	if (!known || blend != Bound.Blend) {
 		context->OMSetBlendState(blend, NULL, 0xffffffff);
 		Bound.Blend = blend;
 	}
-	ID3D11DepthStencilState * depth_stencil = Depth_Stencil_State();
 	const UINT stencil_reference = RenderStates.Get_Stencil_Reference();
 	if (!known || depth_stencil != Bound.DepthStencil || stencil_reference != Bound.StencilReference) {
 		context->OMSetDepthStencilState(depth_stencil, stencil_reference);
 		Bound.DepthStencil = depth_stencil;
 		Bound.StencilReference = stencil_reference;
 	}
-	ID3D11RasterizerState * rasterizer = Rasterizer_State();
 	if (!known || rasterizer != Bound.Rasterizer) {
 		context->RSSetState(rasterizer);
 		Bound.Rasterizer = rasterizer;
