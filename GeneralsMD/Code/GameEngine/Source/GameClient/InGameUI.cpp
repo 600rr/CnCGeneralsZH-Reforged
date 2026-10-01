@@ -11843,7 +11843,8 @@ void InGameUI::drawCellGridFront( Int grid )
 Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, Int panelCount )
 {
 	m_controlBarPageShown = FALSE;
-	if( TheGameLogic == NULL || !TheGameLogic->isInGame() || TheGameLogic->isInShellGame() )
+	// nor while the map loads: the load screen is painted by the window repaint this page rides on
+	if( TheGameLogic == NULL || !TheGameLogic->isInGame() || TheGameLogic->isInShellGame() || TheGlobalData->m_loadScreenRender )
 	{
 		TheControlBar->setPageSolids( NULL );
 		return FALSE;
