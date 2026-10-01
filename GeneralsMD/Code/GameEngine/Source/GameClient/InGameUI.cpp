@@ -10997,6 +10997,17 @@ static Real powerBarShare( Real power )
 	return share > 1.0f ? 1.0f : share;
 }
 
+/** Entry `index` of one of the command bar page's lists, made if the list is that short.  The lists
+	* are kept from frame to frame and every entry of one is written with the same keys each time, so
+	* the map nodes and strings of last frame's entry are written over rather than freed and made
+	* again; the caller cuts the list to what it filled. */
+static HtmlValues &listEntry( std::vector< HtmlValues > &list, size_t index )
+{
+	if( index >= list.size() )
+		list.resize( index + 1 );
+	return list[ index ];
+}
+
 //-------------------------------------------------------------------------------------------------
 /** The power bar as the page draws it, filling its frame: {{power.fill}} the production and
 	* {{power.needle}} the consumption, both percent of the frame, and {{power.state}} "green",
@@ -11031,19 +11042,19 @@ static void putPowerBar( HtmlValues &values, std::vector< HtmlValues > &cells )
 	enum { FRAME_LIP = 1 };
 	const Int row = atoi( values[ "powerframe.w" ].c_str() ) - 2 * FRAME_LIP;
 	values[ "power.needlex" ] = std::to_string( REAL_TO_INT( powerBarShare( needle ) * row ) );
-	cells.clear();
 	const Int lit = REAL_TO_INT( fill * POWER_CELLS );
+	size_t filled = 0;
 	for( Int cell = 0; cell < POWER_CELLS && row > 0; cell++ )
 	{
 		const Int left = cell * row / POWER_CELLS;
-		HtmlValues entry;
+		HtmlValues &entry = listEntry( cells, filled++ );
 		entry[ "lit" ] = cell < lit ? "lit" : "";
 		entry[ "x" ] = std::to_string( left );
 		const Int width = ( cell + 1 ) * row / POWER_CELLS - left;
 		entry[ "w" ] = std::to_string( width );
 		entry[ "segw" ] = std::to_string( max( 0, width - 1 ) );	// the black line before it
-		cells.push_back( entry );
 	}
+	cells.resize( filled );
 	if( consumption > production )
 		values[ "power.state" ] = "red";
 	else if( consumption > production - TheGlobalData->m_powerBarYellowRange )
@@ -11071,13 +11082,16 @@ static void putExperienceBar( HtmlValues &values, std::vector< HtmlValues > &cel
 
 	const Player *player = TheControlBar->isObserverControlBarOn() ? TheControlBar->getObserverLookAtPlayer()
 																																 : ThePlayerList->getLocalPlayer();
-	cells.clear();
-	stars.clear();
 	if( player == NULL )
+	{
+		cells.clear();
+		stars.clear();
 		return;
+	}
 
 	const Int lit = player->getRankProgressPercent() * EXPERIENCE_CELLS / FULL;
 	const Int column = height - 2 * FRAME_LIP;
+	size_t filled = 0;
 	for( Int cell = 0; cell < EXPERIENCE_CELLS && column > 0; cell++ )
 	{
 		// cell 0 is the bottom one; each is cut from the column so they add up to it exactly, and its
@@ -11085,13 +11099,13 @@ static void putExperienceBar( HtmlValues &values, std::vector< HtmlValues > &cel
 		enum { CELL_GAP = 1 };
 		const Int top = column - ( cell + 1 ) * column / EXPERIENCE_CELLS;
 		const Int cellHeight = column - cell * column / EXPERIENCE_CELLS - top;
-		HtmlValues entry;
+		HtmlValues &entry = listEntry( cells, filled++ );
 		entry[ "lit" ] = cell < lit ? "lit" : "";
 		entry[ "y" ] = std::to_string( top );
 		entry[ "h" ] = std::to_string( cellHeight );
 		entry[ "segh" ] = std::to_string( max( 0, cellHeight - CELL_GAP ) );
-		cells.push_back( entry );
 	}
+	cells.resize( filled );
 
 	// the stars stand at pixel places centred on the key: centred as a line of text, the page measured
 	// the star glyph wider than it drew it and the row sat to the left
@@ -11100,11 +11114,11 @@ static void putExperienceBar( HtmlValues &values, std::vector< HtmlValues > &cel
 	const Int firstStar = ( RANK_KEY_WIDTH - ( rankCount * STAR_PITCH - ( STAR_PITCH - STAR_SIZE ) ) ) / 2;
 	for( Int rank = 1; rank <= rankCount; rank++ )
 	{
-		HtmlValues entry;
+		HtmlValues &entry = listEntry( stars, rank - 1 );
 		entry[ "lit" ] = rank <= player->getRankLevel() ? "lit" : "";
 		entry[ "x" ] = std::to_string( firstStar + ( rank - 1 ) * STAR_PITCH );
-		stars.push_back( entry );
 	}
+	stars.resize( (size_t)max( 0, rankCount ) );
 }
 
 /** The bar's windows the page stands down altogether.  The menu, idle worker and promotion buttons are
@@ -11610,9 +11624,10 @@ void InGameUI::drawNetPage( void )
 	if( m_netOverlay == NULL )
 		m_netOverlay = new HtmlOverlay( m_superweaponNormalFont );
 
-	HtmlValues values = m_hudValues;
-	values[ "side" ] = spectatorSide();
-	m_netOverlay->setPage( HtmlTemplate_expand( m_netPage, values, HtmlLists(), lookupGameText ) );
+	// into the readings themselves rather than a copy of them made every frame; nothing else reads
+	// them, and the next sample clears them
+	m_hudValues[ "side" ] = spectatorSide();
+	m_netOverlay->setPage( HtmlTemplate_expand( m_netPage, m_hudValues, HtmlLists(), lookupGameText ) );
 	m_netOverlay->draw();
 }
 
@@ -11655,8 +11670,11 @@ void InGameUI::drawCellGridFront( Int grid )
 	HtmlLists lists;
 	values[ "layer" ] = "front";
 	values[ "side" ] = spectatorSide();
-	lists[ "frontcells" ] = m_cellFrontCells[ grid ];
+	// lent to the page and taken back, rather than copied every frame
+	std::vector< HtmlValues > &frontCells = lists[ "frontcells" ];
+	frontCells.swap( m_cellFrontCells[ grid ] );
 	overlay->setPage( HtmlTemplate_expand( m_controlBarPage, values, lists, lookupGameText ) );
+	frontCells.swap( m_cellFrontCells[ grid ] );
 	overlay->draw();
 }
 
@@ -11689,7 +11707,9 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	if( m_controlBarOverlay == NULL )
 		m_controlBarOverlay = new HtmlOverlay( m_superweaponNormalFont );
 
-	HtmlValues values;
+	// kept from the last frame: every key below is written on every frame, so a value is only ever
+	// written over, and a key written on some frames and not others would keep its old value here
+	HtmlValues &values = m_controlBarValues;
 	values[ "layer" ] = "back";
 	values[ "side" ] = spectatorSide();
 	// a watcher has no promotions of his own to spend, whatever the bar's flash says
@@ -11716,7 +11736,7 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	const Int foot = barBottom() - REAL_TO_INT( PANEL_FOOT * scale );
 	const Bool leftShown = panelCount > 0 && shown[ 0 ];
 	const Bool centreShown = panelCount > 1 && shown[ 1 ];
-	HtmlLists lists;
+	HtmlLists &lists = m_controlBarLists;
 
 	// the radar, and the experience bar's groove beside it as tall as it; its own window stood on the
 	// right panel, which is gone.  The left panel holds the two.  layoutPanels puts the radar at the
@@ -11838,14 +11858,14 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	if( centreShown )
 		TheControlBar->placeContextOnGrid( frameRect, place, taken );
 	std::vector< HtmlValues > &commandCells = lists[ "commandcells" ];
+	size_t commandFilled = 0;
 	for( Int each = 0; each < COMMAND_PLACE_COUNT; each++ )
 	{
 		if( !centreShown || !taken[ each ] )
 			continue;
-		HtmlValues entry;
-		putCell( entry, place[ each ], ring, scale );
-		commandCells.push_back( entry );
+		putCell( listEntry( commandCells, commandFilled++ ), place[ each ], ring, scale );
 	}
+	commandCells.resize( commandFilled );
 	for( Int button = 0; button < COMMAND_BUTTONS; button++ )
 		if( where[ button ] >= 0 )
 			TheControlBar->placeWindowAt( numberedWindow( "ButtonCommand", button + 1 ), place[ where[ button ] ] );
@@ -11905,30 +11925,24 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 		placesBox.lo.x = portraitCell.hi.x + REAL_TO_INT( ring * scale );
 
 	std::vector< HtmlValues > &portraitCells = lists[ "portraitcells" ];
+	size_t portraitFilled = 0;
 	if( portraitShown && !multi )
-	{
-		HtmlValues entry;
-		putCell( entry, portraitCell, ring, scale );
-		portraitCells.push_back( entry );
-	}
+		putCell( listEntry( portraitCells, portraitFilled++ ), portraitCell, ring, scale );
 	for( size_t upgrade = 0; upgrade < upgrades.size(); upgrade++ )
 	{
 		const IRegion2D cell = gridCell( placesBox, (Int)upgrade, 0, CELL_WIDTH, CELL_HEIGHT );
 		TheControlBar->placeWindowAt( upgrades[ upgrade ], cell );
-		HtmlValues entry;
-		putCell( entry, cell, ring, scale );
 		if( portraitShown && tiles.empty() )
-			portraitCells.push_back( entry );
+			putCell( listEntry( portraitCells, portraitFilled++ ), cell, ring, scale );
 	}
 	for( size_t tile = 0; tile < tiles.size(); tile++ )
 	{
 		const IRegion2D cell = gridCell( placesBox, (Int)tile / rows, (Int)tile % rows, CELL_WIDTH, CELL_HEIGHT, 1.0f / rows );
 		TheControlBar->placeWindowAt( tiles[ tile ], cell );
-		HtmlValues entry;
-		putCell( entry, cell, rows > 1 ? 1 : ring, scale );
 		if( portraitShown )
-			portraitCells.push_back( entry );
+			putCell( listEntry( portraitCells, portraitFilled++ ), cell, rows > 1 ? 1 : ring, scale );
 	}
+	portraitCells.resize( portraitFilled );
 
 	// the general's powers ready to fire, the first in the corner against the screen's right edge, the
 	// row growing left as they come and wrapping upward past three, each a cell's size.  They sit in a
@@ -11955,10 +11969,9 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 		place.hi.y = corner.y - row * ( cell.y + cellGap );
 		place.lo.x = place.hi.x - cell.x;
 		place.lo.y = place.hi.y - cell.y;
-		HtmlValues entry;
-		putCell( entry, place, pageRing( cellGap, scale ), scale );
-		places.push_back( entry );
+		putCell( listEntry( places, slot ), place, pageRing( cellGap, scale ), scale );
 	}
+	places.resize( (size_t)max( 0, powersShown ) );
 
 	// the tray is cut to each row, as the superweapon strip's is: the full rows of three stand in one
 	// plate, and a last row of one or two stands on top of it in steel only as wide as it is, against
@@ -11990,10 +12003,8 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	stepTray.hi.y = powers.lo.y;
 	putFrame( values, "skillstep", step, stepTray, stepShown );
 
-	// each grid's frames again in front of its buttons, drawn by a window after them
-	m_cellFrontCells[ CELL_GRID_COMMAND ] = commandCells;
-	m_cellFrontCells[ CELL_GRID_QUEUE ] = portraitCells;
-	m_cellFrontCells[ CELL_GRID_POWERS ] = places;
+	// each grid's frames again in front of its buttons, drawn by a window after them; the cells go
+	// over to them once this page is expanded
 	putFrontWindow( controlBarWindow( "CommandWindow" ), drawCommandGridFront );
 	// the portrait bar's grid over the portrait, its upgrades and a selection's types, all RightHUD's
 	putFrontWindow( controlBarWindow( "RightHUD" ), drawQueueGridFront );
@@ -12033,6 +12044,11 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 		standDownPromotionScreen();
 
 	m_controlBarOverlay->setPage( HtmlTemplate_expand( m_controlBarPage, values, lists, lookupGameText ) );
+	// swapped rather than copied: the front windows get this frame's cells, and the lists get the
+	// front windows' old ones to write the next frame over
+	m_cellFrontCells[ CELL_GRID_COMMAND ].swap( commandCells );
+	m_cellFrontCells[ CELL_GRID_QUEUE ].swap( portraitCells );
+	m_cellFrontCells[ CELL_GRID_POWERS ].swap( places );
 	m_controlBarPageHovered = m_controlBarOverlay->hover( TheMouse->getMouseStatus()->pos );
 	m_controlBarOverlay->draw();
 	drawNetPage();

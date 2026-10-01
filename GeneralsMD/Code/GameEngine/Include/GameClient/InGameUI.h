@@ -1536,6 +1536,8 @@ protected:
 	Bool												m_controlBarPageLoaded;
 	Bool												m_controlBarPageShown;		///< drawn this frame, so its buttons can be clicked
 	std::string									m_controlBarPage;
+	HtmlValues									m_controlBarValues;				///< the page's values, every key written every frame, kept so the nodes are reused
+	HtmlLists										m_controlBarLists;				///< its lists the same way, each entry's keys the same every frame
 	Bool												m_controlBarPageHovered;	///< the pointer was on something the page drew, last frame
 	HtmlOverlay *								m_netOverlay;
 	Bool												m_netPageLoaded;
