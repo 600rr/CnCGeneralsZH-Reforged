@@ -94,6 +94,8 @@
     {{clock.x}} ...        the match clock's well at the top of the top page, its figure
                            Readout.html's
     {{moneyblock.x}} ...   the money's well under it, the money's window moved into it
+    {{peacebar.x}} ...     while the lobby's peace time runs, a third plate under the money's,
+    {{peace.x}} ...        framed as the other two, and its well; the figure is Readout.html's
     {{Name.x}} .y .w .h    the rectangle of the bar's window Name, {{Name.shown}} "shown" or "hidden"
                            and {{Name.state}} any of "disabled", "hilite", "pushed", for LeftHUD (the
                            radar), RightHUD (the portrait's box), CameoWindow (the portrait),
@@ -406,6 +408,14 @@
     <div class="shade" style="right: -{{moneybar.br}}px; top: -{{moneybar.bt}}px; bottom: -{{moneybar.bb}}px"></div>
     <div class="base" style="left: -{{moneybar.bl}}px; right: -{{moneybar.br}}px; bottom: -{{moneybar.bb}}px"></div>
   </div>
+  <div class="piece frame bezel solid {{peacebar.shown}}" style="left: {{peacebar.x}}px; top: {{peacebar.y}}px; width: {{peacebar.w}}px; height: {{peacebar.h}}px; border-width: {{peacebar.bt}}px {{peacebar.br}}px {{peacebar.bb}}px {{peacebar.bl}}px">
+    <div class="steel" style="left: -{{peacebar.bl}}px; right: -{{peacebar.br}}px; top: -{{peacebar.bt}}px; bottom: -{{peacebar.bb}}px"></div>
+    <div class="shine" style="left: -{{peacebar.bl}}px; right: -{{peacebar.br}}px; top: -{{peacebar.bt}}px"></div>
+    <div class="lit" style="left: -{{peacebar.bl}}px; top: -{{peacebar.bt}}px; bottom: -{{peacebar.bb}}px"></div>
+    <div class="shade" style="right: -{{peacebar.br}}px; top: -{{peacebar.bt}}px; bottom: -{{peacebar.bb}}px"></div>
+    <div class="base" style="left: -{{peacebar.bl}}px; right: -{{peacebar.br}}px; bottom: -{{peacebar.bb}}px"></div>
+  </div>
+  <div class="piece moneywell {{peace.shown}}" style="left: {{peace.x}}px; top: {{peace.y}}px; width: {{peace.w}}px; height: {{peace.h}}px"><div class="lip"></div></div>
   <div class="piece moneywell {{clock.shown}}" style="left: {{clock.x}}px; top: {{clock.y}}px; width: {{clock.w}}px; height: {{clock.h}}px"><div class="lip"></div></div>
   <div class="piece groove stack {{powerframe.shown}}" style="left: {{powerframe.x}}px; top: {{powerframe.y}}px; width: {{powerframe.w}}px; height: {{powerframe.h}}px">
     <div class="cells {{power.state}}" style="height: {{powerframe.inner}}px"><div class="cell {{lit}}" data-each="powercells" style="left: {{x}}px; width: {{w}}px; height: {{powerframe.inner}}px"><div class="seg" style="height: {{powerframe.inner}}px; width: {{segw}}px"></div></div></div>

@@ -1637,7 +1637,8 @@ protected:
 	Int													m_feedTop;								///< where the feed starts on screen, under the menu key, from the bar's page
 	ICoord2D										m_queueCorner;						///< the selection's well's left edge and the console's top on screen: the queue stands there
 	Int													m_consoleTop;							///< the console's top on screen, the build card stands over it
-	Int													m_topBarBottom;						///< the top page's bottom on screen, the scoreboard and the truce hang under it
+	Int													m_topBarBottom;						///< the top page's bottom on screen, the scoreboard and the feed hang under it
+	Int													m_peacePlateBottom;				///< the top page's peace time plate's bottom on screen, 0 while it is not up; the last ten seconds hang under it
 
 	Bool												m_placementRangeRingUp;	///< the structure on the cursor is armed, so its reach is drawn
 	Real												m_placementRingRadius;	///< how far from its centre it hits

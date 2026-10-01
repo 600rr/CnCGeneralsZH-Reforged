@@ -1175,6 +1175,7 @@ InGameUI::InGameUI()
 	m_queueCorner.x = m_queueCorner.y = 0;
 	m_consoleTop = 0;
 	m_topBarBottom = 0;
+	m_peacePlateBottom = 0;
 	m_armedSignal = SIGNAL_KIND_COUNT;
 	m_dozerCheckFrame = 0;
 	for( Int index = 0; index < MAX_PLAYER_COUNT; index++ )
@@ -9566,6 +9567,11 @@ void InGameUI::drawPeaceTimer( void )
 		return;
 	}
 
+	// the bar's top page carries it in a plate of its own (drawControlBarPage); this loose plate is
+	// for a screen without that page
+	if( m_controlBarPageShown && m_peacePlateBottom > 0 )
+		return;
+
 	const UnsignedInt secs = ControlBar_secondsFromFrames( (Real)left );
 
 	UnicodeString text;
@@ -9679,10 +9685,18 @@ void InGameUI::drawPeaceCountdown( UnsignedInt framesLeft )
 	Int labelWidth = 0, labelHeight = 0;
 	m_peaceTimeLabelDisplayString->getSize( &labelWidth, &labelHeight );
 
-	// the same line the plate's word was on, so the word does not move when the plate goes
-	const Int top = stripPixels( PEACE_TIMER_TOP_PAD );
 	const Int alpha = REAL_TO_INT_CEIL( opacity * 255.0f );
 
+	// with the top page up the word stays in its plate and the digit hangs from the plate's foot;
+	// without it, the word and the digit stand on the line the loose plate's word was on
+	if( m_controlBarPageShown && m_peacePlateBottom > 0 )
+	{
+		m_peaceCountdownDisplayString->draw( (TheDisplay->getWidth() - textWidth) / 2, m_peacePlateBottom + stripPixels( 2 ),
+										peaceTimeColor( alpha ), GameMakeColor( 0, 0, 0, alpha ) );
+		return;
+	}
+
+	const Int top = stripPixels( PEACE_TIMER_TOP_PAD );
 	m_peaceTimeLabelDisplayString->draw( (TheDisplay->getWidth() - labelWidth) / 2, top,
 									peaceTimeColor( 255 ), GameMakeColor( 0, 0, 0, 255 ) );
 
@@ -11265,7 +11279,9 @@ enum
 	TOP_WELL_HEIGHT				= 22,		///< the top page's clock's well
 	MONEY_WELL_HEIGHT			= 16,		///< the money's well under it
 	TOP_BORDER						= 4,		///< the top page's steel round each of them
-	TOP_BOX_GAP						= 2,		///< the battlefield between the clock's plate and the money's
+	TOP_BOX_GAP						= 2,		///< the battlefield between two of the top page's plates
+	PEACE_WELL_WIDTH			= 100,	///< the peace time's well under the money, "PEACE 14:59" and a margin: at 88
+																///< the time broke onto a second line at 1920x1080
 	CLOCK_WIDTH						= 64,		///< the top page's wells at their narrowest, in the middle of the screen
 	POWER_BAR_HEIGHT			= 12,		///< the power bar's groove in the command grid's header
 	POWER_BAR_MARGIN			= 6,		///< the header's steel each end of it
@@ -12046,6 +12062,37 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	moneyBox.hi.y += topBorder;
 	putFrame( values, "moneybar", money, moneyBox, moneyShown );
 	m_topBarBottom = moneyShown ? moneyBox.hi.y : topShown ? clockBox.hi.y : 0;
+
+	// the lobby's peace time in a third plate under the money, while it runs.  Last, because it is
+	// the one that goes: the clock and the money stay where they are when the truce ends, and what
+	// hangs under the top page moves up by the plate and nothing else.  Its figure is Readout.html's,
+	// which is laid out again every second for the clock anyway; the last ten seconds keep the plate
+	// with the word alone, and drawPeaceCountdown counts them out from under it
+	const Bool peaceShown = topShown && TheGameLogic->isPeaceTime();
+	IRegion2D peace;
+	peace.lo.x = ( (Int)TheDisplay->getWidth() - REAL_TO_INT( PEACE_WELL_WIDTH * scale ) ) / 2;
+	peace.hi.x = peace.lo.x + REAL_TO_INT( PEACE_WELL_WIDTH * scale );
+	peace.lo.y = m_topBarBottom + REAL_TO_INT( TOP_BOX_GAP * scale ) + topBorder;
+	peace.hi.y = peace.lo.y + REAL_TO_INT( MONEY_WELL_HEIGHT * scale );
+	putPageRect( values, "peace", peace, peaceShown, scale );
+	IRegion2D peaceBox = peace;
+	peaceBox.lo.x -= topBorder;
+	peaceBox.lo.y -= topBorder;
+	peaceBox.hi.x += topBorder;
+	peaceBox.hi.y += topBorder;
+	putFrame( values, "peacebar", peace, peaceBox, peaceShown );
+	m_peacePlateBottom = peaceShown ? peaceBox.hi.y : 0;
+	if( peaceShown )
+	{
+		m_topBarBottom = peaceBox.hi.y;
+		const UnsignedInt left = TheGameLogic->getPeaceTimeEndFrame() - TheGameLogic->getFrame();
+		const UnsignedInt secs = ControlBar_secondsFromFrames( (Real)left );
+		UnicodeString time;
+		if( left > PEACE_COUNTDOWN_SECONDS * LOGICFRAMES_PER_SECOND )
+			time.format( TheGameText->fetch( "GUI:PeaceTimeHud" ), secs / 60, secs % 60 );
+		values[ "peace.label" ] = WideCharStringToMultiByte( TheGameText->fetch( "GUI:PeaceTimeHudLabel" ).str() );
+		values[ "peace.time" ] = WideCharStringToMultiByte( time.str() );
+	}
 	// the event feed hangs in the top left corner under the menu key, and under the top page's foot
 	// too, which on a 4:3 screen reaches over the feed's lines
 	m_feedTop = max( (Int)REAL_TO_INT( MENU_FOOT * scale ), m_topBarBottom );

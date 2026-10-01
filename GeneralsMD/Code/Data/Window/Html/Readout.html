@@ -10,6 +10,10 @@
   page's own values:
     {{clock.x}} .y .w .h   the clock's well, {{clock.shown}} "hidden" while the top page is down,
                            and {{clock}} the match time, m:ss
+    {{peace.x}} .y .w .h   the peace time's well under the money's while the truce runs,
+                           {{peace.shown}} "hidden" otherwise; {{peace.label}} "PEACE" and
+                           {{peace.time}} m:ss, empty for the last ten seconds, which the game
+                           counts out under the plate
     {{selinfo.x}} .y .w .h the column beside a lone unit's portrait, {{selinfo.shown}} the same;
                            {{sel.health}} "820/1000", {{sel.healthw}} the bar's lit length out of
                            selinfo.w, {{sel.healthstate}} "green", "yellow" or "red", and
@@ -31,6 +35,10 @@
   /* the match clock, the largest figure on the top page, in the middle of its well */
   .clock { text-align: center; font-size: 16px; font-weight: bold; color: #f1f4f6; }
 
+  /* the peace time in the truce's own red, the word and the time on one line in the middle of its
+     well */
+  .peace { text-align: center; font-size: 11px; font-weight: bold; color: #ff3030; white-space: nowrap; }
+
   /* the health over ControlBar.html's groove, which stands at the same place */
   .fill { position: absolute; left: 0; top: 40px; height: 8px; background-color: #3fbf3f; }
   .fill.yellow { background-color: #e8c83a; }
@@ -40,6 +48,7 @@
 </head>
 <body>
 <div class="piece clock {{clock.shown}}" style="left: {{clock.x}}px; top: {{clock.y}}px; width: {{clock.w}}px; height: {{clock.h}}px; line-height: {{clock.h}}px">{{clock}}</div>
+<div class="piece peace {{peace.shown}}" style="left: {{peace.x}}px; top: {{peace.y}}px; width: {{peace.w}}px; height: {{peace.h}}px; line-height: {{peace.h}}px">{{peace.label}} {{peace.time}}</div>
 <div class="piece {{selinfo.shown}}" style="left: {{selinfo.x}}px; top: {{selinfo.y}}px; width: {{selinfo.w}}px; height: {{selinfo.h}}px">
   <div class="{{sel.healthshown}}">
     <div class="fill {{sel.healthstate}}" style="width: {{sel.healthw}}px"></div>
