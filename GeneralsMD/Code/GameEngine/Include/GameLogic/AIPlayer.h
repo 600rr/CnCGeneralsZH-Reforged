@@ -508,6 +508,10 @@ protected:
 	UnsignedInt	m_heldSince;											///< frame the first of the parked teams arrived
 
 	Bool isOutOnOrders(const Object *obj) const;	///< away from home with something to do
+	Bool isAtHome(const Coord3D *pos) const;			///< within two base radii of the base center
+	Bool isBaseUnderAttack(void) const;						///< hit lately, with a known enemy that can shoot standing at home
+	Object *homeIntruder(Int *count, std::vector<AIVisibleEnemy> *army) const;	///< the enemy nearest the base center while the base is under attack
+	void defendHome(void);												///< a base under attack trains fighters from its bank and sends its idle units in
 	Real waitingPower(Team *team, AIGroup *group) const;	///< what a team has for a wave, less the members out on orders; they join the group if one is given
 
 	/** How hard this AI leans on its current enemy: its chance against him, looked at again on the
