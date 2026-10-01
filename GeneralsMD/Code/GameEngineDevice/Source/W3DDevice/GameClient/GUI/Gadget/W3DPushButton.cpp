@@ -214,7 +214,7 @@ static DisplayString *badgeString( const UnicodeString &text, GameFont *font )
 	for( Int slot = 0; slot < BADGE_STRING_SLOTS; ++slot )
 	{
 		DisplayString *candidate = theBadgeStrings[ slot ];
-		if( candidate != NULL && candidate->getFont() == font && candidate->getText() == text )
+		if( candidate != NULL && candidate->getFont() == font && candidate->peekText() == text )
 			return candidate;
 	}
 
