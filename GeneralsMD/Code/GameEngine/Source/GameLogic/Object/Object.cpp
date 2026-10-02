@@ -3097,6 +3097,34 @@ Bool Object::isMobile() const
 }
 
 //-------------------------------------------------------------------------------------------------
+/** Give kill experience to whoever takes points for source, walking up the producers (see
+		scoreTheKill).  Returns the one who took it, or NULL when nobody could or it is the victim's ally. */
+static Object *giveKillExperience( Object *source, const Object *victim, Int experience )
+{
+	const Int MAX_PRODUCER_HOPS = 4;
+	Object *earner = source;
+	for( Int hop = 0; hop < MAX_PRODUCER_HOPS; ++hop )
+	{
+		ExperienceTracker *tracker = earner->getExperienceTracker();
+		if (tracker && tracker->isAcceptingExperiencePoints())
+			break;
+
+		Object *producer = TheGameLogic->findObjectByID( earner->getProducerID() );
+		if (producer == NULL || producer == earner)
+			break;
+		earner = producer;
+	}
+
+	ExperienceTracker *earnerTracker = earner->getExperienceTracker();
+	if (earnerTracker == NULL || !earnerTracker->isAcceptingExperiencePoints()
+			|| victim->getExperienceTracker()->getExperienceValue( earner ) == 0)
+		return NULL;
+
+	earnerTracker->addExperiencePoints( experience );
+	return earner;
+}
+
+//-------------------------------------------------------------------------------------------------
 void Object::scoreTheKill( const Object *victim )
 {
 	// Do stuff that has nothing to do with experience points here, like tell our Player we killed something
@@ -3148,31 +3176,48 @@ void Object::scoreTheKill( const Object *victim )
 
 		 The walk is a chain and not a single step: a transport makes a payload which makes the thing
 		 that does the killing.  It stops at a fixed depth rather than trusting the data not to contain
-		 a loop, and it stops at the first owner who can accept points, which is the one that fired. */
-	const Int MAX_PRODUCER_HOPS = 4;
-	Object *earner = this;
-	for( Int hop = 0; hop < MAX_PRODUCER_HOPS; ++hop )
-	{
-		ExperienceTracker *tracker = earner->getExperienceTracker();
-		if (tracker && tracker->isAcceptingExperiencePoints())
-			break;
+		 a loop, and it stops at the first owner who can accept points, which is the one that fired.
 
-		Object *producer = TheGameLogic->findObjectByID( earner->getProducerID() );
-		if (producer == NULL || producer == earner)
-			break;
-		earner = producer;
-	}
+		 The kill is split by damage.  The killing blow takes KILL_XP_KILLING_BLOW_PERCENT, the rest goes
+		 to everyone the victim remembers hitting it lately (the killer too) by the health each took off,
+		 and every share goes through the same walk.  A share nobody can take, because its attacker is
+		 dead or cannot earn, goes to the killer.  With nothing remembered the killer takes it all. */
 
-	ExperienceTracker *earnerTracker = earner->getExperienceTracker();
-	if (earnerTracker && earnerTracker->isAcceptingExperiencePoints())
+	// srj sez: per dustin, no experience (et al) for killing things under construction.
+	if (victim->testStatus(OBJECT_STATUS_UNDER_CONSTRUCTION))
+		return;
+
+	const ExperienceTracker *victimTracker = victim->getExperienceTracker();
+	const KillXPDamager *damagers = victimTracker->getDamagers();
+	Int shares[KILL_XP_DAMAGER_SLOTS];
+	Int total = victimTracker->getExperienceValue( this );
+	Int killerXP = KillXPSplit( total, damagers, TheGameLogic->getFrame(), shares );
+	AsciiString others;
+
+	for( Int i = 0; i < KILL_XP_DAMAGER_SLOTS; ++i )
 	{
-		// srj sez: per dustin, no experience (et al) for killing things under construction.
-		if (!victim->testStatus(OBJECT_STATUS_UNDER_CONSTRUCTION))
+		if (shares[i] == 0)
+			continue;
+
+		Object *damager = damagers[i].m_id == getID() ? NULL : TheGameLogic->findObjectByID( damagers[i].m_id );
+		Object *earner = (damager && !damager->isEffectivelyDead()) ? giveKillExperience( damager, victim, shares[i] ) : NULL;
+		if (earner == NULL)
 		{
-			Int experienceValue = victim->getExperienceTracker()->getExperienceValue( earner );
-			earnerTracker->addExperiencePoints( experienceValue );
+			killerXP += shares[i];
+			continue;
 		}
+#ifdef DEBUG_LOGGING
+		AsciiString one;
+		one.format(" other=%s:%d", earner->getTemplate()->getName().str(), shares[i]);
+		others.concat(one);
+#endif
 	}
+
+	Object *earner = giveKillExperience( this, victim, killerXP );
+
+	DEBUG_LOG(("KILLXP frame=%d victim=%s total=%d killer=%s:%d%s\n", TheGameLogic->getFrame(),
+		victim->getTemplate()->getName().str(), total, (earner ? earner : this)->getTemplate()->getName().str(),
+		earner ? killerXP : 0, others.str()));
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -3371,6 +3416,10 @@ void Object::onVeterancyLevelChanged( VeterancyLevel oldLevel, VeterancyLevel ne
 	// bonuses, the level-up animation and the sound.
 	if( isEffectivelyDead() )
 		return;
+
+	DEBUG_LOG(("PROMOTE frame=%d player=%d template=%s from=%s to=%s xp=%d\n", TheGameLogic->getFrame(),
+		getControllingPlayer()->getPlayerIndex(), getTemplate()->getName().str(),
+		TheVeterancyNames[oldLevel], TheVeterancyNames[newLevel], getExperienceTracker()->getCurrentExperience()));
 
 	updateUpgradeModules();
 

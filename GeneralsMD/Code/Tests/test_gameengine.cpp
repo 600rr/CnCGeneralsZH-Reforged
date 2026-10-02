@@ -67,6 +67,7 @@
 #include "Common/ThingTemplate.h"
 #include "Common/SimulationMathCrc.h"
 #include "GameLogic/FPUControl.h"
+#include "GameLogic/ExperienceTracker.h"
 #include <float.h>
 #include "Common/AudioRandomValue.h"
 #include "GameNetwork/CrcAgreement.h"
@@ -1187,6 +1188,42 @@ TEST(income_sharing_splits_evenly_and_keeps_the_remainder)
 	CHECK_EQ( IncomeAllyShare( 100, 3 ), 33u );
 	/* nobody to share with keeps it all */
 	CHECK_EQ( IncomeAllyShare( 200, 1 ), 0u );
+}
+
+/* ExperienceTracker.cpp: a kill's experience split by the damage each attacker dealt. */
+TEST(kill_xp_splits_by_damage_and_the_killing_blow_keeps_the_remainder)
+{
+	KillXPDamager slots[KILL_XP_DAMAGER_SLOTS] = {};
+	Int shares[KILL_XP_DAMAGER_SLOTS];
+
+	/* nobody remembered: the killer takes it all, as before */
+	CHECK_EQ( KillXPSplit( 100, slots, 1000, shares ), 100 );
+	CHECK_EQ( shares[0], 0 );
+
+	/* 7 hits 300, 9 hits 100: the 75 goes 56/18, the killer keeps 25 and the odd point */
+	KillXPRecordDamage( slots, (ObjectID)7, 200, 1000 );
+	KillXPRecordDamage( slots, (ObjectID)9, 100, 1000 );
+	KillXPRecordDamage( slots, (ObjectID)7, 100, 1001 );
+	CHECK_EQ( slots[0].m_damage, 300 );
+	CHECK_EQ( KillXPSplit( 100, slots, 1001, shares ), 26 );
+	CHECK_EQ( shares[0], 56 );
+	CHECK_EQ( shares[1], 18 );
+	CHECK_EQ( shares[2], 0 );
+
+	/* outside the window a hit earns nothing, and hitting again starts its count over */
+	UnsignedInt late = 1001 + KILL_XP_WINDOW_FRAMES + 1;
+	CHECK_EQ( KillXPSplit( 100, slots, late, shares ), 100 );
+	KillXPRecordDamage( slots, (ObjectID)7, 10, late );
+	CHECK_EQ( slots[0].m_damage, 10 );
+
+	/* full: a new attacker takes the weakest slot, the oldest of equals, the first of those */
+	KillXPDamager full[KILL_XP_DAMAGER_SLOTS] = {};
+	for( Int i = 0; i < KILL_XP_DAMAGER_SLOTS; ++i )
+		KillXPRecordDamage( full, (ObjectID)(100 + i), 50, 2000 );
+	KillXPRecordDamage( full, (ObjectID)100, 10, 2001 );		/* slot 0 is now the strongest */
+	KillXPRecordDamage( full, (ObjectID)200, 5, 2002 );
+	CHECK_EQ( (Int)full[1].m_id, 200 );
+	CHECK_EQ( full[1].m_damage, 5 );
 }
 
 /* CommandXlat.cpp: with the move, attack move or guard key armed, a left drag spreads the selection

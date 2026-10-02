@@ -39,6 +39,32 @@
 
 class Object;
 
+/* A kill's experience is split by damage dealt (Object::scoreTheKill).  The victim remembers its
+	 last few attackers; the killing blow takes a fixed cut and the rest goes by the share of health
+	 each took off inside the window. */
+enum
+{
+	KILL_XP_DAMAGER_SLOTS = 4,														///< attackers a victim remembers
+	KILL_XP_KILLING_BLOW_PERCENT = 25,										///< the killing blow's fixed cut
+	KILL_XP_WINDOW_FRAMES = 10 * LOGICFRAMES_PER_SECOND,	///< damage older than this earns nothing
+};
+
+struct KillXPDamager
+{
+	ObjectID		m_id;					///< INVALID_ID for an empty slot
+	Int					m_damage;			///< health taken off, summed while the attacker keeps hitting
+	UnsignedInt	m_frame;			///< frame of the last hit
+};
+
+/** Add a hit to the slots.  An attacker already there adds to its own slot; a new one takes the
+		weakest slot (least live damage, then the oldest hit, then the lowest index), and an empty or
+		expired slot counts as no damage. */
+void KillXPRecordDamage( KillXPDamager *slots, ObjectID source, Int damage, UnsignedInt frame );
+
+/** Split total experience: shares[i] is slot i's cut of the 75% by live damage, and the return is
+		what is left for the killing blow, its 25% plus the rounding.  No live damage returns total. */
+Int KillXPSplit( Int total, const KillXPDamager *slots, UnsignedInt frame, Int *shares );
+
 class ExperienceTracker : public MemoryPoolObject, public Snapshot
 {
 	MEMORY_POOL_GLUE_WITH_USERLOOKUP_CREATE(ExperienceTracker, "ExperienceTrackerPool" )	
@@ -62,6 +88,9 @@ public:
 	Real getExperienceScalar() const { return m_experienceScalar; }
 	void setExperienceScalar( Real scalar ) { m_experienceScalar = scalar; }
 
+	void recordDamage( ObjectID source, Int damage );											///< an enemy took this much health off me
+	const KillXPDamager *getDamagers() const { return m_damagers; }				///< KILL_XP_DAMAGER_SLOTS of them
+
 	// --------------- inherited from Snapshot interface --------------
 	void crc( Xfer *xfer );
 	void xfer( Xfer *xfer );
@@ -73,6 +102,7 @@ private:
 	Int								m_currentExperience;								///< Number of experience points
 	ObjectID					m_experienceSink;										///< ID of object I have pledged my experience point gains to
 	Real							m_experienceScalar;									///< Scales any experience gained by this multiplier.
+	KillXPDamager			m_damagers[KILL_XP_DAMAGER_SLOTS];	///< recent attackers, for splitting the kill
 };
 
 #endif

@@ -49,8 +49,75 @@ ExperienceTracker::ExperienceTracker(Object *parent) :
 	m_currentLevel(LEVEL_REGULAR),
 	m_experienceSink(INVALID_ID),
 	m_experienceScalar( 1.0f ),
-	m_currentExperience(0) // Added By Sadullah Nader
+	m_currentExperience(0), // Added By Sadullah Nader
+	m_damagers()
 {
+}
+
+//-------------------------------------------------------------------------------------------------
+static Int killXPLiveDamage( const KillXPDamager &slot, UnsignedInt frame )
+{
+	if( slot.m_id == INVALID_ID || frame - slot.m_frame > (UnsignedInt)KILL_XP_WINDOW_FRAMES )
+		return 0;
+	return slot.m_damage;
+}
+
+//-------------------------------------------------------------------------------------------------
+void KillXPRecordDamage( KillXPDamager *slots, ObjectID source, Int damage, UnsignedInt frame )
+{
+	Int pick = -1;
+	for( Int i = 0; i < KILL_XP_DAMAGER_SLOTS; ++i )
+	{
+		if( slots[i].m_id == source )
+		{
+			pick = i;
+			break;
+		}
+	}
+
+	if( pick < 0 )
+	{
+		pick = 0;
+		for( Int i = 1; i < KILL_XP_DAMAGER_SLOTS; ++i )
+		{
+			Int a = killXPLiveDamage( slots[i], frame );
+			Int b = killXPLiveDamage( slots[pick], frame );
+			if( a < b || (a == b && slots[i].m_frame < slots[pick].m_frame) )
+				pick = i;
+		}
+		slots[pick].m_id = source;
+		slots[pick].m_damage = 0;
+	}
+	else if( killXPLiveDamage( slots[pick], frame ) == 0 )
+	{
+		slots[pick].m_damage = 0;	// its last hit is outside the window, start again
+	}
+
+	slots[pick].m_damage += damage;
+	slots[pick].m_frame = frame;
+}
+
+//-------------------------------------------------------------------------------------------------
+Int KillXPSplit( Int total, const KillXPDamager *slots, UnsignedInt frame, Int *shares )
+{
+	Int sum = 0;
+	for( Int i = 0; i < KILL_XP_DAMAGER_SLOTS; ++i )
+		sum += killXPLiveDamage( slots[i], frame );
+
+	Int byDamage = total - total * KILL_XP_KILLING_BLOW_PERCENT / 100;
+	Int left = total;
+	for( Int i = 0; i < KILL_XP_DAMAGER_SLOTS; ++i )
+	{
+		shares[i] = sum ? (Int)( (Int64)byDamage * killXPLiveDamage( slots[i], frame ) / sum ) : 0;
+		left -= shares[i];
+	}
+	return left;
+}
+
+//-------------------------------------------------------------------------------------------------
+void ExperienceTracker::recordDamage( ObjectID source, Int damage )
+{
+	KillXPRecordDamage( m_damagers, source, damage, TheGameLogic->getFrame() );
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -242,19 +309,30 @@ void ExperienceTracker::crc( Xfer *xfer )
 {
 	xfer->xferInt( &m_currentExperience );
 	xfer->xferUser( &m_currentLevel, sizeof( VeterancyLevel ) );
+
+	// only the slots ever used, so an object nobody has shot costs the CRC nothing more
+	for( Int i = 0; i < KILL_XP_DAMAGER_SLOTS; ++i )
+	{
+		if( m_damagers[i].m_id == INVALID_ID )
+			continue;
+		xfer->xferObjectID( &m_damagers[i].m_id );
+		xfer->xferInt( &m_damagers[i].m_damage );
+		xfer->xferUnsignedInt( &m_damagers[i].m_frame );
+	}
 }  // end crc
 
 //-----------------------------------------------------------------------------
 /** Xfer method
 	* Version Info:
-	* 1: Initial version 
+	* 1: Initial version
+	* 2: Recent damagers, for splitting kill experience
 	*/
 // ----------------------------------------------------------------------------
 void ExperienceTracker::xfer( Xfer *xfer )
 {
 
 	// version
-	XferVersion currentVersion = 1;
+	XferVersion currentVersion = 2;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -272,6 +350,17 @@ void ExperienceTracker::xfer( Xfer *xfer )
 
 	// experience scalar
 	xfer->xferReal( &m_experienceScalar );
+
+	// recent damagers
+	if( version >= 2 )
+	{
+		for( Int i = 0; i < KILL_XP_DAMAGER_SLOTS; ++i )
+		{
+			xfer->xferObjectID( &m_damagers[i].m_id );
+			xfer->xferInt( &m_damagers[i].m_damage );
+			xfer->xferUnsignedInt( &m_damagers[i].m_frame );
+		}
+	}
 
 }  // end xfer
 

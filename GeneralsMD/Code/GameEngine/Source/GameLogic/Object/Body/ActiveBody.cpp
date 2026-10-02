@@ -50,6 +50,7 @@
 #include "GameLogic/AIGuardRetaliate.h"
 #include "GameLogic/AIPathfind.h"
 #include "GameLogic/Armor.h"
+#include "GameLogic/ExperienceTracker.h"
 #include "GameLogic/GameLogic.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/Damage.h"
@@ -617,6 +618,11 @@ void ActiveBody::attemptDamage( DamageInfo *damageInfo )
 		// record the actual damage done from this, and when it happened
 		damageInfo->out.m_actualDamageDealt = amount;
 		damageInfo->out.m_actualDamageClipped = m_prevHealth - m_currentHealth;
+
+		// remember which enemy took how much health off, for splitting the kill (Object::scoreTheKill)
+		if( !alreadyHandled && damageInfo->out.m_actualDamageClipped > 0.0f && damager && damager != obj
+				&& damager->getRelationship( obj ) == ENEMIES )
+			obj->getExperienceTracker()->recordDamage( damager->getID(), REAL_TO_INT_CEIL( damageInfo->out.m_actualDamageClipped ) );
 
 		// then copy the whole DamageInfo struct for easy lookup 
 		// (object pointer loses scope as soon as atteptdamage's caller ends)
