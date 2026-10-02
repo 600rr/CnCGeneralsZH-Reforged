@@ -35,14 +35,15 @@ function Shoot($case, $tag, $extra) {
     '-autoskirmish','4','-aidiff','easy','-seed','5','-maxframes',($case.f+80),
     '-screenshot',$case.f,'-camera',$case.x,$case.y,'-logPrefix',"shd_$tag`_",'-turbo')
   if ($extra) { $arguments += $extra }
+  $process = Start-Process (Join-Path $run "generals.exe") -ArgumentList $arguments `
+    -WorkingDirectory $run -PassThru
   try {
-    $process = Start-Process (Join-Path $run "generals.exe") -ArgumentList $arguments `
-      -WorkingDirectory $run -PassThru
     $process.PriorityClass = 'AboveNormal'
     $null = $process.WaitForExit(900000)
   }
   finally {
-    Get-Process -Name generals -ErrorAction SilentlyContinue | Stop-Process -Force
+    # By id: another session's game on the same machine is not this script's to end.
+    if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
   }
   # The picture is written on the frame it was asked for and the process runs on to its frame
   # limit, so the file can land a moment after the wait returns.  A view that still has none is

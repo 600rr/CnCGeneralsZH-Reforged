@@ -84,13 +84,14 @@ function Shoot($c, $tag, $switches) {
     '-msaa','0','-dx11post','off','-map',"`"Maps\$($c.map)\$($c.map).map`"",'-autoskirmish','4','-aidiff','easy',
     '-seed','5','-maxframes',($c.f+80),'-screenshot',$c.f,'-camera',$c.x,$c.y,
     '-logPrefix',"dx11chk_$tag`_",'-turbo') + $switches + $Extra
+  $process = Start-Process (Join-Path $run 'generals.exe') -ArgumentList $arguments -WorkingDirectory $run -PassThru
   try {
-    $process = Start-Process (Join-Path $run 'generals.exe') -ArgumentList $arguments -WorkingDirectory $run -PassThru
     $process.PriorityClass = 'AboveNormal'
     $null = $process.WaitForExit(900000)
   }
   finally {
-    Get-Process -Name generals -ErrorAction SilentlyContinue | Stop-Process -Force
+    # By id: another session's game on the same machine is not this script's to end.
+    if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
   }
   $file = Get-ChildItem "$shots\sshot*.bmp" -ErrorAction SilentlyContinue |
           Sort-Object LastWriteTime | Select-Object -Last 1
