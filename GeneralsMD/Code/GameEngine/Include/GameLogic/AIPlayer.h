@@ -347,7 +347,10 @@ protected:
 	Bool queueExtraFactory(Object *dozer, KindOfType kind, Bool unlimited);	///< one more of this factory, beside a held expansion or around the base
 	Real knownFirepowerAlongPath(Waypoint *way);	///< what this AI has seen that can shoot, along an approach
 	AsciiString secondApproachLabel(const Coord3D *from, const AsciiString &taken, Int pathSuffix);	///< the quietest other road, or empty
-	void loadGunships(void);	///< the parked wave's infantry boards the gunships at home
+	Bool loadGunships(void);	///< infantry boards the transports it can shoot out of: the wave's anything at home, a team's its own; TRUE while a firing gunship is still filling
+	Int buyGunshipRiders(Int freeSeats);	///< Medium and up train the men for the firing seats nobody fills; how many are in training
+	void buyGunshipChinook(void);	///< Medium and up buy a supply-center transport the riders shoot out of, as a gunship
+	Bool isGunshipRider(const Object *obj) const;	///< infantry loadGunships may put in a transport
 	void sendIdleAttackTeams(void);	///< attack teams standing at home join the next wave instead of waiting for the script's signal
 	Real knownFirepowerNear(const Coord3D *pos);	///< what this AI has seen that can shoot, near a point
 	Bool forwardHoldPoint(const AsciiString &approach, Int pathSuffix, const Coord3D *enemyPos, Coord3D *hold);	///< where a wave gathers on its road
@@ -399,6 +402,9 @@ public:
 		how often, and it is a function of the player index alone - the simulation stays deterministic.
 	*/
 	static Int computeUpdatePhase( Int playerIndex, Int cycleFrames );
+
+	Bool isGunshipChinook( const Object *obj ) const;	///< a Chinook this AI bought to carry riders, not to gather
+	Bool isGunshipAircraft( const Object *obj ) const;	///< a helicopter, or one of those Chinooks
 protected:
 
 	/**
@@ -445,6 +451,9 @@ protected:
 	ObjectID	m_capturerID;						///< the unit currently out taking tech buildings for us
 	ObjectID	m_ferryID;							///< the helicopter flying the capturer to its target, INVALID_ID for none
 	std::vector<ObjectID>	m_droppedRiders;	///< infantry a helicopter is putting down at a fight, sent on once out
+	enum { MAX_GUNSHIP_CHINOOKS = 2 };
+	ObjectID	m_gunshipChinook[ MAX_GUNSHIP_CHINOOKS ];	///< Combat Chinooks bought to carry riders; INVALID_ID for a free slot
+	UnsignedInt m_boardWaitFrame;			///< a wave ready to leave first waited for its gunships' riders on this frame; 0 for none
 	Int				m_captureTimer;					///< frames until the next look for something to capture
 	ObjectID	m_hijackerID;						///< the thief currently out after an enemy vehicle
 	Int				m_hijackTimer;					///< frames until the next look for a vehicle to take
