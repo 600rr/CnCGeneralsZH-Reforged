@@ -35,7 +35,7 @@ found and fixed â€” EA's own, not port damage.**
 
 ## Veterancy goes to everyone who fought
 
-- A kill used to promote only the unit that fired the last shot. Two Crusaders could grind an Overlord down to a sliver and a passing Humvee's rocket took every point of it. Now the killing blow earns a quarter and the rest is shared out among everything that hurt the target in the last ten seconds, by how much of its health each one took off. A unit that died before the kill leaves its share to the killer. The kill on the scoreboard and your general's promotion points still go to the last shot. Replays recorded before this change play out differently.
+- A kill used to promote only the unit that fired the last shot. Two Crusaders could grind an Overlord down to a sliver and a passing Humvee's rocket took every point of it. Now the killing blow earns a quarter and the rest is shared out among everything that hurt the target in the last ten seconds, by how much of its health each one took off. A unit that died before the kill leaves its share to the killer. Healing counts too: an Emperor, or an Overlord or Helix with a Propaganda Tower, earns for every friendly unit it patches up, half of that unit's worth as a kill for a full repair and less for less. The kill on the scoreboard and your general's promotion points still go to the last shot. Replays recorded before this change play out differently.
 
 ## The frame rate cap is gone
 

@@ -915,6 +915,11 @@ void ActiveBody::attemptHealing( DamageInfo *damageInfo )
 		damageInfo->out.m_actualDamageDealt = amount;
 		damageInfo->out.m_actualDamageClipped = m_currentHealth - m_prevHealth;
 
+		// whoever put the health back may earn experience for it (Object::scoreTheHeal)
+		Object *healer = TheGameLogic->findObjectByID( damageInfo->in.m_sourceID );
+		if( damageInfo->out.m_actualDamageClipped > 0.0f && healer && healer != obj )
+			healer->scoreTheHeal( obj, damageInfo->out.m_actualDamageClipped, m_maxHealth );
+
 		//
 		// Only the healing timestamp is stamped here. This used to overwrite m_lastDamageInfo and
 		// m_lastDamageTimestamp with the heal record as well, which lied to everything that means

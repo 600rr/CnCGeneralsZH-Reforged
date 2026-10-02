@@ -50,7 +50,8 @@ ExperienceTracker::ExperienceTracker(Object *parent) :
 	m_experienceSink(INVALID_ID),
 	m_experienceScalar( 1.0f ),
 	m_currentExperience(0), // Added By Sadullah Nader
-	m_damagers()
+	m_damagers(),
+	m_healXPCarry(0)
 {
 }
 
@@ -112,6 +113,15 @@ Int KillXPSplit( Int total, const KillXPDamager *slots, UnsignedInt frame, Int *
 		left -= shares[i];
 	}
 	return left;
+}
+
+//-------------------------------------------------------------------------------------------------
+Int HealXPAccrue( Int *carry, Int value, Int restored, Int maxHealth )
+{
+	*carry += (Int)( (Int64)value * HEAL_XP_PERCENT * (HEAL_XP_SCALE / 100) * restored / maxHealth );
+	Int points = *carry / HEAL_XP_SCALE;
+	*carry -= points * HEAL_XP_SCALE;
+	return points;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -319,6 +329,9 @@ void ExperienceTracker::crc( Xfer *xfer )
 		xfer->xferInt( &m_damagers[i].m_damage );
 		xfer->xferUnsignedInt( &m_damagers[i].m_frame );
 	}
+
+	if( m_healXPCarry != 0 )
+		xfer->xferInt( &m_healXPCarry );
 }  // end crc
 
 //-----------------------------------------------------------------------------
@@ -326,13 +339,14 @@ void ExperienceTracker::crc( Xfer *xfer )
 	* Version Info:
 	* 1: Initial version
 	* 2: Recent damagers, for splitting kill experience
+	* 3: Healing experience carry
 	*/
 // ----------------------------------------------------------------------------
 void ExperienceTracker::xfer( Xfer *xfer )
 {
 
 	// version
-	XferVersion currentVersion = 2;
+	XferVersion currentVersion = 3;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -361,6 +375,10 @@ void ExperienceTracker::xfer( Xfer *xfer )
 			xfer->xferUnsignedInt( &m_damagers[i].m_frame );
 		}
 	}
+
+	// healing experience carry
+	if( version >= 3 )
+		xfer->xferInt( &m_healXPCarry );
 
 }  // end xfer
 

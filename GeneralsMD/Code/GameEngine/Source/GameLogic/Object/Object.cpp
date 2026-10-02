@@ -3097,9 +3097,9 @@ Bool Object::isMobile() const
 }
 
 //-------------------------------------------------------------------------------------------------
-/** Give kill experience to whoever takes points for source, walking up the producers (see
-		scoreTheKill).  Returns the one who took it, or NULL when nobody could or it is the victim's ally. */
-static Object *giveKillExperience( Object *source, const Object *victim, Int experience )
+/** Whoever takes experience points for source: source itself, or the first of its producers that
+		can (see scoreTheKill).  NULL when nobody up the chain can. */
+static Object *findExperienceEarner( Object *source )
 {
 	const Int MAX_PRODUCER_HOPS = 4;
 	Object *earner = source;
@@ -3116,12 +3116,61 @@ static Object *giveKillExperience( Object *source, const Object *victim, Int exp
 	}
 
 	ExperienceTracker *earnerTracker = earner->getExperienceTracker();
-	if (earnerTracker == NULL || !earnerTracker->isAcceptingExperiencePoints()
-			|| victim->getExperienceTracker()->getExperienceValue( earner ) == 0)
+	return (earnerTracker && earnerTracker->isAcceptingExperiencePoints()) ? earner : NULL;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Give kill experience to whoever takes points for source.  Returns the one who took it, or NULL
+		when nobody could or it is the victim's ally. */
+static Object *giveKillExperience( Object *source, const Object *victim, Int experience )
+{
+	Object *earner = findExperienceEarner( source );
+	if (earner == NULL || victim->getExperienceTracker()->getExperienceValue( earner ) == 0)
 		return NULL;
 
-	earnerTracker->addExperiencePoints( experience );
+	earner->getExperienceTracker()->addExperiencePoints( experience );
 	return earner;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** ActiveBody::attemptHealing put restored health back on patient, with me as the source.
+
+		A trainable unit that heals or repairs an ally earns HEAL_XP_PERCENT of the patient's kill value
+		for a full heal, pro rata.  The points go where kill points from me would go: up the producers,
+		so an Overlord's or a Helix's Propaganda Tower pays the vehicle carrying it (the tower is a
+		rider whose experience sink is the vehicle).  A building earns nothing, and neither does the
+		walk from one, or every repair bay would pay the dozer that built it.  Healing yourself earns
+		nothing, which is also where a Battle Drone repairing its own vehicle ends up. */
+void Object::scoreTheHeal( const Object *patient, Real restored, Real maxHealth )
+{
+	if (isKindOf( KINDOF_STRUCTURE ) || patient->testStatus( OBJECT_STATUS_UNDER_CONSTRUCTION ))
+		return;
+
+	Object *earner = findExperienceEarner( this );
+	if (earner == NULL)
+		return;
+
+	Object *sink = TheGameLogic->findObjectByID( earner->getExperienceTracker()->getExperienceSink() );
+	if (sink)
+		earner = sink;
+
+	ExperienceTracker *tracker = earner->getExperienceTracker();
+	if (earner == patient || earner->isEffectivelyDead() || !tracker->isTrainable()
+			|| earner->getRelationship( patient ) != ALLIES)
+		return;
+
+	// thousandths of a hit point, so a frame's sliver of health still counts
+	Int value = patient->getTemplate()->getExperienceValue( patient->getVeterancyLevel() );
+	Int points = tracker->accrueHealExperience( value, REAL_TO_INT_FLOOR( restored * 1000.0f ),
+		REAL_TO_INT_CEIL( maxHealth * 1000.0f ) );
+	if (points == 0)
+		return;
+
+	tracker->addExperiencePoints( points );
+
+	DEBUG_LOG(("HEALXP frame=%d healer=%s earner=%s patient=%s xp=%d\n", TheGameLogic->getFrame(),
+		getTemplate()->getName().str(), earner->getTemplate()->getName().str(),
+		patient->getTemplate()->getName().str(), points));
 }
 
 //-------------------------------------------------------------------------------------------------

@@ -285,7 +285,8 @@ public:
 	void doStatusDamage( ObjectStatusTypes status, Real duration );///< At this level, we just pass this on to our helper
 	void doTempWeaponBonus( WeaponBonusConditionType status, UnsignedInt duration );///< At this level, we just pass this on to our helper
 
-	void scoreTheKill( const Object *victim );						///< I just killed this object.  
+	void scoreTheKill( const Object *victim );						///< I just killed this object.
+	void scoreTheHeal( const Object *patient, Real restored, Real maxHealth );	///< I just put restored health back on this object
 	void onVeterancyLevelChanged( VeterancyLevel oldLevel, VeterancyLevel newLevel, Bool provideFeedback = TRUE );	///< I just achieved this level right this moment
 	ExperienceTracker* getExperienceTracker() {return m_experienceTracker;}
 	const ExperienceTracker* getExperienceTracker() const {return m_experienceTracker;}

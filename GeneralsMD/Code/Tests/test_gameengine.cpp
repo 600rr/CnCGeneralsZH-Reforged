@@ -1226,6 +1226,35 @@ TEST(kill_xp_splits_by_damage_and_the_killing_blow_keeps_the_remainder)
 	CHECK_EQ( full[1].m_damage, 5 );
 }
 
+/* ExperienceTracker.cpp: healing pays half a kill for a full heal, pro rata, and carries the fraction. */
+TEST(heal_xp_is_half_a_kill_per_full_heal_and_carries_the_fraction)
+{
+	Int carry = 0;
+
+	/* a full heal of something worth 200 pays 100, nothing left over */
+	CHECK_EQ( HealXPAccrue( &carry, 200, 1000, 1000 ), 100 );
+	CHECK_EQ( carry, 0 );
+
+	/* a quarter heal of something worth 10 is 1.25 points: 1 now, the quarter kept */
+	CHECK_EQ( HealXPAccrue( &carry, 10, 250, 1000 ), 1 );
+	CHECK_EQ( carry, HEAL_XP_SCALE / 4 );
+
+	/* a thousandth of the health a frame, on something worth 50, is 0.025 points: nothing for 39
+	   frames, the first point on the 40th, and the whole heal still makes 25 */
+	carry = 0;
+	Int total = 0;
+	for( Int frame = 1; frame <= 1000; ++frame )
+	{
+		total += HealXPAccrue( &carry, 50, 100, 100000 );
+		if( frame == 39 )
+			CHECK_EQ( total, 0 );
+		if( frame == 40 )
+			CHECK_EQ( total, 1 );
+	}
+	CHECK_EQ( total, 25 );
+	CHECK_EQ( carry, 0 );
+}
+
 /* CommandXlat.cpp: with the move, attack move or guard key armed, a left drag spreads the selection
    along the line drawn, but only when there is a selection to spread and no GUI command already
    waiting for the click.  The right button never draws it; a right drag pans. */
