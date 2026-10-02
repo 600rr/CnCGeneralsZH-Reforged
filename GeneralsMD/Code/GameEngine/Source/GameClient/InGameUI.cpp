@@ -2286,7 +2286,7 @@ static void fillReplayValues( HtmlValues &values, Int floor )
 
 	// Spectator.html's #replay with its padding and its borders, and a gap under it
 	enum { REPLAY_STRIP_WIDTH = 322, REPLAY_STRIP_HEIGHT = 52 };
-	const Real scale = ControlBarHudPageScale();
+	const Real scale = ControlBarHudScale();
 	const UnsignedInt frame = TheGameLogic->getFrame();
 	const UnsignedInt length = replayLength();
 	values[ "replay" ] = "on";
@@ -2531,7 +2531,9 @@ void InGameUI::drawSpectatorPage( void )
 	if( m_spectatorOverlay == NULL )
 	{
 		m_spectatorOverlay = new HtmlOverlay( m_superweaponNormalFont );
-		m_spectatorOverlay->setHudPage( TRUE );
+		// the console's own scale: the column and the replay strip standing on the console were left
+		// at the old size when the console was cut to CONTROL_BAR_HUD_PERCENT
+		m_spectatorOverlay->setHud( TRUE );
 	}
 
 	// a unit selected turns the page to his side's steel the same frame, not half a second on

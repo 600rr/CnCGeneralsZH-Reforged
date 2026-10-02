@@ -3354,7 +3354,12 @@ void ControlBar::update( void )
 		}
 		Object *obj = drawToEvaluateFor ? drawToEvaluateFor->getObject() : NULL;
 		setPortraitByObject( obj );
-		
+
+		// the observer never reaches evaluateContextUI, so this is what keeps the context drawable
+		// (the HUD's name and health readout) on the selection; onDrawableDeselected drops it when
+		// its drawable dies before the next pass gets here
+		m_currentSelectedDrawable = drawToEvaluateFor;
+
 		return;
 	}
 		
@@ -3590,6 +3595,11 @@ void ControlBar::onDrawableDeselected( Drawable *draw )
 
 	// set a dirty flag so next time we update we can reconstruct the UI
 	markUIDirty();
+
+	// a dying drawable is deselected and then freed inside the logic frame, and the next client
+	// pass draws the HUD (InGameUI's getContextDrawable) before update can re-evaluate - drop it now
+	if( m_currentSelectedDrawable == draw )
+		m_currentSelectedDrawable = NULL;
 
 	if (TheInGameUI->getSelectCount() == 0)
 	{
