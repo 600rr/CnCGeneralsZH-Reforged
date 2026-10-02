@@ -211,6 +211,7 @@ public:
 	void removeTerrainBibHighlighting(void);
 
 	W3DShroud *getShroud()	{return m_shroud;}
+	W3DBridgeBuffer *getBridgeBuffer()	{return m_bridgeBuffer;}
 	void updateShorelineTiles(Int minX, Int minY, Int maxX, Int maxY, WorldHeightMap *pMap);	///<figure out which tiles on this map cross water plane
 	void updateShorelineTile(Int X, Int Y, Int Border, WorldHeightMap *pMap);	///<figure out which tiles on this map cross water plane
 	void recordShoreLineSortInfos(void);

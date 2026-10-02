@@ -1150,6 +1150,10 @@ The whole HUD is on the hardware. Four colours carry it, and they mean the same 
   treatment through the finishing passes. The patch goes with the building's shadow in the fog: an
   enemy base you have never scouted used to leave its dark footprints on grey ground, a map of
   where every building stood.
+- A bridge stops the sun. A tank crossing one used to throw its shadow twice, on the deck where it
+  belongs and again on the ground under the bridge, because the light went straight through the
+  stone. The bridge now casts its own shadow across the bank and the water below it, a unit on the
+  deck shadows the deck alone, and the side of the bridge that faces away from the sun is in shade.
 - Infantry shadows are built from the pose: arms, head, weapon, moving with him.
 - `UseShadowVolumesForSkins = No` puts the old flat blobs back.
 - Scuds, rockets and falling bombs cast a shadow running along the ground.

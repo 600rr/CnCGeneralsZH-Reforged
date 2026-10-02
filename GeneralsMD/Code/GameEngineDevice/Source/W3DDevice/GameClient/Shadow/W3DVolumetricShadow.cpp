@@ -49,6 +49,7 @@
 #include "Lib/BaseType.h"
 #include "W3DDevice/GameClient/W3DGranny.h"
 #include "W3DDevice/GameClient/Heightmap.h"
+#include "W3DDevice/GameClient/W3DBridgeBuffer.h"
 #include "d3dx9math.h"
 #include "common/GlobalData.h"
 #include "common/drawmodule.h"
@@ -110,6 +111,10 @@ const Real cosAngleToCare = cos ((0.2 * PI) / 180.0);	//1.5 degree difference
 // fully blocked pixel goes, and how far the filter reaches in texels.  The first is the one that
 // decides between a surface shadowing itself in stripes and a shadow lifting off its own caster.
 #define SHADOW_MAP_DEPTH_BIAS 0.0015f
+// How far a bridge deck is pushed back in the map, in multiples of its own depth slope across one
+// texel.  The decks are the one caster drawn with both faces, so this is their only guard against
+// shadowing themselves.
+#define SHADOW_MAP_BRIDGE_SLOPE_BIAS 2.0f
 // 0.55 was picked on a frame with one base in it; over fourteen buildings a wide shadow on the
 // ground read at a quarter of the sunlit sand, black in front of every wall, and the owner took
 // 0.45 from three panels of the same base on 2026-09-21.
@@ -3932,6 +3937,20 @@ void W3DVolumetricShadowManager::renderShadowMap( CameraClass &sceneCamera )
 		 onto the screen rather than into the map.  The backend writes depth for a blended caster
 		 while the pass runs and cuts it at its alpha, which keeps the blades. */
 	SortingRendererClass::Flush();
+
+	/* The bridge decks are not casters in the list above and have to be in the map all the same:
+		 without them the sun reached through a deck, and a tank crossing it laid one shadow on the
+		 deck and a second on the ground under the bridge.  Drawn last so the bias below reaches no
+		 other caster.  A deck goes in with both faces, so the map holds its top, and a top that
+		 tilts away from the sun would shadow its own far edge in stripes; the slope bias pushes it
+		 back by what its tilt across a texel or two is worth, which is nothing next to the height
+		 of a bridge over the ground and leaves a unit on the deck nearer the sun than the deck.
+		 Nothing else in the game sets this state, so it goes back to zero rather than to the
+		 wrapper's cached value, which an invalidate leaves as a sentinel. */
+	const float bridgeSlopeBias = SHADOW_MAP_BRIDGE_SLOPE_BIAS;
+	DX8Wrapper::Set_DX8_Render_State( D3DRS_SLOPESCALEDEPTHBIAS, *(const DWORD *)&bridgeSlopeBias );
+	TheTerrainRenderObject->getBridgeBuffer()->drawBridgeShadowCasters();
+	DX8Wrapper::Set_DX8_Render_State( D3DRS_SLOPESCALEDEPTHBIAS, 0 );
 
 	DX8Wrapper::Set_DX8_Render_State( D3DRS_COLORWRITEENABLE,
 		D3DCOLORWRITEENABLE_RED | D3DCOLORWRITEENABLE_GREEN | D3DCOLORWRITEENABLE_BLUE
