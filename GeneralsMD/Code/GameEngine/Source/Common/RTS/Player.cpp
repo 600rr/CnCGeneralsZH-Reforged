@@ -3291,6 +3291,11 @@ Bool SuperweaponDefenseCapRefuses( Int finishedDefenses, Int superweapons )
   return superweapons >= finishedDefenses / DEFENSES_PER_SUPERWEAPON;
 }
 
+Bool DefenseCountsForSuperweapons( Int buildCost )
+{
+  return buildCost > 0;
+}
+
 Bool SuperweaponNeedsDefenses( const AsciiString &buildingName, Bool proRules, Int superweaponRestriction )
 {
   return !( ProRulesExemptSuperweapon( buildingName )
@@ -3313,7 +3318,8 @@ static void countSuperweaponDefenses( Object *obj, void *userData )
   SuperweaponDefenseCount *count = (SuperweaponDefenseCount *)userData;
   if ( obj->isKindOf( KINDOF_FS_SUPERWEAPON ) )
     count->superweapons++;
-  else if ( obj->isKindOf( KINDOF_FS_BASE_DEFENSE ) && !obj->testStatus( OBJECT_STATUS_UNDER_CONSTRUCTION ) )
+  else if ( obj->isKindOf( KINDOF_FS_BASE_DEFENSE ) && !obj->testStatus( OBJECT_STATUS_UNDER_CONSTRUCTION )
+    && DefenseCountsForSuperweapons( obj->getTemplate()->friend_getBuildCost() ) )
     count->defenses++;
 }
 

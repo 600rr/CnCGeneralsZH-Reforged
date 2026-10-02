@@ -14470,6 +14470,10 @@ TEST(four_finished_defenses_pay_for_each_superweapon)
 	// losing defences never pulls a standing superweapon down, it only stops the next one
 	CHECK( SuperweaponDefenseCapRefuses( 4, 2 ) );
 
+	// a Sneak Attack tunnel costs nothing and buys nothing; a Tunnel Network at 800 does
+	CHECK( !DefenseCountsForSuperweapons( 0 ) );
+	CHECK( DefenseCountsForSuperweapons( 800 ) );
+
 	// a silo whose missile is silenced sells China's upgrades and asks for no defences
 	CHECK( !SuperweaponNeedsDefenses( AsciiString( "ChinaNuclearMissileLauncher" ), FALSE, SUPERWEAPONS_NONE ) );
 	CHECK( !SuperweaponNeedsDefenses( AsciiString( "Tank_ChinaNuclearMissileLauncher" ), TRUE, SUPERWEAPONS_ALLOW ) );

@@ -159,6 +159,9 @@ Bool UnitCapRefuses( Int unitsTowardCap, Int unitsItAdds, UnsignedInt unitCap );
 // on top of the lobby's rule and never loosens it.
 enum { DEFENSES_PER_SUPERWEAPON = 4 };
 Bool SuperweaponDefenseCapRefuses( Int finishedDefenses, Int superweapons );
+// Only a defence somebody paid for counts.  The Sneak Attack tunnel, its Start and every general's
+// copy are the only FS_BASE_DEFENSE templates with no BuildCost: a power drops them for free.
+Bool DefenseCountsForSuperweapons( Int buildCost );
 // The silo whose missile No Superweapons or Pro Rules silences is a shop for China's upgrades, not a
 // weapon, and is not asked for defences.
 Bool SuperweaponNeedsDefenses( const AsciiString &buildingName, Bool proRules, Int superweaponRestriction );
