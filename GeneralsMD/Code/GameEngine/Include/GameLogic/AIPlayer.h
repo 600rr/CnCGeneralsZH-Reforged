@@ -553,11 +553,18 @@ protected:
 		Int					savedAttitude;		///< its mood before a step calmed it, AI_INVALID when it has its own
 		UnsignedInt	lastKiteFrame;		///< last time it stepped back from something it outranges, 0 for never
 		UnsignedInt	lastSeenFrame;		///< a unit not looked at for a while has died or left, and its row goes
+		Bool				fallingBack;			///< pulled out of a lost fight to a safe spot, and goes back once it is safe
+		Coord3D			fallbackFrom;			///< the fight it was pulled out of
+		UnsignedInt	fallbackFrame;		///< when it was pulled out
 	};
 	std::vector<TacticalStep>	m_tactics;
 	TacticalStep *findTacticalStep(ObjectID unit);
 	TacticalStep *tacticalStepFor(ObjectID unit);		///< ... making the row if there is none
 	void leaveTacticsAlone(ObjectID unit);
+	Bool isFallingBack(ObjectID unit);		///< holding at a safe spot after a lost fight, for doRetreats to send back
+	void measureFight(const Coord3D *centre, Team *team, Real *myHealth, Real *myPower,
+		Real *enemyHealth, Real *enemyPower, std::vector<Real> *enemyGuns);
+	void doFallback(Team *team);
 	void stepCalmly(Object *obj, TacticalStep *step, const Coord3D *spot);	///< a move the unit's mood cannot turn into an attack move
 	void restoreMood(Object *obj, TacticalStep *step);
 	Bool pickTacticalSpot(const Object *obj, const Coord3D *from, const Coord3D *awayFrom, Real distance,

@@ -6864,7 +6864,7 @@ void AIPlayer::sendIdleAttackTeams( void )
 			{
 				Object *obj = m.cur();
 				if( obj->isEffectivelyDead() || obj->getAI() == NULL || obj->isContained() || obj->isKindOf( KINDOF_IMMOBILE ) ||
-						isOutOnOrders( obj ) )
+						isOutOnOrders( obj ) || isFallingBack( obj->getID() ) )
 					continue;
 				++members;
 				const StateID state = obj->getAI()->getCurrentStateID();
@@ -6936,8 +6936,9 @@ void AIPlayer::sendIdleUnitsHunting( void )
 			for( DLINK_ITERATOR<Object> m = team->iterate_TeamMemberList(); !m.done(); m.advance() )
 			{
 				Object *obj = m.cur();
+				// one holding after a lost fight is idle on purpose; doRetreats sends it back when it is safe
 				if( obj->isEffectivelyDead() || obj->getAI() == NULL || obj->isContained() || obj->isKindOf( KINDOF_IMMOBILE ) ||
-						!leavesToFinish( obj ) )
+						!leavesToFinish( obj ) || isFallingBack( obj->getID() ) )
 					continue;
 				const StateID state = obj->getAI()->getCurrentStateID();
 				const Bool atHome = sqr( obj->getPosition()->x - m_baseCenter.x ) + sqr( obj->getPosition()->y - m_baseCenter.y ) <= reachSqr;
@@ -7000,6 +7001,8 @@ void AIPlayer::sendWaveThroughTunnels( AIGroup *wave, const Coord3D *center, Way
 	* the second rank shooting into it, not so wide that a skirmish at the front counts the garrison
 	* at the back as part of the same exchange. */
 static const Real RETREAT_ENGAGEMENT_RADIUS = 300.0f;
+
+static Real groundAttackRange( const Object *obj );
 
 /** A unit's contribution to an exchange: what it can still take, and what it can still deal.  The
 	* threat value the data already carries stands in for damage per second - it is what
@@ -7106,59 +7109,19 @@ void AIPlayer::doRetreats( void )
 			centre.y /= count;
 			centre.z = TheTerrainLogic->getGroundHeight( centre.x, centre.y );
 
+			// the members holding back from an earlier fight: back to it, or home
+			doFallback( team );
+
 			// A fight at home is not broken off: home is where the retreat goes.  Ordered to the base
 			// centre, the defenders of an early rush stopped shooting and walked, every decision tick,
 			// while sixteen rebels took the base apart untouched for a minute.
 			if( isAtHome( &centre ) )
 				continue;
 
-			//
-			// Both sides of the exchange, measured the same way: everything of ours in this fight
-			// against everything of theirs in it.
-			//
-			// Not this team against everything of theirs.  An AI team is one to three units, and the
-			// first cut of this compared one such team with every enemy within three hundred feet -
-			// so a team of two tanks read a battle it was part of as 2,600 against 29,400, decided
-			// it was losing by a hundred to one and walked home.  Every team did, every few seconds,
-			// for the whole match: twenty measured matches ended with zero kills on both sides.
-			//
 			Real myHealth = 0.0f, myPower = 0.0f;
 			Real enemyHealth = 0.0f, enemyPower = 0.0f;
-			{
-				PartitionFilterAlive filterAlive;
-				PartitionFilterOnMap filterOnMap;
-				PartitionFilter *filters[] = { &filterAlive, &filterOnMap, 0 };
-
-				MemoryPoolObjectHolder hold;
-				SimpleObjectIterator *nearby = ThePartitionManager->iterateObjectsInRange(
-						&centre, RETREAT_ENGAGEMENT_RADIUS, FROM_CENTER_2D, filters );
-				hold.hold( nearby );
-				for( Object *e = nearby->first(); e; e = nearby->next() )
-				{
-					if( e->isKindOf( KINDOF_PROJECTILE ) )
-						continue;
-					//
-					// Only the field battle. Base defences shoot, but they are what an attack goes
-					// *through* - counting them makes every approach to a defended base read as a
-					// lost fight, and the AI never attacks anything again. Picking a way in past
-					// them is the influence map's job (B4), not the retreat's.
-					//
-					if( e->isKindOf( KINDOF_STRUCTURE ) || e->isKindOf( KINDOF_IMMOBILE ) )
-						continue;
-
-					if( e->getControllingPlayer() == m_player )
-					{
-						addToForce( e, &myHealth, &myPower );
-					}
-					else if( m_player->getRelationship( e->getTeam() ) == ENEMIES )
-					{
-						// only what it can see: an AI that pulls back from something it has not
-						// found is reading the object list again (A2)
-						if( observerKnowsAbout( e, m_player->getPlayerIndex() ) )
-							addToForce( e, &enemyHealth, &enemyPower );
-					}
-				}
-			}
+			std::vector<Real> enemyGuns;
+			measureFight( &centre, NULL, &myHealth, &myPower, &enemyHealth, &enemyPower, &enemyGuns );
 
 			if( enemyPower <= 0.0f )
 				continue;			// not in a fight
@@ -7168,18 +7131,32 @@ void AIPlayer::doRetreats( void )
 				continue;			// holding, or winning
 
 			//
-			// Losing.  The whole team goes home if this rung knows how; otherwise the members that
+			// Losing.  The whole team falls back if this rung knows how; otherwise the members that
 			// are personally finished go, which saves the units that would otherwise die inside a
-			// fight the team as a whole is still winning.  Through the tunnels, when there is one
-			// near the fight and one near home.
+			// fight the team as a whole is still winning.
 			//
+			// Back to the first ground on the way home that none of the guns in this fight reach, not
+			// to the base.  Sent home, a team that broke off a fight at the enemy's gate walked the
+			// whole map back, healed nothing (nothing at home repairs a unit the walk delivers to the
+			// base centre), and then stood there until a script or the next wave called it up.  From
+			// the safe spot it goes back once the fight turns (doFallback).  Only when there is no
+			// such ground short of home does it go home, through the tunnels when there is one near the
+			// fight and one near home.
+			//
+			Coord3D fallback = m_baseCenter;
+			const Bool shortOfHome = !measuringWithoutTactics() &&
+				aiRetreatFallbackPoint( centre.x, centre.y, m_baseCenter.x, m_baseCenter.y, INFLUENCE_CELL_SIZE,
+					enemyGuns.empty() ? NULL : &enemyGuns[ 0 ], (Int)enemyGuns.size() / 3, &fallback.x, &fallback.y );
+			if( shortOfHome )
+				fallback.z = TheTerrainLogic->getGroundHeight( fallback.x, fallback.y );
 			const Real homeX = m_baseCenter.x - centre.x;
 			const Real homeY = m_baseCenter.y - centre.y;
-			Object *homeTunnel = m_player->getTunnelSystem()->findTunnelShortcut( &centre, &m_baseCenter,
+			Object *homeTunnel = shortOfHome ? NULL : m_player->getTunnelSystem()->findTunnelShortcut( &centre, &m_baseCenter,
 				(Real)sqrt( homeX * homeX + homeY * homeY ) );
 			if( homeTunnel )
 				DEBUG_LOG(("AI RETREAT frame %d player %d falls back through tunnel %d\n", TheGameLogic->getFrame(),
 					m_player->getPlayerIndex(), homeTunnel->getID()));
+			Int ordered = 0;
 			for( DLINK_ITERATOR<Object> objIter = team->iterate_TeamMemberList(); !objIter.done(); objIter.advance() )
 			{
 				Object *obj = objIter.cur();
@@ -7206,19 +7183,181 @@ void AIPlayer::doRetreats( void )
 				const TacticalStep *kiting = findTacticalStep( obj->getID() );
 				if( kiting && kiting->lastKiteFrame != 0 && TheGameLogic->getFrame() - kiting->lastKiteFrame < KITE_KEEPS_FIGHT_FRAMES )
 					continue;
+				++ordered;
 				if( homeTunnel != NULL && obj->getAI()->takeTunnelTrip( homeTunnel, &m_baseCenter, TUNNEL_TRIP_MOVE, CMD_FROM_AI ) )
 					leaveTacticsAlone( obj->getID() );
 				else if( measuringWithoutTactics() )
 					obj->getAI()->aiMoveToPosition( &m_baseCenter, CMD_FROM_AI );
 				else
 				{
-					// the walk home taken calm and as an order, on every rung: a CMD_FROM_AI move to a unit
+					// the walk back taken calm and as an order, on every rung: a CMD_FROM_AI move to a unit
 					// that is fighting is laid under its attack, and an aggressive mood turns the walk back
 					// into a fight, so the retreat never happened
 					leaveTacticsAlone( obj->getID() );
-					stepCalmly( obj, tacticalStepFor( obj->getID() ), &m_baseCenter );
+					TacticalStep *step = tacticalStepFor( obj->getID() );
+					step->fallingBack = shortOfHome;
+					step->fallbackFrom = centre;
+					step->fallbackFrame = TheGameLogic->getFrame();
+					stepCalmly( obj, step, &fallback );
 				}
 			}
+			if( ordered > 0 )
+				DEBUG_LOG(("AI RETREAT frame %d player %d '%s' pulls %d units out at %.2f, %s (%.0f,%.0f)\n", TheGameLogic->getFrame(),
+					m_player->getPlayerIndex(), team->getName().str(), ordered, ratio, shortOfHome ? "falls back to" : "goes home to",
+					fallback.x, fallback.y));
+		}
+	}
+}
+
+/** A unit pulled out of a lost fight to a safe spot, and not yet sent back or home. */
+Bool AIPlayer::isFallingBack( ObjectID unit )
+{
+	const TacticalStep *step = findTacticalStep( unit );
+	return step != NULL && step->fallingBack;
+}
+
+//----------------------------------------------------------------------------------------------------------
+/** Both sides of the exchange around centre, measured the same way: everything of ours in the fight
+	* against everything of theirs in it.  With a team, all of that team counts on our side wherever it
+	* stands, which is how a team holding at its safe spot weighs the fight it would go back to.  With
+	* enemyGuns, every known enemy gun in reach of the ground (base defences too) is added as x, y, reach.
+	*
+	* Not one team against everything of theirs.  An AI team is one to three units, and the first cut of
+	* the retreat compared one such team with every enemy within three hundred feet - so a team of two
+	* tanks read a battle it was part of as 2,600 against 29,400, decided it was losing by a hundred to
+	* one and walked home.  Every team did, every few seconds, for the whole match: twenty measured
+	* matches ended with zero kills on both sides. */
+//----------------------------------------------------------------------------------------------------------
+void AIPlayer::measureFight( const Coord3D *centre, Team *team, Real *myHealth, Real *myPower,
+														 Real *enemyHealth, Real *enemyPower, std::vector<Real> *enemyGuns )
+{
+	PartitionFilterAlive filterAlive;
+	PartitionFilterOnMap filterOnMap;
+	PartitionFilter *filters[] = { &filterAlive, &filterOnMap, 0 };
+
+	MemoryPoolObjectHolder hold;
+	SimpleObjectIterator *nearby = ThePartitionManager->iterateObjectsInRange(
+			centre, RETREAT_ENGAGEMENT_RADIUS, FROM_CENTER_2D, filters );
+	hold.hold( nearby );
+	for( Object *e = nearby->first(); e; e = nearby->next() )
+	{
+		if( e->isKindOf( KINDOF_PROJECTILE ) )
+			continue;
+		//
+		// Only the field battle. Base defences shoot, but they are what an attack goes *through* -
+		// counting them makes every approach to a defended base read as a lost fight, and the AI never
+		// attacks anything again. Picking a way in past them is the influence map's job (B4), not the
+		// retreat's.  Where it stops falling back is another matter: a tower's reach is no place to wait.
+		//
+		const Bool fixed = e->isKindOf( KINDOF_STRUCTURE ) || e->isKindOf( KINDOF_IMMOBILE );
+
+		if( e->getControllingPlayer() == m_player )
+		{
+			if( !fixed && (team == NULL || e->getTeam() != team) )
+				addToForce( e, myHealth, myPower );
+		}
+		else if( m_player->getRelationship( e->getTeam() ) == ENEMIES )
+		{
+			// only what it can see: an AI that pulls back from something it has not found is reading
+			// the object list again (A2)
+			if( !observerKnowsAbout( e, m_player->getPlayerIndex() ) )
+				continue;
+			if( !fixed )
+				addToForce( e, enemyHealth, enemyPower );
+			const Real reach = enemyGuns ? groundAttackRange( e ) : 0.0f;
+			if( reach > 0.0f )
+			{
+				enemyGuns->push_back( e->getPosition()->x );
+				enemyGuns->push_back( e->getPosition()->y );
+				enemyGuns->push_back( reach );
+			}
+		}
+	}
+
+	if( team == NULL )
+		return;
+	for( DLINK_ITERATOR<Object> objIter = team->iterate_TeamMemberList(); !objIter.done(); objIter.advance() )
+	{
+		Object *obj = objIter.cur();
+		if( !obj->isKindOf( KINDOF_PROJECTILE ) && !obj->isKindOf( KINDOF_STRUCTURE ) && !obj->isKindOf( KINDOF_IMMOBILE ) )
+			addToForce( obj, myHealth, myPower );
+	}
+}
+
+/** How long a team that fell back holds before it may go back, at the least and at the most; and how
+	* well the fight it left has to read before it does, which is even.  Breaking off is decided at the
+	* rung's own ratio, well under even, so a team does not turn round on the same reading it ran from. */
+static const UnsignedInt FALLBACK_MIN_HOLD_FRAMES = 5 * LOGICFRAMES_PER_SECOND;
+static const UnsignedInt FALLBACK_MAX_HOLD_FRAMES = 30 * LOGICFRAMES_PER_SECOND;
+static const Real FALLBACK_RESUME_RATIO = 1.0f;
+
+//----------------------------------------------------------------------------------------------------------
+/** The members of this team holding at a safe spot after a lost fight.  Once they have stopped, they go
+	* back to the fight they left when it no longer reads as lost - the enemy gone or dead, or enough of
+	* ours there now - attack-moving to it, which picks up the fight or whatever is beyond it.  A fight
+	* that still reads as lost after FALLBACK_MAX_HOLD_FRAMES sends them home, where the next wave takes
+	* them along. */
+//----------------------------------------------------------------------------------------------------------
+void AIPlayer::doFallback( Team *team )
+{
+	const UnsignedInt now = TheGameLogic->getFrame();
+	Bool holding = FALSE;
+	Bool arrived = TRUE;
+	Coord3D from;
+	UnsignedInt since = now;
+	for( DLINK_ITERATOR<Object> objIter = team->iterate_TeamMemberList(); !objIter.done(); objIter.advance() )
+	{
+		Object *obj = objIter.cur();
+		const TacticalStep *step = findTacticalStep( obj->getID() );
+		if( step == NULL || !step->fallingBack || obj->isEffectivelyDead() )
+			continue;
+		if( !holding || step->fallbackFrame > since )
+		{
+			from = step->fallbackFrom;		// the latest fight any of them left
+			since = step->fallbackFrame;
+		}
+		holding = TRUE;
+		if( obj->getAI() && obj->getAI()->isMoving() )
+			arrived = FALSE;
+	}
+	if( !holding )
+		return;
+
+	Real myHealth = 0.0f, myPower = 0.0f;
+	Real enemyHealth = 0.0f, enemyPower = 0.0f;
+	measureFight( &from, team, &myHealth, &myPower, &enemyHealth, &enemyPower, NULL );
+	const Real ratio = aiRetreatRatio( myHealth, myPower, enemyHealth, enemyPower );
+	const AIFallbackDecision what = aiRetreatHoldDecision( arrived, now - since, ratio, FALLBACK_RESUME_RATIO,
+		FALLBACK_MIN_HOLD_FRAMES, FALLBACK_MAX_HOLD_FRAMES );
+	if( what == AIFALLBACK_HOLD )
+		return;
+
+	DEBUG_LOG(("AI RETREAT frame %d player %d '%s' %s after %d s, the fight at (%.0f,%.0f) reads %.2f\n", now,
+		m_player->getPlayerIndex(), team->getName().str(), what == AIFALLBACK_RESUME ? "goes back" : "gives up and goes home",
+		(now - since) / LOGICFRAMES_PER_SECOND, from.x, from.y, ratio));
+	for( DLINK_ITERATOR<Object> objIter = team->iterate_TeamMemberList(); !objIter.done(); objIter.advance() )
+	{
+		Object *obj = objIter.cur();
+		TacticalStep *step = findTacticalStep( obj->getID() );
+		if( step == NULL || !step->fallingBack )
+			continue;
+		step->fallingBack = FALSE;
+		if( obj->isEffectivelyDead() || obj->getAI() == NULL )
+			continue;
+		// One that is already on its way somewhere was given that by its script, the home guard or a
+		// step of its own, and carries on with it.  One with no gun has no fight to go back to: a
+		// Dozer pulled out of a fight was walked back into it.
+		if( obj->getAI()->isMoving() || (what == AIFALLBACK_RESUME && aiCombatPower( obj ) <= 0.0f) )
+			restoreMood( obj, step );
+		else if( what == AIFALLBACK_RESUME )
+		{
+			restoreMood( obj, step );
+			obj->getAI()->aiAttackMoveToPosition( &from, NO_MAX_SHOTS_LIMIT, CMD_FROM_AI );
+		}
+		else
+		{
+			leaveTacticsAlone( obj->getID() );
+			stepCalmly( obj, step, &m_baseCenter );
 		}
 	}
 }
@@ -7370,6 +7509,9 @@ AIPlayer::TacticalStep *AIPlayer::tacticalStepFor( ObjectID unit )
 	step.rejoin = FALSE;
 	step.savedAttitude = AI_INVALID;
 	step.lastKiteFrame = 0;
+	step.fallingBack = FALSE;
+	step.fallbackFrom.zero();
+	step.fallbackFrame = 0;
 	m_tactics.push_back( step );
 	return &m_tactics.back();
 }
@@ -7522,8 +7664,10 @@ void AIPlayer::doTactics( void )
 		Object *unit = TheGameLogic->findObjectByID( m_tactics[ i ].unit );
 		const TacticalStep &row = m_tactics[ i ];
 		// with the tactics running a row goes when the unit has not been looked at for a while; without
-		// them the only rows are walks home from a retreat, which end when the walk does
+		// them the only rows are walks home from a retreat, which end when the walk does.  One holding
+		// after a retreat is doFallback's until it sends it back or home.
 		const Bool done = (unit == NULL || unit->isEffectivelyDead()) ? TRUE :
+			row.fallingBack ? FALSE :
 			tactics ? now - row.lastSeenFrame > TACTICAL_ROW_EXPIRY_FRAMES :
 			now >= row.leaveAloneUntil && (unit->getAI() == NULL || !unit->getAI()->isMoving() || now >= row.leaveAloneUntil + WALK_HOME_MAX_FRAMES);
 		if( done )
@@ -7675,8 +7819,9 @@ void AIPlayer::tacticsFor( Object *obj )
 	if( now < step->leaveAloneUntil )
 		return;
 	// home from a lost fight: its own mood again once the walk is over, and not before, or the mood turns
-	// what is left of the walk into an attack move
-	if( step->resumeFrame == 0 && (!ai->isMoving() || now >= step->leaveAloneUntil + WALK_HOME_MAX_FRAMES) )
+	// what is left of the walk into an attack move.  One holding at a safe spot stays calm until it is sent
+	// back, or its mood walks it into the fight it was pulled out of.
+	if( step->resumeFrame == 0 && !step->fallingBack && (!ai->isMoving() || now >= step->leaveAloneUntil + WALK_HOME_MAX_FRAMES) )
 		restoreMood( obj, step );
 
 	// a step under way ends when it gets there or runs out of time, and the unit goes back to work:
@@ -9311,7 +9456,7 @@ void AIPlayer::xfer( Xfer *xfer )
 {
 
 	// version
-	XferVersion currentVersion = 12;		// 2: scout  3: rung and role  4: scouting stamps  5: the capturer  6: parked waves  7: superweapon aims  8: the hijacker  9: tactical steps  10: the ferry and dropped riders  11: the outward placement ring  12: the pressure level
+	XferVersion currentVersion = 13;		// 2: scout  3: rung and role  4: scouting stamps  5: the capturer  6: parked waves  7: superweapon aims  8: the hijacker  9: tactical steps  10: the ferry and dropped riders  11: the outward placement ring  12: the pressure level  13: falling back
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -9550,6 +9695,19 @@ void AIPlayer::xfer( Xfer *xfer )
 			xfer->xferBool( &step.rejoin );
 			xfer->xferInt( &step.savedAttitude );
 			xfer->xferUnsignedInt( &step.lastKiteFrame );
+			// a unit holding after a lost fight, so a loaded game still sends it back
+			if( version >= 13 )
+			{
+				xfer->xferBool( &step.fallingBack );
+				xfer->xferCoord3D( &step.fallbackFrom );
+				xfer->xferUnsignedInt( &step.fallbackFrame );
+			}
+			else
+			{
+				step.fallingBack = FALSE;
+				step.fallbackFrom.zero();
+				step.fallbackFrame = 0;
+			}
 		}
 	}
 	// the capturer's helicopter, and the riders a helicopter is putting down at a fight

@@ -285,6 +285,16 @@ Real aiMatchupScore( Real myFramesToKill, Real theirFramesToKill, Real myCost, R
 	* 'power' is a stand-in for damage per second - the threat value the data already carries. */
 Real aiRetreatRatio( Real myHealth, Real myPower, Real enemyHealth, Real enemyPower );
 
+/** Where a force losing a fight stops: the first spot on its line home that none of the fight's
+	* guns reach (x, y, reach triples), plus one step.  FALSE and home when there is none short of it. */
+Bool aiRetreatFallbackPoint( Real fromX, Real fromY, Real homeX, Real homeY, Real step,
+														 const Real *guns, Int gunCount, Real *outX, Real *outY );
+
+/** A force holding where it fell back to: stay, go back to the fight it left, or give up and go home. */
+enum AIFallbackDecision { AIFALLBACK_HOLD, AIFALLBACK_RESUME, AIFALLBACK_GO_HOME };
+AIFallbackDecision aiRetreatHoldDecision( Bool arrived, UnsignedInt heldFrames, Real ratioThere, Real resumeRatio,
+																					UnsignedInt minHold, UnsignedInt maxHold );
+
 /** Hold a finished team at the rally point instead of sending it?
 	*
 	* A string of small waves is free veterancy for whoever is on the other end: EA's AI sent every

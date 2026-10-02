@@ -10104,6 +10104,66 @@ TEST(the_retreat_never_orders_an_aircraft_home)
 }
 
 
+/** AI.cpp: a team that loses a fight stops at the first ground on its way home that none of the
+	 fight's guns reach, a step past it, rather than walking the whole map back to its base. */
+TEST(a_losing_team_falls_back_out_of_reach_not_home)
+{
+	Real x = 0.0f, y = 0.0f;
+
+	// home is 2000 east; one gun at the fight reaching 150: covered up to 150, first clear sample at
+	// 180, one 60 step past it
+	const Real oneGun[] = { 0.0f, 0.0f, 150.0f };
+	CHECK( aiRetreatFallbackPoint( 0.0f, 0.0f, 2000.0f, 0.0f, 60.0f, oneGun, 1, &x, &y ) );
+	CHECK_NEAR( 240.0f, x, 0.01f );
+	CHECK_NEAR( 0.0f, y, 0.01f );
+
+	// a second gun further down the road home (200..600 covered) pushes the stop past its reach too:
+	// the gap at 180 is clear, but the step past it is not, and a stop inside a reach is no stop
+	const Real twoGuns[] = { 0.0f, 0.0f, 150.0f,  400.0f, 0.0f, 200.0f };
+	CHECK( aiRetreatFallbackPoint( 0.0f, 0.0f, 2000.0f, 0.0f, 60.0f, twoGuns, 2, &x, &y ) );
+	CHECK_NEAR( 720.0f, x, 0.01f );
+
+	// any direction: home to the south-west
+	CHECK( aiRetreatFallbackPoint( 1000.0f, 1000.0f, 0.0f, 1000.0f, 60.0f, NULL, 0, &x, &y ) );
+	CHECK_NEAR( 880.0f, x, 0.01f );
+	CHECK_NEAR( 1000.0f, y, 0.01f );
+
+	// guns covering the whole road: home, and FALSE says so
+	const Real bigGun[] = { 0.0f, 0.0f, 5000.0f };
+	CHECK( !aiRetreatFallbackPoint( 0.0f, 0.0f, 2000.0f, 0.0f, 60.0f, bigGun, 1, &x, &y ) );
+	CHECK_NEAR( 2000.0f, x, 0.01f );
+
+	// a fight on the doorstep: no room short of home either
+	CHECK( !aiRetreatFallbackPoint( 0.0f, 0.0f, 100.0f, 0.0f, 60.0f, NULL, 0, &x, &y ) );
+	CHECK_NEAR( 100.0f, x, 0.01f );
+}
+
+
+/** AI.cpp: what a team holding at its safe spot does next. */
+TEST(a_fallen_back_team_goes_back_once_the_fight_turns)
+{
+	const UnsignedInt MIN = 150, MAX = 900;
+
+	// too soon, or still walking: hold, however the fight reads
+	CHECK_EQ( (Int)AIFALLBACK_HOLD, (Int)aiRetreatHoldDecision( TRUE, 100, 1000.0f, 1.0f, MIN, MAX ) );
+	CHECK_EQ( (Int)AIFALLBACK_HOLD, (Int)aiRetreatHoldDecision( FALSE, 400, 1000.0f, 1.0f, MIN, MAX ) );
+
+	// stopped, and the fight it left is empty or won: back to it
+	CHECK_EQ( (Int)AIFALLBACK_RESUME, (Int)aiRetreatHoldDecision( TRUE, 200, 1000.0f, 1.0f, MIN, MAX ) );
+	CHECK_EQ( (Int)AIFALLBACK_RESUME, (Int)aiRetreatHoldDecision( TRUE, 200, 1.2f, 1.0f, MIN, MAX ) );
+
+	// still lost, or only as good as the reading it ran from: keep holding, not a yo-yo
+	CHECK_EQ( (Int)AIFALLBACK_HOLD, (Int)aiRetreatHoldDecision( TRUE, 200, 0.4f, 1.0f, MIN, MAX ) );
+	CHECK_EQ( (Int)AIFALLBACK_HOLD, (Int)aiRetreatHoldDecision( TRUE, 200, 0.9f, 1.0f, MIN, MAX ) );
+
+	// still lost at the limit: home, where the next wave picks it up
+	CHECK_EQ( (Int)AIFALLBACK_GO_HOME, (Int)aiRetreatHoldDecision( TRUE, MAX, 0.4f, 1.0f, MIN, MAX ) );
+	// ... and a team stuck walking is decided at the limit too, not held forever
+	CHECK_EQ( (Int)AIFALLBACK_GO_HOME, (Int)aiRetreatHoldDecision( FALSE, MAX, 0.4f, 1.0f, MIN, MAX ) );
+	CHECK_EQ( (Int)AIFALLBACK_RESUME, (Int)aiRetreatHoldDecision( FALSE, MAX, 1000.0f, 1.0f, MIN, MAX ) );
+}
+
+
 /** The second half of scouting: once every enemy has been placed there is nothing left to search for,
 	 and the job becomes keeping the picture of their bases current.  That is the stalest one per step
 	 walked, recomputed at every arrival - which is what stopped the scout walking a blind lap of the

@@ -1131,6 +1131,62 @@ Real aiRetreatRatio( Real myHealth, Real myPower, Real enemyHealth, Real enemyPo
 	return (ratio > NOT_A_FIGHT) ? NOT_A_FIGHT : ratio;
 }
 
+static Bool gunsReach( Real x, Real y, const Real *guns, Int gunCount )
+{
+	for( Int g = 0; g < gunCount; ++g )
+	{
+		const Real gx = x - guns[ 3 * g ];
+		const Real gy = y - guns[ 3 * g + 1 ];
+		if( gx * gx + gy * gy <= guns[ 3 * g + 2 ] * guns[ 3 * g + 2 ] )
+			return TRUE;
+	}
+	return FALSE;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Where a force that is losing stops falling back: walking from (fromX, fromY) towards home in
+	* steps, the first spot no gun in guns[] reaches with one more step of clear ground past it, and
+	* that next step is where it stands, so the edge of a reach is never the place.  guns holds x, y
+	* and reach for each of gunCount guns.  FALSE, with home in the answer, when the line never leaves
+	* their reach before it gets home. */
+//-------------------------------------------------------------------------------------------------
+Bool aiRetreatFallbackPoint( Real fromX, Real fromY, Real homeX, Real homeY, Real step,
+														 const Real *guns, Int gunCount, Real *outX, Real *outY )
+{
+	*outX = homeX;
+	*outY = homeY;
+	const Real dx = homeX - fromX;
+	const Real dy = homeY - fromY;
+	const Real homeDist = (Real)sqrt( dx * dx + dy * dy );
+	for( Real along = step; along + step < homeDist; along += step )
+	{
+		const Real x = fromX + dx * (along + step) / homeDist;
+		const Real y = fromY + dy * (along + step) / homeDist;
+		if( gunsReach( fromX + dx * along / homeDist, fromY + dy * along / homeDist, guns, gunCount ) ||
+				gunsReach( x, y, guns, gunCount ) )
+			continue;
+		*outX = x;
+		*outY = y;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** What a force that fell back does next.  It holds until it has stopped and minHold has passed;
+	* then it goes back the moment the fight it left no longer reads as lost (ratioThere at or over
+	* resumeRatio, which an empty fight always is), and gives up and goes home at maxHold. */
+//-------------------------------------------------------------------------------------------------
+AIFallbackDecision aiRetreatHoldDecision( Bool arrived, UnsignedInt heldFrames, Real ratioThere, Real resumeRatio,
+																					UnsignedInt minHold, UnsignedInt maxHold )
+{
+	if( heldFrames < minHold || (!arrived && heldFrames < maxHold) )
+		return AIFALLBACK_HOLD;
+	if( ratioThere >= resumeRatio )
+		return AIFALLBACK_RESUME;
+	return heldFrames >= maxHold ? AIFALLBACK_GO_HOME : AIFALLBACK_HOLD;
+}
+
 //-------------------------------------------------------------------------------------------------
 /** What a spot is still worth to aim a superweapon at, after one already aimed near it.
 	*
