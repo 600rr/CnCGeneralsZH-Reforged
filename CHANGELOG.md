@@ -8,6 +8,16 @@ found and fixed â€” EA's own, not port damage.**
 
 ---
 
+## Zero Hour on a Mac, on Linux and on the Steam Deck
+
+- The game runs on Apple silicon Macs and on Linux, the Steam Deck included, as a program built for that machine. There is no Wine or Proton underneath. It draws through Metal on a Mac and through Vulkan on Linux, from the same Zero Hour files you already own.
+- The first start finds your game. It looks in your Steam libraries, `~/Games`, `/Applications`, and CrossOver and Whisky bottles, and asks for the folder only when it comes up empty.
+- One command builds it. `./build-macos.sh` leaves a Mac app ready to open and `./build-linux.sh` a folder ready to start, and each checks your machine first and names the package to install for anything missing. On Linux it can make an AppImage, a .deb, an .rpm, an Arch package and a Flatpak, none of them carrying EA's files, and the Flatpak has played a full check match on a Steam Deck.
+- One game on every machine. A replay recorded on a Mac plays back on Linux and on Windows to the same checksum, and the other way round, and a Mac and a Linux PC have played a LAN match together without once disagreeing. A Mac or Linux game could not join a Windows one: the check every machine runs before a network game failed, because the Mac and Linux copies of the game's data files ended each line differently from Windows'. They agree now. A match between Windows and a Mac has not been played yet.
+- Text on the Linux menus is as wide as on Windows. Linux has no Arial, and the font standing in for it reports a wider average letter, so every menu font the game sets to a fixed width came out a quarter narrower than it should, the "Generals" lettering and the menu buttons among them. Each is measured against Arial's own figure now, and lands within one percent of Windows.
+- Windows on Arm laptops, the Snapdragon ones, get a build made for them. Microsoft never shipped those machines the library the game loads its textures and shaders through, so the game brings its own, the texture code the Mac and Linux versions already run. Switched on in place of Microsoft's library on an ordinary Windows PC, it draws the same battlefields, with no tree, house or patch of ground going missing. Nobody has played it on a Snapdragon laptop yet.
+- Thanks to ilyasakin, whose port this is.
+
 ## The command bar moves to the middle
 
 - The command bar is one console standing in the middle of the bottom edge: a taller radar, your selection and the build grid side by side, with the power bar over the grid. The idle worker, rank and under-attack keys sit in a row over your selection, and in multiplayer the smoke signals join them.
@@ -333,12 +343,14 @@ found and fixed â€” EA's own, not port damage.**
 - Losing the relay player no longer picks a player who never existed.
 - Order confirmations are filed in one step instead of scanning the whole queue.
 - A dropped order's retry wait stops doubling after two steps.
+- A shell's flight path is worked out the same way on every machine. The game borrowed that sum from a DirectX library that, going by its code, picks how to do it by processor: one way on Intel chips, another on everyone else's. The two answers differ in the last digits, and when both were run over half a million calculations shaped like the game's own shell paths, nearly half came out slightly different. That is enough for two machines to disagree about where a shell is. Nobody has reported it in a match, and the game has not been tested across two machines, but every machine now uses the same sum whatever its processor. A replay recorded on an Intel machine with an earlier version may not play back exactly.
 
 ## Sharper textures, for free
 
 - The game draws its picture through Direct3D 11 now, and falls back to the old renderer on a machine that cannot make a Direct3D 11 device. Eight views over five maps come out within one step of one colour channel of the old picture, which is the smallest difference a screen can show.
 - The Direct3D 11 picture comes with its finishing passes on, no switch needed. Explosions glow past their own edges, because the battlefield is kept brighter than white until the glow is worked out; jagged edges are smoothed; and a light sharpening brings the 2003 textures back up after the smoothing. All three run over the battlefield only, before the health bars and the command bar go on top, so the lettering is untouched. In a screen of thirty inferno cannons firing the frame averaged 11.89ms with them against 11.82ms without. The antialiasing setting on the display page is for the old renderer; `-dx11post off` on the command line gives you the plain picture, and `-dx11post fxaa` picks effects one by one. The old renderer's rolling-wave sea never went missing in a real match either: both of the game's settings files turn it off, so no map ever drew it.
 - Fullscreen gets the Direct3D 11 picture too. The old renderer took the whole display for itself and refused the new one its window, so every fullscreen game quietly ran on Direct3D 9, and the DX9 in the corner readout was the only sign. Fullscreen is now your chosen resolution set on the monitor with the game's window over it: alt-tab drops you on the desktop at its own resolution and brightness, and coming back puts the game's on again. A 1280x720 match on a 1920x1080 screen drew 40.7 million times without one draw refused, before and after an alt-tab.
+- Moving textures move in the Direct3D 11 picture. Fountain water and tank treads stood still in it, and the fountains came out a dull grey-cyan where the old renderer drew them bright. They match the old renderer now.
 - The game fits the screen on a PC with Windows display scaling turned up. The game never told Windows it counts real pixels, so at 125% Windows blew the whole window up by a quarter: a 1920x1080 game on a 1920x1080 screen came out 2400x1350 and the right and bottom of it hung off the edge. Now the window is the size you picked.
 - Alt-tabbing out of a fullscreen match and back no longer leaves every building already on the map as a dark shadow with nothing standing in it. Coming back from the desktop switched the game over to Direct3D 11 halfway through the match, and the new picture only knew about what was built after the switch, so older buildings drew as their shadow alone while a new one beside them looked fine. A match keeps the picture it started with now.
 - Alt-tabbing back into a fullscreen game brings the game back, once. It used to flicker between the game and the desktop several times and could end as a minimised window that clicking on the taskbar would not open. Putting the screen back was itself switching windows, and every switch set off another round of it. The game now waits until the switch is over before it touches the screen, and nothing it does on the way in or out takes focus from anyone. When the game runs at your desktop's resolution, coming back changes no display mode at all, so a 144 or 165 Hz monitor no longer drops to 60 and goes black for a moment. At any other resolution it keeps your monitor's refresh rate if the monitor can run it there.
@@ -971,6 +983,7 @@ A third pass went through the generals' powers, promotions and unit abilities.
 - With `god` on, an EMP no longer blows your helicopters out of the sky and drops the pilot. The helicopter goes dark, sinks to the ground, sits there until the EMP wears off and lifts back up to where it was. A plane that needs a runway flies straight through the blast instead, since it would have nowhere to take off from.
 - The general's promotion screen moved off that key onto the backslash beside it.
 - One press is one letter. Holding a key repeats it, and the game timed that wait in frames: a third of a second at the 30 frames a second it was written for, 70 milliseconds on a 144 Hz screen, which is shorter than an ordinary keypress. It waits 0.4 seconds now whatever the frame rate, in the console, the chat box and every text field.
+- On a UK keyboard, AltGr+4 types the euro sign. It used to type the wrong character.
 
 ## A scoreboard on Tab
 
@@ -1129,6 +1142,7 @@ The whole HUD is on the hardware. Four colours carry it, and they mean the same 
   "leave now", and nothing was listening for it: the handler was switched off in 2003 and never
   switched back on, so the X in the corner did nothing and the only way out was the menus. A match
   in progress stops recording its replay first.
+- The menus can keep their shape on a wide screen. They were drawn for 4:3, and the game has always pulled them out to the edges of whatever it is shown on, so at 16:9 every panel and logo is a third wider than it was drawn. Options, Display, Menu Layout now offers Fit, which draws them at their own shape in the middle with the backdrop still filling the screen, beside Stretch, the old way. Windows stays on Stretch until you pick Fit; a Mac and Linux start on Fit. The battlefield and the command bar look the same either way.
 
 ## Soldiers cast real shadows
 
@@ -1329,6 +1343,11 @@ The whole HUD is on the hardware. Four colours carry it, and they mean the same 
   on its way out, so the one report a player could send described the wrong crash. When the game the
   launcher started still closes on an error with no report, the launcher sends the exit code and the
   log on its own.
+- Closing a laptop's lid, or pulling out the drive the game is installed on, ends the game with a box saying its data is gone. The next read from the missing drive used to crash it.
+- A custom map that defines its own way for a vehicle to move no longer crashes the game with "Pure virtual function called" when the match ends. The game freed that map's movement rules and then kept reading the freed record. The shipped Hovercraft test map did it every time, and so could any map handed to you in a lobby.
+- A missing save folder no longer costs you maps. The game listed the folder it runs from instead, and the tidy-up after a match deleted the .map files it found there.
+- Screenshots come out straight at any width. At 1366 wide each row slid sideways, and at any width that does not divide by eight the game read past the end of the picture.
+- Quitting the Windows game under Proton, the way a Steam Deck used to run it, no longer crashes on the way out.
 
 ## Units take corners wide, and drive round a jam instead of into it
 
@@ -1558,6 +1577,7 @@ The whole HUD is on the hardware. Four colours carry it, and they mean the same 
 - The videos play: the intro, the sizzle reel, the mission briefings, the general portraits.
 - The pointer is on screen over them. It used to appear only once the main menu did, so clicking through the logos was done blind.
 - Escape skips the opening logo, not just everything after it. The key has always skipped movies; the gate it asks was raised only once the logo had played itself out, so the one film you see on every single launch was the one you could not get past.
+- `-nologo` and `-novideo` work in the game you download. One skips the EA logo and the other every movie. EA built both into its development copies only, so the retail game ignored them and played the movies anyway.
 - The graphics go straight to a modern path. About 5,600 calls used to be translated on the way out
   by a small library shipped alongside the game; the game now speaks that path itself and the extra
   library is gone from the download. The picture is the picture it was, and the frame it draws in a

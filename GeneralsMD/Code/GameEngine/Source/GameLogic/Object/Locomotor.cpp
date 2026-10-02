@@ -15,6 +15,8 @@
 **	You should have received a copy of the GNU General Public License
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+// Modified 2025-2026 by Olcay Seygan for Zero Hour Reforged; see the git history.
+// Modified 2026 by İlyas Akın for the macOS/Linux port; see NOTICE.md and the git history.
 
 ////////////////////////////////////////////////////////////////////////////////
 //																																						//
@@ -662,9 +664,10 @@ void LocomotorStore::reset()
 		Overridable *locoTemp = it->second->deleteOverrides();
 		if (!locoTemp)
 		{
-			// a locomotor a map.ini made from nothing goes whole. erase() leaves 'it' dangling, and the
-			// loop went on comparing it - the heap damage that crashed loading a save of such a map,
-			// since every load resets the engine first.
+			// Port defect 32 (fixed the same way upstream): erase(it) left it dangling, and the loop went on from
+			// the freed node. A locomotor a map.ini made from nothing (the shipped test map Hovercraft; any
+			// custom map, whose map.ini travels with a map transfer) lands here: the game hung (Mac), crashed
+			// (Windows, Linux) at the end of the match, and upstream saw the heap damage crash a save load.
 			it = m_locomotorTemplates.erase(it);
 		}
 		else

@@ -15,6 +15,8 @@
 **	You should have received a copy of the GNU General Public License
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+// Modified 2025-2026 by Olcay Seygan for Zero Hour Reforged; see the git history.
+// Modified 2026 by İlyas Akın for the macOS/Linux port; see NOTICE.md and the git history.
 
 ////////////////////////////////////////////////////////////////////////////////
 //																																						//
@@ -28,9 +30,15 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file int the GameEngine
+#if !defined(_WIN32)
+#include <unistd.h>		// getpid, for the replay checkpoint folder
+#endif
+#include "Lib/Clock.h"
+#include "Lib/WideCharFns.h"
 
 #define DEFINE_SHADOW_NAMES
 
+#include "Common/LocalFileSystem.h"
 #include "Common/ActionManager.h"
 #include "Common/DrawnPath.h"
 #include "Common/GameAudio.h"
@@ -200,7 +208,7 @@ static void formatStripSeconds( UnicodeString *text, Int seconds )
 	if( seconds < 0 )
 		seconds = 0;
 
-	text->format( L"%ds", seconds );
+	text->format( u"%ds", seconds );
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1813,7 +1821,11 @@ static Real templatePlacementRange( const ThingTemplate *tmpl )
 static Real templateReach( const ThingTemplate *tmpl )
 {
 	const Real range = templatePlacementRange( tmpl );
-	return range > 0.0f ? range + tmpl->getTemplateGeometryInfo().getBoundingCircleRadius() : 0.0f;
+	// an AttackRange of inf (sscanf takes it, and 1e39, from a mod's INI) has no circle to draw: its
+	// outline went NaN, and Windows' INT_MIN for a NaN angle read the outline out of bounds
+	if( !( range > 0.0f && range <= FLT_MAX ) )
+		return 0.0f;
+	return range + tmpl->getTemplateGeometryInfo().getBoundingCircleRadius();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2065,7 +2077,7 @@ static void fillSpectatorPlayers( const std::vector< SpectatorStats > &players, 
 		const Image *portrait = side ? side->getEnabledImage() : NULL;
 		const Int value = stats.*stat.value;
 
-		std::wstring name( stats.player->getPlayerDisplayName().str() );
+		WideCharString name( stats.player->getPlayerDisplayName().str() );
 		if( name.size() > PLAYER_NAME_CHARS )
 			name.resize( PLAYER_NAME_CHARS );
 
@@ -2150,7 +2162,7 @@ static std::string spectatorSide( void )
 /** A player's name as the page writes it, cut where there is no clipping to hide the rest. */
 static std::string spectatorName( Player *player )
 {
-	std::wstring name( player->getPlayerDisplayName().str() );
+	WideCharString name( player->getPlayerDisplayName().str() );
 	if( name.size() > PLAYER_NAME_CHARS )
 		name.resize( PLAYER_NAME_CHARS );
 	return WideCharStringToMultiByte( name.c_str() );
@@ -2327,7 +2339,11 @@ static void seekReplay( UnsignedInt target )
 static AsciiString replayCheckpointFolder( void )
 {
 	AsciiString leaf;
+#if defined(_WIN32)
 	leaf.format( "%s\\%u", REPLAY_CHECKPOINT_FOLDER, (UnsignedInt)GetCurrentProcessId() );
+#else
+	leaf.format( "%s\\%u", REPLAY_CHECKPOINT_FOLDER, (UnsignedInt)getpid() );
+#endif
 	return TheGameState->getFilePathInSaveDirectory( leaf );
 }
 
@@ -2335,19 +2351,13 @@ static AsciiString replayCheckpointFolder( void )
 static void forgetReplayCheckpoints( void )
 {
 	const AsciiString folder = replayCheckpointFolder();
-	AsciiString pattern;
-	pattern.format( "%s\\*.sav", folder.str() );
-	WIN32_FIND_DATAA found;
-	HANDLE search = FindFirstFileA( pattern.str(), &found );
-	if( search != INVALID_HANDLE_VALUE )
+	std::vector< AsciiString > files;
+	TheLocalFileSystem->getFilesInDirectory( folder, AsciiString( "*.sav" ), files );
+	for( size_t i = 0; i < files.size(); ++i )
 	{
-		do
-		{
-			AsciiString path;
-			path.format( "%s\\%s", folder.str(), found.cFileName );
-			DeleteFileA( path.str() );
-		} while( FindNextFileA( search, &found ) );
-		FindClose( search );
+		AsciiString path;
+		path.format( "%s\\%s", folder.str(), files[ i ].str() );
+		TheLocalFileSystem->deleteFile( path.str() );
 	}
 	TheReplayCheckpoints.clear();
 }
@@ -2361,11 +2371,11 @@ static void collectPostedCRCs( GameMessageList *list, std::vector< std::pair< In
 
 static void takeReplayCheckpoint( UnsignedInt frame )
 {
-	const DWORD startMs = timeGetTime();
-	CreateDirectoryA( TheGameState->getSaveDirectory().str(), NULL );
-	CreateDirectoryA( TheGameState->getFilePathInSaveDirectory( REPLAY_CHECKPOINT_FOLDER ).str(), NULL );
+	const UnsignedInt startMs = Clock_Milliseconds();
+	TheLocalFileSystem->createDirectory( TheGameState->getSaveDirectory() );
+	TheLocalFileSystem->createDirectory( TheGameState->getFilePathInSaveDirectory( REPLAY_CHECKPOINT_FOLDER ) );
 	const AsciiString folder = replayCheckpointFolder();
-	CreateDirectoryA( folder.str(), NULL );
+	TheLocalFileSystem->createDirectory( folder );
 
 	ReplayCheckpoint &checkpoint = TheReplayCheckpoints[ frame ];
 	checkpoint.path.format( "%s\\%u.sav", folder.str(), frame );
@@ -2375,7 +2385,7 @@ static void takeReplayCheckpoint( UnsignedInt frame )
 	collectPostedCRCs( TheCommandList, checkpoint.postedCRCs );
 	collectPostedCRCs( TheMessageStream, checkpoint.postedCRCs );
 	TheGameState->saveCheckpoint( checkpoint.path );
-	DEBUG_LOG(( "REPLAY CHECKPOINT frame %u in %u ms\n", frame, (UnsignedInt)( timeGetTime() - startMs ) ));
+	DEBUG_LOG(( "REPLAY CHECKPOINT frame %u in %u ms\n", frame, (UnsignedInt)( Clock_Milliseconds() - startMs ) ));
 }
 
 /** Load the last checkpoint at or before the frame, or the first one if the frame is before it.  The
@@ -2395,7 +2405,7 @@ static void rewindReplay( UnsignedInt target )
 	const Real pitch = TheTacticalView->getPitch();
 	const Real zoom = TheTacticalView->getZoom();
 	const Int framesPerSecond = TheGameEngine->getFramesPerSecondLimit();
-	const DWORD startMs = timeGetTime();
+	const UnsignedInt startMs = Clock_Milliseconds();
 
 	TheGameState->loadCheckpoint( checkpoint.path,
 		[ & ]() { TheRecorder->resumePlayback( replayFile, checkpoint.cursor ); } );
@@ -2414,7 +2424,7 @@ static void rewindReplay( UnsignedInt target )
 	TheTacticalView->setZoom( zoom );
 	TheGameEngine->setFramesPerSecondLimit( framesPerSecond );
 	DEBUG_LOG(( "REPLAY REWIND to frame %u from the checkpoint at %u, loaded in %u ms\n",
-		target, at->first, (UnsignedInt)( timeGetTime() - startMs ) ));
+		target, at->first, (UnsignedInt)( Clock_Milliseconds() - startMs ) ));
 }
 
 /** Every client pass, between two logic frames: the checkpoints are taken here, a seek back is carried
@@ -2788,6 +2798,23 @@ static Bool templateNeedsLineOfSight( const ThingTemplate *tmpl )
 }
 
 //-------------------------------------------------------------------------------------------------
+/** How many rings a blind-spot view of this radius is cut into.  Never more than the map is long corner
+	* to corner (mapSpan: its width plus its height), so a range longer than any map - 1e6 already held
+	* hundreds of megabytes and froze every platform, and inf gave ARM64 2^31 rings whose 180-a-ring grid
+	* overflowed Int - costs no more than the map does.  Converted as Windows converts; never negative. */
+//-------------------------------------------------------------------------------------------------
+Int blindSpotRingCount( Real radius, Real mapSpan )
+{
+	Int rings = floatToIntAsMsvc( ceil( radius / BLIND_SPOT_RING_WIDTH ) );
+	Int most = ( INT_MAX / BLIND_SPOT_RAYS ) - 1;		// never a grid Int cannot count
+	if( mapSpan > 0.0f && mapSpan < (Real)most * BLIND_SPOT_RING_WIDTH )
+		most = floatToIntAsMsvc( ceil( mapSpan / BLIND_SPOT_RING_WIDTH ) ) + 1;
+	if( rings > most )
+		rings = most;
+	return rings < 0 ? 0 : rings;
+}
+
+//-------------------------------------------------------------------------------------------------
 /** Fill in which cells of the grid a defence cannot see from eyeZ.  Along one sector the walk keeps
 	* the steepest terrain seen so far, which is the horizon: a target whose top sits under that slope
 	* is behind a hill.  Everything from the first building cell outwards is behind that building, the
@@ -2795,7 +2822,10 @@ static Bool templateNeedsLineOfSight( const ThingTemplate *tmpl )
 //-------------------------------------------------------------------------------------------------
 static void lookRoundReach( ReachView &view, Real eyeZ, ObjectID self )
 {
-	view.rings = (Int)ceil( view.radius / BLIND_SPOT_RING_WIDTH );
+	Region3D extent;
+	extent.zero();
+	TheTerrainLogic->getExtent( &extent );
+	view.rings = blindSpotRingCount( view.radius, extent.width() + extent.height() );
 	view.blocked.assign( BLIND_SPOT_RAYS * view.rings, FALSE );
 
 	for( Int ray = 0; ray < BLIND_SPOT_RAYS; ray++ )
@@ -2832,7 +2862,7 @@ static Bool reachViewHits( const ReachView &view, Real x, Real y )
 	const Real dx = x - view.center.x;
 	const Real dy = y - view.center.y;
 	const Real distance = sqrtf( sqr( dx ) + sqr( dy ) );
-	if( distance >= view.radius )
+	if( !( distance < view.radius ) )		// a NaN distance is outside, not let through
 		return FALSE;
 
 	Real angle = atan2( dy, dx );
@@ -3170,7 +3200,7 @@ static void traceReachCircle( ReachCircle &circle, const ThingTemplate *tmpl )
 static Real reachAtAngle( const ReachCircle &circle, Real angle )
 {
 	const Real at = angle * REACH_OUTLINE_SEGMENTS / ( 2.0f * PI );
-	const Int from = min( (Int)at, REACH_OUTLINE_SEGMENTS - 1 );
+	const Int from = at >= 0.0f ? min( (Int)at, REACH_OUTLINE_SEGMENTS - 1 ) : 0;	// NaN: the first corner
 	const Real part = at - from;
 	return circle.outline[ from ] * ( 1.0f - part ) + circle.outline[ ( from + 1 ) % REACH_OUTLINE_SEGMENTS ] * part;
 }
@@ -3180,7 +3210,7 @@ static Bool insideReach( const ReachCircle &circle, Real x, Real y )
 	const Real dx = x - circle.center.x;
 	const Real dy = y - circle.center.y;
 	const Real distanceSqr = sqr( dx ) + sqr( dy );
-	if( distanceSqr >= sqr( circle.radius ) )
+	if( !( distanceSqr < sqr( circle.radius ) ) )		// a NaN distance is outside, not let through
 		return FALSE;
 
 	Real angle = atan2( dy, dx );
@@ -3791,7 +3821,7 @@ void InGameUI::update( void )
 			// so far and apply only the ones not applied yet, so nothing drifts however long it
 			// runs.  See FINDINGS.md 7.2.
 			//
-			const UnsignedInt nowMs = timeGetTime();
+			const UnsignedInt nowMs = Clock_Milliseconds();
 			if( m_subtitleFreezeStartMs == 0 )
 			{
 				m_subtitleFreezeStartMs = nowMs;
@@ -3840,7 +3870,7 @@ void InGameUI::update( void )
 				// first grab the letter we want to add
 				WideChar tempWChar = m_militarySubtitle->subtitle.getCharAt(m_militarySubtitle->index);
 				// if that letter is a return, add a new line
-				if(tempWChar == L'\n')
+				if(tempWChar == u'\n')
 				{
 					// increment the Block position's Y value to draw it on the next line
 					Int height;
@@ -4005,7 +4035,7 @@ void InGameUI::update( void )
 	// frames the wall clock says went by.  Capped at four, so coming back from a hitch or an
 	// alt-tab does not fling the camera across the map on the first frame.  See FINDINGS.md 7.4.
 	//
-	const UnsignedInt cameraNowMs = timeGetTime();
+	const UnsignedInt cameraNowMs = Clock_Milliseconds();
 
 	// a watcher's camera is driven for him while it is not in his own hands (ObserverCamera.h)
 	if( TheGameLogic->isInGame() && localPlayerWatching() )
@@ -4245,7 +4275,9 @@ void InGameUI::message( AsciiString stringManagerLabel, ... )
 	WideChar buf[ UnicodeString::MAX_FORMAT_BUF_LEN ];
   // truncate rather than throw: an uncaught engine exception aborts with 0xC0000409 and no log
   // at all, so an over-long chat or script message used to be a silent hard crash.
-  if( _vsnwprintf(buf, sizeof( buf )/sizeof( WideChar ) - 1, stringManagerString.str(), args ) < 0 )
+  // WideCharFormatV, not _vsnwprintf: buf is WideChar and there is no char16_t printf anywhere.
+  // It keeps _vsnwprintf's contract, so the negative test below still means "it did not fit".
+  if( WideCharFormatV(buf, sizeof( buf )/sizeof( WideChar ) - 1, stringManagerString.str(), args ) < 0 )
 			DEBUG_LOG(("InGameUI::message - text truncated to %d characters\n", (Int)(sizeof( buf )/sizeof( WideChar ) - 1)));
 	buf[ sizeof( buf )/sizeof( WideChar ) - 1 ] = 0;
 	formattedMessage.set( buf );
@@ -4270,7 +4302,7 @@ void InGameUI::message( UnicodeString format, ... )
 	WideChar buf[ UnicodeString::MAX_FORMAT_BUF_LEN ];
   // truncate rather than throw: an uncaught engine exception aborts with 0xC0000409 and no log
   // at all, so an over-long chat or script message used to be a silent hard crash.
-  if( _vsnwprintf(buf, sizeof( buf )/sizeof( WideChar ) - 1, format.str(), args ) < 0 )
+  if( WideCharFormatV(buf, sizeof( buf )/sizeof( WideChar ) - 1, format.str(), args ) < 0 )
 			DEBUG_LOG(("InGameUI::message - text truncated to %d characters\n", (Int)(sizeof( buf )/sizeof( WideChar ) - 1)));
 	buf[ sizeof( buf )/sizeof( WideChar ) - 1 ] = 0;
 	formattedMessage.set( buf );
@@ -4423,7 +4455,7 @@ void InGameUI::alertSuperweapon( Player *owner, const UnicodeString &name, const
 	else
 		alert.whose = local->getRelationship( owner->getDefaultTeam() ) == ENEMIES ? "enemy" : "ally";
 	if( m_alerts.empty() )
-		m_alertStartMs = timeGetTime();
+		m_alertStartMs = Clock_Milliseconds();
 	m_alerts.push_back( alert );
 }
 
@@ -4449,7 +4481,7 @@ void InGameUI::drawAlertPage( void )
 {
 	enum { ALERT_GAP = 14, ALERT_WIDTH = 360, ALERT_OPAQUE = 255 };	// the gap clear of the plates, the owner's "a bit lower"
 	m_alertBottom = 0;
-	const UnsignedInt nowMs = timeGetTime();
+	const UnsignedInt nowMs = Clock_Milliseconds();
 	while( !m_alerts.empty() && nowMs - m_alertStartMs >= alertHoldMs( m_alerts.size() - 1 ) )
 	{
 		m_alerts.erase( m_alerts.begin() );
@@ -4853,7 +4885,7 @@ void InGameUI::noteAllyCursor( Int playerIndex, Real x, Real y )
 	cursor.position.x = x;
 	cursor.position.y = y;
 	cursor.position.z = TheTerrainLogic->getGroundHeight( x, y );
-	cursor.heardMs = timeGetTime();
+	cursor.heardMs = Clock_Milliseconds();
 
 	// the first report of a match arrives wherever that ally is looking, which is nowhere near the
 	// origin the marker starts at - easing in from there would draw a line across the whole map
@@ -4896,7 +4928,7 @@ Real InGameUI::getAllyCursorFade( Int playerIndex ) const
 	if( cursor.known == FALSE )
 		return 0.0f;
 
-	const UnsignedInt ageMs = timeGetTime() - cursor.heardMs;
+	const UnsignedInt ageMs = Clock_Milliseconds() - cursor.heardMs;
 	if( ageMs >= ALLY_CURSOR_GONE_MS )
 		return 0.0f;
 	if( ageMs <= ALLY_CURSOR_HOLD_MS )
@@ -4912,7 +4944,7 @@ Real InGameUI::getAllyCursorFade( Int playerIndex ) const
 //-------------------------------------------------------------------------------------------------
 void InGameUI::updateAllyCursors( void )
 {
-	const UnsignedInt nowMs = timeGetTime();
+	const UnsignedInt nowMs = Clock_Milliseconds();
 	const UnsignedInt elapsedMs = ( m_allyCursorEasedMs == 0 ) ? 0 : ( nowMs - m_allyCursorEasedMs );
 	m_allyCursorEasedMs = nowMs;
 
@@ -4975,7 +5007,7 @@ void InGameUI::sendLocalAllyCursor( void )
 	if( TheNetwork == NULL || !TheGameLogic->isInGame() || TheGameLogic->isInShellGame() )
 		return;
 
-	const UnsignedInt nowMs = timeGetTime();
+	const UnsignedInt nowMs = Clock_Milliseconds();
 	if( m_allyCursorSentMs != 0 && ( nowMs - m_allyCursorSentMs ) < ALLY_CURSOR_SEND_INTERVAL_MS )
 		return;
 
@@ -5704,7 +5736,7 @@ void InGameUI::addOrderHint( OrderHint& hint, const std::vector<OrderHint>& prev
 			ordinal++;
 	}
 
-	hint.bornMs = timeGetTime();
+	hint.bornMs = Clock_Milliseconds();
 
 	Int seen = 0;
 	for( std::vector<OrderHint>::const_iterator it = previous.begin();
@@ -6293,21 +6325,21 @@ void InGameUI::createMouseoverHint( const GameMessage *msg )
 				{
 					if (!teamName.isEmpty())
 					{
-						str.format(L"%hs(%hs): %s", teamName.str(), objName.str(), str.str());
+						str.format(u"%hs(%hs): %s", teamName.str(), objName.str(), str.str());
 					}
 					else
 					{
-						str.format(L"%hs: %s", objName.str(), str.str());
+						str.format(u"%hs: %s", objName.str(), str.str());
 					}
 				}
 				else
 				{
 					if (!teamName.isEmpty())
 					{
-						str.format(L"%hs: %s", teamName.str(), str.str());
+						str.format(u"%hs: %s", teamName.str(), str.str());
 					}
 				}
-				str.format(L"%s - %hs", str.str(), stateName.str());
+				str.format(u"%s - %hs", str.str(), stateName.str());
 
 			}
 #endif
@@ -6342,7 +6374,7 @@ void InGameUI::createMouseoverHint( const GameMessage *msg )
 				UnicodeString tooltip;
 				//if (TheRecorder->isMultiplayer() && player->getPlayerType() == PLAYER_HUMAN)
 				if (TheRecorder->isMultiplayer() && player->isPlayableSide())
-					tooltip.format(L"%s\n%s", str.str(), ((Player *)player)->getPlayerDisplayName().str());
+					tooltip.format(u"%s\n%s", str.str(), ((Player *)player)->getPlayerDisplayName().str());
 				else
 					tooltip = str;
 
@@ -8203,13 +8235,13 @@ void InGameUI::postDraw( void )
 					Int sec = readySecs - min*60;
 					
 					if (!info->isCountdown)
-						line.format(L"%s %d", info->timerText.str(), framesLeft);
+						line.format(u"%s %d", info->timerText.str(), framesLeft);
 					else
 					{
 						if (sec >= 10)
-							line.format(L"%s %d:%d", info->timerText.str(), min, sec);
+							line.format(u"%s %d:%d", info->timerText.str(), min, sec);
 						else
-							line.format(L"%s %d:0%d", info->timerText.str(), min, sec);
+							line.format(u"%s %d:0%d", info->timerText.str(), min, sec);
 					}
 					info->displayString->setText(line);
 				}
@@ -8493,7 +8525,7 @@ void InGameUI::militarySubtitle( const AsciiString& label, Int duration )
 	// make sure we actually will be displaying something
 	if( title.isEmpty() || duration <= 0)
 	{
-		DEBUG_CRASH(("Trying to create a military subtitle but either title is empty (%ls) or duration is <= 0 (%d)",title.str(), duration));
+		DEBUG_CRASH(("Trying to create a military subtitle but either title is empty (%s) or duration is <= 0 (%d)",WideCharAsUtf8( title.str() ).str(), duration));
 		return;
 	}
 
@@ -9444,6 +9476,11 @@ enum
 //-------------------------------------------------------------------------------------------------
 void InGameUI::addSignalMark( SignalKind kind, const Coord3D &pos, Color color, ParticleSystemID smoke )
 {
+	// No decal manager without a renderer (headless, or off Windows until the D track): no mark.
+	// GameLogicDispatch calls this for every signal a player sends, replays included.
+	if( TheProjectedShadowManager == NULL )
+		return;
+
 	Shadow::ShadowTypeInfo decalInfo;
 	decalInfo.allowUpdates = FALSE;
 	decalInfo.allowWorldAlign = TRUE;		// wrapped over the terrain it lands on
@@ -9623,8 +9660,11 @@ void InGameUI::updateFloatingText( void )
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 /** A one-line heads-up overlay: render rate and elapsed game time.
-	* Off unless ShowHudOverlay is set in Options.ini.  Retail only ever showed the frame rate, and
-	* only behind -displayDebug together with a screenful of engine internals. */
+	* GlobalData's m_showHudOverlay: on by default in the developer builds (Debug, _INTERNAL) and off in
+	* Release, a project rule.  A player turns it on with ShowHudOverlay = Yes in GameData.ini; the harnesses
+	* whose screenshots are evidence pass -showHudOverlay.  Nothing shipped forces it on: the staged overlay
+	* and the packages refuse a ShowHudOverlay = Yes.  Retail only ever showed the frame rate, and only behind
+	* -displayDebug together with a screenful of engine internals. */
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 /** How the last ten seconds of peace time animate, as fractions of one second. */
@@ -9766,7 +9806,7 @@ void InGameUI::drawPeaceCountdown( UnsignedInt framesLeft )
 									TRUE ) );
 
 	UnicodeString text;
-	text.format( L"%d", (Int)secondsLeft );
+	text.format( u"%d", (Int)secondsLeft );
 	m_peaceCountdownDisplayString->setText( text );
 
 	// the same string the plate at the top uses, in its own size: the two are never up together
@@ -9834,7 +9874,7 @@ void InGameUI::drawHudOverlay( void )
 	++m_hudDrawCount;
 	const UnsignedInt clientFrame = m_hudDrawCount;
 	const UnsignedInt logicFrame = TheGameLogic->getFrame();
-	UnsignedInt nowMs = timeGetTime();
+	UnsignedInt nowMs = Clock_Milliseconds();
 	// a replay wound back runs the frame number backwards, and the unsigned difference read as tens
 	// of millions of logic frames a second; the reading starts over from there instead
 	if( m_hudLastSampleFrame == 0 || logicFrame < m_hudLastSampleLogicFrame )
@@ -9872,11 +9912,11 @@ void InGameUI::drawHudOverlay( void )
 	UnsignedInt realSecs = (nowMs - m_hudRealClockBaseMs) / 1000;
 
 	// the machine's own clock first, for a player who wants to know when to stop
-	SYSTEMTIME wallClock;
-	GetLocalTime( &wallClock );
+	WallClockTime wallClock;
+	getLocalWallClock( &wallClock );
 
 	UnicodeString text;
-	text.format( L"%02d:%02d   %02d:%02d:%02d(%02d:%02d:%02d)   %dhz(%dfps) %s",
+	text.format( u"%02d:%02d   %02d:%02d:%02d(%02d:%02d:%02d)   %dhz(%dfps) %s",
 							 wallClock.wHour, wallClock.wMinute,
 							 gameSecs / 3600, (gameSecs / 60) % 60, gameSecs % 60,
 							 realSecs / 3600, (realSecs / 60) % 60, realSecs % 60,
@@ -9884,7 +9924,7 @@ void InGameUI::drawHudOverlay( void )
 							 TheDisplay->getRendererName() );
 
 	UnicodeString frameText;
-	frameText.format( L"   frame %d", (Int)logicFrame );
+	frameText.format( u"   frame %d", (Int)logicFrame );
 	text.concat( frameText );
 
 	// in a network game, how far ahead the room can play without waiting on anybody, out of the
@@ -9893,7 +9933,7 @@ void InGameUI::drawHudOverlay( void )
 	if( TheNetwork != NULL )
 	{
 		UnicodeString netText;
-		netText.format( L"   ready %d/%d   room %dfps", (Int)TheNetwork->getFramesReady(),
+		netText.format( u"   ready %d/%d   room %dfps", (Int)TheNetwork->getFramesReady(),
 										(Int)TheNetwork->getRunAhead(), (Int)TheNetwork->getFrameRate() );
 		text.concat( netText );
 	}
@@ -9905,7 +9945,7 @@ void InGameUI::drawHudOverlay( void )
 	if( unitCap > 0 && localPlayer && !localPlayer->isPlayerObserver() )
 	{
 		UnicodeString units;
-		units.format( L"   %d/%d units", localPlayer->countUnitsTowardCap(), unitCap );
+		units.format( u"   %d/%d units", localPlayer->countUnitsTowardCap(), unitCap );
 		text.concat( units );
 	}
 
@@ -10385,7 +10425,7 @@ void InGameUI::drawStripSeconds( Int which, Int x, Int y, Int w, Int h, Int seco
 
 	UnicodeString text, number;
 	formatStripSeconds( &text, seconds );
-	number.format( L"%d", seconds > 0 ? seconds : 0 );
+	number.format( u"%d", seconds > 0 ? seconds : 0 );
 
 	//
 	// Its own string, kept between frames - see m_stripSecondsString.  Every countdown in a strip is
@@ -10515,7 +10555,7 @@ void InGameUI::drawStripQuantity( Int which, Int x, Int y, Int w, Int h, Int qua
 	const IRegion2D cell = { { x, y }, { x + w, y + h } };
 
 	UnicodeString text;
-	text.format( L"x%d", quantity );
+	text.format( u"x%d", quantity );
 
 	DisplayString *quantityString = fitStripString( m_stripQuantityString[ which ], text, PRODUCTION_STRIP_SECS, cell );
 	HudReadout_draw( quantityString, cell, HUD_READOUT_TOP_RIGHT, GameMakeColor( 255, 255, 255, 255 ) );
@@ -11110,7 +11150,7 @@ std::string InGameUI::scoreboardHtml( void )
 			// a free for all is one section of players with no team between them
 			UnicodeString label = TheGameText->fetch( "GUI:ScoreboardPlayer" );
 			if( seats[ first ].section >= 0 )
-				label.format( L"%s %s", TheGameText->fetch( "GUI:ScoreboardTeam" ).str(), scoreboardTeamLabel( seats[ first ].slot ).str() );
+				label.format( u"%s %s", TheGameText->fetch( "GUI:ScoreboardTeam" ).str(), scoreboardTeamLabel( seats[ first ].slot ).str() );
 			band[ "side" ] = "team";
 			band[ "label" ] = WideCharStringToMultiByte( label.str() );
 		}
@@ -12127,7 +12167,7 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	putPageRect( values, "skillstab", skillsTab, skillsShown, scale );
 	putPageRect( values, "alerttab", alertTab, leftFound, scale );
 	putPageRect( values, "signals", signalTabs, signalsShown, scale );
-	const UnsignedInt nowMs = timeGetTime();
+	const UnsignedInt nowMs = Clock_Milliseconds();
 
 	// the idle worker's key flashes while a worker stands idle, which is when the bar enables its
 	// window: lit and dark in turn, a beat the eye catches at the edge of the screen
@@ -12779,7 +12819,7 @@ void InGameUI::drawPromotionPage( GameWindow *parent, Bool front )
 	// the back draws first each picture and moves the coming up on for both layers
 	if( !front )
 	{
-		const UnsignedInt now = timeGetTime();
+		const UnsignedInt now = Clock_Milliseconds();
 		if( m_promotionShownMs == PROMOTION_NOT_DRAWN )
 			m_promotionShownMs = 0;
 		else
@@ -12998,7 +13038,7 @@ void InGameUI::drawQuitMenuPage( GameWindow *parent )
 
 	// the coming up starts on the menu's first picture and moves on with the wall clock, but never
 	// by more than QUIT_MENU_MOST_MS_A_PICTURE a picture
-	const UnsignedInt now = timeGetTime();
+	const UnsignedInt now = Clock_Milliseconds();
 	if( m_quitMenuShownMs == QUIT_MENU_NOT_DRAWN )
 		m_quitMenuShownMs = 0;
 	else
@@ -13331,7 +13371,7 @@ void InGameUI::drawProductionStripColumn( Int left, Int bottomY )
 		const IRegion2D cell = { { moreX, moreY }, { moreX + cameoW, moreY + cameoH } };
 
 		UnicodeString text;
-		text.format( L"+%d", hidden );
+		text.format( u"+%d", hidden );
 
 		// the column's own "+N" - see m_stripSecondsString
 		DisplayString *overflow = fitStripString( m_productionStripOverflow[ STRIP_OVERFLOW_PRODUCTION ], text,
@@ -13526,7 +13566,7 @@ void InGameUI::drawSuperweaponStrip( void )
 	// slows at both ends where a blink would snap.  It runs off the wall clock.  It is a picture,
 	// and the match's frames are not its to read: it breathes the same paused or fast-forwarded.
 	//
-	const Real breath = (Real)( timeGetTime() % SUPERWEAPON_BREATH_MS ) / SUPERWEAPON_BREATH_MS;
+	const Real breath = (Real)( Clock_Milliseconds() % SUPERWEAPON_BREATH_MS ) / SUPERWEAPON_BREATH_MS;
 	const Real pulse = 0.5f - 0.5f * (Real)cos( 2.0 * PI * breath );
 
 	//
@@ -13717,7 +13757,7 @@ extern Real TheStripDrawMS;
 static Real stripElapsedMS( const Int64 &from, const Int64 &to )
 {
 	Int64 freq;
-	QueryPerformanceFrequency( (LARGE_INTEGER *)&freq );
+	freq = Clock_Ticks_Per_Second();
 	if( freq == 0 )
 		return 0.0f;
 	return (Real)((double)( to - from ) * 1000.0 / (double)freq );
@@ -13729,7 +13769,7 @@ void InGameUI::drawProductionStrip( void )
 {
 #ifdef DEBUG_LOGGING
 	Int64 tGatherStart, tGatherEnd, tDrawEnd;
-	QueryPerformanceCounter( (LARGE_INTEGER *)&tGatherStart );
+	tGatherStart = Clock_Ticks();
 	tGatherEnd = tGatherStart;
 	tDrawEnd = tGatherStart;
 	TheStripGatherMS = 0.0f;
@@ -13789,7 +13829,7 @@ void InGameUI::drawProductionStrip( void )
 	player->iterateObjects( gatherStripEverything, &gather );
 
 #ifdef DEBUG_LOGGING
-	QueryPerformanceCounter( (LARGE_INTEGER *)&tGatherEnd );
+	tGatherEnd = Clock_Ticks();
 	TheStripGatherMS = stripElapsedMS( tGatherStart, tGatherEnd );
 #endif
 
@@ -13845,7 +13885,7 @@ void InGameUI::drawProductionStrip( void )
 	}
 
 #ifdef DEBUG_LOGGING
-	QueryPerformanceCounter( (LARGE_INTEGER *)&tDrawEnd );
+	tDrawEnd = Clock_Ticks();
 	TheStripDrawMS = stripElapsedMS( tGatherEnd, tDrawEnd );
 #endif
 }
@@ -14305,7 +14345,7 @@ void InGameUI::selectNextIdleWorker( void )
 	Int index = ThePlayerList->getLocalPlayer()->getPlayerIndex();
 	if(m_idleWorkers[index].empty())
 	{
-		DEBUG_ASSERTCRASH(FALSE, ("InGameUI::selectNextIdleWorker We're trying to select a worker when our list is empty for player %ls", ThePlayerList->getLocalPlayer()->getPlayerDisplayName().str()));
+		DEBUG_ASSERTCRASH(FALSE, ("InGameUI::selectNextIdleWorker We're trying to select a worker when our list is empty for player %s", WideCharAsUtf8( ThePlayerList->getLocalPlayer()->getPlayerDisplayName().str() ).str()));
 		return;
 	}
 	Object *selectThisObject = NULL;
@@ -14614,19 +14654,19 @@ enum
 //-------------------------------------------------------------------------------------------------
 static void putTooltipLines( const UnicodeString &text, std::vector< HtmlValues > &lines )
 {
-	const std::wstring whitespace = L" \t\r";
-	const std::wstring whole = text.str();
+	const WideCharString whitespace = u" \t\r";
+	const WideCharString whole = text.str();
 	Bool gapOwed = FALSE;
 	for( size_t start = 0; start <= whole.size(); )
 	{
-		size_t end = whole.find( L'\n', start );
-		if( end == std::wstring::npos )
+		size_t end = whole.find( u'\n', start );
+		if( end == WideCharString::npos )
 			end = whole.size();
-		std::wstring line = whole.substr( start, end - start );
+		WideCharString line = whole.substr( start, end - start );
 		start = end + 1;
 
 		const size_t first = line.find_first_not_of( whitespace );
-		if( first == std::wstring::npos )
+		if( first == WideCharString::npos )
 		{
 			gapOwed = !lines.empty();
 			continue;
@@ -14642,9 +14682,9 @@ static void putTooltipLines( const UnicodeString &text, std::vector< HtmlValues 
 		}
 
 		HtmlValues entry;
-		const size_t colon = line.find( L':' );
-		const size_t valueStart = colon == std::wstring::npos ? colon : line.find_first_not_of( whitespace, colon + 1 );
-		if( colon != std::wstring::npos && colon <= TOOLTIP_LABEL_LIMIT && valueStart != std::wstring::npos )
+		const size_t colon = line.find( u':' );
+		const size_t valueStart = colon == WideCharString::npos ? colon : line.find_first_not_of( whitespace, colon + 1 );
+		if( colon != WideCharString::npos && colon <= TOOLTIP_LABEL_LIMIT && valueStart != WideCharString::npos )
 		{
 			entry[ "kind" ] = "row";
 			entry[ "label" ] = WideCharStringToMultiByte( line.substr( 0, colon ).c_str() );
@@ -14664,9 +14704,9 @@ static void putTooltipLines( const UnicodeString &text, std::vector< HtmlValues 
 //-------------------------------------------------------------------------------------------------
 static std::string tooltipName( const UnicodeString &label )
 {
-	std::wstring name = label.str();
-	const size_t marker = name.find( L'&' );
-	if( marker != std::wstring::npos )
+	WideCharString name = label.str();
+	const size_t marker = name.find( u'&' );
+	if( marker != WideCharString::npos )
 		name.erase( marker, 1 );
 	return WideCharStringToMultiByte( name.c_str() );
 }

@@ -15,6 +15,8 @@
 **	You should have received a copy of the GNU General Public License
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+// Modified 2025-2026 by Olcay Seygan for Zero Hour Reforged; see the git history.
+// Modified 2026 by İlyas Akın for the macOS/Linux port; see NOTICE.md and the git history.
 
 ////////////////////////////////////////////////////////////////////////////////
 //																																						//
@@ -33,6 +35,7 @@
 
 // SYSTEM INCLUDES ////////////////////////////////////////////////////////////
 #include <stdlib.h>
+#include "Lib/Clock.h"
 
 // USER INCLUDES //////////////////////////////////////////////////////////////
 #include "Lib/BaseType.h"
@@ -61,13 +64,14 @@
 #include "WW3D2/dx8renderer.h"
 #include "WW3D2/sortingrenderer.h"
 #include "WW3D2/dx8wrapper.h"
-#include "WW3D2/Light.h"
+#include "WW3D2/light.h"
 #include "WW3D2/matpass.h"
 #include "WW3D2/shader.h"
-#include "WW3D2/DX8Caps.h"
+#include "WW3D2/dx8caps.h"
 #include "WW3D2/colorspace.h"
 
 #include "WW3D2/shdlib.h"
+#include "Platform/RenderTypes.h"
 #ifdef _INTERNAL
 // for occasional debugging...
 //#pragma optimize("", off)
@@ -871,7 +875,7 @@ extern UnsignedInt TheSortingEntries;
 static Real sceneElapsedMS( const Int64 &from, const Int64 &to )
 {
 	Int64 freq;
-	QueryPerformanceFrequency( (LARGE_INTEGER *)&freq );
+	freq = Clock_Ticks_Per_Second();
 	if( freq < 1 )
 		return 0.0f;
 	return (Real)((double)(to - from) * 1000.0 / (double)freq);
@@ -918,7 +922,7 @@ void RTS3DScene::Flush(RenderInfoClass & rinfo)
 		const unsigned drawsBefore = DX8Wrapper::Get_Draw_Calls();
 		const unsigned refusedBefore = SortingRendererClass::Get_Refused_Polygon_Count();
 		SortingRendererClass::Reset_Flush_Profile();
-		QueryPerformanceCounter( (LARGE_INTEGER *)&tTranslucentStart );
+		tTranslucentStart = Clock_Ticks();
 #endif
 
 		//don't draw transparent in this mode because they interfere with destination alpha
@@ -927,7 +931,7 @@ void RTS3DScene::Flush(RenderInfoClass & rinfo)
 
 		SortingRendererClass::Flush();	//draw sorted translucent polys like particles.
 #ifdef DEBUG_LOGGING
-		QueryPerformanceCounter( (LARGE_INTEGER *)&tTranslucentEnd );
+		tTranslucentEnd = Clock_Ticks();
 		TheTranslucentMS += sceneElapsedMS( tTranslucentStart, tTranslucentEnd );
 		TheTranslucentDraws += DX8Wrapper::Get_Draw_Calls() - drawsBefore;
 		TheSortingPolygonsRefused += SortingRendererClass::Get_Refused_Polygon_Count() - refusedBefore;
@@ -1321,7 +1325,7 @@ void renderStenciledPlayerColor( UnsignedInt color, UnsignedInt stencilRef, Bool
 {
 	struct _TRANSLITVERTEX {
 	    Vector4 p;
-		DWORD color;   // diffuse color    
+		UnsignedInt color;   // diffuse color    
 	} v[4];
 
 	Int xpos, ypos, width, height;
@@ -1360,7 +1364,7 @@ void renderStenciledPlayerColor( UnsignedInt color, UnsignedInt stencilRef, Bool
 	// Set stencil states
 	DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILENABLE, TRUE );
 	DX8Wrapper::Set_DX8_Render_State(D3DRS_ZENABLE, TRUE );
-	DWORD	oldColorWriteEnable=0x12345678;
+	RenderUInt32	oldColorWriteEnable=0x12345678;
 	if (clear)
 	{	//we want to clear the stencil buffer to some known value whereever a player index is stored
 		Int occludedMask=TheW3DShadowManager->getStencilShadowMask();

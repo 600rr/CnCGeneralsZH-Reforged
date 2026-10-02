@@ -15,6 +15,8 @@
 **	You should have received a copy of the GNU General Public License
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+// Modified 2025-2026 by Olcay Seygan for Zero Hour Reforged; see the git history.
+// Modified 2026 by İlyas Akın for the macOS/Linux port; see NOTICE.md and the git history.
 
 ////////////////////////////////////////////////////////////////////////////////
 //																																						//
@@ -40,26 +42,26 @@
 // USER INCLUDES //////////////////////////////////////////////////////////////
 #include "always.h"
 #include "GameClient/View.h"
-#include "WW3D2/Camera.h"
-#include "WW3D2/Light.h"
-#include "WW3D2/DX8Wrapper.h"
-#include "WW3D2/HLod.h"
+#include "WW3D2/camera.h"
+#include "WW3D2/light.h"
+#include "WW3D2/dx8wrapper.h"
+#include "WW3D2/hlod.h"
 #include "WW3D2/mesh.h"
 #include "WW3D2/meshmdl.h"
 #include "Lib/BaseType.h"
 #include "W3DDevice/GameClient/W3DGranny.h"
-#include "W3DDevice/GameClient/Heightmap.h"
+#include "W3DDevice/GameClient/HeightMap.h"
 #include "W3DDevice/GameClient/W3DBridgeBuffer.h"
 #include "d3dx9math.h"
-#include "common/GlobalData.h"
-#include "common/drawmodule.h"
+#include "Common/GlobalData.h"
+#include "Common/DrawModule.h"
 #include "W3DDevice/GameClient/W3DVolumetricShadow.h"
 #include "W3DDevice/GameClient/W3DShadow.h"
 #include "WW3D2/statistics.h"
 #include "Common/PerfTimer.h"
 #include "GameLogic/TerrainLogic.h"
 #include "GameLogic/GameLogic.h"
-#include "WW3D2/DX8Caps.h"
+#include "WW3D2/dx8caps.h"
 #include "GameClient/Drawable.h"
 #include "wwshade/shdmesh.h"
 #include "wwshade/shdsubmesh.h"
@@ -68,6 +70,8 @@
 #include "WW3D2/dx11runtime.h"
 #include "WW3D2/sortingrenderer.h"
 #include "GameClient/View.h"
+#include "Platform/RenderTypes.h"
+#include "Lib/Clock.h"		// Clock_Ticks: QueryPerformanceCounter on Windows, a monotonic clock elsewhere
 
 #ifdef _INTERNAL
 // for occasional debugging...
@@ -148,7 +152,7 @@ struct SHADOW_STATIC_VOLUME_VERTEX	//vertex structure passed to D3D
 	struct SHADOW_DYNAMIC_VOLUME_VERTEX	//vertex structure passed to D3D
 	{
 			float x,y,z;
-			DWORD diffuse;
+			UnsignedInt diffuse;
 	}; 
 	#define SHADOW_DYNAMIC_VOLUME_FVF	D3DFVF_XYZ|D3DFVF_DIFFUSE
 #else
@@ -328,11 +332,11 @@ class W3DShadowGeometryMesh
 	friend class W3DVolumetricShadow;
 	
 public:
-	W3DShadowGeometryMesh::W3DShadowGeometryMesh( void );
+	W3DShadowGeometryMesh( void );
 #ifdef DO_TERRAIN_SHADOW_VOLUMES
 	virtual
 #endif
-	W3DShadowGeometryMesh::~W3DShadowGeometryMesh( void );
+	~W3DShadowGeometryMesh( void );
 
 	/// @todo: Cache/Store face normals someplace so they are not recomputed when lights move.
 	const Vector3& GetPolygonNormal(long dwPolyNormId) const
@@ -1010,7 +1014,7 @@ Int W3DShadowGeometry::init(RenderObjClass *robj)
 	for (Int modelIndex=0; modelIndex<fileInfo->ModelCount; modelIndex++)
 	{
 		granny_model *sourceModel =  fileInfo->Models[modelIndex];
-		if (stricmp(sourceModel->Name,"AABOX") == 0)
+		if (strcasecmp(sourceModel->Name,"AABOX") == 0)
 		{	//found a collision box, copy out data
 			int MeshCount = sourceModel->MeshBindingCount;
 			if (MeshCount==1)
@@ -1579,7 +1583,7 @@ void W3DVolumetricShadow::RenderMeshVolume(Int meshIndex, Int lightIndex, const 
 	// and this pass sets a world matrix per mesh and never puts the old one back.  The Direct3D 11
 	// backend is told separately, which is all it needs.
 	Matrix4x4 mWorldTransposed = mWorld.Transpose();
-	m_pDev->SetTransform(D3DTS_WORLD,(_D3DMATRIX *)&mWorldTransposed);
+	m_pDev->SetTransform(D3DTS_WORLD,(D3DMATRIX *)&mWorldTransposed);
 	Direct3D11_Mirror_Transform(D3DTS_WORLD,(const float *)&mWorldTransposed);
 
 	W3DBufferManager::W3DVertexBufferSlot *vbSlot=m_shadowVolumeVB[lightIndex][ meshIndex ];
@@ -1741,7 +1745,7 @@ void W3DVolumetricShadow::RenderDynamicMeshVolume(Int meshIndex, Int lightIndex,
 	Matrix4x4 mWorld(*meshXform);
 	Matrix4x4 mWorldTransposed = mWorld.Transpose();
 
-	m_pDev->SetTransform(D3DTS_WORLD,(_D3DMATRIX *)&mWorldTransposed);
+	m_pDev->SetTransform(D3DTS_WORLD,(D3DMATRIX *)&mWorldTransposed);
 	Direct3D11_Mirror_Transform(D3DTS_WORLD,(const float *)&mWorldTransposed);
 
 	if (shadowVertexBufferD3D != lastActiveVertexBuffer)
@@ -1901,7 +1905,8 @@ void W3DVolumetricShadow::RenderMeshVolumeBounds(Int meshIndex, Int lightIndex, 
 	//todo: replace this with mesh transform
 	Matrix4x4 mWorld(1);	//identity since boxes are pre-transformed to world space.
 
-	m_pDev->SetTransform(D3DTS_WORLD,(_D3DMATRIX *)&mWorld.Transpose());
+	Matrix4x4 mWorldT = mWorld.Transpose();	// a named copy: ISO C++ takes no address of a temporary
+	m_pDev->SetTransform(D3DTS_WORLD,(D3DMATRIX *)&mWorldT);
 	
 	m_pDev->SetStreamSource(0,shadowVertexBufferD3D,0,sizeof(SHADOW_DYNAMIC_VOLUME_VERTEX));
 	m_pDev->SetFVF(SHADOW_DYNAMIC_VOLUME_FVF);
@@ -3762,7 +3767,7 @@ void W3DVolumetricShadowManager::renderStencilShadows( void )
 
 	struct _TRANSLITVERTEX {
 	    D3DXVECTOR4 p;
-		DWORD color;   // diffuse color    
+		UnsignedInt color;   // diffuse color    
 	} v[4];
 
 	Int xpos, ypos, width, height;
@@ -3848,7 +3853,7 @@ void W3DVolumetricShadowManager::renderShadowMap( CameraClass &sceneCamera )
 	Int castersCounted = 0;
 	Int64 tShadowStart;
 	const unsigned shadowDrawsBefore = DX8Wrapper::Get_Draw_Calls();
-	QueryPerformanceCounter( (LARGE_INTEGER *)&tShadowStart );
+	tShadowStart = Clock_Ticks();
 #endif
 
 	Coord3D look;
@@ -3997,8 +4002,8 @@ void W3DVolumetricShadowManager::renderShadowMap( CameraClass &sceneCamera )
 #ifdef DEBUG_LOGGING
 	{
 		Int64 tShadowEnd, freq;
-		QueryPerformanceCounter( (LARGE_INTEGER *)&tShadowEnd );
-		QueryPerformanceFrequency( (LARGE_INTEGER *)&freq );
+		tShadowEnd = Clock_Ticks();
+		freq = Clock_Ticks_Per_Second();
 		if( freq > 0 )
 			TheShadowMapMS += (Real)((double)(tShadowEnd - tShadowStart) * 1000.0 / (double)freq);
 		TheShadowMapCasters += castersCounted;
@@ -4097,7 +4102,7 @@ void W3DVolumetricShadowManager::renderShadows( Bool forceStencilFill )
 		DX8Wrapper::Set_DX8_Texture(0,NULL);
 		DX8Wrapper::Set_DX8_Texture(1,NULL);
 
-		DWORD oldColorWriteEnable=0x12345678;
+		RenderUInt32 oldColorWriteEnable=0x12345678;
 
 	#ifdef SV_DEBUG
 		DX8Wrapper::Set_DX8_Render_State(D3DRS_ALPHABLENDENABLE , TRUE);
@@ -4396,7 +4401,7 @@ Bool W3DVolumetricShadowManager::ReAcquireResources(void)
 
 	DEBUG_ASSERTCRASH(m_pDev, ("Trying to ReAquireResources on W3DVolumetricShadowManager without device"));
 
-	if (FAILED(m_pDev->CreateIndexBuffer
+	if (Render_Failed(m_pDev->CreateIndexBuffer
 	(
 		SHADOW_INDEX_SIZE*sizeof(WORD), 
 		D3DUSAGE_WRITEONLY|D3DUSAGE_DYNAMIC, 
@@ -4412,7 +4417,7 @@ Bool W3DVolumetricShadowManager::ReAcquireResources(void)
 	if (shadowVertexBufferD3D == NULL)
 	{	// Create vertex buffer
 
-		if (FAILED(m_pDev->CreateVertexBuffer
+		if (Render_Failed(m_pDev->CreateVertexBuffer
 		(
 			SHADOW_VERTEX_SIZE*sizeof(SHADOW_DYNAMIC_VOLUME_VERTEX),
 			D3DUSAGE_WRITEONLY|D3DUSAGE_DYNAMIC, 

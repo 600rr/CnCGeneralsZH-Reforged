@@ -15,6 +15,8 @@
 **	You should have received a copy of the GNU General Public License
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+// Modified 2025-2026 by Olcay Seygan for Zero Hour Reforged; see the git history.
+// Modified 2026 by İlyas Akın for the macOS/Linux port; see NOTICE.md and the git history.
 
 ////////////////////////////////////////////////////////////////////////////////
 //																																						//
@@ -30,6 +32,7 @@
 // USER INCLUDES //////////////////////////////////////////////////////////////////////////////////
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file int the GameEngine
+#include "Lib/Clock.h"
 
 #include <map>
 #define DEFINE_GUI_COMMMAND_NAMES
@@ -44,7 +47,7 @@
 #include "Common/GameType.h"
 #include "Common/MultiplayerSettings.h"
 #include "Common/NameKeyGenerator.h"
-#include "Common/OVERRIDE.h"
+#include "Common/Override.h"
 #include "Common/PlayerTemplate.h"
 #include "Common/Player.h"
 #include "Common/PlayerList.h"
@@ -873,7 +876,7 @@ void ControlBar::populatePurchaseScience( Player* player )
 	win = TheWindowManager->winGetWindowFromId( m_contextParent[ CP_PURCHASE_SCIENCE ], TheNameKeyGenerator->nameToKey( "GeneralsExpPoints.wnd:StaticTextRankPointsAvailable" ) );
 	if(win)
 	{
-		tempUS.format(L"%d", player->getSciencePurchasePoints());
+		tempUS.format(u"%d", player->getSciencePurchasePoints());
 		GadgetStaticTextSetText(win, tempUS);
 	}
 	
@@ -1006,7 +1009,7 @@ void CommandButton::parseCommand( INI* ini, void *instance, void *store, const v
 	for( i = 0; TheGuiCommandNames[ i ]; i++ )
 	{
 
-		if( stricmp( TheGuiCommandNames[ i ], token ) == 0 )
+		if( strcasecmp( TheGuiCommandNames[ i ], token ) == 0 )
 		{
 
 			GUICommandType *command = (GUICommandType *)store;
@@ -1295,7 +1298,7 @@ void CommandSet::parseCommandButton( INI* ini, void *instance, void *store, cons
 
 	// get the index to store the command at, and the command array itself
 	const CommandButton **buttonArray = (const CommandButton **)store;
-	Int buttonIndex = (Int)userData;
+	Int buttonIndex = (Int)(intptr_t)userData;
 
 	// sanity
 	DEBUG_ASSERTCRASH( buttonIndex < MAX_COMMANDS_PER_SET, ("parseCommandButton: button index '%d' out of range\n", 
@@ -2409,7 +2412,7 @@ void ControlBar::applyPanelSlide( void )
 //-------------------------------------------------------------------------------------------------
 void ControlBar::updatePanelSlide( void )
 {
-	const UnsignedInt now = timeGetTime();
+	const UnsignedInt now = Clock_Milliseconds();
 	const UnsignedInt sinceMs = ( m_panelSlideMs == 0 || now < m_panelSlideMs ) ? 0 : now - m_panelSlideMs;
 	m_panelSlideMs = now;
 
@@ -2468,7 +2471,7 @@ void ControlBar::showPanel( Int panel, Bool show, Bool immediate )
 		m_panelHidden[ panel ] = !show && ( m_panelDropCap[ panel ] <= 0 );
 	}
 
-	m_panelSlideMs = timeGetTime();
+	m_panelSlideMs = Clock_Milliseconds();
 	applyPanelSlide();
 
 }  // end showPanel
@@ -3256,7 +3259,7 @@ void ControlBar::update( void )
 	{
 		const Int visibleRows = ( countVisibleSpecialPowerShortcuts() + SPECIAL_POWER_SHORTCUT_COLS - 1 )
 														/ SPECIAL_POWER_SHORTCUT_COLS;
-		if( timeGetTime() - m_specialPowerShortcutRowMs > CHORD_TIMEOUT_MS
+		if( Clock_Milliseconds() - m_specialPowerShortcutRowMs > CHORD_TIMEOUT_MS
 				|| m_specialPowerShortcutParent == NULL
 				|| m_specialPowerShortcutParent->winIsHidden()
 				|| m_specialPowerShortcutRow >= visibleRows )
@@ -3340,7 +3343,15 @@ void ControlBar::update( void )
 
 		}  
 		else // get the first and only drawble in the selection list
-			drawToEvaluateFor = TheInGameUI->getAllSelectedDrawables()->front();
+		{
+			// none when nothing is selected, which is an observer's usual state: front() of an empty list
+			// is undefined.  What it gave: libstdc++ and libc++ read their element count, 0; MSVC's Release
+			// build reads the sentinel node's value slot, which is never written and was zeroed by the
+			// game's operator new (allocateBytes), so NULL too; MSVC's Debug STL checks, reports and ends
+			// the process.  NULL is the answer every Release build had: no drawable, no portrait.
+			const DrawableList *selected = TheInGameUI->getAllSelectedDrawables();
+			drawToEvaluateFor = selected->empty() ? NULL : selected->front();
+		}
 		Object *obj = drawToEvaluateFor ? drawToEvaluateFor->getObject() : NULL;
 		setPortraitByObject( obj );
 		
@@ -4659,7 +4670,7 @@ void ControlBar::pressSpecialPowerShortcut( Int index )
 	if( slot == SLOT_ARMS_CHORD )
 	{
 		m_specialPowerShortcutRow = index;
-		m_specialPowerShortcutRowMs = timeGetTime();
+		m_specialPowerShortcutRowMs = Clock_Milliseconds();
 		return;
 	}
 
@@ -5016,18 +5027,18 @@ static UnicodeString getMetaKeyLabel( GameMessage::Type wanted )
 
 		// function keys have no printable character; name them
 		if( rec->m_key >= MK_F1 && rec->m_key <= MK_F10 )
-			label.format( L"F%d", rec->m_key - MK_F1 + 1 );
+			label.format( u"F%d", rec->m_key - MK_F1 + 1 );
 		else if( rec->m_key == MK_F11 )
-			label.set( L"F11" );
+			label.set( u"F11" );
 		else if( rec->m_key == MK_F12 )
-			label.set( L"F12" );
+			label.set( u"F12" );
 		else
 		{
 			WideChar c = TheKeyboard->getPrintableKey( (UnsignedByte)rec->m_key, 0 );
 			if( c )
 			{
-				if( c >= L'a' && c <= L'z' )
-					c -= (L'a' - L'A');
+				if( c >= u'a' && c <= u'z' )
+					c -= (u'a' - u'A');
 
 				WideChar text[ 2 ] = { c, 0 };
 				label.set( text );
@@ -5111,7 +5122,7 @@ void ControlBar::setControlCommand( GameWindow *button, const CommandButton *com
 		// a button with no label has no build tooltip either - clear the func, the window is
 		// recycled and would otherwise keep the one the previous occupant installed.
 		button->winSetTooltipFunc( NULL );
-		GadgetButtonSetText( button, UnicodeString( L"" ) );
+		GadgetButtonSetText( button, UnicodeString( u"" ) );
 	}
 
 	// save the command in the user data of the window
@@ -5854,7 +5865,7 @@ void ControlBar::updatePurchaseScienceHotKeys( void )
 
 	// a column marked and then thought better of expires on its own, like a powers tray row
 	if( m_purchaseScienceColumn >= 0
-			&& timeGetTime() - m_purchaseScienceColumnMs > CHORD_TIMEOUT_MS )
+			&& Clock_Milliseconds() - m_purchaseScienceColumnMs > CHORD_TIMEOUT_MS )
 		clearPurchaseScienceColumn();
 
 	// the promotion screen ships its own big yellow font; the key reads like a command bar label
@@ -5890,7 +5901,7 @@ void ControlBar::updatePurchaseScienceHotKeys( void )
 			else
 			{
 				win->winClearStatus( WIN_STATUS_SHORTCUT_BUTTON );
-				GadgetButtonSetText( win, UnicodeString( L"" ) );
+				GadgetButtonSetText( win, UnicodeString( u"" ) );
 			}
 		}
 	}
@@ -5914,7 +5925,7 @@ void ControlBar::pressPurchaseScienceColumn( Int column )
 	if( m_purchaseScienceColumn != column )
 	{
 		m_purchaseScienceColumn = column;
-		m_purchaseScienceColumnMs = timeGetTime();
+		m_purchaseScienceColumnMs = Clock_Milliseconds();
 		updatePurchaseScienceHotKeys();
 
 		// a column with nothing left to sell says so rather than sitting there armed
@@ -6928,9 +6939,9 @@ void ControlBar::drawSpecialPowerShortcutMultiplierText()
 		if( numReady > 1 )
 		{
 			UnicodeString count;
-			count.format( L"%d", numReady );
+			count.format( u"%d", numReady );
 			if( !text.isEmpty() )
-				text.concat( L" " );
+				text.concat( u" " );
 			text.concat( count );
 		}
 

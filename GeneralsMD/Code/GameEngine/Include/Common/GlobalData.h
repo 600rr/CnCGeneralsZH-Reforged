@@ -15,6 +15,8 @@
 **	You should have received a copy of the GNU General Public License
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+// Modified 2025-2026 by Olcay Seygan for Zero Hour Reforged; see the git history.
+// Modified 2026 by İlyas Akın for the macOS/Linux port; see NOTICE.md and the git history.
 
 ////////////////////////////////////////////////////////////////////////////////
 //																																						//
@@ -45,12 +47,12 @@
 
 // FORWARD DECLARATIONS ///////////////////////////////////////////////////////////////////////////
 struct FieldParse;
-typedef enum _TerrainLOD;
+enum _TerrainLOD : Int;
 class GlobalData;
 class INI;
 class WeaponBonusSet;
-enum BodyDamageType;
-enum AIDebugOptions;
+enum BodyDamageType : Int;
+enum AIDebugOptions : Int;
 
 // PUBLIC /////////////////////////////////////////////////////////////////////////////////////////
 
@@ -74,6 +76,12 @@ enum HealthBarModeType
 
 /** The HudScale option's steps, 100/115/130/150% of the bottom HUD's own size (ControlBarHudScale). */
 enum { HUD_SCALE_COUNT = 4 };
+
+/** How a menu laid out at 800x600 meets a screen of another shape (GameWindowManagerScript.cpp's
+	* parseScreenRect).  Stretch is EA's: across by W/800 and down by H/600 apiece, so a 16:10 screen draws
+	* every panel, logo and medal 1.2x wide.  Fit scales by the smaller of the two and centres the
+	* 4:3 area; a full-screen backdrop still fills the screen.  At 4:3 the two are the same. */
+enum { MENU_LAYOUT_STRETCH = 0, MENU_LAYOUT_FIT = 1, MENU_LAYOUT_COUNT = 2 };
 
 /** The IncomeRate option: what the income beside the money is counted over.  Automatic is per
 	* minute below INCOME_RATE_AUTOMATIC_PER_SECOND_FROM dollars a second and per second from there
@@ -119,6 +127,13 @@ public:
 	void update() { }
 
 	Bool setTimeOfDay( TimeOfDay tod );		///< Use this function to set the Time of day;
+
+	/// Whether the dynamic LOD follows the frame rate this run: the player's (or the preset's) setting,
+	/// unless -noDynamicLOD turned it off.  Read this, not m_enableDynamicLOD, wherever the running game
+	/// acts on it; m_enableDynamicLOD is the preference the options menu shows and saves.
+	Bool isDynamicLODEnabled() const { return m_enableDynamicLOD && !m_noDynamicLODOverride; }
+	/// The particle ceiling in force: -particlecap's, or the options slider's MaxParticleCount.
+	Int getEffectiveParticleCap() const { return (m_particleCapOverride > 0) ? m_particleCapOverride : m_maxParticleCount; }
 
 	static void parseGameDataDefinition( INI* ini );
 
@@ -169,6 +184,7 @@ public:
 	Bool m_drawEntireTerrain;
 	_TerrainLOD m_terrainLOD;
 	Bool m_enableDynamicLOD;
+	Bool m_noDynamicLODOverride;	// "-noDynamicLOD": off for this run, whatever the static preset or Options.ini set
 	Bool m_enableStaticLOD;
 	Int m_terrainLODTargetTimeMS;
 	Bool m_clientRetaliationModeEnabled;
@@ -323,6 +339,7 @@ public:
 	Bool m_showObjectHealth;			///< debug display object health
 	Int m_healthBarMode;					///< HealthBarModeType: which units wear a bar at all
 	Int m_hudScale;								///< HUD size step, 0 = 100%; see ControlBarHudScale (client only)
+	Int m_menuLayout;							///< MENU_LAYOUT_STRETCH or MENU_LAYOUT_FIT, for the Menus/ layouts (client only)
 	Int m_playerColorScheme;			///< PlayerColorSchemeType: whose colour the client draws (client only)
 	Int m_textLanguage;						///< TextLanguageType: the translation GameText lays over the CSF, read once at startup (client only)
 	Bool m_showOrderLines;				///< draw a line from each selected unit to where it is going, and its queue (client only)
@@ -408,6 +425,7 @@ public:
 	Bool m_buildPlacementShadows;		///< whether that structure casts a shadow while it rides the cursor
 	Bool m_zoomToCursor;				///< the mouse wheel zooms toward whatever the cursor is over
 	Bool m_isometricCamera;				///< the tactical view from far off down a narrow cone, near enough orthographic
+	Bool m_smoothMotion;				///< R1: models shown between their last two logic states each render frame (W3DSmoothMotion.h)
 	Int m_closerZoomPercent;			///< percent taken off MinCameraHeight, so the wheel comes nearer the ground; 0 = as GameData.ini has it
 	Int m_dragTolerance;				///< pixels the pointer may travel with a button held before the press is a drag; replaces Mouse.ini's DragTolerance
 	Bool m_formationDrag;				///< with the move, attack move or guard key armed, a left drag spreads the selection along the line drawn

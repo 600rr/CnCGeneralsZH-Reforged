@@ -15,6 +15,7 @@
 **	You should have received a copy of the GNU General Public License
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+// Modified 2026 by İlyas Akın for the macOS/Linux port; see NOTICE.md and the git history.
 
 #include "dx11runtime.h"
 
@@ -42,8 +43,12 @@ static unsigned TwinBuffers = 0;
 static unsigned long long TwinBytes = 0;
 static std::string DumpDirectory;
 
-// Relative to the working directory, which for the game is Run/, next to the exe.
+// The user's compiled programs: in the directory Direct3D11_Set_Shader_Cache_Directory names (the
+// game's user data folder), or else the working directory, which for the game is Run/, next to the exe.
 static const char * const SHADER_CACHE_FILE = "dx11shaders.cache";
+static std::string ShaderCacheDirectory;
+// The programs that ship with the game (DX11BackendClass::Load_Shipped_Programs), next to the exe.
+static const char * const SHIPPED_SHADER_FILE = "dx11shaders.shipped";
 
 // What -dx11post asked for, kept as the effects rather than as the text so a name nobody knows is
 // refused when the switch is read and not once a frame.
@@ -93,7 +98,13 @@ bool Direct3D11_Create(HWND window, unsigned width, unsigned height)
 	}
 
 	Backend.Set_Dump_Directory(DumpDirectory.c_str());
-	Backend.Set_Shader_Cache_Path(SHADER_CACHE_FILE);
+	std::string cache_path = ShaderCacheDirectory;
+	if (!cache_path.empty() && cache_path[cache_path.size() - 1] != '\\' && cache_path[cache_path.size() - 1] != '/') {
+		cache_path += '\\';
+	}
+	cache_path += SHADER_CACHE_FILE;
+	Backend.Set_Shader_Cache_Path(cache_path.c_str());
+	Backend.Load_Shipped_Programs(SHIPPED_SHADER_FILE);
 
 	// The chain is the one thing here that is allowed to fail without taking the backend with it:
 	// a machine whose compiler refuses the passes still gets the frame, just not the effect.
@@ -181,10 +192,10 @@ void Direct3D11_Mirror_Material(const float ambient[4], const float diffuse[4],
 
 void Direct3D11_Mirror_Light(unsigned index, unsigned type, const float position[4],
 	const float direction[4], const float diffuse[4], const float specular[4],
-	const float attenuation[4], const float spot[4])
+	const float attenuation[4], const float spot[4], const float ambient[4])
 {
 	if (Active) {
-		Backend.Set_Light(index, type, position, direction, diffuse, specular, attenuation, spot);
+		Backend.Set_Light(index, type, position, direction, diffuse, specular, attenuation, spot, ambient);
 	}
 }
 
@@ -374,6 +385,11 @@ const char * Direct3D11_Texture_Copy_Shape(unsigned index)
 	return DX11Texture_Copy_Shape(index);
 }
 
+void Direct3D11_Set_Shader_Cache_Directory(const char * directory)
+{
+	ShaderCacheDirectory = (directory == NULL) ? "" : directory;
+}
+
 void Direct3D11_Dump_Programs_To(const char * directory)
 {
 	DumpDirectory = directory == NULL ? "" : directory;
@@ -531,6 +547,9 @@ void Direct3D11_End_Scene(bool flip_frames)
 		if (!Device.Present(VSyncRequested ? 1 : 0) && PresentFailure == S_OK) {
 			PresentFailure = Device.Last_Present_Result();
 		}
+	}
+	if (Active && flip_frames) {
+		Backend.Save_Shader_Cache_If_Due();
 	}
 }
 
@@ -723,6 +742,12 @@ void Direct3D11_Statistics(unsigned & pipelines_built, unsigned long long & draw
 	if (Active) {
 		Backend.Statistics(pipelines_built, draws_made, draws_refused);
 	}
+}
+
+void Direct3D11_Program_Statistics(unsigned & shipped, unsigned & held)
+{
+	shipped = Active ? Backend.Shipped_Program_Count() : 0;
+	held = Active ? Backend.Compiled_Program_Count() : 0;
 }
 
 void Direct3D11_Take_Frame_Cost(double & pipeline_milliseconds, unsigned & pipelines,

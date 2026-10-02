@@ -15,6 +15,7 @@
 **	You should have received a copy of the GNU General Public License
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+// Modified 2026 by İlyas Akın for the macOS/Linux port; see NOTICE.md and the git history.
 
 // OptionsCatalog.cpp
 //
@@ -59,6 +60,7 @@ OPTION_BOOL_ACCESSORS( m_edgeScrollInWindowedMode )
 OPTION_BOOL_ACCESSORS( m_snapCameraRotateTo45 )
 OPTION_BOOL_ACCESSORS( m_zoomToCursor )
 OPTION_BOOL_ACCESSORS( m_isometricCamera )
+OPTION_BOOL_ACCESSORS( m_smoothMotion )
 OPTION_BOOL_ACCESSORS( m_startAtMaxZoom )
 
 // The view copied its closest height out of GlobalData once, when it was made, so a change from
@@ -94,6 +96,7 @@ OPTION_BOOL_ACCESSORS( m_vsync )
 OPTION_BOOL_ACCESSORS( m_classicGraphics )
 OPTION_INT_ACCESSORS( m_healthBarMode )
 OPTION_INT_ACCESSORS( m_hudScale )
+OPTION_INT_ACCESSORS( m_menuLayout )
 OPTION_INT_ACCESSORS( m_playerColorScheme )
 OPTION_INT_ACCESSORS( m_textLanguage )
 OPTION_BOOL_ACCESSORS( m_showOrderLines )
@@ -258,6 +261,12 @@ const OptionDef TheOptionCatalog[] =
 		OPTION_BOOL, APPLY_LIVE, 0, 1,
 		get_m_isometricCamera, set_m_isometricCamera },
 
+	// R1: models drawn between their last two logic states on every render frame, so motion is smooth
+	// on a panel faster than the 30 Hz logic.  The picture only, one logic tick behind; never the game.
+	// Its default is GlobalData's: on off Windows, off on Windows.  On Options > Display.
+	{ "SmoothMotion",							OPT_WND( "CheckSmoothMotion" ), "GUI:SmoothMotion",
+		OPTION_BOOL, APPLY_LIVE, 0, 1,
+		get_m_smoothMotion, set_m_smoothMotion },
 	// A match opens as far out as the wheel goes, or at the height the map's author framed it for.
 	// Read when the map loads, so it counts from the next match.  On Options > Controls.
 	{ "StartAtMaxZoom",						OPT_WND( "CheckStartAtMaxZoom" ), "GUI:StartAtMaxZoom",
@@ -385,6 +394,13 @@ const OptionDef TheOptionCatalog[] =
 		OPTION_ENUM, APPLY_LIVE, 0, HUD_SCALE_COUNT - 1,
 		get_m_hudScale, set_m_hudScale },
 
+	// How the menus meet a screen that is not 4:3: stretched to it, as EA drew them, or fitted and
+	// centred at their own shape (GlobalData.h).  Layouts are read once as they are built, so Accept
+	// builds the shell again.
+	{ "MenuLayout",								OPT_WND( "ComboBoxMenuLayout" ), "GUI:MenuLayout",
+		OPTION_ENUM, APPLY_SHELL_REBUILD, 0, MENU_LAYOUT_COUNT - 1,
+		get_m_menuLayout, set_m_menuLayout },
+
 	// Whose colour a player is drawn in.  Purely local: the match still agrees on the lobby's
 	// colours and this only changes what this screen puts on top of them, so two people in the same
 	// game can run different schemes.
@@ -480,7 +496,7 @@ const Int TheOptionCatalogCount = (sizeof( TheOptionCatalog ) / sizeof( TheOptio
 const OptionDef *findOptionDef( const char *iniKey )
 {
 	for( Int i = 0; i < TheOptionCatalogCount; ++i )
-		if( stricmp( TheOptionCatalog[ i ].iniKey, iniKey ) == 0 )
+		if( strcasecmp( TheOptionCatalog[ i ].iniKey, iniKey ) == 0 )
 			return &TheOptionCatalog[ i ];
 
 	return NULL;
@@ -499,7 +515,7 @@ Int clampOptionValue( const OptionDef& def, Int value )
 //-----------------------------------------------------------------------------
 /** Read one stored string.
 	*
-	* The option getters this replaces tested `stricmp(s, "yes") == 0` and called everything else
+	* The option getters this replaces tested `strcasecmp(s, "yes") == 0` and called everything else
 	* false, so a hand-edited `ZoomToCursor = true` silently did nothing.  UserPreferences::getBool
 	* has always been the lenient one; the catalog follows it.  Writing still produces "yes"/"no". */
 static Int parseOptionValue( const OptionDef& def, const AsciiString& stored )
@@ -507,12 +523,12 @@ static Int parseOptionValue( const OptionDef& def, const AsciiString& stored )
 	if( def.kind == OPTION_BOOL )
 	{
 		const char *s = stored.str();
-		const Bool on = stricmp( s, "yes" ) == 0
-									|| stricmp( s, "true" ) == 0
-									|| stricmp( s, "on" ) == 0
-									|| stricmp( s, "y" ) == 0
-									|| stricmp( s, "t" ) == 0
-									|| stricmp( s, "1" ) == 0;
+		const Bool on = strcasecmp( s, "yes" ) == 0
+									|| strcasecmp( s, "true" ) == 0
+									|| strcasecmp( s, "on" ) == 0
+									|| strcasecmp( s, "y" ) == 0
+									|| strcasecmp( s, "t" ) == 0
+									|| strcasecmp( s, "1" ) == 0;
 		return on ? 1 : 0;
 	}
 

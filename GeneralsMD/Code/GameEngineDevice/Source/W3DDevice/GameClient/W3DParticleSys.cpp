@@ -15,6 +15,8 @@
 **	You should have received a copy of the GNU General Public License
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+// Modified 2025-2026 by Olcay Seygan for Zero Hour Reforged; see the git history.
+// Modified 2026 by İlyas Akın for the macOS/Linux port; see NOTICE.md and the git history.
 
 ////////////////////////////////////////////////////////////////////////////////
 //																																						//
@@ -26,15 +28,16 @@
 // W3D Particle System implementation
 // Author: Michael S. Booth, November 2001
 
-#include "common/GlobalData.h"
+#include "Common/GlobalData.h"
+#include "Lib/Clock.h"
 #include "GameClient/Color.h"
 #include "W3DDevice/GameClient/W3DParticleSys.h"
 #include "W3DDevice/GameClient/W3DAssetManager.h"
 #include "W3DDevice/GameClient/W3DDisplay.h"
-#include "W3DDevice/GameClient/heightmap.h"
+#include "W3DDevice/GameClient/HeightMap.h"
 #include "W3DDevice/GameClient/W3DSmudge.h"
 #include "W3DDevice/GameClient/W3DSnow.h"
-#include "WW3D2/Camera.h"
+#include "WW3D2/camera.h"
 #include "WW3D2/dx8wrapper.h"
 #include "Common/JobSystem.h"
 
@@ -52,6 +55,7 @@
 
 
 #include "Common/QuickTrig.h"
+#include "Platform/MsvcFloatCasts.h"
 
 #ifdef DEBUG_LOGGING
 extern Real TheParticleFillMS;
@@ -115,7 +119,8 @@ static void fillBillboards( Int index, void *context )
 		const RGBColor *color = p->getColor();
 		const unsigned packed = DX8Wrapper::Convert_Color_Clamp(
 			Vector4( color->red, color->green, color->blue, p->getAlpha() ) );
-		const uint8 orientation = (uint8)(p->getAngle() * 255.0f / (2.0f * PI));
+		// The orientation table's index wraps, as it did on Windows (Platform/MsvcFloatCasts.h).
+		const uint8 orientation = floatToByteAsMsvc( p->getAngle() * 255.0f / (2.0f * PI) );
 		PointGroupClass::Write_Billboard( quad, job->view, Vector3( pos->x, pos->y, pos->z ), psize,
 			orientation, packed );
 		quad += 4;
@@ -233,7 +238,7 @@ void W3DParticleSystemManager::doParticles(RenderInfoClass &rinfo)
 
 #ifdef DEBUG_LOGGING
 	Int64 tFillStart, tFillEnd;
-	QueryPerformanceCounter( (LARGE_INTEGER *)&tFillStart );
+	tFillStart = Clock_Ticks();
 #endif
 
 	ParticleSystemManager::ParticleSystemList &particleSysList = TheParticleSystemManager->getAllParticleSystems();
@@ -250,7 +255,7 @@ void W3DParticleSystemManager::doParticles(RenderInfoClass &rinfo)
 		ParticleSystem *sys = (*it);
 		if (!sys || sys->isUsingDrawables())
 			continue;
-		if (*((DWORD *)sys->getParticleTypeName().str()) == 0x44554D53)
+		if (*((UnsignedInt *)sys->getParticleTypeName().str()) == 0x44554D53)
 			continue;
 
 		BillboardFill fill;
@@ -296,7 +301,7 @@ void W3DParticleSystemManager::doParticles(RenderInfoClass &rinfo)
 			continue;
 
 		//temporary hack that checks if texture name starts with "SMUD" - if so, we can assume it's a smudge type
-		if (/*sys->isUsingSmudge()*/ *((DWORD *)sys->getParticleTypeName().str()) == 0x44554D53)
+		if (/*sys->isUsingSmudge()*/ *((UnsignedInt *)sys->getParticleTypeName().str()) == 0x44554D53)
 		{
 			if (TheSmudgeManager && ((W3DSmudgeManager*)TheSmudgeManager)->getHardwareSupport() && TheGlobalData->m_useHeatEffects)
 			{
@@ -395,7 +400,7 @@ void W3DParticleSystemManager::doParticles(RenderInfoClass &rinfo)
 			RGBAArray[count].Z = color->blue;
 			RGBAArray[count].W = p->getAlpha();
 		
-			angleArray[count] = (uint8)(p->getAngle() * 255.0f / (2.0f * PI));
+			angleArray[count] = floatToByteAsMsvc( p->getAngle() * 255.0f / (2.0f * PI) );
 			
 			if (++count == MAX_POINTS_PER_GROUP)
 			{
@@ -533,10 +538,10 @@ void W3DParticleSystemManager::doParticles(RenderInfoClass &rinfo)
 	TheParticleSystemManager->setOnScreenParticleCount(m_onScreenParticleCount);
 
 #ifdef DEBUG_LOGGING
-	QueryPerformanceCounter( (LARGE_INTEGER *)&tFillEnd );
+	tFillEnd = Clock_Ticks();
 	{
 		Int64 freq;
-		QueryPerformanceFrequency( (LARGE_INTEGER *)&freq );
+		freq = Clock_Ticks_Per_Second();
 		if( freq > 0 )
 			TheParticleFillMS += (Real)((double)(tFillEnd - tFillStart) * 1000.0 / (double)freq);
 	}

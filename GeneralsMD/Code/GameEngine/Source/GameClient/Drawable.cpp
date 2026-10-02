@@ -15,6 +15,8 @@
 **	You should have received a copy of the GNU General Public License
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+// Modified 2025-2026 by Olcay Seygan for Zero Hour Reforged; see the git history.
+// Modified 2026 by İlyas Akın for the macOS/Linux port; see NOTICE.md and the git history.
 
 ////////////////////////////////////////////////////////////////////////////////
 //																																						//
@@ -28,6 +30,7 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
   
 #include "PreRTS.h"	// This must go first in EVERY cpp file int the GameEngine
+#include "Lib/Clock.h"
 
 #include "Common/AudioEventInfo.h"
 #include "Common/DynamicAudioEventInfo.h"
@@ -248,7 +251,7 @@ static DrawableIconType drawableIconNameToIndex( const char *iconName )
 	DEBUG_ASSERTCRASH( iconName != NULL, ("drawableIconNameToIndex - Illegal name\n") );
 
 	for( Int i = ICON_FIRST; i < MAX_ICONS; ++i )
-		if( stricmp( TheDrawableIconNames[ i ], iconName ) == 0 )
+		if( strcasecmp( TheDrawableIconNames[ i ], iconName ) == 0 )
 			return (DrawableIconType)i;
 
 	return ICON_INVALID;
@@ -473,6 +476,11 @@ Drawable::Drawable( const ThingTemplate *thingTemplate, DrawableStatus statusBit
 	// Added By Sadullah Nader
 	// Initialization missing and needed
 	m_nextDrawable = NULL;
+	m_smoothPrevPos.zero();
+	m_smoothCurPos.zero();
+	m_smoothFrame = 0xFFFFFFFFu;	// never captured
+	m_smoothHavePrev = FALSE;
+	m_motionDiscontinuity = FALSE;
 	m_prevDrawable = NULL;
 	//
 
@@ -2787,7 +2795,7 @@ void Drawable::draw( View *view )
 	{
 		fadeFrame = TheGameClient->getFrame();
 
-		const UnsignedInt nowMs = timeGetTime();
+		const UnsignedInt nowMs = Clock_Milliseconds();
 		if ( fadeLastMs == 0 )
 			fadeLastMs = nowMs;
 
@@ -3969,7 +3977,7 @@ void Drawable::drawConstructPercent( const IRegion2D *healthBarRegion )
 	if( m_lastConstructDisplayed != INT_TO_REAL( secondsLeft ) )
 	{
 		UnicodeString buffer;
-		buffer.format( L"%ds", secondsLeft );
+		buffer.format( u"%ds", secondsLeft );
 		m_constructDisplayString->setText( buffer );
 
 		// record this value as our last displayed so we don't un-necessarily rebuild the string
@@ -4035,7 +4043,7 @@ void Drawable::drawSupplyCash( const IRegion2D *healthBarRegion )
 	if( m_lastSupplyCashDisplayed != cash )
 	{
 		UnicodeString buffer;
-		buffer.format( L"$%d", cash );
+		buffer.format( u"$%d", cash );
 		m_supplyCashDisplayString->setText( buffer );
 		m_lastSupplyCashDisplayed = cash;
 	}
@@ -4230,7 +4238,7 @@ static Int drawOwnCountdown( DisplayString *&countdown, Int seconds, Int x, Int 
 	}
 
 	UnicodeString text;
-	text.format( L"%ds", seconds );
+	text.format( u"%ds", seconds );
 	countdown->setText( text );
 
 	Int textW, textH;
@@ -5002,11 +5010,44 @@ void Drawable::setInstanceMatrix( const Matrix3D *instance )
 
 
 //-------------------------------------------------------------------------------------------------
+/** R1, smooth motion: at the start of a render pass, after a new logic tick, move the last position into
+	m_smoothPrevPos and take the current one.  The blend is allowed only across one tick, with no marked
+	discontinuity and no step longer than a unit could travel (the same 60 world units as the models'
+	rule, W3DSmoothMotion.h's SMOOTH_SNAP_DISTANCE_UNITS). */
+void Drawable::smoothMotionCapturePosition( UnsignedInt clientFrame )
+{
+	if (clientFrame == m_smoothFrame)
+		return;
+	const Bool nextTick = m_smoothFrame != 0xFFFFFFFFu && clientFrame == m_smoothFrame + 1;
+	m_smoothPrevPos = m_smoothCurPos;
+	m_smoothCurPos = *getPosition();
+	const Real dx = m_smoothCurPos.x - m_smoothPrevPos.x;
+	const Real dy = m_smoothCurPos.y - m_smoothPrevPos.y;
+	const Real dz = m_smoothCurPos.z - m_smoothPrevPos.z;
+	const Real SNAP_DISTANCE = 60.0f;
+	m_smoothHavePrev = nextTick && !m_motionDiscontinuity && (dx * dx + dy * dy + dz * dz) <= SNAP_DISTANCE * SNAP_DISTANCE;
+	m_smoothFrame = clientFrame;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** R1: where the picture shows this drawable, `alpha` of the way from its previous logic position to its
+	current one.  The logic position, and FALSE, when there is no blend. */
+Bool Drawable::getSmoothMotionPosition( Real alpha, Coord3D *pos ) const
+{
+	*pos = *getPosition();
+	if (!m_smoothHavePrev)
+		return FALSE;
+	pos->x = m_smoothPrevPos.x + (m_smoothCurPos.x - m_smoothPrevPos.x) * alpha;
+	pos->y = m_smoothPrevPos.y + (m_smoothCurPos.y - m_smoothPrevPos.y) * alpha;
+	pos->z = m_smoothPrevPos.z + (m_smoothCurPos.z - m_smoothPrevPos.z) * alpha;
+	return TRUE;
+}
+
+//-------------------------------------------------------------------------------------------------
 /** 
  * Return the Drawable's world transform.
  * If this Drawable is attached to an Object, return the Object's transform instead.
  */
-//-------------------------------------------------------------------------------------------------
 const Matrix3D *Drawable::getTransformMatrix( void ) const
 {
 	const Object *obj = getObject();

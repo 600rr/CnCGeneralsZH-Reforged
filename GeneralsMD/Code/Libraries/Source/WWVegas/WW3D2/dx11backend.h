@@ -15,14 +15,19 @@
 **	You should have received a copy of the GNU General Public License
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+// Modified 2026 by İlyas Akın for the macOS/Linux port; see NOTICE.md and the git history.
 
 /*
 ** The Direct3D 11 renderer, driven the way the engine drives a Direct3D 9 device.
 **
 ** The engine sets one thing at a time and then draws: a render state, a texture stage state, a
-** texture, a transform, a stream, and eventually a DrawIndexedPrimitive.  There are 236 places that
-** do it and 5600 calls between them, and rewriting those into something D3D11 shaped is not a
-** phase, it is a different program.  So this takes the calls as they are and resolves them at the
+** texture, a transform, a stream, and eventually a DrawIndexedPrimitive.  Several hundred places
+** do it and several thousand calls a frame come out of them, and rewriting those into something
+** D3D11 shaped is not a phase, it is a different program.  (This said "236 places and 5600 calls"
+** when it was written on 2026-09-09; the first number was a count of every mention of the device
+** accessor in the sources, taken before ef8303a9 cut it by 45%, and the second was never a static
+** count of anything.  A call-site survey (D1, 2026-09-22) replaced it with a measurement.)
+** So this takes the calls as they are and resolves them at the
 ** moment of the draw, which is the only moment where everything needed to build a D3D11 pipeline is
 ** known at once.
 **
@@ -123,7 +128,7 @@ public:
 		const float emissive[4], float power);
 	void Set_Light(unsigned index, DWORD type, const float position[4], const float direction[4],
 		const float diffuse[4], const float specular[4], const float attenuation[4],
-		const float spot[4]);
+		const float spot[4], const float ambient[4]);
 	void Disable_Light(unsigned index);
 
 	// Write every program this builds to a file in this directory, named by the state it was built
@@ -131,10 +136,21 @@ public:
 	// description is a key, and the key is not the code.
 	void Set_Dump_Directory(const char * directory);
 
-	// Keep every compiled program in this file across runs: read now, written at Shutdown when a
-	// program was compiled that the file did not hold.  A program compiled mid-match costs 25 to
-	// 60ms on the frame that first needs it, which is the stutter a new explosion brought.
+	// Keep every compiled program in this file across runs: read now, written while the game runs
+	// (Save_Shader_Cache_If_Due) and at Shutdown when a program was compiled that the file did not
+	// hold.  A program compiled mid-match costs 25 to 60ms on the frame that first needs it, which is
+	// the stutter a new explosion brought.
 	void Set_Shader_Cache_Path(const char * path);
+	// The programs that ship with the game, compiled by Microsoft's d3dcompiler_47 when the file was
+	// recorded (Tools/record-dx11-shaders.ps1): read after the user's cache, so for the same source a
+	// shipped program wins.  A first start then compiles only what the recording never met.  Under
+	// Wine, whose d3dcompiler is vkd3d-shader, a single compile took minutes (measured on a Steam Deck, X2).
+	void Load_Shipped_Programs(const char * path);
+	unsigned Shipped_Program_Count() const { return ShippedPrograms; }
+	// Writes the cache if a program was compiled since the last write and the last write is at least
+	// SHADER_CACHE_SAVE_INTERVAL_MS old: called once a frame, so a run that dies before Shutdown, or
+	// is killed, keeps what it compiled.
+	void Save_Shader_Cache_If_Due();
 	unsigned Compiled_Program_Count() const { return static_cast<unsigned>(CompiledPrograms.size()); }
 
 	// Binds the swap chain's back buffer and depth buffer and sets the viewport over the whole of
@@ -267,7 +283,7 @@ private:
 		// One over the viewport's width and height, for the pre-transformed draws.  It goes before
 		// the lights because the generated block declares only as many lights as the state has.
 		float ViewportInverse[4];
-		float LightFields[MAXIMUM_VERTEX_LIGHTS][6][4];
+		float LightFields[MAXIMUM_VERTEX_LIGHTS][VERTEX_REGISTERS_PER_LIGHT][4];
 	};
 
 	// The normal map fields go last: a program that is not normal mapped declares the first three
@@ -400,6 +416,7 @@ private:
 		float Specular[4];
 		float Attenuation[4];
 		float Spot[4];
+		float Ambient[4];
 	};
 	Light Lights[MAXIMUM_VERTEX_LIGHTS];
 
@@ -643,6 +660,8 @@ private:
 	std::map<unsigned long long, std::vector<unsigned char> > CompiledPrograms;
 	std::string ShaderCachePath;
 	bool ShaderCacheChanged;
+	unsigned ShippedPrograms;
+	unsigned long LastShaderCacheSave;
 
 	unsigned long long RefusedNoBuffer;
 	unsigned long long RefusedNoStage;

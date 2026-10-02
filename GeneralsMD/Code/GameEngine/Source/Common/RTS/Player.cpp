@@ -15,6 +15,8 @@
 **	You should have received a copy of the GNU General Public License
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+// Modified 2025-2026 by Olcay Seygan for Zero Hour Reforged; see the git history.
+// Modified 2026 by İlyas Akın for the macOS/Linux port; see NOTICE.md and the git history.
 
 ////////////////////////////////////////////////////////////////////////////////
 //																																						//
@@ -43,6 +45,8 @@
 //-----------------------------------------------------------------------------
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file int the GameEngine
+
+#include "Lib/WideCharFns.h"
 
 #define DEFINE_SCIENCE_AVAILABILITY_NAMES
 
@@ -184,9 +188,9 @@ AsciiString kindofMaskAsAsciiString(KindOfMaskType m)
 }
 void dumpBattlePlanBonuses(const BattlePlanBonuses *b, AsciiString name, const Player *p, const Object *o, AsciiString fname, Int line, Bool doDebugLog)
 {
-	CRCDEBUG_LOG(("dumpBattlePlanBonuses() %s:%d %s\n  Player %d(%ls) object %d(%s) armor:%g/%8.8X bombardment:%d, holdTheLine:%d, searchAndDestroy:%d sight:%g/%8.8X, valid:%s invalid:%s\n",
+	CRCDEBUG_LOG(("dumpBattlePlanBonuses() %s:%d %s\n  Player %d(%s) object %d(%s) armor:%g/%8.8X bombardment:%d, holdTheLine:%d, searchAndDestroy:%d sight:%g/%8.8X, valid:%s invalid:%s\n",
 		fname.str(), line, name.str(),
-		(p)?p->getPlayerIndex():-1, (p)?((Player *)p)->getPlayerDisplayName().str():L"<No Name>", (o)?o->getID():-1, (o)?o->getTemplate()->getName().str():"<No Name>",
+		(p)?p->getPlayerIndex():-1, WideCharAsUtf8( (p)?((Player *)p)->getPlayerDisplayName().str():u"<No Name>" ).str(), (o)?o->getID():-1, (o)?o->getTemplate()->getName().str():"<No Name>",
 		b->m_armorScalar, AS_INT(b->m_armorScalar),
 		b->m_bombardment, b->m_holdTheLine, b->m_searchAndDestroy,
 		b->m_sightRangeScalar, AS_INT(b->m_sightRangeScalar),
@@ -194,9 +198,9 @@ void dumpBattlePlanBonuses(const BattlePlanBonuses *b, AsciiString name, const P
 		kindofMaskAsAsciiString(b->m_invalidKindOf).str()));
 	if (!doDebugLog)
 		return;
-	DEBUG_LOG_DEV(("dumpBattlePlanBonuses() %s:%d %s\n  Player %d(%ls) object %d(%s) armor:%g/%8.8X bombardment:%d, holdTheLine:%d, searchAndDestroy:%d sight:%g/%8.8X, valid:%s invalid:%s\n",
+	DEBUG_LOG_DEV(("dumpBattlePlanBonuses() %s:%d %s\n  Player %d(%s) object %d(%s) armor:%g/%8.8X bombardment:%d, holdTheLine:%d, searchAndDestroy:%d sight:%g/%8.8X, valid:%s invalid:%s\n",
 		fname.str(), line, name.str(),
-		(p)?p->getPlayerIndex():-1, (p)?((Player *)p)->getPlayerDisplayName().str():L"<No Name>", (o)?o->getID():-1, (o)?o->getTemplate()->getName().str():"<No Name>",
+		(p)?p->getPlayerIndex():-1, WideCharAsUtf8( (p)?((Player *)p)->getPlayerDisplayName().str():u"<No Name>" ).str(), (o)?o->getID():-1, (o)?o->getTemplate()->getName().str():"<No Name>",
 		b->m_armorScalar, AS_INT(b->m_armorScalar),
 		b->m_bombardment, b->m_holdTheLine, b->m_searchAndDestroy,
 		b->m_sightRangeScalar, AS_INT(b->m_sightRangeScalar),
@@ -546,14 +550,13 @@ void Player::init(const PlayerTemplate* pt)
 	m_sciencesHidden.clear();
 
 	{
+		// The timers are the list's own values, so an erase destroys one and there is nothing left to
+		// clear.  This cleared each after its erase, a write into the freed node (ASan, ZH_SANITIZE, at the
+		// reset after a match).  GameMemory keeps a freed block's links in its header (m_nextBlock), so on
+		// that allocator the write landed in dead user data and changed nothing; the frees are as before.
 		SpecialPowerReadyTimerListIterator it = m_specialPowerReadyTimerList.begin();
 		while(it != m_specialPowerReadyTimerList.end())
-		{
-			SpecialPowerReadyTimerType *sprt = &(*it);
 			it = m_specialPowerReadyTimerList.erase( it );
-			if(sprt)
-				sprt->clear();
-		}
 	}
 
 	KindOfPercentProductionChangeListIt it = m_kindOfPercentProductionChangeList.begin();
@@ -4060,9 +4063,9 @@ static void localApplyBattlePlanBonusesToObject( Object *obj, void *userData )
 				{
 					BodyModuleInterface *body = objectToModify->getBodyModule();
 					body->applyDamageScalar( bonus->m_armorScalar );
-					CRCDEBUG_LOG(("Applying armor scalar of %g (%8.8X) to object %d (%ls) owned by player %d\n",
+					CRCDEBUG_LOG(("Applying armor scalar of %g (%8.8X) to object %d (%s) owned by player %d\n",
 						bonus->m_armorScalar, AS_INT(bonus->m_armorScalar), objectToModify->getID(),
-						objectToModify->getTemplate()->getDisplayName().str(),
+						WideCharAsUtf8( objectToModify->getTemplate()->getDisplayName().str() ).str(),
 						objectToModify->getControllingPlayer()->getPlayerIndex()));
 					DEBUG_LOG_DEV(("After apply, armor scalar is %g\n", body->getDamageScalar()));
 				}
@@ -4528,7 +4531,7 @@ void Player::crc( Xfer *xfer )
 	// Player battle plan bonuses
 	Bool battlePlanBonus = m_battlePlanBonuses != NULL;
 	xfer->xferBool( &battlePlanBonus );
-	CRCDEBUG_LOG(("Player %d[%ls] %s battle plans\n", m_playerIndex, m_playerDisplayName.str(), (battlePlanBonus)?"has":"doesn't have"));
+	CRCDEBUG_LOG(("Player %d[%s] %s battle plans\n", m_playerIndex, WideCharAsUtf8( m_playerDisplayName.str() ).str(), (battlePlanBonus)?"has":"doesn't have"));
 	if( m_battlePlanBonuses )
 	{
 		CRCDUMPBATTLEPLANBONUSES(m_battlePlanBonuses, this, NULL);

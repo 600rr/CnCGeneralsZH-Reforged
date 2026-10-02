@@ -15,6 +15,8 @@
 **	You should have received a copy of the GNU General Public License
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+// Modified 2025-2026 by Olcay Seygan for Zero Hour Reforged; see the git history.
+// Modified 2026 by İlyas Akın for the macOS/Linux port; see NOTICE.md and the git history.
 
 ////////////////////////////////////////////////////////////////////////////////
 //																																						//
@@ -28,6 +30,7 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <stdlib.h>
+#include "Lib/Clock.h"
 
 #include "Common/GlobalData.h"
 #include "Common/Player.h"
@@ -59,10 +62,10 @@
 #include "W3DDevice/GameClient/W3DDisplay.h"
 #include "W3DDevice/GameClient/W3DScene.h"
 #include "W3DDevice/Common/W3DConvert.h"
-#include "WW3D2/WW3D.h"
-#include "WW3D2/HAnim.h"
-#include "WW3D2/Texture.h"
-#include "WW3D2/DX8Wrapper.h"
+#include "WW3D2/ww3d.h"
+#include "WW3D2/hanim.h"
+#include "WW3D2/texture.h"
+#include "WW3D2/dx8wrapper.h"
 #include "WW3D2/dx8vertexbuffer.h"
 #include "WW3D2/dx8indexbuffer.h"
 #include "WW3D2/vertmaterial.h"
@@ -79,9 +82,9 @@
 
 #ifdef _DEBUG
 #include "W3DDevice/GameClient/HeightMap.h"
-#include "WW3D2/DX8IndexBuffer.h"
-#include "WW3D2/DX8VertexBuffer.h"
-#include "WW3D2/VertMaterial.h"
+#include "WW3D2/dx8indexbuffer.h"
+#include "WW3D2/dx8vertexbuffer.h"
+#include "WW3D2/vertmaterial.h"
 class DebugHintObject : public RenderObjClass
 {	
 
@@ -346,7 +349,7 @@ static void loadText( char *filename, GameWindow *listboxText )
 		line.translate(buffer);
 		line.trim();
 		if (line.isEmpty())
-			line = UnicodeString(L" ");
+			line = UnicodeString(u" ");
 		GadgetListBoxAddEntryText(listboxText, line, color, -1, -1);
 	}  // end while
 
@@ -479,7 +482,7 @@ void W3DInGameUI::draw( void )
 	extern Real TheUIPostDrawMS;
 	extern Real TheWindowRepaintMS;
 	Int64 tPostStart, tPostEnd, tWinEnd, freq;
-	QueryPerformanceCounter( (LARGE_INTEGER *)&tPostStart );
+	tPostStart = Clock_Ticks();
 #endif
 
 	// While the map loads the display calls this every pass to paint the load screen's windows, and
@@ -490,14 +493,14 @@ void W3DInGameUI::draw( void )
 		postDraw();
 
 #ifdef DEBUG_LOGGING
-	QueryPerformanceCounter( (LARGE_INTEGER *)&tPostEnd );
+	tPostEnd = Clock_Ticks();
 #endif
 
 	TheWindowManager->winRepaint();
 
 #ifdef DEBUG_LOGGING
-	QueryPerformanceCounter( (LARGE_INTEGER *)&tWinEnd );
-	QueryPerformanceFrequency( (LARGE_INTEGER *)&freq );
+	tWinEnd = Clock_Ticks();
+	freq = Clock_Ticks_Per_Second();
 	if( freq > 0 )
 	{
 		TheUIPostDrawMS = (Real)((double)(tPostEnd - tPostStart) * 1000.0 / (double)freq);
@@ -1002,6 +1005,7 @@ static OrderCursorArt s_orderCursorArt[ Mouse::NUM_MOUSE_CURSORS ];
 //-------------------------------------------------------------------------------------------------
 static const Image *loadOrderCursorImage( Mouse::MouseCursor cursor, ICoord2D *hotSpot )
 {
+#if defined(_WIN32)	// the .ANI cursor through Win32's cursor API; off Windows the cursor is C3's
 	const AsciiString& name = TheMouse->m_cursorInfo[ cursor ].textureName;
 	if( name.isEmpty() )
 		return NULL;
@@ -1097,6 +1101,11 @@ static const Image *loadOrderCursorImage( Mouse::MouseCursor cursor, ICoord2D *h
 		DeleteObject( info.hbmMask );
 
 	return result;
+#else
+	(void)cursor;
+	(void)hotSpot;
+	return NULL;
+#endif
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1173,7 +1182,7 @@ void W3DInGameUI::drawOrderStep( const OrderHint& hint, const ICoord2D& tip, Uns
 			number->setFont( TheWindowManager->winFindFont( AsciiString( "Arial" ),
 																TheGlobalLanguageData->adjustFontSize( ORDER_STEP_POINT_SIZE ), TRUE ) );
 			UnicodeString text;
-			text.format( L"%d", hint.step );
+			text.format( u"%d", hint.step );
 			number->setText( text );
 		}
 
@@ -1223,7 +1232,7 @@ void W3DInGameUI::drawOrderHints( void )
 	const UnsignedInt MARKER_SLIDE_MS = 130;
 	const Real MARKER_SLIDE_PIXELS = 13.0f;
 
-	const UnsignedInt nowMs = timeGetTime();
+	const UnsignedInt nowMs = Clock_Milliseconds();
 
 	for( std::vector<OrderHint>::const_iterator it = hints.begin(); it != hints.end(); ++it )
 	{

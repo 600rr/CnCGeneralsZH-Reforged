@@ -15,11 +15,12 @@
 **	You should have received a copy of the GNU General Public License
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+// Modified 2026 by İlyas Akın for the macOS/Linux port; see NOTICE.md and the git history.
 
 /*
 ** The fixed-function texture stages, written out as HLSL.
 **
-** D3D11 has no texture stage combiners, so RENDERER-ROADMAP.md's phase 2 has to say in a shader
+** D3D11 has no texture stage combiners, so the Direct3D 11 backend has to say in a shader
 ** what the stages were computing.  -ffprobe counted what the game actually asks for across four
 ** maps: 28 distinct combiner programs, never more than two stages, and a vocabulary of five
 ** operations over four arguments.  This turns one of those descriptions into the shader.
@@ -35,7 +36,7 @@
 #ifndef FFSHADER_H
 #define FFSHADER_H
 
-#include <d3d9.h>
+#include "ffstate.h"
 
 #include <string>
 
@@ -48,15 +49,15 @@ const unsigned MAXIMUM_COMBINER_STAGES = 4;
 // D3DTA_ALPHAREPLICATE the way the device does; the generator applies both.
 struct CombinerStage
 {
-	DWORD ColourOperation;
-	DWORD ColourArgument0;
-	DWORD ColourArgument1;
-	DWORD ColourArgument2;
-	DWORD AlphaOperation;
-	DWORD AlphaArgument0;
-	DWORD AlphaArgument1;
-	DWORD AlphaArgument2;
-	DWORD TextureCoordinateIndex;
+	FixedFunctionValue ColourOperation;
+	FixedFunctionValue ColourArgument0;
+	FixedFunctionValue ColourArgument1;
+	FixedFunctionValue ColourArgument2;
+	FixedFunctionValue AlphaOperation;
+	FixedFunctionValue AlphaArgument0;
+	FixedFunctionValue AlphaArgument1;
+	FixedFunctionValue AlphaArgument2;
+	FixedFunctionValue TextureCoordinateIndex;
 	bool  TextureBound;
 };
 
@@ -70,7 +71,7 @@ struct PixelPipelineDescription
 	bool AlphaTestEnabled;
 
 	// D3DCMP_*, the comparison the surviving alpha has to pass.
-	DWORD AlphaFunction;
+	FixedFunctionValue AlphaFunction;
 
 	bool FogEnabled;
 };
@@ -95,6 +96,14 @@ struct CombinerDescription
 	// position comes from SV_Position and one matrix, which is what keeps this off the varyings the
 	// two generators have to agree on.  SHADOW-MAP-PLAN.md phase 2.
 	bool ShadowReceiving = false;
+
+	// D3DRS_SPECULARENABLE: after the stages the pixel gains the vertex's specular colour, RGB only
+	// (D3DRENDERSTATETYPE: "added to the base color after the texture cascade but before alpha
+	// blending").  Every profile writes it, D3D9's included: D3D9 does the add only for its
+	// fixed-function stages, and a bound pixel shader, which the D3D9 profile's program is, replaces
+	// it ("Writing HLSL Shaders in Direct3D 9").  A normal mapped program adds its own highlight
+	// instead.  Initialised here for a caller that fills the rest field by field.
+	bool SpecularAdd = false;
 };
 
 // The normal mapped pixel program reads this many directional lights from its constants.  Slots
@@ -206,10 +215,14 @@ const unsigned NORMAL_MAPPED_LIGHTS = 4;
 // is a sampler2D read with tex2D in one and a Texture2D beside a SamplerState read with Sample in
 // the other, the output semantic is COLOR against SV_Target, and the texture factor is a constant
 // register against a constant buffer.  The arithmetic between them is the same text.
+//
+// SDL3_GPU is the D3D11 text with its bindings rewritten for SDL3's GPU API (sdl3target.h): what the
+// Metal and Vulkan backend compiles through glslang and SPIRV-Cross (decision 4).
 enum CombinerShaderTarget
 {
 	COMBINER_SHADER_TARGET_D3D9,
-	COMBINER_SHADER_TARGET_D3D11
+	COMBINER_SHADER_TARGET_D3D11,
+	COMBINER_SHADER_TARGET_SDL3_GPU
 };
 
 bool CombinerShader_Generate(const CombinerDescription & description, CombinerShaderTarget target,

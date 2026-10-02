@@ -15,6 +15,8 @@
 **	You should have received a copy of the GNU General Public License
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+// Modified 2025-2026 by Olcay Seygan for Zero Hour Reforged; see the git history.
+// Modified 2026 by İlyas Akın for the macOS/Linux port; see NOTICE.md and the git history.
 
 /***********************************************************************************************
  ***              C O N F I D E N T I A L  ---  W E S T W O O D  S T U D I O S               ***
@@ -49,6 +51,7 @@
 #include "statistics.h"
 #include <wwprofile.h>
 #include <algorithm>
+#include "Lib/Clock.h"		// Clock_Ticks: QueryPerformanceCounter on Windows, a monotonic clock elsewhere
 
 #ifdef _INTERNAL
 // for occasional debugging...
@@ -386,11 +389,11 @@ static float flush_profile_sort_ms;
 static float flush_profile_copy_ms;
 static float flush_profile_draw_ms;
 
-static float flushProfileElapsedMS(__int64 from, __int64 to)
+static float flushProfileElapsedMS(long long from, long long to)
 {
-	static __int64 freq = 0;
+	static long long freq = 0;
 	if (freq == 0)
-		QueryPerformanceFrequency((LARGE_INTEGER *)&freq);
+		freq = Clock_Ticks_Per_Second();
 	if (freq < 1)
 		return 0.0f;
 	return (float)((double)(to - from) * 1000.0 / (double)freq);
@@ -644,8 +647,8 @@ static void Flush_Sorting_Batch(const TempIndexStruct* entries,unsigned entry_co
 	job.indices=NULL;
 	const int chunks=(int)((entry_count+ENTRIES_PER_COPY_CHUNK-1)/ENTRIES_PER_COPY_CHUNK);
 
-	__int64 tCopyStart, tCopyEnd, tDrawEnd;
-	QueryPerformanceCounter((LARGE_INTEGER *)&tCopyStart);
+	long long tCopyStart, tCopyEnd, tDrawEnd;
+	tCopyStart = Clock_Ticks();
 
 	DynamicVBAccessClass dyn_vb_access(BUFFER_TYPE_DYNAMIC_DX8,dynamic_fvf_type,(unsigned short)vertex_count);
 	{
@@ -674,7 +677,7 @@ static void Flush_Sorting_Batch(const TempIndexStruct* entries,unsigned entry_co
 	DX8Wrapper::Set_Index_Buffer(dyn_ib_access,0); // Override with this buffer (do something to prevent need for this!)
 	DX8Wrapper::Set_Vertex_Buffer(dyn_vb_access); // Override with this buffer (do something to prevent need for this!)
 
-	QueryPerformanceCounter((LARGE_INTEGER *)&tCopyEnd);
+	tCopyEnd = Clock_Ticks();
 	flush_profile_copy_ms += flushProfileElapsedMS(tCopyStart, tCopyEnd);
 
 	DX8Wrapper::Apply_Render_State_Changes();
@@ -707,7 +710,7 @@ static void Flush_Sorting_Batch(const TempIndexStruct* entries,unsigned entry_co
 	Apply_Render_State(overlapping_nodes[node_id]->sorting_state);
 	DX8Wrapper::Draw_Triangles(run_first_index,run_triangles,run_first_vertex,vertex_cursor-run_first_vertex);
 
-	QueryPerformanceCounter((LARGE_INTEGER *)&tDrawEnd);
+	tDrawEnd = Clock_Ticks();
 	flush_profile_draw_ms += flushProfileElapsedMS(tCopyEnd, tDrawEnd);
 }
 
@@ -728,8 +731,8 @@ void SortingRendererClass::Flush_Sorting_Pool()
 	SNAPSHOT_SAY(("SortingSystem - Flush \n"));
 
 	flush_profile_entries += overlapping_entry_count;
-	__int64 tSortStart, tSortEnd;
-	QueryPerformanceCounter((LARGE_INTEGER *)&tSortStart);
+	long long tSortStart, tSortEnd;
+	tSortStart = Clock_Ticks();
 
 	TempIndexStruct* tis=Get_Temp_Index_Array(overlapping_entry_count);
 
@@ -842,7 +845,7 @@ void SortingRendererClass::Flush_Sorting_Pool()
 
 	const TempIndexStruct* sorted=Sort_By_Depth(tis,temp_sort_scratch_array,overlapping_entry_count);
 
-	QueryPerformanceCounter((LARGE_INTEGER *)&tSortEnd);
+	tSortEnd = Clock_Ticks();
 	flush_profile_sort_ms += flushProfileElapsedMS(tSortStart, tSortEnd);
 
 	unsigned batch_start=0;

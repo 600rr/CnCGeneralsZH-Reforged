@@ -15,6 +15,8 @@
 **	You should have received a copy of the GNU General Public License
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+// Modified 2025-2026 by Olcay Seygan for Zero Hour Reforged; see the git history.
+// Modified 2026 by İlyas Akın for the macOS/Linux port; see NOTICE.md and the git history.
 
 ////////////////////////////////////////////////////////////////////////////////
 //																																						//
@@ -109,18 +111,18 @@ class TempWeaponBonusHelper;
 class ObjectWeaponStatusHelper;
 class ObjectDefectionHelper;
 
-enum CommandSourceType;
-enum HackerAttackMode;
-enum NameKeyType;
-enum SpecialPowerType;
-enum WeaponBonusConditionType;
-enum WeaponChoiceCriteria;
-enum WeaponSetConditionType;
-enum WeaponSetType;
-enum ArmorSetType;
-enum WeaponStatus;
-enum RadarPriorityType;
-enum CanAttackResult;
+enum CommandSourceType : Int;
+enum HackerAttackMode : Int;
+enum NameKeyType : Int;
+enum SpecialPowerType : Int;
+enum WeaponBonusConditionType : Int;
+enum WeaponChoiceCriteria : Int;
+enum WeaponSetConditionType : Int;
+enum WeaponSetType : Int;
+enum ArmorSetType : Int;
+enum WeaponStatus : Int;
+enum RadarPriorityType : Int;
+enum CanAttackResult : Int;
 
 // For ObjectStatusTypes
 #include "Common/ObjectStatusTypes.h"
@@ -381,8 +383,8 @@ public:
 	SpecialPowerUpdateInterface* findSpecialPowerWithOverridableDestinationActive( SpecialPowerType type = SPECIAL_INVALID ) const;
 	SpecialPowerUpdateInterface* findSpecialPowerWithOverridableDestination( SpecialPowerType type = SPECIAL_INVALID ) const;
 
-	CountermeasuresBehaviorInterface* Object::getCountermeasuresBehaviorInterface();
-	const CountermeasuresBehaviorInterface* Object::getCountermeasuresBehaviorInterface() const;
+	CountermeasuresBehaviorInterface* getCountermeasuresBehaviorInterface();
+	const CountermeasuresBehaviorInterface* getCountermeasuresBehaviorInterface() const;
 
 	inline ObjectStatusMaskType getStatusBits() const { return m_status; }
 	inline Bool testStatus( ObjectStatusTypes bit ) const { return m_status.test( bit ); }
@@ -523,7 +525,7 @@ public:
 	void setCommandSetStringOverride( AsciiString newCommandSetString ) { m_commandSetStringOverride = newCommandSetString; }
 
 	/// People are faking their commandsets, and, Surprise!, they are authoritative.  Challenge everything.
-	Bool Object::canProduceUpgrade( const UpgradeTemplate *upgrade );
+	Bool canProduceUpgrade( const UpgradeTemplate *upgrade ); 
 	Bool canSwitchToWeapon( WeaponSlotType weaponSlot ) const;	///< does our command set hold a button that switches to this slot
 
 

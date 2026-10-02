@@ -15,6 +15,8 @@
 **	You should have received a copy of the GNU General Public License
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+// Modified 2025-2026 by Olcay Seygan for Zero Hour Reforged; see the git history.
+// Modified 2026 by İlyas Akın for the macOS/Linux port; see NOTICE.md and the git history.
 
 ////////////////////////////////////////////////////////////////////////////////
 //																																						//
@@ -71,11 +73,11 @@ class Image;
 class GameFont;
 class GameSlot;
 class Player;
-enum LegalBuildCode;
-enum KindOfType;
-enum ShadowType;
-enum CanAttackResult;
-enum ScienceType;
+enum LegalBuildCode : Int;
+enum KindOfType : Int;
+enum ShadowType : Int;
+enum CanAttackResult : Int;
+enum ScienceType : Int;
 
 /** The smoke signals a player drops for their allies, carried as the integer argument of
   * MSG_PLACE_SIGNAL.  The value arrives from another machine, so the receiving side range-checks
@@ -89,7 +91,7 @@ enum SignalKind
 };
 
 // ------------------------------------------------------------------------------------------------
-enum RadiusCursorType
+enum RadiusCursorType : Int
 {
 	RADIUSCURSOR_NONE = 0,
 	RADIUSCURSOR_ATTACK_DAMAGE_AREA,
@@ -1889,6 +1891,8 @@ protected:
 // the singleton
 extern InGameUI *TheInGameUI;
 
+/// How many rings of the blind-spot grid a defence's reach needs, capped by the map's width plus height.
+Int blindSpotRingCount( Real radius, Real mapSpan );
 //
 // A readout on a cell of the HUD: a countdown, a key, a price, a power figure, a count.  Every one
 // of them stands on a solid plate in a corner of the cell's inner rectangle, which is the cell less

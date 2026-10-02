@@ -150,6 +150,8 @@ NEW_CONTROLS = [
     (COMBO,  "ComboBoxPlayerColors",   None),
     (LABEL,  "LabelHudScale",          "GUI:HudScale"),
     (COMBO,  "ComboBoxHudScale",       None),
+    (LABEL,  "LabelMenuLayout",        "GUI:MenuLayout"),
+    (COMBO,  "ComboBoxMenuLayout",     None),
     (LABEL,  "LabelLanguage",          "GUI:Language"),
     (COMBO,  "ComboBoxLanguage",       None),
     (CHECK,  "CheckOrderLines",        "GUI:OrderLines"),
@@ -159,6 +161,7 @@ NEW_CONTROLS = [
     (CHECK,  "CheckEmptyBuildingPips", "GUI:EmptyBuildingPips"),
     (CHECK,  "CheckZoomToCursor",      "GUI:ZoomToCursor"),
     (CHECK,  "CheckIsometricCamera",   "GUI:IsometricCamera"),
+    (CHECK,  "CheckSmoothMotion",      "GUI:SmoothMotion"),
     (CHECK,  "CheckStartAtMaxZoom",    "GUI:StartAtMaxZoom"),
     (LABEL,  "LabelCloserZoom",        "GUI:CloserZoom"),
     (SLIDER, "SliderCloserZoom",       None),
@@ -233,9 +236,11 @@ GROUP_LAYOUT = [
         setting("LabelMonitor", "ComboBoxMonitor"),
         setting("ResolutionLabel", "ComboBoxResolution"),
         setting("LabelWindowMode", "ComboBoxWindowMode"),
+        setting("LabelMenuLayout", "ComboBoxMenuLayout"),
         ("check", "CheckVSync")]),
     ("PageDisplay",  1, "GUI:OptionsGroupPicture", [
-        setting("GammaLabel", "SliderGamma", "ValueGamma")]),
+        setting("GammaLabel", "SliderGamma", "ValueGamma"),
+        ("check", "CheckSmoothMotion")]),
 
     ("PageGraphics", 0, "GUI:OptionsGroupDetail", [
         ("check", "CheckClassicGraphics"),

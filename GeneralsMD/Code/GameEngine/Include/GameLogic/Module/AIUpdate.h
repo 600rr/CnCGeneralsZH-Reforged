@@ -15,6 +15,8 @@
 **	You should have received a copy of the GNU General Public License
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+// Modified 2025-2026 by Olcay Seygan for Zero Hour Reforged; see the git history.
+// Modified 2026 by İlyas Akın for the macOS/Linux port; see NOTICE.md and the git history.
 
 ////////////////////////////////////////////////////////////////////////////////
 //																																						//
@@ -61,9 +63,9 @@ class HackInternetAIInterface;
 class AssaultTransportAIInterface;
 class JetAIUpdate;
 
-enum AIStateType;
-enum HordeActionType;
-enum ObjectID;
+enum AIStateType : Int;
+enum HordeActionType : Int;
+enum ObjectID : Int;
 
 
 //-------------------------------------------------------------------------------------------------
@@ -74,7 +76,7 @@ const Real FAST_AS_POSSIBLE = 999999.0f;
 // Note: these values are saved in save files, so you MUST NOT REMOVE OR CHANGE
 // existing values!
 //
-enum LocomotorSetType
+enum LocomotorSetType : Int
 {
 	LOCOMOTORSET_INVALID = -1,
 

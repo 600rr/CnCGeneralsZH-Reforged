@@ -15,6 +15,8 @@
 **	You should have received a copy of the GNU General Public License
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+// Modified 2025-2026 by Olcay Seygan for Zero Hour Reforged; see the git history.
+// Modified 2026 by İlyas Akın for the macOS/Linux port; see NOTICE.md and the git history.
 
 ////////////////////////////////////////////////////////////////////////////////
 //																																						//
@@ -29,6 +31,7 @@
 
 // INCLUDES ///////////////////////////////////////////////////////////////////////////////////////
 #include "PreRTS.h"	// This must go first in EVERY cpp file int the GameEngine
+#include "Lib/Clock.h"
 #include "Common/GameMemory.h"
 #include "Common/GameState.h"
 #include "Common/GlobalData.h"
@@ -50,6 +53,7 @@
 #include "GameLogic/GameLogic.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/AIPlayer.h"
+#include "GameClient/Drawable.h"
 #include "GameLogic/SidesList.h"
 #include "GameLogic/AI.h"
 #include "GameLogic/AIPathfind.h"
@@ -74,6 +78,7 @@
 #include "GameLogic/Module/ContainModule.h"
 #include "GameLogic/Module/JetAIUpdate.h"		// a Comanche is a jet with no runway
 #include <map>
+#include "Platform/MsvcFloatCasts.h"
 
 #ifdef _INTERNAL
 // for occasional debugging...
@@ -204,7 +209,7 @@ static Real aiPlayerElapsedMS( const Int64 &from, const Int64 &to )
 {
 	static Int64 freq = 0;
 	if( freq == 0 )
-		QueryPerformanceFrequency( (LARGE_INTEGER *)&freq );
+		freq = Clock_Ticks_Per_Second();
 	if( freq == 0 )
 		return 0.0f;
 	return (Real)( (double)(to - from) * 1000.0 / (double)freq );
@@ -225,7 +230,7 @@ static Int64 theAIBaseSubStart;
 /*static*/ void AIPlayer::profileBaseSubBegin( void )
 {
 #ifdef DEBUG_LOGGING
-	QueryPerformanceCounter( (LARGE_INTEGER *)&theAIBaseSubStart );
+	theAIBaseSubStart = Clock_Ticks();
 #endif
 }
 
@@ -235,7 +240,7 @@ static Int64 theAIBaseSubStart;
 	if( slot < 0 || slot >= BASE_SUB_COUNT )
 		return;
 	Int64 now;
-	QueryPerformanceCounter( (LARGE_INTEGER *)&now );
+	now = Clock_Ticks();
 	theAIBaseSubMS[ slot ] += aiPlayerElapsedMS( theAIBaseSubStart, now );
 	++theAIBaseSubCalls[ slot ];
 #endif
@@ -1175,6 +1180,10 @@ Object *AIPlayer::buildStructureWithDozer(const ThingTemplate *bldgPlan, BuildLi
 		bldgName.concat(" - Dozer unable to reach building.  Teleporting.");
 		TheScriptEngine->AppendDebugMessage(bldgName, false);
 		dozer->setPosition(&pos);
+		// R1, smooth motion: a teleport, not travel - the picture shows the new place at once.  A flag on the
+		// client's drawable, which nothing in the logic reads.
+		if (dozer->getDrawable() != NULL)
+			dozer->getDrawable()->markMotionDiscontinuity();
 	}
 
 	Object *bldg = TheBuildAssistant->buildObjectNow( dozer, 
@@ -3907,7 +3916,7 @@ Int AIPlayer::computeBuildDelay( Real seconds, Int money, Int poorAt, Int wealth
 	}	else if (money > wealthyAt) {
 		seconds = seconds/wealthyMod;
 	}
-	return (Int)(seconds*LOGICFRAMES_PER_SECOND/rateScale);
+	return floatToIntAsMsvc(seconds*LOGICFRAMES_PER_SECOND/rateScale);
 }
 
 //----------------------------------------------------------------------------------------------------------
@@ -4340,13 +4349,13 @@ static Int64 theAIPhaseStart;
 
 static void aiPhaseBegin( void )
 {
-	QueryPerformanceCounter( (LARGE_INTEGER *)&theAIPhaseStart );
+	theAIPhaseStart = Clock_Ticks();
 }
 
 static void aiPhaseEnd( Int phase )
 {
 	Int64 now;
-	QueryPerformanceCounter( (LARGE_INTEGER *)&now );
+	now = Clock_Ticks();
 	theAIPhaseMS[ phase ] += aiPlayerElapsedMS( theAIPhaseStart, now );
 }
 
@@ -4391,7 +4400,7 @@ void AIPlayer::update( void )
 	//USE_PERF_TIMER(AIPlayer_update)
 #ifdef DEBUG_LOGGING
 	Int64 playerStart;
-	QueryPerformanceCounter( (LARGE_INTEGER *)&playerStart );
+	playerStart = Clock_Ticks();
 #endif
 
 	AI_PHASE( AIP_BASE,    doBaseBuilding() );			// See if it's time to build another building.
@@ -4414,7 +4423,7 @@ void AIPlayer::update( void )
 
 #ifdef DEBUG_LOGGING
 	Int64 playerEnd;
-	QueryPerformanceCounter( (LARGE_INTEGER *)&playerEnd );
+	playerEnd = Clock_Ticks();
 	const Real playerMS = aiPlayerElapsedMS( playerStart, playerEnd );
 	++theAIPlayersUpdated;
 	if( playerMS > theAIWorstPlayerMS )

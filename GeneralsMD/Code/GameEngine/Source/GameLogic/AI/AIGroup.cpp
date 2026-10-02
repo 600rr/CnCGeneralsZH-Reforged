@@ -15,6 +15,8 @@
 **	You should have received a copy of the GNU General Public License
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+// Modified 2025-2026 by Olcay Seygan for Zero Hour Reforged; see the git history.
+// Modified 2026 by İlyas Akın for the macOS/Linux port; see NOTICE.md and the git history.
 
 ////////////////////////////////////////////////////////////////////////////////
 //																																						//
@@ -26,6 +28,7 @@
 // Encapsulation of a simple group of AI agents
 // Author: Michael S. Booth, January 2002
 #include "PreRTS.h"	// This must go first in EVERY cpp file int the GameEngine
+#include "Lib/Clock.h"
 
 
 #include "Common/ActionManager.h"
@@ -2029,7 +2032,7 @@ void AIGroup::groupMoveToPosition( const Coord3D *p_posIn, Bool addWaypoint, Com
 		 team taking an approach path is the slowest frame left in a four-player match. */
 #ifdef DEBUG_LOGGING
 	Int64 corridorStart, corridorEnd, corridorFreq;
-	QueryPerformanceCounter( (LARGE_INTEGER *)&corridorStart );
+	corridorStart = Clock_Ticks();
 #endif
 	if (!addWaypoint && !isFormation && !gatherOnPoint) {
 		friend_computeGroundPath(pos, cmdSource);
@@ -2037,8 +2040,8 @@ void AIGroup::groupMoveToPosition( const Coord3D *p_posIn, Bool addWaypoint, Com
 		didVehicles = friend_moveVehicleToPos(pos, cmdSource);
 	}
 #ifdef DEBUG_LOGGING
-	QueryPerformanceCounter( (LARGE_INTEGER *)&corridorEnd );
-	QueryPerformanceFrequency( (LARGE_INTEGER *)&corridorFreq );
+	corridorEnd = Clock_Ticks();
+	corridorFreq = Clock_Ticks_Per_Second();
 	const Real corridorMS = corridorFreq > 0
 		? (Real)((double)(corridorEnd - corridorStart) * 1000.0 / (double)corridorFreq) : 0.0f;
 #endif
@@ -2476,7 +2479,7 @@ void AIGroup::groupMoveToPosition( const Coord3D *p_posIn, Bool addWaypoint, Com
 		 care of gets its own destination adjusted and its own path. */
 #ifdef DEBUG_LOGGING
 	Int64 ordersEnd;
-	QueryPerformanceCounter( (LARGE_INTEGER *)&ordersEnd );
+	ordersEnd = Clock_Ticks();
 	if( corridorFreq > 0 )
 	{
 		const Real ordersMS =
