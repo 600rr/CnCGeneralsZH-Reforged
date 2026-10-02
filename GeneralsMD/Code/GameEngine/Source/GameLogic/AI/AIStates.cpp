@@ -5420,12 +5420,14 @@ void AIAttackAimAtTargetState::crc( Xfer *xfer )
 void AIAttackAimAtTargetState::xfer( Xfer *xfer )
 {
   // version
-  XferVersion currentVersion = 1;
+  XferVersion currentVersion = 2;
   XferVersion version = currentVersion;
   xfer->xferVersion( &version, currentVersion );
 
 	xfer->xferBool(&m_canTurnInPlace);
 	xfer->xferBool(&m_setLocomotor);
+	if (version >= 2)
+		xfer->xferBool(&m_isRunningOut);
 
 }  // end xfer
 
@@ -5449,9 +5451,10 @@ StateReturnType AIAttackAimAtTargetState::onEnter()
 
 	Locomotor* curLoco = sourceAI->getCurLocomotor();
 	m_canTurnInPlace = curLoco ? curLoco->getMinSpeed() == 0.0f : false;
+	m_isRunningOut = FALSE;
 
 
-//	if (!victim) 
+//	if (!victim)
 //		return STATE_CONTINUE; // Just continue till we get a victim.
 // Ick.  This was originally a safety to a single line that required victim, and was never meant
 // as an early return to all cases.  We now want to use preattack frames on ground position targets
@@ -5552,6 +5555,96 @@ static void announceIntendedShot(Object *shooter, Object *victim)
 
 //----------------------------------------------------------------------------------------------------------
 /**
+ * Would a plane that turns toward its target as hard as it can get the target inside its aim cone while it
+ * is still minDist or more away?  relX is how far the target lies ahead of the nose, relY how far to the
+ * side, both in the plane's own frame; cosAimDelta is the cosine of the weapon's aim cone.  The turn is
+ * walked round the circle of turnRadius on the target's side in 5 degree steps.  A target inside that
+ * circle never enters the cone at all, which is the orbit a jet flew round a tank it could never point its
+ * nose at; one that enters it too close is the pass that ends with the target under the plane.  Plain
+ * arithmetic with a fixed rotation step, so every machine walks the same points.  No Object involved, so
+ * test_gameengine can link straight to it, the same trick as AIAttackMove_leashBroken.
+ */
+Bool AIAttackAim_needsRunOut( Real relX, Real relY, Real turnRadius, Real cosAimDelta, Real minDist )
+{
+	const Real STEP_COS = 0.99619470f;	// cos(5 deg)
+	const Real STEP_SIN = 0.08715574f;	// sin(5 deg)
+	const Real side = relY < 0.0f ? -1.0f : 1.0f;
+
+	// heading (hx, hy) and the point on the turn circle the plane is at, centre (0, side*R)
+	Real hx = 1.0f, hy = 0.0f;
+	for (Int step = 0; step < 72; ++step)
+	{
+		const Real px = turnRadius * hy * side;
+		const Real py = side * turnRadius * (1.0f - hx);
+		const Real tx = relX - px;
+		const Real ty = relY - py;
+		const Real distSqr = tx*tx + ty*ty;
+		const Real along = tx*hx + ty*hy;
+		// in the cone, or the turn has just swung the nose past it (a cone narrower than a step)
+		const Bool swungPast = side*(hx*ty - hy*tx) <= 0.0f;
+		if (along > 0.0f && (swungPast || along*along >= cosAimDelta*cosAimDelta*distSqr))
+			return distSqr < minDist*minDist;
+
+		const Real nx = hx*STEP_COS - hy*side*STEP_SIN;
+		hy = hy*STEP_COS + hx*side*STEP_SIN;
+		hx = nx;
+	}
+	return TRUE;
+}
+
+//----------------------------------------------------------------------------------------------------------
+/**
+ * Where a jet steers while it lines up a ground target.  Straight at it, unless turning toward it would
+ * not bring it into the aim cone before it is inside the weapon's minimum range: beside the cockpit, or
+ * just behind.  Turning in from there only ever ends with the target under the plane, so the jet holds its
+ * heading instead until the target is the minimum range and a full turn circle away, then comes back round
+ * with that much straight run left to fire in.  Aircraft against aircraft keep the straight chase.
+ */
+Coord3D AIAttackAimAtTargetState::computeAttackRunGoal( Object *source, const Weapon *weapon, const Coord3D &targetPos,
+																												Real relAngle, Real aimDelta )
+{
+	const Locomotor *loco = source->getAI()->getCurLocomotor();
+	const Object *victim = m_isAttackingObject ? getMachineGoalObject() : NULL;
+	// a building with a gun and no turret aims through here too, and has no locomotor at all
+	if (weapon == NULL || loco == NULL || loco->getAppearance() != LOCO_WINGS || !source->isAboveTerrain() ||
+			(victim && victim->isAirborneTarget()))
+	{
+		m_isRunningOut = FALSE;
+		return targetPos;
+	}
+
+	const Coord3D *pos = source->getPosition();
+	const Coord3D *dir = source->getUnitDirectionVector2D();
+	const Real dx = targetPos.x - pos->x;
+	const Real dy = targetPos.y - pos->y;
+
+	// a hard turn bleeds speed toward the locomotor's minimum, so the circle tightens as it goes
+	const Real speed = 0.5f*(max(source->getPhysics()->getForwardSpeed2D(), loco->getMinSpeed()) + loco->getMinSpeed());
+	const Real turnRadius = speed / loco->getMaxTurnRate(source->getBodyModule()->getDamageState());
+
+	// range is measured between the bounding spheres, so the minimum range seen from the centres is longer
+	Real minRange = weapon->getTemplate()->getMinimumAttackRange() + source->getGeometryInfo().getBoundingSphereRadius();
+	if (victim)
+		minRange += victim->getGeometryInfo().getBoundingSphereRadius();
+	const Real runOutDist = minRange + 2.0f*turnRadius;
+
+	if (m_isRunningOut)
+		m_isRunningOut = dx*dx + dy*dy < sqr(runOutDist);
+	else if (fabs(relAngle) >= aimDelta)
+		m_isRunningOut = AIAttackAim_needsRunOut(dx*dir->x + dy*dir->y, dir->x*dy - dir->y*dx, turnRadius,
+																						 Cos(aimDelta), minRange);
+
+	if (!m_isRunningOut)
+		return targetPos;
+
+	Coord3D ahead = *pos;
+	ahead.x += dir->x * runOutDist;
+	ahead.y += dir->y * runOutDist;
+	return ahead;
+}
+
+//----------------------------------------------------------------------------------------------------------
+/**
  * Orient the machine's owner to face towards the given target
  */
 
@@ -5643,7 +5736,8 @@ StateReturnType AIAttackAimAtTargetState::update()
 		}
 		else
 		{
-			sourceAI->setLocomotorGoalPositionExplicit(m_isAttackingObject ? *victim->getPosition() : *getMachineGoalPosition());
+			const Coord3D &targetPos = m_isAttackingObject ? *victim->getPosition() : *getMachineGoalPosition();
+			sourceAI->setLocomotorGoalPositionExplicit(computeAttackRunGoal(source, weapon, targetPos, relAngle, aimDelta));
 		}
 
 		if (fabs(relAngle) < aimDelta /*&& !m_preAttackFrames*/ )

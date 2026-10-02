@@ -927,8 +927,9 @@ public:
 		m_isAttackingObject(attackingObject),
 		m_canTurnInPlace(false),
 		m_isForceAttacking(forceAttacking),
-		m_setLocomotor(false)
-	{ 
+		m_setLocomotor(false),
+		m_isRunningOut(false)
+	{
 	}
 	virtual Bool isAttack() const { return TRUE; }
 	virtual StateReturnType onEnter();
@@ -940,10 +941,13 @@ protected:
 	virtual void xfer( Xfer *xfer );
 	virtual void loadPostProcess();
 private:
+	Coord3D computeAttackRunGoal( Object *source, const Weapon *weapon, const Coord3D &targetPos, Real relAngle, Real aimDelta );
+
 	const Bool m_isAttackingObject;
 	Bool m_canTurnInPlace;
 	Bool m_setLocomotor;
 	Bool m_isForceAttacking;
+	Bool m_isRunningOut;			///< a jet holding its heading away from a target too close to turn onto
 };
 EMPTY_DTOR(AIAttackAimAtTargetState)
 

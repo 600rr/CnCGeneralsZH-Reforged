@@ -1537,6 +1537,43 @@ TEST(attack_move_leashes_ground_units_but_never_aircraft)
 	CHECK( !AIAttackMove_leashBroken( false, true,  500.0f*cell, 0.0f, LEASH ) );
 }
 
+/* AIStates.cpp: a jet aiming at a ground target it cannot turn onto holds its heading and
+   comes back round, rather than circling it with the target forever beside the cockpit. */
+extern Bool AIAttackAim_needsRunOut( Real relX, Real relY, Real turnRadius, Real cosAimDelta, Real minDist );
+
+TEST(jet_runs_out_from_a_target_it_cannot_turn_onto)
+{
+	const Real R = 80.0f;
+	const Real COS30 = 0.8660254f;		/* the Raptor's and the MiG's 30 degree aim cone */
+
+	/* inside the turn circle on either side: no turn ever brings it into the cone, even with no
+	   minimum range at all.  This is the orbit. */
+	CHECK(  AIAttackAim_needsRunOut( 0.0f,   100.0f, R, COS30, 0.0f ) );
+	CHECK(  AIAttackAim_needsRunOut( 0.0f,  -100.0f, R, COS30, 0.0f ) );
+	CHECK(  AIAttackAim_needsRunOut( 20.0f,   70.0f, R, COS30, 0.0f ) );
+
+	/* just outside it the turn does bring it into the cone, but close: fine for a weapon with no
+	   minimum range, a pass that ends over the top of it for one with 100. */
+	CHECK( !AIAttackAim_needsRunOut( 0.0f,   170.0f, R, COS30, 0.0f ) );
+	CHECK(  AIAttackAim_needsRunOut( 0.0f,   170.0f, R, COS30, 100.0f ) );
+
+	/* already in the cone: the answer is just whether it is far enough away to shoot. */
+	CHECK(  AIAttackAim_needsRunOut( 150.0f,   0.0f, R, COS30, 151.0f ) );
+	CHECK( !AIAttackAim_needsRunOut( 150.0f,   0.0f, R, COS30, 149.0f ) );
+
+	/* far ahead or far behind, the turn leaves room: chase it as before. */
+	CHECK( !AIAttackAim_needsRunOut( 400.0f,  20.0f, R, COS30, 140.0f ) );
+	CHECK( !AIAttackAim_needsRunOut( -300.0f,  0.0f, R, COS30, 140.0f ) );
+
+	/* just behind: the turn comes round with it closer than the minimum range, so run out. */
+	CHECK(  AIAttackAim_needsRunOut( -100.0f,  0.0f, R, COS30, 170.0f ) );
+
+	/* a wider cone forgives a tighter spot: the Aurora's 45 degrees takes a target the 30 degree
+	   weapons have to run out for. */
+	CHECK(  AIAttackAim_needsRunOut( 60.0f,   60.0f, R, COS30, 0.0f ) );
+	CHECK( !AIAttackAim_needsRunOut( 60.0f,   60.0f, R, 0.7071068f, 0.0f ) );
+}
+
 /* AIStates.cpp: telling a firing pass from a failed approach when the attack move
    disengages.  A fight the unit spent rounds on was real however short; only one it
    never fired in is charged the re-acquire delay.  The ammunition count is the state

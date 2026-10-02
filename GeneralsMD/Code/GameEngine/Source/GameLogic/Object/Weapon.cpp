@@ -73,6 +73,7 @@
 #include "GameLogic/Weapon.h"
 
 #include "GameLogic/Module/AIUpdate.h"
+#include "GameLogic/Locomotor.h"
 #include "GameLogic/Module/AssistedTargetingUpdate.h"
 #include "GameLogic/Module/ProjectileStreamUpdate.h"
 #include "GameLogic/Module/PhysicsUpdate.h"
@@ -2310,9 +2311,22 @@ Bool Weapon::computeApproachTarget(const Object *source, const Object *target, c
 			// +/-PI seam measured as ~6 rad and read as "facing away".
 			Real relAngle = stdAngleDiff( source->getOrientation(), angle );
 			if (fabs(relAngle)<PI/2) {
-				dir.x = -dir.x;
-				dir.y = -dir.y;
-				dir.z = -dir.z;
+				// A jet holds its heading over the top and comes back round from past the target.
+				// Steering for the far side turned it toward a target beside it and kept it there: the
+				// far side moved as the jet turned, and a Raptor circled a slow tank inside its own
+				// minimum range for two and a half seconds.
+				const AIUpdateInterface *ai = source->getAI();
+				if (ai && ai->getCurLocomotor() && ai->getCurLocomotor()->getAppearance() == LOCO_WINGS &&
+						!(target && target->isAirborneTarget()))
+				{
+					dir = *source->getUnitDirectionVector2D();
+				}
+				else
+				{
+					dir.x = -dir.x;
+					dir.y = -dir.y;
+					dir.z = -dir.z;
+				}
 			}
 		}
 
