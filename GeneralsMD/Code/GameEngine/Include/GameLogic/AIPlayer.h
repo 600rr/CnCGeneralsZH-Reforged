@@ -563,9 +563,9 @@ protected:
 	TacticalStep *tacticalStepFor(ObjectID unit);		///< ... making the row if there is none
 	void leaveTacticsAlone(ObjectID unit);
 	Bool isFallingBack(ObjectID unit);		///< holding at a safe spot after a lost fight, for doRetreats to send back
-	void measureFight(const Coord3D *centre, Team *team, Real *myHealth, Real *myPower,
+	void measureFight(const Coord3D *centre, Bool countHolders, Real *myHealth, Real *myPower,
 		Real *enemyHealth, Real *enemyPower, std::vector<Real> *enemyGuns);
-	void doFallback(Team *team);
+	Bool doFallback(Team *team);		///< TRUE when it sent the team's holders back or home on this pass
 	void stepCalmly(Object *obj, TacticalStep *step, const Coord3D *spot);	///< a move the unit's mood cannot turn into an attack move
 	void restoreMood(Object *obj, TacticalStep *step);
 	Bool pickTacticalSpot(const Object *obj, const Coord3D *from, const Coord3D *awayFrom, Real distance,
