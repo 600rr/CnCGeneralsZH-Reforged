@@ -515,5 +515,7 @@ private:
 // EXTERNALS //////////////////////////////////////////////////////////////////////////////////////
 extern LocomotorStore *TheLocomotorStore;
 
+Coord3D Locomotor_groundLead(const Coord3D& toVictim, const Coord3D& victimVelocity, Real speed);
+
 #endif // __Locomotor_H_
 

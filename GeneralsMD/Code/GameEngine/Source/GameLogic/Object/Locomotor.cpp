@@ -246,6 +246,20 @@ Coord3D Locomotor_interceptOffset(const Coord3D& toVictim, const Coord3D& victim
 }
 
 //-------------------------------------------------------------------------------------------------
+// How far a victim on the ground moves before a projectile flying straight at `speed` a frame meets it,
+// for the aim point that far ahead of the victim. Only the victim's travel over the ground counts, as in
+// the arc after the lock: its velocity's climb over a slope is left out. Zero for a victim standing still.
+Coord3D Locomotor_groundLead(const Coord3D& toVictim, const Coord3D& victimVelocity, Real speed)
+{
+	Coord3D flatVelocity = victimVelocity;
+	flatVelocity.z = 0.0f;
+	Coord3D meeting = Locomotor_interceptOffset(toVictim, flatVelocity, speed);
+	Coord3D lead;
+	lead.set(meeting.x - toVictim.x, meeting.y - toVictim.y, 0.0f);
+	return lead;
+}
+
+//-------------------------------------------------------------------------------------------------
 // A locked projectile chasing something in the air keeps EA's cheat and moves straight at it every
 // frame. An aircraft is nearly as fast as the rocket, and neither arc could close on one: a rocket got
 // within 11 of a helicopter, flew past it and climbed away with its nose 110 degrees off. Rockets at
@@ -2008,11 +2022,28 @@ void Locomotor::moveTowardsPositionHover(Object* obj, PhysicsBehavior *physics, 
 }
 
 //-------------------------------------------------------------------------------------------------
-void Locomotor::moveTowardsPositionThrust(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed)
+void Locomotor::moveTowardsPositionThrust(Object* obj, PhysicsBehavior *physics, const Coord3D& chasedGoalPos, Real onPathDistToGoal, Real desiredSpeed)
 {
 	BodyDamageType bdt = obj->getBodyModule()->getDamageState();
 
 	Real maxForwardSpeed = getMaxSpeedForCondition(bdt);
+
+	// A missile that has not locked on yet flies at where a victim on the ground will be when it gets
+	// there, not at where the victim is now, so it comes up to the lock already in front of a crossing
+	// vehicle. The lock's cheat put these hits in anyway: Missile Defenders at Technicals driving past
+	// killed as many with it as without. Aircraft keep the straight chase: see
+	// Locomotor_projectileChasesStraight.
+	Coord3D goalPos = chasedGoalPos;
+	Object *victim = obj->isKindOf(KINDOF_PROJECTILE) ? obj->getAI()->getGoalObject() : NULL;
+	if (victim && victim->getPhysics() && !victim->isAboveTerrain() && !obj->getStatusBits().test(OBJECT_STATUS_BRAKING))
+	{
+		Coord3D toVictim;
+		toVictim.set(goalPos.x - obj->getPosition()->x, goalPos.y - obj->getPosition()->y, goalPos.z - obj->getPosition()->z);
+		Coord3D lead = Locomotor_groundLead(toVictim, *victim->getPhysics()->getVelocity(), maxForwardSpeed);
+		goalPos.x += lead.x;
+		goalPos.y += lead.y;
+	}
+
 	desiredSpeed = clamp(m_template->m_minSpeed, desiredSpeed, maxForwardSpeed);
 	Real actualForwardSpeed = physics->getForwardSpeed3D();
 

@@ -7349,6 +7349,7 @@ TEST(an_enemy_plan_is_hidden_even_where_the_viewer_has_sight)
 }
 
 extern Coord3D Locomotor_interceptOffset( const Coord3D& toVictim, const Coord3D& victimVelocity, Real speed );
+extern Coord3D Locomotor_groundLead( const Coord3D& toVictim, const Coord3D& victimVelocity, Real speed );
 
 /** A locked missile curves towards where it will meet a moving victim. Curving towards where the
 	 victim is now left a rocket barely faster than a helicopter trailing it with its nose 40 degrees
@@ -7383,6 +7384,36 @@ TEST(a_locked_missile_aims_where_it_will_meet_a_moving_victim)
 	fleeing.set( 12.0f, 0.0f, 0.0f );
 	offset = Locomotor_interceptOffset( toVictim, fleeing, 10.0f );
 	CHECK_NEAR( offset.x, 100.0f, 0.001f );
+}
+
+/** A missile shot at infantry flies to a point, and a Rebel walking across the line of fire was gone
+	 from it when the rocket landed. The point moves as far as the victim walks in the flight, over the
+	 ground only, and not at all for a victim standing still. */
+TEST(a_missile_aims_ahead_of_a_victim_moving_on_the_ground)
+{
+	Coord3D toVictim;
+	toVictim.set( 100.0f, 0.0f, -20.0f );
+	Coord3D lead;
+
+	Coord3D standing;
+	standing.set( 0.0f, 0.0f, 0.0f );
+	lead = Locomotor_groundLead( toVictim, standing, 10.0f );
+	CHECK( lead.x == 0.0f && lead.y == 0.0f && lead.z == 0.0f );
+
+	// crossing at 3 a frame against 10: |(100, 3t, -20)| = 10t meets at t = 10.69, 32 to the side
+	Coord3D crossing;
+	crossing.set( 0.0f, 3.0f, 0.0f );
+	lead = Locomotor_groundLead( toVictim, crossing, 10.0f );
+	CHECK_NEAR( lead.x, 0.0f, 0.001f );
+	CHECK_NEAR( lead.y, 3.0f * 10.6904f, 0.01f );
+	CHECK_NEAR( lead.z, 0.0f, 0.001f );
+
+	// walking up a slope the climb is not led: the same crossing, the same point
+	Coord3D climbing;
+	climbing.set( 0.0f, 3.0f, 1.5f );
+	Coord3D climbLead = Locomotor_groundLead( toVictim, climbing, 10.0f );
+	CHECK_NEAR( climbLead.y, lead.y, 0.001f );
+	CHECK_NEAR( climbLead.z, 0.0f, 0.001f );
 }
 
 /** There is nothing to stop about a building that is still going up, so the stop key calls it off

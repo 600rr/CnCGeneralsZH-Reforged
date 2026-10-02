@@ -1222,6 +1222,8 @@ UnsignedInt WeaponTemplate::fireWeaponTemplate
 			{
 				pui->projectileLaunchAtObjectOrPosition(victimObj, &projectileDestination, sourceObj, wslot, specificBarrelToUse, this, m_projectileExhausts[v]);
 			}
+			if( victimObj )
+				pui->projectileLeadVictim( victimObj );
 		}
 		else
 		{
