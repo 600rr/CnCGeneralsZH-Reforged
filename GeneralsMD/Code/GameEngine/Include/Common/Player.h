@@ -153,6 +153,16 @@ Int UnitLimitPerPlayer( Int nonObserverPlayers );
 // Whether a build that adds unitsItAdds (a transport and its payload) goes past the share.  0 is no cap.
 Bool UnitCapRefuses( Int unitsTowardCap, Int unitsItAdds, UnsignedInt unitCap );
 
+// Superweapons are paid for in base defences: every DEFENSES_PER_SUPERWEAPON finished defences a
+// player stands allow him one superweapon, counted across every type.  Whether one more is refused,
+// given the finished defences and the superweapons he already has, foundations included.  It sits
+// on top of the lobby's rule and never loosens it.
+enum { DEFENSES_PER_SUPERWEAPON = 4 };
+Bool SuperweaponDefenseCapRefuses( Int finishedDefenses, Int superweapons );
+// The silo whose missile No Superweapons or Pro Rules silences is a shop for China's upgrades, not a
+// weapon, and is not asked for defences.
+Bool SuperweaponNeedsDefenses( const AsciiString &buildingName, Bool proRules, Int superweaponRestriction );
+
 // The lobby's income sharing, an IncomeSharing from GameInfo.h: whether a payment is split in this
 // match, and each ally's cut when it is split evenly between sharers players.  The earner keeps what
 // the cuts leave, so rounding never loses a dollar.

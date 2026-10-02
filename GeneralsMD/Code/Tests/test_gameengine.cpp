@@ -14449,6 +14449,35 @@ TEST(an_open_dropdown_owns_the_rows_that_hang_past_its_panel)
 	CHECK( !OpenWindowOwnsPoint( TRUE, boxX, boxY, boxWidth, boxHeightOpen, 900, 660 ) );
 }
 
+/* Four finished base defences buy one superweapon, eight buy two, whatever mix of silo, uplink and
+	 storm they go to.  Player::canBuildMoreOfType counts and asks this; the lobby's cap is checked
+	 beside it and still refuses on its own. */
+TEST(four_finished_defenses_pay_for_each_superweapon)
+{
+	// fewer than four buys nothing
+	CHECK( SuperweaponDefenseCapRefuses( 0, 0 ) );
+	CHECK( SuperweaponDefenseCapRefuses( 3, 0 ) );
+
+	// four buy the first, and a foundation already down spends it
+	CHECK( !SuperweaponDefenseCapRefuses( 4, 0 ) );
+	CHECK( SuperweaponDefenseCapRefuses( 4, 1 ) );
+	CHECK( SuperweaponDefenseCapRefuses( 7, 1 ) );
+
+	// eight the second
+	CHECK( !SuperweaponDefenseCapRefuses( 8, 1 ) );
+	CHECK( SuperweaponDefenseCapRefuses( 8, 2 ) );
+
+	// losing defences never pulls a standing superweapon down, it only stops the next one
+	CHECK( SuperweaponDefenseCapRefuses( 4, 2 ) );
+
+	// a silo whose missile is silenced sells China's upgrades and asks for no defences
+	CHECK( !SuperweaponNeedsDefenses( AsciiString( "ChinaNuclearMissileLauncher" ), FALSE, SUPERWEAPONS_NONE ) );
+	CHECK( !SuperweaponNeedsDefenses( AsciiString( "Tank_ChinaNuclearMissileLauncher" ), TRUE, SUPERWEAPONS_ALLOW ) );
+	CHECK( SuperweaponNeedsDefenses( AsciiString( "ChinaNuclearMissileLauncher" ), FALSE, SUPERWEAPONS_LIMIT ) );
+	CHECK( SuperweaponNeedsDefenses( AsciiString( "SupW_AmericaParticleCannonUplink" ), FALSE, SUPERWEAPONS_NONE ) );
+	CHECK( SuperweaponNeedsDefenses( AsciiString( "GLAScudStorm" ), TRUE, SUPERWEAPONS_ALLOW ) );
+}
+
 /* The superweapon rule is a mode, and what a mode leaves you depends on who you are playing.  The
 	 USA Superweapon General fields three superweapons and pays for them in everything else, so Limit
 	 leaves him four of each where it leaves everybody one, and No leaves him one where it bars

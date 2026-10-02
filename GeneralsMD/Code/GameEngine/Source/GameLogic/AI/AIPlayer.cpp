@@ -4716,10 +4716,9 @@ static const Real POWER_SETBACK = 0.75f;
 /** And how far in front of it a bought base defense goes, on the same line the other way. */
 static const Real DEFENSE_STANDOFF = 1.0f;
 
-/** The base grows with the army: one gun allowed per this many fighting units, and one more
-	* superweapon past the first per this many guns. */
+/** The base grows with the army: one gun allowed per this many fighting units.  Superweapons follow
+	* the guns by the rule every player keeps, DEFENSES_PER_SUPERWEAPON in Player.h. */
 static const Int ARMY_PER_DEFENSE = 4;
-static const Int DEFENSES_PER_SUPERWEAPON = 4;
 
 /** Dozers a Hard AI trains on its own when every one it has is on a building. */
 static const Int MAX_ECONOMY_DOZERS = 4;
@@ -5549,10 +5548,11 @@ void AIPlayer::buildAsap( const ThingTemplate *tmpl )
 /** The skirmish scripts hold a Hard AI's superweapon back until an escalation counter, one point every
 	* ten seconds, reaches 75: twelve and a half minutes, or seven and a half once the enemy owns a tech
 	* building, and then one copy. A player who went seven Hard AIs against one saw a single nuke in the
-	* whole match. The owner's call: no clock. As soon as a dozer can build a superweapon and the money
-	* is in the bank, the first one goes up. More follow as the base grows, one per
-	* DEFENSES_PER_SUPERWEAPON guns, as the guns grow with the army; unrationed, they took the money
-	* the army needed. The lobby's superweapon setting and Pro Rules still bind, canMakeUnit asks both.
+	* whole match. The owner's call: no clock. As soon as a dozer can build a superweapon, the money
+	* is in the bank and DEFENSES_PER_SUPERWEAPON guns stand, the first one goes up. More follow as the
+	* base grows, one per that many guns, as the guns grow with the army; unrationed, they took the money
+	* the army needed. That ration is every player's rule now (Player::canBuildMoreOfType), and the
+	* lobby's superweapon setting and Pro Rules still bind beside it; canMakeUnit asks all three.
 	* If the tech building it needs is missing, that goes up first, and copies follow once the first
 	* superweapon is standing, up to AI_TECH_BUILDING_COPIES, so one of them blowing up leaves the tree
 	* standing. Hard only, like the rest of the economy. */
@@ -5596,12 +5596,9 @@ void AIPlayer::doSuperweapons( void )
 		return;
 	}
 
-	if( superweapon )
-	{
-		const Bool baseHoldsAnother = tally.superweapons < 1 + tally.defenses / DEFENSES_PER_SUPERWEAPON;
-		if( baseHoldsAnother && !priorityBuildPending( m_player, superweapon ) )
-			buildAsap( superweapon );
-	}
+	// buildableOfKind already asked canMakeUnit, which holds the defence ration
+	if( superweapon && !priorityBuildPending( m_player, superweapon ) )
+		buildAsap( superweapon );
 }
 
 //----------------------------------------------------------------------------------------------------------

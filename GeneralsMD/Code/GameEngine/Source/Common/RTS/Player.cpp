@@ -3286,6 +3286,38 @@ Bool UnitCapRefuses( Int unitsTowardCap, Int unitsItAdds, UnsignedInt unitCap )
 }
 
 //=============================================================================
+Bool SuperweaponDefenseCapRefuses( Int finishedDefenses, Int superweapons )
+{
+  return superweapons >= finishedDefenses / DEFENSES_PER_SUPERWEAPON;
+}
+
+Bool SuperweaponNeedsDefenses( const AsciiString &buildingName, Bool proRules, Int superweaponRestriction )
+{
+  return !( ProRulesExemptSuperweapon( buildingName )
+            && SuperweaponMissileSilenced( SPECIAL_NEUTRON_MISSILE, proRules, superweaponRestriction ) );
+}
+
+/* A defence counts once it stands finished, so a foundation put down and cancelled never unlocks
+   anything.  A superweapon counts from its foundation, so two cannot be placed on one allowance. */
+struct SuperweaponDefenseCount
+{
+  Int defenses;
+  Int superweapons;
+};
+
+static void countSuperweaponDefenses( Object *obj, void *userData )
+{
+  if ( obj->isEffectivelyDead() )
+    return;
+
+  SuperweaponDefenseCount *count = (SuperweaponDefenseCount *)userData;
+  if ( obj->isKindOf( KINDOF_FS_SUPERWEAPON ) )
+    count->superweapons++;
+  else if ( obj->isKindOf( KINDOF_FS_BASE_DEFENSE ) && !obj->testStatus( OBJECT_STATUS_UNDER_CONSTRUCTION ) )
+    count->defenses++;
+}
+
+//=============================================================================
 Bool IncomeSharingSplits( Int incomeSharing, Bool fromTechBuilding )
 {
   return incomeSharing == INCOME_SHARING_ALL || ( incomeSharing == INCOME_SHARING_TECH && fromTechBuilding );
@@ -3389,6 +3421,17 @@ Bool Player::canBuildMoreOfType( const ThingTemplate *whatToBuild, Int unitsPerO
       return false;
 
     maxSimultaneousOfType = (UnsignedInt)cap;
+  }
+
+  // the defence allowance holds in skirmish and network matches and their replays; a campaign or
+  // Generals Challenge mission was laid out without it and keeps EA's rules
+  if ( whatToBuild->isKindOf( KINDOF_FS_SUPERWEAPON ) && TheGameLogic && !TheGameLogic->isInSinglePlayerGame()
+    && SuperweaponNeedsDefenses( whatToBuild->getName(), proRules, (Int)TheGameLogic->getSuperweaponRestriction() ) )
+  {
+    SuperweaponDefenseCount count = { 0, 0 };
+    iterateObjects( countSuperweaponDefenses, &count );
+    if ( SuperweaponDefenseCapRefuses( count.defenses, count.superweapons ) )
+      return false;
   }
 
   if (maxSimultaneousOfType != 0)
