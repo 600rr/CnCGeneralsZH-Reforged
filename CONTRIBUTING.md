@@ -32,7 +32,8 @@ docs: explain the pull request process
 
 Every pull request runs a check that reads the first line of each of its commits and fails the ones
 that do not match. Fix a failing message with `git rebase -i` on your own branch and force push it;
-nobody minds a rewritten pull request branch.
+nobody minds a rewritten pull request branch. The same check fails a merge commit inside the pull
+request, so bring your branch up to date with `git rebase main` rather than merging `main` into it.
 
 ## Before you open it
 
