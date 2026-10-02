@@ -352,6 +352,7 @@ protected:
 	void buyGunshipChinook(void);	///< Medium and up buy a supply-center transport the riders shoot out of, as a gunship
 	Bool isGunshipRider(const Object *obj) const;	///< infantry loadGunships may put in a transport
 	void sendIdleAttackTeams(void);	///< attack teams standing at home join the next wave instead of waiting for the script's signal
+	Real addHomeStrays(AIGroup *wave) const;	///< the default team's fighters idle at home go with the wave
 	Real knownFirepowerNear(const Coord3D *pos);	///< what this AI has seen that can shoot, near a point
 	Bool forwardHoldPoint(const AsciiString &approach, Int pathSuffix, const Coord3D *enemyPos, Coord3D *hold);	///< where a wave gathers on its road
 	void sendWave(AIGroup *wave, const AsciiString &approach, Int pathSuffix, Int teams, Real power, UnsignedInt heldFrames);

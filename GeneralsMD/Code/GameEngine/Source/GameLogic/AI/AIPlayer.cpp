@@ -6548,6 +6548,9 @@ Bool AIPlayer::leavesToFinish( const Object *obj ) const
 	if( aiCombatPower( obj ) <= 0.0f || !obj->isAbleToAttack() || obj->isKindOf( KINDOF_STRUCTURE ) || obj->isKindOf( KINDOF_HARVESTER ) ||
 			obj->isKindOf( KINDOF_DOZER ) || obj->isKindOf( KINDOF_MONEY_HACKER ) )
 		return FALSE;
+	// a slave goes where its master goes: a Stinger Site's crew is in the default team, and unselectable
+	if( obj->testStatus( OBJECT_STATUS_UNSELECTABLE ) )
+		return FALSE;
 	if( obj->isKindOf( KINDOF_AIRCRAFT ) && !isHelicopter( obj ) )
 		return FALSE;
 	const ObjectID id = obj->getID();
@@ -6717,6 +6720,7 @@ void AIPlayer::doWaves( void )
 		if( team )
 			waitingPower( team, wave );
 	}
+	power += addHomeStrays( wave );
 
 	/* The helicopters at home go too.  A player watched China build helicopters and never send them:
 		 the skirmish scripts put the Comanches and the Helixes into guard teams, and across eight
@@ -7287,6 +7291,31 @@ void AIPlayer::sendIdleAttackTeams( void )
 }
 
 //----------------------------------------------------------------------------------------------------------
+/** The default team's fighters standing idle at home join the wave, and what they add to it.  defendHome
+	* trains its emergency defenders into that team, and no script ever gives it an order: once the fight
+	* at home was over they stood where it had left them, for the rest of the match.  Sixteen Hard matches
+	* on Twilight Flame, looked at every thirty seconds, found 2.4 of them a side standing still for half a
+	* minute or more, the largest of the idle piles; with this and the hunt in sendIdleUnitsHunting, 0.4. */
+//----------------------------------------------------------------------------------------------------------
+Real AIPlayer::addHomeStrays( AIGroup *wave ) const
+{
+	Real power = 0.0f;
+	for( DLINK_ITERATOR<Object> m = m_player->getDefaultTeam()->iterate_TeamMemberList(); !m.done(); m.advance() )
+	{
+		Object *obj = m.cur();
+		if( obj->isEffectivelyDead() || obj->getAI() == NULL || obj->isContained() || obj->isKindOf( KINDOF_IMMOBILE ) ||
+				!isAtHome( obj->getPosition() ) || !leavesToFinish( obj ) )
+			continue;
+		const StateID state = obj->getAI()->getCurrentStateID();
+		if( state != AI_IDLE && state != AI_GUARD && state != AI_GUARD_RETALIATE )
+			continue;
+		power += aiCombatPower( obj );
+		wave->add( obj );
+	}
+	return power;
+}
+
+//----------------------------------------------------------------------------------------------------------
 /** Sixteen Hard matches on Twilight Flame had a side four to one ahead and calling its enemy finished
 	* for up to 40% of the match without winning it.  One of them, a USA with 46,625 of army against a
 	* GLA it counted at 6,584, had 9,250 of that standing idle at the end of its approach path, a
@@ -7316,7 +7345,10 @@ void AIPlayer::sendIdleUnitsHunting( void )
 	for( Player::PlayerTeamList::const_iterator t = m_player->getPlayerTeams()->begin(); t != m_player->getPlayerTeams()->end(); ++t )
 	{
 		const TeamTemplateInfo *info = (*t)->getTemplateInfo();
-		const Bool attacks = !info->m_isBaseDefense && !info->m_isPerimeterDefense && aiTeamAttacks( info );
+		// the default team's fighters away from home hunt too: no script ever sends them anywhere.  At home
+		// they leave with the next wave (addHomeStrays), or with the guards when the guards go
+		const Bool attacks = ((*t) == m_player->getDefaultTeam()->getPrototype() && !guardsGo) ||
+			(!info->m_isBaseDefense && !info->m_isPerimeterDefense && aiTeamAttacks( info ));
 		if( !attacks && !guardsGo )
 			continue;
 		for( DLINK_ITERATOR<Team> iter = (*t)->iterate_TeamInstanceList(); !iter.done(); iter.advance() )

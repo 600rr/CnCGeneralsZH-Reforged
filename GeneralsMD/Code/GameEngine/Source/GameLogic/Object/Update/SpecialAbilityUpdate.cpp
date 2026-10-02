@@ -233,7 +233,11 @@ UpdateSleepTime SpecialAbilityUpdate::update( void )
     onExit( false );
     return calcSleepTime();
   }
-	if( abilityBrokenByMovement( ai->isMoving(), isPowerCurrentlyInUse(), ai->isTurningToFace() ) )
+	// AI_BUSY is the ability's own pack and unpack, and only this module ends it; any order that walks the
+	// unit away replaces it first.  isMoving() can still read true in it, and a capture broken there left
+	// its rifleman busy and standing still for the rest of the match: 0.4 of them a side at every look
+	// over 16 Hard matches, a median of three minutes each
+	if( abilityBrokenByMovement( ai->isMoving(), isPowerCurrentlyInUse(), ai->isTurningToFace() || ai->getCurrentStateID() == AI_BUSY ) )
   {
 		// Capture is broken by movement just as if we had been given a direct command (above check).
 		// However, the time of Facing the target is considered isPowerCurrentlyInUse, but isMoving.  So let that slide.
