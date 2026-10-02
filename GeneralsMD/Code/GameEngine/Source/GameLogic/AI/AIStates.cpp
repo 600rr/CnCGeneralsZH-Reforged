@@ -5665,6 +5665,18 @@ StateReturnType AIAttackAimAtTargetState::update()
 		if (!victim || victim->isEffectivelyDead())
 			return STATE_FAILURE;	// can't aim at dead things
 
+		// The fire state holds the round when the victim is already paid for and falls back to aiming,
+		// and aiming hands it straight back to the fire state, so a unit that keeps this victim keeps
+		// holding its fire for as long as somebody else's claim covers it.  In a crowd that is most of
+		// a squad standing silent beside enemies nobody has claimed while a few of them whittle down
+		// one target.  Let go of a target we chose ourselves: the scan that chose it passes over
+		// doomed ones and finds the next.  An order is kept, as the fire state promises.
+		if (sourceAI->getLastCommandSource() == CMD_FROM_AI &&
+				IncomingDamageTracker::isSpokenFor(victim, source->getID()))
+		{
+			return STATE_FAILURE;
+		}
+
 		// tell everyone else what this shot is going to take off the victim while it is still being
 		// aimed, so a second unit lining up the same target can see the kill is covered before it
 		// commits to the trip rather than on the frame the first round launches
@@ -5694,16 +5706,6 @@ StateReturnType AIAttackAimAtTargetState::update()
 //				return STATE_SUCCESS;
 //			}
 
-			// The fire state holds the round when the victim is already paid for, and falls back to aiming,
-			// which is fine for a unit that leaves this state; a turret's aim never does.  A Gattling Cannon
-			// that had picked the tank itself went silent until the booking lapsed, with a second tank
-			// driving up.  Let go of a target we chose ourselves: the scan that chose it passes over doomed
-			// ones.  An order is kept, as the fire state promises.
-			if (m_isAttackingObject && sourceAI->getLastCommandSource() == CMD_FROM_AI &&
-					IncomingDamageTracker::isSpokenFor(victim, source->getID()))
-			{
-				return STATE_FAILURE;
-			}
 			return STATE_CONTINUE;
 		}
 

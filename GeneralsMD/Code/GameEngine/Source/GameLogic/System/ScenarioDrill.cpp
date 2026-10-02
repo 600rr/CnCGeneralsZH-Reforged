@@ -49,8 +49,13 @@
 #include "GameLogic/TerrainLogic.h"
 #include "GameClient/ControlBar.h"	// COMMAND_FIRED_BY_SCRIPT, the flag every script-fired power carries
 #include "GameClient/ParticleSys.h"
+#include "GameLogic/PartitionManager.h"
+#include "GameLogic/IncomingDamage.h"
+#include "GameLogic/Module/BodyModule.h"
+#include "GameLogic/Weapon.h"
 
 #include <algorithm>
+#include <map>
 #include <vector>
 
 // ------------------------------------------------------------------------------------------------
@@ -872,8 +877,123 @@ static void updateArrivals( UnsignedInt now )
 	}
 }
 
+/** Statues: a unit with an enemy it could shoot inside its own reach that has neither moved nor fired
+	  for STATUE_FRAMES.  Counted once per stop, by what the unit was doing when it reached the mark,
+	  and per second for as long as it keeps standing there.  Read-only, and only with a scenario. */
+struct StatueTrack
+{
+	Coord3D lastSeenAt;
+	UnsignedInt lastShot;
+	Int stillFor;
+	Bool counted;
+	Bool seen;
+};
+static const Int STATUE_FRAMES = 3 * LOGICFRAMES_PER_SECOND;
+static const Int STATUE_DETAIL_LINES = 40;
+static std::map<ObjectID, StatueTrack> theStatueTracks;
+static Int theStatueStops = 0;
+static Int theStatueInfantryStops = 0;
+static Int theStatueSeconds = 0;
+static Int theStatueWaiting = 0;
+static Int theStatueBlocked = 0;
+static Int theStatueNoVictim = 0;
+static Int theStatueVictimInRange = 0;
+static Int theStatueVictimOutOfRange = 0;
+static Int theStatueByState[ NUM_AI_STATES ];
+
+static void updateStatues( UnsignedInt now )
+{
+	for( Object *obj = TheGameLogic->getFirstObject(); obj; obj = obj->getNextObject() )
+	{
+		if (!(obj->isKindOf( KINDOF_INFANTRY ) || obj->isKindOf( KINDOF_VEHICLE )) || obj->isKindOf( KINDOF_AIRCRAFT ))
+			continue;
+		if (obj->isEffectivelyDead() || obj->getContainedBy() != NULL || obj->isDisabled())
+			continue;
+		AIUpdateInterface *ai = obj->getAIUpdateInterface();
+		const Weapon *weapon = obj->getCurrentWeapon();
+		if (ai == NULL || weapon == NULL)
+			continue;
+
+		StatueTrack &track = theStatueTracks[ obj->getID() ];
+		const Coord3D *pos = obj->getPosition();
+		const Real sx = pos->x - track.lastSeenAt.x;
+		const Real sy = pos->y - track.lastSeenAt.y;
+		const Bool moved = sx * sx + sy * sy >= SCENARIO_STILL_DISTANCE * SCENARIO_STILL_DISTANCE;
+		const Bool fired = obj->getLastShotFiredFrame() != track.lastShot;
+		track.lastSeenAt = *pos;
+		track.lastShot = obj->getLastShotFiredFrame();
+		if (!track.seen || moved || fired)
+		{
+			track.seen = TRUE;
+			track.stillFor = 0;
+			track.counted = FALSE;
+			continue;
+		}
+		++track.stillFor;
+		if (track.stillFor < STATUE_FRAMES || (track.stillFor % LOGICFRAMES_PER_SECOND) != 0)
+			continue;
+
+		PartitionFilterRelationship enemies( obj, PartitionFilterRelationship::ALLOW_ENEMIES );
+		PartitionFilterAlive alive;
+		PartitionFilterPossibleToAttack attackable( ATTACK_NEW_TARGET, obj, CMD_FROM_AI );
+		PartitionFilter *filters[] = { &enemies, &alive, &attackable, NULL };
+		Real enemyDist = 0.0f;
+		Object *enemy = ThePartitionManager->getClosestObject( obj, weapon->getAttackRange( obj ), FROM_BOUNDINGSPHERE_2D, filters, &enemyDist );
+		if (enemy == NULL)
+			continue;
+
+		++theStatueSeconds;
+		if (track.counted)
+			continue;
+		track.counted = TRUE;
+
+		++theStatueStops;
+		if (obj->isKindOf( KINDOF_INFANTRY ))
+			++theStatueInfantryStops;
+		const StateID state = ai->getCurrentStateID();
+		if (state >= 0 && state < NUM_AI_STATES)
+			++theStatueByState[ state ];
+		Object *victim = ai->getCurrentVictim();
+		if (ai->isWaitingForPath())
+			++theStatueWaiting;
+		else if (ai->getNumFramesBlocked() > 0 || ai->isBlockedAndStuck())
+			++theStatueBlocked;
+		else if (victim == NULL)
+			++theStatueNoVictim;
+		else if (weapon->isWithinAttackRange( obj, victim ))
+			++theStatueVictimInRange;
+		else
+			++theStatueVictimOutOfRange;
+
+		// "spoken for" is somebody else's shot, in the air or announced, covering what the victim has left
+		if (theStatueStops <= STATUE_DETAIL_LINES)
+		{
+			DEBUG_LOG(("STATUE: frame %d id %d '%s' state %d idle %d waiting %d blocked %d victim %d '%s' at %.0f health %.0f spoken for %d, enemy %d '%s' at %.0f, range %.0f, weapon '%s' status %d\n",
+								 now, obj->getID(), obj->getTemplate()->getName().str(), (Int)state, ai->isIdle(),
+								 ai->isWaitingForPath(), ai->getNumFramesBlocked(),
+								 victim ? victim->getID() : 0, victim ? victim->getTemplate()->getName().str() : "",
+								 victim ? sqrt( ThePartitionManager->getDistanceSquared( obj, victim, FROM_BOUNDINGSPHERE_2D ) ) : 0.0f,
+								 victim ? victim->getBodyModule()->getHealth() : 0.0f,
+								 victim ? IncomingDamageTracker::isSpokenFor( victim, obj->getID() ) : 0,
+								 enemy->getID(), enemy->getTemplate()->getName().str(), enemyDist,
+								 weapon->getAttackRange( obj ), weapon->getName().str(), (Int)weapon->getStatus()));
+		}
+	}
+}
+
+static void logStatues( void )
+{
+	DEBUG_LOG(("HEADLESS STATUE: %d stops of %.0f s or more with an enemy in reach and no shot (%d infantry), %d unit-seconds - %d waiting for a path, %d blocked, %d no target, %d target in range, %d target out of range\n",
+						 theStatueStops, (Real)STATUE_FRAMES / (Real)LOGICFRAMES_PER_SECOND, theStatueInfantryStops, theStatueSeconds,
+						 theStatueWaiting, theStatueBlocked, theStatueNoVictim, theStatueVictimInRange, theStatueVictimOutOfRange));
+	for( Int s = 0; s < NUM_AI_STATES; ++s )
+		if (theStatueByState[ s ] > 0)
+			DEBUG_LOG(("HEADLESS STATUE STATE: state %d, %d stops\n", s, theStatueByState[ s ]));
+}
+
 void ScenarioDrill_logArrivals( void )
 {
+	logStatues();
 	for( std::vector<ScenarioArrival>::const_iterator it = theScenarioArrivals.begin();
 			 it != theScenarioArrivals.end(); ++it )
 	{
@@ -1341,6 +1461,8 @@ void ScenarioDrill_tick( void )
 
 	if (!theScenarioLoaded)
 		loadScenario();
+
+	updateStatues( now );
 
 	while (theScenarioCursor < (Int)theScenarioActions.size()
 				 && theScenarioActions[ theScenarioCursor ].frame <= now)
