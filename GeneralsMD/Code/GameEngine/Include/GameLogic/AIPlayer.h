@@ -350,6 +350,12 @@ protected:
 	Bool loadGunships(void);	///< infantry boards the transports it can shoot out of: the wave's anything at home, a team's its own; TRUE while a firing gunship is still filling
 	Int buyGunshipRiders(Int freeSeats);	///< Medium and up train the men for the firing seats nobody fills; how many are in training
 	void buyGunshipChinook(void);	///< Medium and up buy a supply-center transport the riders shoot out of, as a gunship
+	void doShuttles(void);	///< the transport Chinooks load at home, fly the wave's ground units to its road and come back
+	void buyTransportChinook(void);	///< one more transport Chinook while the last wave needs more lift than there is
+	void lendDutyChinook(void);	///< a duty Chinook gathers only while no gatherer can exist otherwise
+	void computeShuttleFront(Waypoint *way, AIGroup *wave);	///< where the transport Chinooks put this wave's units down
+	Int loadShuttle(Object *ship);	///< call the attack teams' ground units at home into one Chinook; how many were called
+	Bool flightIsQuiet(const Coord3D *from, Real x, Real y) const;	///< a straight flight crosses nothing the AI has seen shoot
 	Bool isGunshipRider(const Object *obj) const;	///< infantry loadGunships may put in a transport
 	void sendIdleAttackTeams(void);	///< attack teams standing at home join the next wave instead of waiting for the script's signal
 	Real addHomeStrays(AIGroup *wave) const;	///< the default team's fighters idle at home go with the wave
@@ -406,6 +412,8 @@ public:
 
 	Bool isGunshipChinook( const Object *obj ) const;	///< a Chinook this AI bought to carry riders, not to gather
 	Bool isGunshipAircraft( const Object *obj ) const;	///< a helicopter, or one of those Chinooks
+	Bool isTransportChinook( const Object *obj ) const;	///< a plain Chinook this AI bought to fly its wave, not to gather
+	Bool isDutyChinook( const Object *obj ) const;	///< either of those, which the gatherer counts leave out
 protected:
 
 	/**
@@ -455,6 +463,24 @@ protected:
 	enum { MAX_GUNSHIP_CHINOOKS = 2 };
 	ObjectID	m_gunshipChinook[ MAX_GUNSHIP_CHINOOKS ];	///< Combat Chinooks bought to carry riders; INVALID_ID for a free slot
 	UnsignedInt m_boardWaitFrame;			///< a wave ready to leave first waited for its gunships' riders on this frame; 0 for none
+	/// A plain Chinook bought to fly the wave's ground units to the front, never to gather
+	enum { SHUTTLE_HOME, SHUTTLE_LOADING, SHUTTLE_OUT, SHUTTLE_RETURNING };
+	struct ShuttleChinook
+	{
+		ObjectID		id;					///< INVALID_ID for a free slot
+		Int					phase;			///< SHUTTLE_HOME, SHUTTLE_LOADING, SHUTTLE_OUT or SHUTTLE_RETURNING
+		UnsignedInt	frame;			///< when the phase began
+		Int					load;				///< units aboard when it took off
+		Bool				aborted;		///< hit on the way out, and putting its load down where it was
+		Coord3D			drop;				///< where this trip puts them down
+		Coord3D			home;				///< where it waits and loads; set the first time it loads
+	};
+	enum { MAX_TRANSPORT_CHINOOKS = 4 };
+	ShuttleChinook	m_shuttle[ MAX_TRANSPORT_CHINOOKS ];
+	Coord3D			m_shuttleFront;			///< the drop point on the last wave's road, short of what the AI has seen shoot
+	UnsignedInt	m_shuttleFrontFrame;	///< when that wave left; 0 for no wave yet
+	Int					m_lastWaveSlots;		///< transport slots the last wave's ground units take
+	ObjectID		m_lentChinook;			///< a duty Chinook gathering because no gatherer can exist otherwise
 	Int				m_captureTimer;					///< frames until the next look for something to capture
 	ObjectID	m_hijackerID;						///< the thief currently out after an enemy vehicle
 	Int				m_hijackTimer;					///< frames until the next look for a vehicle to take

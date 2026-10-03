@@ -77,6 +77,7 @@
 #include "GameLogic/Module/CollideModule.h"	// ... and the collide that takes a vehicle by touching it
 #include "GameLogic/Module/ContainModule.h"
 #include "GameLogic/Module/OpenContain.h"			// a seat's own shoot-out flag, asked before a rider exists
+#include "GameLogic/Module/TransportContain.h"	// ... and a template's hold, before one exists
 #include "GameLogic/Module/JetAIUpdate.h"		// a Comanche is a jet with no runway
 #include <map>
 #include "Platform/MsvcFloatCasts.h"
@@ -319,6 +320,20 @@ m_role(AIROLE_AGGRESSIVE)
 	for( Int chinook = 0; chinook < MAX_GUNSHIP_CHINOOKS; ++chinook )
 		m_gunshipChinook[ chinook ] = INVALID_ID;
 	m_boardWaitFrame = 0;
+	for( Int shuttle = 0; shuttle < MAX_TRANSPORT_CHINOOKS; ++shuttle )
+	{
+		m_shuttle[ shuttle ].id = INVALID_ID;
+		m_shuttle[ shuttle ].phase = SHUTTLE_HOME;
+		m_shuttle[ shuttle ].frame = 0;
+		m_shuttle[ shuttle ].load = 0;
+		m_shuttle[ shuttle ].aborted = FALSE;
+		m_shuttle[ shuttle ].drop.zero();
+		m_shuttle[ shuttle ].home.zero();
+	}
+	m_shuttleFront.zero();
+	m_shuttleFrontFrame = 0;
+	m_lastWaveSlots = 0;
+	m_lentChinook = INVALID_ID;
 	m_captureTimer = 1;
 	m_hijackerID = INVALID_ID;
 	m_hijackTimer = 1;
@@ -584,10 +599,13 @@ static Bool hasSuppliesNear( Player *player, const Object *supplyCenter, Real re
 	return FALSE;
 }
 
+static const TransportContainModuleData *transportContainOf( const ThingTemplate *tmpl );
+static Bool passengersFireFrom( const ThingTemplate *tmpl );
+
 struct IdleTruckSearch
 {
 	Player *player;
-	const AIPlayer *owner;	///< whose gunship Chinooks stand idle on purpose
+	const AIPlayer *owner;	///< whose duty Chinooks stand idle on purpose
 	const Object *center;
 	Object *truck;
 	Bool waiting;		///< a gatherer stands idle beside a center that still has boxes
@@ -597,7 +615,7 @@ static void considerIdleTruck( Object *obj, void *userData )
 {
 	IdleTruckSearch *search = (IdleTruckSearch *)userData;
 	if( search->truck || !obj->isKindOf( KINDOF_HARVESTER ) || obj->isEffectivelyDead() || obj->isContained() || obj->getAI() == NULL ||
-			search->owner->isGunshipChinook( obj ) )
+			search->owner->isDutyChinook( obj ) )
 		return;
 	AIUpdateInterface *ai = obj->getAI();
 	SupplyTruckAIInterface *truckAI = ai->getSupplyTruckAIInterface();
@@ -671,7 +689,7 @@ void AIPlayer::queueSupplyTruck( void )
 			for (DLINK_ITERATOR<Object> objIter = team->iterate_TeamMemberList(); !objIter.done(); objIter.advance()) {
 				Object *obj = objIter.cur();
 				if (!obj)  continue;
-				if (!obj->isKindOf(KINDOF_HARVESTER) || isGunshipChinook(obj)) continue;
+				if (!obj->isKindOf(KINDOF_HARVESTER) || isDutyChinook(obj) || obj->getID() == m_lentChinook) continue;
 				if (!obj->getAI()) continue;
 
 				SupplyTruckAIInterface* supplyTruckAI = obj->getAI()->getSupplyTruckAIInterface();
@@ -716,7 +734,7 @@ void AIPlayer::queueSupplyTruck( void )
 						for (DLINK_ITERATOR<Object> objIter = team->iterate_TeamMemberList(); !objIter.done(); objIter.advance()) {
 							Object *obj = objIter.cur();
 							if (!obj)  continue;
-							if (!obj->isKindOf(KINDOF_HARVESTER) || isGunshipChinook(obj)) continue;
+							if (!obj->isKindOf(KINDOF_HARVESTER) || isDutyChinook(obj) || obj->getID() == m_lentChinook) continue;
 							if (!obj->getAI()) continue;
 
 							SupplyTruckAIInterface* supplyTruckAI = obj->getAI()->getSupplyTruckAIInterface();
@@ -750,7 +768,7 @@ void AIPlayer::queueSupplyTruck( void )
 					for (DLINK_ITERATOR<Object> objIter = team->iterate_TeamMemberList(); !objIter.done(); objIter.advance()) {
 						Object *obj = objIter.cur();
 						if (!obj)  continue;
-						if (!obj->isKindOf(KINDOF_HARVESTER) || isGunshipChinook(obj)) continue;
+						if (!obj->isKindOf(KINDOF_HARVESTER) || isDutyChinook(obj) || obj->getID() == m_lentChinook) continue;
 						if (!obj->getAI()) continue;
 
 						SupplyTruckAIInterface* supplyTruckAI = obj->getAI()->getSupplyTruckAIInterface();
@@ -816,7 +834,9 @@ void AIPlayer::queueSupplyTruck( void )
 			m_player->setCanBuildUnits(true);
 			const ThingTemplate *tTemplate = TheThingFactory->firstTemplate();
 			while (tTemplate) {	 
-				Bool isSupplyTruck = tTemplate->isKindOf(KINDOF_HARVESTER);;
+				// never a Chinook its riders can shoot out of: that is a gunship, and the Air Force General
+				// bought its 1,200 Combat Chinook as a gatherer here at frame 8,636 of a Medium match
+				Bool isSupplyTruck = tTemplate->isKindOf(KINDOF_HARVESTER) && !passengersFireFrom(tTemplate);
 				if (isSupplyTruck) {
 					Object *factory = findFactory(tTemplate, false);
 					if (factory) {
@@ -1615,8 +1635,6 @@ Bool AIPlayer::isLocationSafe(const Coord3D *pos, const ThingTemplate *tthing )
 }  // isSupplySourceSafe
 
 
-static Bool passengersFireFrom( const ThingTemplate *tmpl );
-
 // ------------------------------------------------------------------------------------------------
 /** Invoked when a unit I am training comes into existence */
 // ------------------------------------------------------------------------------------------------
@@ -1702,6 +1720,22 @@ void AIPlayer::onUnitProduced( Object *factory, Object *unit )
 								if (m_gunshipChinook[chinook] == INVALID_ID) {
 									m_gunshipChinook[chinook] = unit->getID();
 									DEBUG_LOG(("AI GUNSHIP frame %d player %d '%s' %d comes out as a gunship\n", TheGameLogic->getFrame(),
+										m_player->getPlayerIndex(), unit->getTemplate()->getName().str(), unit->getID()));
+									break;
+								}
+							}
+						}
+						// ... and a plain one buyTransportChinook ordered, which flies the wave's units
+						else if (order->m_isScout && unit->isKindOf(KINDOF_AIRCRAFT) && unit->isKindOf(KINDOF_HARVESTER) &&
+								transportContainOf(unit->getTemplate())) {
+							for (Int shuttle = 0; shuttle < MAX_TRANSPORT_CHINOOKS; ++shuttle) {
+								if (m_shuttle[shuttle].id == INVALID_ID) {
+									m_shuttle[shuttle].id = unit->getID();
+									m_shuttle[shuttle].phase = SHUTTLE_HOME;
+									m_shuttle[shuttle].frame = TheGameLogic->getFrame();
+									m_shuttle[shuttle].load = 0;
+									m_shuttle[shuttle].home = *unit->getPosition();
+									DEBUG_LOG(("AI SHUTTLE frame %d player %d '%s' %d comes out as a transport\n", TheGameLogic->getFrame(),
 										m_player->getPlayerIndex(), unit->getTemplate()->getName().str(), unit->getID()));
 									break;
 								}
@@ -4443,6 +4477,7 @@ void AIPlayer::update( void )
 	AI_PHASE( AIP_WAVE,    doWaves() );							// Send the parked attack teams out together.
 	AI_PHASE( AIP_TACTICS, doTactics() );						// Fight each unit from where it is strongest.
 	AI_PHASE( AIP_TACTICS, doTransports() );				// Put the helicopters' riders down at the fight.
+	AI_PHASE( AIP_TACTICS, doShuttles() );					// Fly the wave's ground units up its road.
 
 #ifdef DEBUG_LOGGING
 	Int64 playerEnd;
@@ -5960,6 +5995,8 @@ static Bool isHelicopter( const Object *obj )
 
 Bool AIPlayer::isGunshipChinook( const Object *obj ) const
 {
+	if( obj->getID() == m_lentChinook )
+		return FALSE;		// gathering until a real gatherer exists again
 	for( Int chinook = 0; chinook < MAX_GUNSHIP_CHINOOKS; ++chinook )
 		if( m_gunshipChinook[ chinook ] == obj->getID() )
 			return !obj->isEffectivelyDead() && obj->getAI() != NULL;
@@ -5969,6 +6006,21 @@ Bool AIPlayer::isGunshipChinook( const Object *obj ) const
 Bool AIPlayer::isGunshipAircraft( const Object *obj ) const
 {
 	return isHelicopter( obj ) || isGunshipChinook( obj );
+}
+
+Bool AIPlayer::isTransportChinook( const Object *obj ) const
+{
+	if( obj->getID() == m_lentChinook )
+		return FALSE;
+	for( Int shuttle = 0; shuttle < MAX_TRANSPORT_CHINOOKS; ++shuttle )
+		if( m_shuttle[ shuttle ].id == obj->getID() )
+			return !obj->isEffectivelyDead() && obj->getAI() != NULL;
+	return FALSE;
+}
+
+Bool AIPlayer::isDutyChinook( const Object *obj ) const
+{
+	return isGunshipChinook( obj ) || isTransportChinook( obj );
 }
 
 /** What waits when a wave leaves: attack helicopters left on guard anywhere, and helicopters at home,
@@ -7126,19 +7178,27 @@ Int AIPlayer::buyGunshipRiders( Int freeSeats )
 	return training + queued;
 }
 
-/** Whether a template's riders may shoot out of it, read off its contain module before one exists. */
-static Bool passengersFireFrom( const ThingTemplate *tmpl )
+/** A template's transport hold, read off its contain module before one exists; NULL for none. */
+static const TransportContainModuleData *transportContainOf( const ThingTemplate *tmpl )
 {
 	const ModuleInfo &modules = tmpl->getBehaviorModuleInfo();
 	for( Int m = 0; m < modules.getCount(); ++m )
 		if( modules.getNthName( m ).compare( "TransportContain" ) == 0 )
-			return ((const OpenContainModuleData *)modules.getNthData( m ))->m_passengersAllowedToFire;
-	return FALSE;
+			return (const TransportContainModuleData *)modules.getNthData( m );
+	return NULL;
 }
 
-/** The gunship a supply center builds: a harvester that flies and that its riders shoot out of, which
-	* is the Air Force General's Combat Chinook.  Its own supply Chinook cannot fire and is not this. */
-static const ThingTemplate *gunshipChinookTemplate( Object *factory )
+/** Whether a template's riders may shoot out of it. */
+static Bool passengersFireFrom( const ThingTemplate *tmpl )
+{
+	const TransportContainModuleData *hold = transportContainOf( tmpl );
+	return hold && hold->m_passengersAllowedToFire;
+}
+
+/** A Chinook a factory of ours can build now: a harvester that flies with a hold.  Firing, the Air Force
+	* General's Combat Chinook, a gunship; not firing, the plain Chinook every USA general gathers with,
+	* which the shuttle buys as a transport. */
+static const ThingTemplate *chinookTemplate( Object *factory, Bool firing )
 {
 	const CommandSet *commandSet = TheControlBar->findCommandSet( factory->getCommandSetString() );
 	if( commandSet == NULL )
@@ -7149,7 +7209,8 @@ static const ThingTemplate *gunshipChinookTemplate( Object *factory )
 		if( button == NULL || button->getCommandType() != GUI_COMMAND_UNIT_BUILD )
 			continue;
 		const ThingTemplate *tmpl = button->getThingTemplate();
-		if( tmpl && tmpl->isKindOf( KINDOF_HARVESTER ) && tmpl->isKindOf( KINDOF_AIRCRAFT ) && passengersFireFrom( tmpl ) &&
+		if( tmpl && tmpl->isKindOf( KINDOF_HARVESTER ) && tmpl->isKindOf( KINDOF_AIRCRAFT ) && transportContainOf( tmpl ) &&
+				transportContainOf( tmpl )->m_slotCapacity > 0 && passengersFireFrom( tmpl ) == firing &&
 				TheBuildAssistant->canMakeUnit( factory, tmpl ) == CANMAKE_OK )
 			return tmpl;
 	}
@@ -7183,7 +7244,7 @@ void AIPlayer::buyGunshipChinook( void )
 	m_player->iterateObjects( collectFactories, &factories );
 	for( size_t f = 0; f < factories.size(); ++f )
 	{
-		const ThingTemplate *gunship = gunshipChinookTemplate( factories[ f ] );
+		const ThingTemplate *gunship = chinookTemplate( factories[ f ], TRUE );
 		if( gunship == NULL )
 			continue;
 		queueSupportUnit( gunship, "GUNSHIP" );
@@ -7207,6 +7268,7 @@ void AIPlayer::sendWave( AIGroup *wave, const AsciiString &approach, Int pathSuf
 	if( way == NULL )
 		return;
 
+	computeShuttleFront( way, wave );
 	wave->groupFollowWaypointPathAsTeam( way, CMD_FROM_AI );
 	sendWaveThroughTunnels( wave, &center, way );
 }
@@ -7424,6 +7486,539 @@ void AIPlayer::sendWaveThroughTunnels( AIGroup *wave, const Coord3D *center, Way
 	}
 	DEBUG_LOG(("AI WAVE frame %d player %d sends %d of %d units through tunnel %d, the path is %.0f long\n", TheGameLogic->getFrame(),
 		m_player->getPlayerIndex(), sent, waveSize, entrance->getID(), walk));
+}
+
+//----------------------------------------------------------------------------------------------------------
+/** The transport Chinooks.  A USA wave walks the whole road to the enemy, tanks at the pace of the
+	* slowest, while the Chinook every USA general builds at the supply center carries eight slots, two
+	* tanks and two men, at 150 a second.  Medium and up buy plain Chinooks for nothing but that: they
+	* load the wave's ground units at home, put them down on the wave's road short of anything the AI
+	* has seen shoot, fly home and load again while the wave is under way.  They never gather, and the
+	* supply Chinooks are never taken for it. */
+//----------------------------------------------------------------------------------------------------------
+static const Int SHUTTLE_CHECK_RATE = LOGICFRAMES_PER_SECOND;
+
+/** How long after a wave leaves its stragglers and the units that come out behind it are flown after it. */
+static const UnsignedInt SHUTTLE_WINDOW_FRAMES = 120 * LOGICFRAMES_PER_SECOND;
+
+/** The longest a Chinook waits at home for the units it called aboard, and the shortest. */
+static const UnsignedInt SHUTTLE_LOAD_FRAMES = 30 * LOGICFRAMES_PER_SECOND;
+static const UnsignedInt SHUTTLE_LOAD_MIN_FRAMES = 5 * LOGICFRAMES_PER_SECOND;
+
+/** A leg that takes longer than this has stuck somewhere, and its order is given again. */
+static const UnsignedInt SHUTTLE_LEG_FRAMES = 90 * LOGICFRAMES_PER_SECOND;
+
+/** How far along the wave's road its units are put down when nothing the AI has seen shoots there:
+	* past the middle, short of the end, which is the enemy's base. */
+static const Real SHUTTLE_DROP_SHARE = 0.6f;
+
+/** A Chinook hit below this share of its health on the way out puts its load down where it is. */
+static const Real SHUTTLE_ABORT_HEALTH = 0.5f;
+
+/** Flying is worth it only beyond a walk this much longer than the base is wide. */
+static const Real SHUTTLE_MIN_FLIGHT = 600.0f;
+
+/** ChinookLocomotor's Speed, and what a round trip costs besides the flying: lifting off, landing,
+	* the boarding and the unloading. */
+static const Real CHINOOK_CRUISE_SPEED = 150.0f;
+static const UnsignedInt SHUTTLE_TURNAROUND_FRAMES = 40 * LOGICFRAMES_PER_SECOND;
+
+/** A straight flight from a point to (x, y) crosses no cell the influence map says the enemy's known
+	* guns reach.  Without the map (below Hard) nothing is known, and every flight is quiet. */
+Bool AIPlayer::flightIsQuiet( const Coord3D *from, Real x, Real y ) const
+{
+	if( !m_influence.isBuilt() )
+		return TRUE;
+	const Real dx = x - from->x;
+	const Real dy = y - from->y;
+	const Real flight = (Real)sqrt( dx * dx + dy * dy );
+	for( Real along = 0.0f; along <= flight; along += INFLUENCE_CELL_SIZE )
+		if( m_influence.enemyAt( from->x + dx * along / flight, from->y + dy * along / flight ) > 0.0f )
+			return FALSE;
+	return TRUE;
+}
+
+/** The drop point on the wave's road: the last point that is no further than SHUTTLE_DROP_SHARE of the
+	* road and comes before the first one the influence map says the enemy's guns reach.  Without the
+	* influence map (below Hard) only the share counts.  And the transport slots the wave's ground units
+	* take, which is what the Chinooks are bought for. */
+void AIPlayer::computeShuttleFront( Waypoint *way, AIGroup *wave )
+{
+	// the road from where the wave stands, and on from its end to the enemy's base: the approach paths
+	// stop in the middle of the map, and a wave gathered a third of the way out had 269 of road left
+	std::vector<Coord3D> road;
+	road.push_back( *way->getLocation() );
+	Waypoint *at = way;
+	for( Int i = 0; i < WAVE_PATH_MAX_POINTS && at->getNumLinks() > 0; ++i )
+	{
+		at = at->getLink( 0 );
+		road.push_back( *at->getLocation() );
+	}
+	Coord3D enemyPos;
+	Player *enemy = getAiEnemy();
+	if( enemy && enemyStartGuess( enemy->getPlayerIndex(), &enemyPos ) )
+		road.push_back( enemyPos );
+	Real length = 0.0f;
+	for( size_t p = 1; p < road.size(); ++p )
+		length += (Real)sqrt( sqr( road[ p ].x - road[ p - 1 ].x ) + sqr( road[ p ].y - road[ p - 1 ].y ) );
+
+	// walked a cell at a time, up to the share or the first cell the enemy's known guns reach.  The drop
+	// is the furthest of those the Chinook can fly to from home in a straight line over nothing known to
+	// shoot: the first version measured the road alone, and seven USA Chinooks in one match were shot
+	// down, each flying straight at a drop beyond an enemy base
+	Coord3D drop = road[ 0 ];
+	Real walked = 0.0f;
+	Bool hot = FALSE;
+	for( size_t p = 1; p < road.size() && !hot; ++p )
+	{
+		const Real legX = road[ p ].x - road[ p - 1 ].x;
+		const Real legY = road[ p ].y - road[ p - 1 ].y;
+		const Real leg = (Real)sqrt( legX * legX + legY * legY );
+		for( Real along = INFLUENCE_CELL_SIZE; along <= leg && !hot; along += INFLUENCE_CELL_SIZE )
+		{
+			const Real x = road[ p - 1 ].x + legX * along / leg;
+			const Real y = road[ p - 1 ].y + legY * along / leg;
+			hot = walked + along > length * SHUTTLE_DROP_SHARE || (m_influence.isBuilt() && m_influence.enemyAt( x, y ) > 0.0f);
+			if( !hot && flightIsQuiet( &m_baseCenter, x, y ) )
+			{
+				drop.x = x;
+				drop.y = y;
+			}
+		}
+		walked += leg;
+	}
+	walked = (Real)sqrt( sqr( drop.x - road[ 0 ].x ) + sqr( drop.y - road[ 0 ].y ) );
+	drop.z = TheTerrainLogic->getGroundHeight( drop.x, drop.y );
+
+	Int slots = 0;
+	const VecObjectID &ids = wave->getAllIDs();
+	for( VecObjectID::const_iterator it = ids.begin(); it != ids.end(); ++it )
+	{
+		const Object *obj = TheGameLogic->findObjectByID( *it );
+		if( obj && !obj->isKindOf( KINDOF_AIRCRAFT ) && !obj->isKindOf( KINDOF_HUGE_VEHICLE ) &&
+				(obj->isKindOf( KINDOF_INFANTRY ) || obj->isKindOf( KINDOF_VEHICLE )) )
+			slots += obj->getTransportSlotCount();
+	}
+	// a wave split in two goes out in the same frame, flank first: both halves count
+	const UnsignedInt now = TheGameLogic->getFrame();
+	m_lastWaveSlots = (m_shuttleFrontFrame == now) ? m_lastWaveSlots + slots : slots;
+	m_shuttleFront = drop;
+	m_shuttleFrontFrame = now;
+	DEBUG_LOG(("AI SHUTTLE frame %d player %d front at (%.0f,%.0f), %.0f from the wave, its road to the enemy %.0f long, the wave takes %d slots\n", now,
+		m_player->getPlayerIndex(), drop.x, drop.y, walked, length, m_lastWaveSlots));
+}
+
+/** Who is on the way to what, vehicles as well as infantry.  Matched against a Chinook's id it is who is
+	* still coming aboard: by the goal alone, since a tank sent at a hovering Chinook is not in the enter
+	* state the whole time, and counting only that sent the Chinooks off with half their load or none. */
+struct EnterWalker
+{
+	Object *walker;
+	ObjectID goal;
+};
+
+static void collectEnterWalkers( Object *obj, void *userData )
+{
+	AIUpdateInterface *ai = obj->getAI();
+	if( ai && !obj->isContained() && !obj->isKindOf( KINDOF_AIRCRAFT ) && ai->getGoalObject() )
+	{
+		EnterWalker walker = { obj, ai->getGoalObject()->getID() };
+		((std::vector<EnterWalker> *)userData)->push_back( walker );
+	}
+}
+
+/** A ground unit of a wave or an attack team that is still at home and not in a fight: on the road
+	* out, gathering, or standing about. */
+static Bool shuttleState( StateID state )
+{
+	switch( state )
+	{
+		case AI_IDLE: case AI_GUARD: case AI_GUARD_RETALIATE: case AI_MOVE_TO: case AI_MOVE_AND_TIGHTEN: case AI_ATTACK_MOVE_TO:
+		case AI_FOLLOW_WAYPOINT_PATH_AS_TEAM: case AI_FOLLOW_WAYPOINT_PATH_AS_INDIVIDUALS: case AI_FOLLOW_WAYPOINT_PATH_AS_TEAM_EXACT:
+		case AI_FOLLOW_WAYPOINT_PATH_AS_INDIVIDUALS_EXACT: case AI_FOLLOW_PATH:
+		case AI_ATTACKFOLLOW_WAYPOINT_PATH_AS_INDIVIDUALS: case AI_ATTACKFOLLOW_WAYPOINT_PATH_AS_TEAM:
+			return TRUE;
+		default:
+			return FALSE;
+	}
+}
+
+/** Fill one Chinook at home with the attack teams' ground units at home, the heavy ones first: a tank
+	* walks slowest.  Not a parked team's, which waits for its own wave, nor a base guard's. */
+Int AIPlayer::loadShuttle( Object *ship )
+{
+	ContainModuleInterface *hold = ship->getContain();
+	Int freeSlots = hold->getContainMax() - (Int)hold->getContainCount() - hold->getExtraSlotsInUse();
+	std::vector<Object *> cargo;
+	for( Player::PlayerTeamList::const_iterator t = m_player->getPlayerTeams()->begin(); t != m_player->getPlayerTeams()->end(); ++t )
+	{
+		const TeamTemplateInfo *info = (*t)->getTemplateInfo();
+		if( info->m_isBaseDefense || info->m_isPerimeterDefense || !aiTeamAttacks( info ) )
+			continue;
+		for( DLINK_ITERATOR<Team> iter = (*t)->iterate_TeamInstanceList(); !iter.done(); iter.advance() )
+		{
+			Team *team = iter.cur();
+			if( !team->isActive() || team == m_player->getDefaultTeam() )
+				continue;
+			Bool parked = FALSE;
+			for( Int i = 0; i < MAX_HELD_TEAMS; ++i )
+				if( m_heldUsed[ i ] && m_heldTeam[ i ] == team->getID() )
+					parked = TRUE;
+			if( parked )
+				continue;
+			for( DLINK_ITERATOR<Object> m = team->iterate_TeamMemberList(); !m.done(); m.advance() )
+			{
+				Object *obj = m.cur();
+				if( obj->isEffectivelyDead() || obj->getAI() == NULL || obj->isContained() || obj->isKindOf( KINDOF_AIRCRAFT ) ||
+						obj->isKindOf( KINDOF_STRUCTURE ) || obj->isKindOf( KINDOF_IMMOBILE ) || obj->getTransportSlotCount() <= 0 ||
+						!isAtHome( obj->getPosition() ) || !leavesToFinish( obj ) || isFallingBack( obj->getID() ) ||
+						!shuttleState( obj->getAI()->getCurrentStateID() ) || !hold->isValidContainerFor( obj, FALSE ) )
+					continue;
+				cargo.push_back( obj );
+			}
+		}
+	}
+
+	Int vehicles = 0;
+	Int infantry = 0;
+	Int slots = 0;
+	// two passes over the same list: what takes three slots or more, then the rest
+	for( Int heavy = 1; heavy >= 0; --heavy )
+	{
+		for( size_t c = 0; c < cargo.size(); ++c )
+		{
+			Object *obj = cargo[ c ];
+			const Int need = obj->getTransportSlotCount();
+			if( (need >= 3) != (heavy == 1) || need > freeSlots )
+				continue;
+			freeSlots -= need;
+			slots += need;
+			if( obj->isKindOf( KINDOF_INFANTRY ) )
+				++infantry;
+			else
+				++vehicles;
+			// out of the wave's group, which would otherwise hold its road for a member in a hold
+			if( obj->getGroup() )
+				obj->getGroup()->remove( obj );
+			obj->getAI()->aiEnter( ship, CMD_FROM_AI );
+		}
+	}
+	if( vehicles + infantry > 0 )
+		DEBUG_LOG(("AI SHUTTLE frame %d player %d loads %d vehicles and %d infantry, %d of %d slots, into '%s' %d\n", TheGameLogic->getFrame(),
+			m_player->getPlayerIndex(), vehicles, infantry, slots, hold->getContainMax(), ship->getTemplate()->getName().str(), ship->getID()));
+	return vehicles + infantry;
+}
+
+/** One more transport Chinook while the last wave needs more lift than there is: its slots over what
+	* the Chinooks can carry in the window, a round trip being the flight there and back plus the
+	* turnaround.  One order at a time, out of the bank above the cash hoard. */
+void AIPlayer::buyTransportChinook( void )
+{
+	if( m_lastWaveSlots <= 0 || isBaseUnderAttack() || scoutInQueue() ||
+			(Int)m_player->getMoney()->countMoney() <= getSkillProfile()->m_cashHoardThreshold )
+		return;
+	Int owned = 0;
+	for( Int shuttle = 0; shuttle < MAX_TRANSPORT_CHINOOKS; ++shuttle )
+	{
+		const Object *obj = TheGameLogic->findObjectByID( m_shuttle[ shuttle ].id );
+		if( obj && !obj->isEffectivelyDead() && obj->getControllingPlayer() == m_player )
+			++owned;
+	}
+	if( owned >= MAX_TRANSPORT_CHINOOKS )
+		return;
+
+	std::vector<Object *> factories;
+	m_player->iterateObjects( collectFactories, &factories );
+	const ThingTemplate *transport = NULL;
+	for( size_t f = 0; f < factories.size() && transport == NULL; ++f )
+		transport = chinookTemplate( factories[ f ], FALSE );
+	if( transport == NULL )
+		return;
+
+	const Real flight = (Real)sqrt( sqr( m_shuttleFront.x - m_baseCenter.x ) + sqr( m_shuttleFront.y - m_baseCenter.y ) );
+	const UnsignedInt roundTrip = (UnsignedInt)(2.0f * flight / CHINOOK_CRUISE_SPEED * LOGICFRAMES_PER_SECOND) + SHUTTLE_TURNAROUND_FRAMES;
+	const Int trips = max( 1, (Int)(SHUTTLE_WINDOW_FRAMES / roundTrip) );
+	const Int lift = transportContainOf( transport )->m_slotCapacity * trips;
+	const Int needed = min( (Int)MAX_TRANSPORT_CHINOOKS, (m_lastWaveSlots + lift - 1) / lift );
+	if( owned >= needed )
+		return;
+	queueSupportUnit( transport, "SHUTTLE" );
+	if( scoutInQueue() )
+		DEBUG_LOG(("AI SHUTTLE frame %d player %d orders '%s' as a transport, %d owned, %d needed for %d slots %.0f away, %d trips each, %d in the bank\n",
+			TheGameLogic->getFrame(), m_player->getPlayerIndex(), transport->getName().str(), owned, needed, m_lastWaveSlots, flight, trips,
+			m_player->getMoney()->countMoney()));
+}
+
+/** Gatherers of this player's that are not on duty, and whether one could be had: a gatherer order in
+	* the queue, or a plain one a factory can build and the bank can pay for. */
+struct GathererCount
+{
+	const AIPlayer *owner;
+	ObjectID lent;
+	Int count;
+};
+
+static void countGatherers( Object *obj, void *userData )
+{
+	GathererCount *gatherers = (GathererCount *)userData;
+	if( obj->isKindOf( KINDOF_HARVESTER ) && !obj->isEffectivelyDead() && obj->getAI() && obj->getAI()->getSupplyTruckAIInterface() &&
+			obj->getID() != gatherers->lent && !gatherers->owner->isDutyChinook( obj ) )
+		++gatherers->count;
+}
+
+/** A duty Chinook, gunship or transport, gathers only when the player has no gatherer left and cannot
+	* get one: no factory for one, or no money.  It goes back to its duty the moment a real one exists. */
+void AIPlayer::lendDutyChinook( void )
+{
+	GathererCount gatherers;
+	gatherers.owner = this;
+	gatherers.lent = m_lentChinook;
+	gatherers.count = 0;
+	m_player->iterateObjects( countGatherers, &gatherers );
+
+	Object *lent = TheGameLogic->findObjectByID( m_lentChinook );
+	if( lent && (lent->isEffectivelyDead() || lent->getControllingPlayer() != m_player) )
+		lent = NULL;
+	if( lent == NULL )
+		m_lentChinook = INVALID_ID;
+	if( lent )
+	{
+		if( gatherers.count == 0 )
+			return;
+		lent->getAI()->getSupplyTruckAIInterface()->setForceWantingState( FALSE );
+		lent->getAI()->aiIdle( CMD_FROM_AI );
+		DEBUG_LOG(("AI SHUTTLE frame %d player %d '%s' %d stops gathering, %d gatherers again\n", TheGameLogic->getFrame(),
+			m_player->getPlayerIndex(), lent->getTemplate()->getName().str(), lent->getID(), gatherers.count));
+		m_lentChinook = INVALID_ID;
+		for( Int shuttle = 0; shuttle < MAX_TRANSPORT_CHINOOKS; ++shuttle )
+			if( m_shuttle[ shuttle ].id == lent->getID() )
+				m_shuttle[ shuttle ].phase = SHUTTLE_RETURNING;
+		return;
+	}
+	if( gatherers.count > 0 )
+		return;
+
+	for( DLINK_ITERATOR<TeamInQueue> iter = iterate_TeamBuildQueue(); !iter.done(); iter.advance() )
+		for( const WorkOrder *order = iter.cur()->m_workOrders; order; order = order->m_next )
+			if( order->m_isResourceGatherer )
+				return;		// one is on its way
+	const Bool canBuildUnits = m_player->getCanBuildUnits();
+	m_player->setCanBuildUnits( true );
+	Bool canGet = FALSE;
+	for( const ThingTemplate *tmpl = TheThingFactory->firstTemplate(); tmpl && !canGet; tmpl = tmpl->friend_getNextTemplate() )
+		canGet = tmpl->isKindOf( KINDOF_HARVESTER ) && !passengersFireFrom( tmpl ) && findFactory( tmpl, true ) != NULL &&
+			(Int)m_player->getMoney()->countMoney() >= tmpl->calcCostToBuild( m_player );
+	m_player->setCanBuildUnits( canBuildUnits );
+	if( canGet )
+		return;
+
+	// a transport before a gunship: it carries nobody between waves anyway
+	Object *duty = NULL;
+	for( Int shuttle = 0; shuttle < MAX_TRANSPORT_CHINOOKS && duty == NULL; ++shuttle )
+	{
+		Object *obj = TheGameLogic->findObjectByID( m_shuttle[ shuttle ].id );
+		if( obj && isTransportChinook( obj ) )
+			duty = obj;
+	}
+	for( Int chinook = 0; chinook < MAX_GUNSHIP_CHINOOKS && duty == NULL; ++chinook )
+	{
+		Object *obj = TheGameLogic->findObjectByID( m_gunshipChinook[ chinook ] );
+		if( obj && isGunshipChinook( obj ) )
+			duty = obj;
+	}
+	if( duty == NULL )
+		return;
+	m_lentChinook = duty->getID();
+	duty->getAI()->getSupplyTruckAIInterface()->setForceWantingState( TRUE );
+	DEBUG_LOG(("AI SHUTTLE frame %d player %d lends '%s' %d to the supply runs, no gatherer left and none to be had\n", TheGameLogic->getFrame(),
+		m_player->getPlayerIndex(), duty->getTemplate()->getName().str(), duty->getID()));
+}
+
+void AIPlayer::doShuttles( void )
+{
+	if( !isSkirmishAI() || !m_baseCenterSet || m_skillLevel == AISKILL_EASY || measuringWithoutTactics() )
+		return;
+	if( (TheGameLogic->getFrame() + computeUpdatePhase( m_player->getPlayerIndex(), SHUTTLE_CHECK_RATE )) % SHUTTLE_CHECK_RATE != 0 )
+		return;
+	lendDutyChinook();
+	buyTransportChinook();
+
+	const UnsignedInt now = TheGameLogic->getFrame();
+	const Real flight = (Real)sqrt( sqr( m_shuttleFront.x - m_baseCenter.x ) + sqr( m_shuttleFront.y - m_baseCenter.y ) );
+	const Bool frontOpen = m_shuttleFrontFrame != 0 && now - m_shuttleFrontFrame < SHUTTLE_WINDOW_FRAMES &&
+		flight > 2.0f * m_baseRadius + SHUTTLE_MIN_FLIGHT && !isBaseUnderAttack();
+	std::vector<EnterWalker> walkers;
+	m_player->iterateObjects( collectEnterWalkers, &walkers );
+
+	for( Int s = 0; s < MAX_TRANSPORT_CHINOOKS; ++s )
+	{
+		ShuttleChinook &shuttle = m_shuttle[ s ];
+		if( shuttle.id == INVALID_ID )
+			continue;
+		Object *ship = TheGameLogic->findObjectByID( shuttle.id );
+		if( ship == NULL || ship->isEffectivelyDead() || ship->getControllingPlayer() != m_player )
+		{
+			static const char *const phases[] = { "at home", "loading", "out", "returning" };
+			DEBUG_LOG(("AI SHUTTLE frame %d player %d loses transport %d %s, %d units aboard\n", now, m_player->getPlayerIndex(),
+				shuttle.id, phases[ shuttle.phase ], shuttle.phase == SHUTTLE_OUT ? shuttle.load : 0));
+			shuttle.id = INVALID_ID;
+			continue;
+		}
+		if( shuttle.id == m_lentChinook )
+			continue;
+		AIUpdateInterface *ai = ship->getAI();
+		ContainModuleInterface *hold = ship->getContain();
+		const Coord3D *pos = ship->getPosition();
+		Int boarding = 0;
+		for( size_t w = 0; w < walkers.size(); ++w )
+			if( walkers[ w ].goal == shuttle.id )
+				++boarding;
+
+		switch( shuttle.phase )
+		{
+			case SHUTTLE_HOME:
+				if( !ai->isIdle() )
+					break;
+				if( !isAtHome( pos ) )
+				{
+					// the supply center's door and its rally point are out by the supply piles, past what
+					// counts as home: every transport waited there and nothing was ever loaded.  It waits
+					// inside the base instead, on the side the waves go out
+					Coord3D stage = m_baseCenter;
+					const Real frontDist = (Real)sqrt( sqr( m_shuttleFront.x - m_baseCenter.x ) + sqr( m_shuttleFront.y - m_baseCenter.y ) );
+					if( m_shuttleFrontFrame != 0 && frontDist > 1.0f )
+					{
+						stage.x += (m_shuttleFront.x - m_baseCenter.x) / frontDist * m_baseRadius;
+						stage.y += (m_shuttleFront.y - m_baseCenter.y) / frontDist * m_baseRadius;
+					}
+					stage.z = TheTerrainLogic->getGroundHeight( stage.x, stage.y );
+					ai->aiMoveToPosition( &stage, CMD_FROM_AI );
+					break;
+				}
+				if( !frontOpen )
+					break;
+				shuttle.home = *pos;
+				if( hold->getContainCount() > 0 || loadShuttle( ship ) > 0 )
+				{
+					shuttle.phase = SHUTTLE_LOADING;
+					shuttle.frame = now;
+				}
+				break;
+
+			case SHUTTLE_LOADING:
+				// wait while anybody is still coming and there is room, for a few seconds at least: an order
+				// given this second shows nobody walking yet
+				if( now - shuttle.frame < SHUTTLE_LOAD_FRAMES &&
+						(now - shuttle.frame < SHUTTLE_LOAD_MIN_FRAMES ||
+						 (boarding > 0 && (Int)hold->getContainCount() + hold->getExtraSlotsInUse() < hold->getContainMax())) )
+					break;
+				// whoever has not got in by now stays for the next trip
+				for( size_t w = 0; w < walkers.size(); ++w )
+					if( walkers[ w ].goal == shuttle.id )
+						walkers[ w ].walker->getAI()->aiIdle( CMD_FROM_AI );
+				shuttle.frame = now;
+				if( hold->getContainCount() == 0 || m_shuttleFrontFrame == 0 )
+				{
+					shuttle.phase = SHUTTLE_HOME;
+					break;
+				}
+				shuttle.drop = m_shuttleFront;
+				if( !flightIsQuiet( pos, m_shuttleFront.x, m_shuttleFront.y ) )
+				{
+					// the way out has turned hot since the wave left: as far along it as is still quiet, and
+					// if that is hardly past home they get out and walk.  Staying home outright whenever
+					// the straight line touched a hot cell kept 74 loads at home over four matches
+					const Real dx = m_shuttleFront.x - pos->x;
+					const Real dy = m_shuttleFront.y - pos->y;
+					const Real flight = (Real)sqrt( dx * dx + dy * dy );
+					Real reach = 0.0f;
+					for( Real along = INFLUENCE_CELL_SIZE; along <= flight; along += INFLUENCE_CELL_SIZE )
+					{
+						if( m_influence.enemyAt( pos->x + dx * along / flight, pos->y + dy * along / flight ) > 0.0f )
+							break;
+						reach = along;
+					}
+					shuttle.drop.x = pos->x + dx * reach / flight;
+					shuttle.drop.y = pos->y + dy * reach / flight;
+					shuttle.drop.z = TheTerrainLogic->getGroundHeight( shuttle.drop.x, shuttle.drop.y );
+					if( isAtHome( &shuttle.drop ) || reach < SHUTTLE_MIN_FLIGHT )
+					{
+						DEBUG_LOG(("AI SHUTTLE frame %d player %d '%s' %d stays home, the flight to (%.0f,%.0f) is hot after %.0f, %d units walk\n", now,
+							m_player->getPlayerIndex(), ship->getTemplate()->getName().str(), shuttle.id, m_shuttleFront.x, m_shuttleFront.y,
+							reach, (Int)hold->getContainCount()));
+						ai->aiEvacuate( FALSE, CMD_FROM_AI );
+						shuttle.phase = SHUTTLE_HOME;
+						break;
+					}
+				}
+				shuttle.load = (Int)hold->getContainCount();
+				shuttle.aborted = FALSE;
+				{
+					Int vehicles = 0;
+					const ContainedItemsList *items = hold->getContainedItemsList();
+					for( ContainedItemsList::const_iterator it = items->begin(); it != items->end(); ++it )
+					{
+						m_droppedRiders.push_back( (*it)->getID() );
+						if( (*it)->isKindOf( KINDOF_VEHICLE ) )
+							++vehicles;
+					}
+					DEBUG_LOG(("AI SHUTTLE frame %d player %d flies %d units, %d vehicles, %d of %d slots, in '%s' %d to (%.0f,%.0f)\n", now,
+						m_player->getPlayerIndex(), shuttle.load, vehicles, (Int)hold->getContainCount() + hold->getExtraSlotsInUse(), hold->getContainMax(),
+						ship->getTemplate()->getName().str(), shuttle.id, shuttle.drop.x, shuttle.drop.y));
+				}
+				// an order rather than an AI's aside, as doTransports gives it
+				ai->aiMoveToAndEvacuate( &shuttle.drop, CMD_FROM_SCRIPT );
+				shuttle.phase = SHUTTLE_OUT;
+				break;
+
+			case SHUTTLE_OUT:
+				if( hold->getContainCount() > 0 )
+				{
+					const BodyModuleInterface *body = ship->getBodyModule();
+					if( !shuttle.aborted && body->getHealth() < body->getMaxHealth() * SHUTTLE_ABORT_HEALTH )
+					{
+						// hit on the way: down here, before the rest of the flight costs the load as well
+						Coord3D here = *pos;
+						here.z = TheTerrainLogic->getGroundHeight( here.x, here.y );
+						DEBUG_LOG(("AI SHUTTLE frame %d player %d '%s' %d aborts at (%.0f,%.0f), %.0f%% health, puts %d units down\n", now,
+							m_player->getPlayerIndex(), ship->getTemplate()->getName().str(), shuttle.id, here.x, here.y,
+							100.0f * body->getHealth() / body->getMaxHealth(), (Int)hold->getContainCount()));
+						shuttle.drop = here;
+						shuttle.aborted = TRUE;
+						ai->aiMoveToAndEvacuate( &shuttle.drop, CMD_FROM_SCRIPT );
+						shuttle.frame = now;
+					}
+					else if( now - shuttle.frame > SHUTTLE_LEG_FRAMES )
+					{
+						ai->aiMoveToAndEvacuate( &shuttle.drop, CMD_FROM_SCRIPT );
+						shuttle.frame = now;
+					}
+					break;
+				}
+				DEBUG_LOG(("AI SHUTTLE frame %d player %d '%s' %d drops %d units at (%.0f,%.0f), %d s out, %.0f from home\n", now,
+					m_player->getPlayerIndex(), ship->getTemplate()->getName().str(), shuttle.id, shuttle.load, pos->x, pos->y,
+					(now - shuttle.frame) / LOGICFRAMES_PER_SECOND, (Real)sqrt( sqr( pos->x - shuttle.home.x ) + sqr( pos->y - shuttle.home.y ) )));
+				ai->aiMoveToPosition( &shuttle.home, CMD_FROM_AI );
+				shuttle.phase = SHUTTLE_RETURNING;
+				shuttle.frame = now;
+				break;
+
+			case SHUTTLE_RETURNING:
+				if( isAtHome( pos ) && ai->isIdle() )
+				{
+					DEBUG_LOG(("AI SHUTTLE frame %d player %d '%s' %d back home after %d s\n", now, m_player->getPlayerIndex(),
+						ship->getTemplate()->getName().str(), shuttle.id, (now - shuttle.frame) / LOGICFRAMES_PER_SECOND));
+					shuttle.phase = SHUTTLE_HOME;
+					shuttle.frame = now;
+				}
+				else if( ai->isIdle() || now - shuttle.frame > SHUTTLE_LEG_FRAMES )
+				{
+					ai->aiMoveToPosition( &shuttle.home, CMD_FROM_AI );
+					shuttle.frame = now;
+				}
+				break;
+		}
+	}
 }
 
 //----------------------------------------------------------------------------------------------------------
@@ -8197,8 +8792,6 @@ static void findLoadedTransport( Object *obj, void *userData )
 	* go on towards the enemy the wave was sent at. */
 void AIPlayer::doTransports( void )
 {
-	if( !m_influence.isBuilt() )
-		return;		// Hard with its tactics running: nothing else loads the wave's infantry
 	if( (TheGameLogic->getFrame() + computeUpdatePhase( m_player->getPlayerIndex(), TRANSPORT_CHECK_RATE )) % TRANSPORT_CHECK_RATE != 0 )
 		return;
 
@@ -8218,6 +8811,10 @@ void AIPlayer::doTransports( void )
 		m_droppedRiders[ i ] = m_droppedRiders.back();
 		m_droppedRiders.pop_back();
 	}
+	// the dropped riders above include the transport Chinooks' cargo on every rung; the helicopters'
+	// own drops below are Hard's, with its tactics running: nothing else loads the wave's infantry
+	if( !m_influence.isBuilt() )
+		return;
 
 	LoadedTransports found;
 	found.ferry = m_ferryID;
@@ -9946,7 +10543,7 @@ void AIPlayer::xfer( Xfer *xfer )
 {
 
 	// version
-	XferVersion currentVersion = 14;		// 2: scout  3: rung and role  4: scouting stamps  5: the capturer  6: parked waves  7: superweapon aims  8: the hijacker  9: tactical steps  10: the ferry and dropped riders  11: the outward placement ring  12: the pressure level  13: falling back  14: gunship Chinooks and the boarding wait
+	XferVersion currentVersion = 15;		// 2: scout  3: rung and role  4: scouting stamps  5: the capturer  6: parked waves  7: superweapon aims  8: the hijacker  9: tactical steps  10: the ferry and dropped riders  11: the outward placement ring  12: the pressure level  13: falling back  14: gunship Chinooks and the boarding wait  15: transport Chinooks and the lent one
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -10228,6 +10825,25 @@ void AIPlayer::xfer( Xfer *xfer )
 		for( Int chinook = 0; chinook < MAX_GUNSHIP_CHINOOKS; ++chinook )
 			xfer->xferObjectID( &m_gunshipChinook[ chinook ] );
 		xfer->xferUnsignedInt( &m_boardWaitFrame );
+	}
+	// the transport Chinooks mid-trip, and the wave road they fly to
+	if( version >= 15 )
+	{
+		for( Int shuttle = 0; shuttle < MAX_TRANSPORT_CHINOOKS; ++shuttle )
+		{
+			ShuttleChinook &s = m_shuttle[ shuttle ];
+			xfer->xferObjectID( &s.id );
+			xfer->xferInt( &s.phase );
+			xfer->xferUnsignedInt( &s.frame );
+			xfer->xferInt( &s.load );
+			xfer->xferBool( &s.aborted );
+			xfer->xferCoord3D( &s.drop );
+			xfer->xferCoord3D( &s.home );
+		}
+		xfer->xferCoord3D( &m_shuttleFront );
+		xfer->xferUnsignedInt( &m_shuttleFrontFrame );
+		xfer->xferInt( &m_lastWaveSlots );
+		xfer->xferObjectID( &m_lentChinook );
 	}
 
 	// the ladder rung and the role, which are rolled once and must come back the same way
