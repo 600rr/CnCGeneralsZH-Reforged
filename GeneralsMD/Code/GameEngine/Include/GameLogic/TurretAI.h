@@ -333,6 +333,7 @@ public:
 	Bool friend_isAnyWeaponInRangeOf(const Object* o) const;
 	TurretTargetType friend_getTurretTarget( Object*& obj, Coord3D& pos, Bool clearDeadTargets = TRUE ) const;
 	Bool friend_getTargetWasSetByIdleMood() const { return m_targetWasSetByIdleMood; }
+	Bool friend_getFiresWhileTurning() const { return m_firesWhileTurning; }
 	const Team* friend_getVictimInitialTeam() const { return m_victimInitialTeam; }
 	void friend_checkForIdleMoodTarget();
 	UnsignedInt friend_getNextIdleMoodTargetFrame() const;

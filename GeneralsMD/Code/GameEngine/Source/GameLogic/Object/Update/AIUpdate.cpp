@@ -3969,9 +3969,9 @@ UpdateSleepTime AIUpdateInterface::doLocomotor( void )
 				 turret is already on: a Helix flies where it likes while its gattling cannon tracks. */
 			Coord3D faceTargetPos;
 			const Coord3D *faceTarget = NULL;
+			updateWithdrawTarget();
 			if (m_curLocomotor->isHelicopter(getObject()))
 			{
-				updateWithdrawTarget();
 				Object *target = NULL;
 				Bool noseAims;
 				WhichTurretType tur = getAimingTurret(&noseAims);
@@ -6304,14 +6304,15 @@ Bool AIUpdateInterface::isCarriedGunOn( const Object *victim ) const
 
 //-------------------------------------------------------------------------------------------------
 /**
-	A helicopter told to move in the middle of a fight keeps shooting what it was attacking while it
-	flies. The attack is ending (AIAttackState::onExit), so remember its victim; updateWithdrawTarget
-	then holds the turret on it for as long as the helicopter is on a plain move. Only a helicopter,
-	and only one that already had a victim: a move order never picks a new target.
+	A helicopter, or a vehicle whose gun is on a turret, told to move in the middle of a fight keeps
+	shooting what it was attacking while it moves. The attack is ending (AIAttackState::onExit), so
+	remember its victim; updateWithdrawTarget then holds the turret on it for as long as the unit is
+	on a plain move. Only a unit that already had a victim: a move order never picks a new target.
 */
 void AIUpdateInterface::noteWithdrawTarget( const Object *victim )
 {
-	if (victim &&m_curLocomotor && m_curLocomotor->isHelicopter(getObject()))
+	if (victim && m_curLocomotor
+			&& (m_curLocomotor->isHelicopter(getObject()) || getWhichTurretForCurWeapon() != TURRET_INVALID))
 	{
 		m_withdrawTargetID = victim->getID();
 		m_withdrawFrame = TheGameLogic->getFrame();
@@ -6357,7 +6358,8 @@ void AIUpdateInterface::updateWithdrawTarget()
 		return;
 	}
 
-	if (target && tur != TURRET_INVALID && getTurretTargetObject(tur, FALSE) == target)
+	// a new attack on the same target owns the turret now; letting go would drop its aim for a frame
+	if (target && tur != TURRET_INVALID && getTurretTargetObject(tur, FALSE) == target && getCurrentVictim() != target)
 		setTurretTargetObject(tur, NULL, FALSE);
 	m_withdrawTargetID = INVALID_ID;
 }

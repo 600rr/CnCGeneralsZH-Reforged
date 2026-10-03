@@ -456,7 +456,8 @@ Bool TurretAI::friend_turnTowardsAngle(Real desiredAngle, Real rateModifier, Rea
 	if( m_angle != origAngle )
 		getOwner()->reactToTurretChange( m_whichTurret, origAngle, m_pitch );
 
-	Bool aligned = fabs(m_angle - desiredAngle) <= relThresh && !beyondArc;
+	// normalized, or a turret just either side of straight back reads as a full turn away
+	Bool aligned = fabs(normalizeAngle(m_angle - desiredAngle)) <= relThresh && !beyondArc;
 
 	return aligned;
 }
@@ -1167,7 +1168,11 @@ StateReturnType TurretAIAimTurretState::update()
 	}
 
 	const Real REL_THRESH = 0.035f;	// about 2 degrees. (getRelativeAngle2D is current only accurate to about 1.25 degrees)
-	Bool turnAlignedToNemesis = turret->friend_turnTowardsAngle(aimAngle, turnSpeedModifier, REL_THRESH);
+	// A gun that fires while it turns (the Gattling's) opens up 15 degrees out and walks its fire onto the
+	// target. With the 2 degree window it held fire for as long as a turning hull kept it chasing.
+	const Real FIRES_WHILE_TURNING_THRESH = 0.26f;
+	Real relThresh = turret->friend_getFiresWhileTurning() ? FIRES_WHILE_TURNING_THRESH : REL_THRESH;
+	Bool turnAlignedToNemesis = turret->friend_turnTowardsAngle(aimAngle, turnSpeedModifier, relThresh);
 
 	// this section we do even if sweep is "disabled", so that we can start firing
 	// once we get into sweep "range"

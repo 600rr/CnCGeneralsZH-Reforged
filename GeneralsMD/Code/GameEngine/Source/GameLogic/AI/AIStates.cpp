@@ -5987,9 +5987,14 @@ StateReturnType AIAttackFireWeaponState::update()
 		//to transfer attackers (AIUpdateInterface::transferAttack), it is unable to modify our current victim in our attack state
 		//machine. When we move immediately to the aim state in the same frame as the transfer (after this call in fact), the victim
 		//was still pointing to the building and not the hole we transferred to. This code fixes that.
-		if( victim != obj->getAI()->getCurrentVictim() )
+		// Only when the AI has a victim to hand over. A turret's machine runs this state too, and a target the
+		// turret picked for itself on the move has no attack state behind it: the AI's victim is null, and
+		// copying that over dropped the target after every shot, so a tank driving past fired once per mood
+		// check instead of at its rate of fire.
+		Object *aiVictim = obj->getAI()->getCurrentVictim();
+		if( aiVictim && victim != aiVictim )
 		{
-			getMachine()->setGoalObject( obj->getAI()->getCurrentVictim() );
+			getMachine()->setGoalObject( aiVictim );
 		}
 
 		// clear this, just in case.
