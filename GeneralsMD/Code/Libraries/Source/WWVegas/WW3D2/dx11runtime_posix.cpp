@@ -71,6 +71,7 @@ bool Direct3D11_Shadow_Map_Bound() { return false; }
 std::string Direct3D11_Shadow_Map_Report() { return std::string("no Direct3D 11 backend"); }
 void Direct3D11_Set_Shadow_Parameters(float, float, float, float, float, float, float) {}
 void Direct3D11_Clear_Shadow_Parameters() {}
+bool Direct3D11_Fill_Smoke_Map(const float *, unsigned, float) { return false; }
 
 void Direct3D11_Mark_Surface_Dirty(struct IDirect3DSurface9 *) {}
 void Direct3D11_Mirror_Render_Target(struct IDirect3DSurface9 *) {}

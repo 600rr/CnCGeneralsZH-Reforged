@@ -987,6 +987,28 @@ Int parseNoParticleShadows(char *args[], int)
 	return 1;
 }
 
+/* -novolumetricsmoke: smoke and dust out of the sun's map for one run, which is the other half of
+	 any picture of what they shade.  The blob under each cloud comes back with it, as it does on a
+	 machine with no Direct3D 11 device. */
+Int parseNoVolumetricSmoke(char *args[], int)
+{
+	if (TheWritableGlobalData)
+	{
+		TheWritableGlobalData->m_volumetricSmokeShadows = FALSE;
+	}
+	return 1;
+}
+
+/* -nosmokefirelight: smoke left unlit by the fire beside it, for one run. */
+Int parseNoSmokeFireLight(char *args[], int)
+{
+	if (TheWritableGlobalData)
+	{
+		TheWritableGlobalData->m_smokeFireLighting = FALSE;
+	}
+	return 1;
+}
+
 Int parseNoShaders(char *args[], int)
 {
 	if (TheWritableGlobalData)
@@ -2382,6 +2404,8 @@ static CommandLineParam params[] =
 	{ "-shadowmapreport", parseShadowMapReport },
 	{ "-shadowmapboth", parseShadowMapBoth },
 	{ "-noparticleshadows", parseNoParticleShadows },
+	{ "-novolumetricsmoke", parseNoVolumetricSmoke },
+	{ "-nosmokefirelight", parseNoSmokeFireLight },
 	{ "-quickstart", parseQuickStart },
 	/* In every build: EA kept them to Debug and Internal, so a Release run could not skip the logo or the
 		 movies. */

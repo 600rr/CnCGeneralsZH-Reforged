@@ -980,6 +980,10 @@ private:
 /// The particle system manager singleton
 extern ParticleSystemManager *TheParticleSystemManager;
 
+/// The renderer put the smoke into the sun's map on its last frame, so the clouds already shade the
+/// ground and the blob under each one would shade it twice.  Written by the shadow pass.
+extern Bool TheSmokeInSunMap;
+
 class DebugDisplayInterface;
 extern void ParticleSystemDebugDisplay( DebugDisplayInterface *dd, void *, FILE *fp = NULL );
 

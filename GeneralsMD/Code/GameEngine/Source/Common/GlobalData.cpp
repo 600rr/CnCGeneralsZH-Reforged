@@ -687,6 +687,8 @@ GlobalData::GlobalData()
 	m_startAtMaxZoom = TRUE;		//open a game framed as wide as the player could zoom by hand
 	m_shadowsForProps = TRUE;				//likewise: scenery with no shadow of its own gets one
 	m_shadowsForParticles = TRUE;	//on by default: the shipped INI has no entry for it
+	m_volumetricSmokeShadows = TRUE;
+	m_smokeFireLighting = TRUE;
 	m_classicGraphics = FALSE;
 	m_shadowMap = TRUE;						//the sun's own shadows are what the game draws with now
 	m_shadowMapOnly = TRUE;				//and they replace the stencil volumes rather than joining them
@@ -1502,6 +1504,7 @@ void GlobalData::parseGameDataDefinition( INI* ini )
 	if (TheWritableGlobalData->m_classicGraphics)
 	{
 		TheWritableGlobalData->m_shadowMap = FALSE;
+		TheWritableGlobalData->m_volumetricSmokeShadows = FALSE;
 		TheWritableGlobalData->m_direct3D11PostChain = "off";
 	}
 

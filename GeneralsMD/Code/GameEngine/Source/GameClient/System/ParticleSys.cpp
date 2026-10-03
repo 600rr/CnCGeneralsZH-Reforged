@@ -82,6 +82,7 @@ static UnsignedInt particleTimerFrames( Real value )
 
 // the singleton
 ParticleSystemManager *TheParticleSystemManager = NULL;
+Bool TheSmokeInSunMap = FALSE;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2510,6 +2511,10 @@ Bool ParticleSystem::shouldCastGroundShadow( void ) const
 		return FALSE;
 
 	if (m_shaderType != ALPHA && m_shaderType != ALPHA_TEST)
+		return FALSE;
+
+	// the sun's map holds this cloud already and shades the ground under it through its own density
+	if (m_shaderType == ALPHA && TheSmokeInSunMap)
 		return FALSE;
 
 	if (m_isGroundAligned)

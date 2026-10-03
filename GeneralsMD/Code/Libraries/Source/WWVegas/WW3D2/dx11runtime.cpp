@@ -322,6 +322,11 @@ void Direct3D11_Set_Shadow_Parameters(float bias, float strength, float widest_r
 	}
 }
 
+bool Direct3D11_Fill_Smoke_Map(const float * casters, unsigned count, float strength)
+{
+	return Active ? Backend.Fill_Smoke_Map(casters, count, strength) : false;
+}
+
 void Direct3D11_Clear_Shadow_Parameters()
 {
 	if (Active) {

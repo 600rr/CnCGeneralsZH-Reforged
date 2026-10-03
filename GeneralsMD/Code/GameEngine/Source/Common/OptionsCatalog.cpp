@@ -108,6 +108,8 @@ OPTION_BOOL_ACCESSORS( m_shadowsForProjectiles )
 OPTION_BOOL_ACCESSORS( m_shadowsForProps )
 OPTION_BOOL_ACCESSORS( m_shadowsForParticles )
 OPTION_BOOL_ACCESSORS( m_particleGroundBounce )
+OPTION_BOOL_ACCESSORS( m_volumetricSmokeShadows )
+OPTION_BOOL_ACCESSORS( m_smokeFireLighting )
 OPTION_BOOL_ACCESSORS( m_showSkillStrip )
 OPTION_BOOL_ACCESSORS( m_showSuperweaponStrip )
 
@@ -463,6 +465,18 @@ const OptionDef TheOptionCatalog[] =
 	{ "ShadowsForParticles",			OPT_WND( "CheckParticleShadows" ), "GUI:ParticleShadows",
 		OPTION_BOOL, APPLY_LIVE, 0, 1,
 		get_m_shadowsForParticles, set_m_shadowsForParticles },
+
+	// Smoke and dust in the sun's map: a cloud shades the ground, the units and the smoke behind it
+	// by how thick it is, and darkens on its own far side.  Read by the shadow pass every frame.  No
+	// control yet; Options.ini and -novolumetricsmoke reach it.
+	{ "VolumetricSmokeShadows",		"", "",
+		OPTION_BOOL, APPLY_LIVE, 0, 1,
+		get_m_volumetricSmokeShadows, set_m_volumetricSmokeShadows },
+
+	// Smoke lit by the fire beside it.  No control yet; -nosmokefirelight turns it off for a run.
+	{ "SmokeFireLighting",				"", "",
+		OPTION_BOOL, APPLY_LIVE, 0, 1,
+		get_m_smokeFireLighting, set_m_smokeFireLighting },
 
 	// -smoke and -particlebounce as settings.  Both are spent on the particle system templates while
 	// the particle manager starts, so they wait for the next launch.  The command line is parsed after

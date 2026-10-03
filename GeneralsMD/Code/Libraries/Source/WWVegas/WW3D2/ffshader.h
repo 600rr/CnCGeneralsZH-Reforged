@@ -204,9 +204,89 @@ const unsigned NORMAL_MAPPED_LIGHTS = 4;
 // gentler one took a good share of the shadow off every building while the ground beside it took
 // all of it, which reads as the two being lit by different suns.  Full shadow from about a sixth
 // of white upward; only what is darker than that is protected.
-#define SHADOW_APPLY \
-	"    float shadow_lit = saturate(dot(current.rgb, float3(0.3333, 0.3333, 0.3333)) * 6.0);\n" \
+#define SHADOW_LIT \
+	"    float shadow_lit = saturate(dot(current.rgb, float3(0.3333, 0.3333, 0.3333)) * 6.0);\n"
+#define SHADOW_APPLY SHADOW_LIT \
 	"    current.rgb *= lerp(1.0, sun_reaching(input.Position), shadow_lit);\n"
+
+// The smoke in the sun's light, for the Direct3D 11 programs only: written after SHADOW_SAMPLING,
+// whose map and matrix it reads, and kept out of the SDL3 GPU text, which declares neither the
+// field it adds to the constant block nor a texture at t6.
+//
+// The smoke has a map of its own over the same sun (DX11BackendClass::Fill_Smoke_Map).  Each texel
+// holds three sums over the particles the sun sees through it: their optical depth, that times
+// their depth, and that times their depth squared plus their own thickness squared.  Taken
+// together that is the smoke along the ray as one bell curve, with an amount, a centre and a
+// width, and how much of it lies between the sun and a pixel is the curve's integral up to the
+// pixel's depth.  A pixel under a plume gets all of it, a particle on the plume's near side gets
+// a little and one on its far side most, which is the self-shading.  Bilinear filtering is right
+// for this map where it is wrong for a depth map: the sums of a mixture are the mixture of the
+// sums.
+//
+// VolumeParameters.x is how dark a pixel behind the thickest smoke goes, zero on a frame with no
+// smoke in the map.  .z is one for a draw whose vertices are in camera space already, which is the
+// particles: they take the sun's map through four wide taps, because a smoke sprite drawn twenty
+// deep would otherwise pay the fifty taps the ground pays, twenty times over.
+#define VOLUMETRIC_SAMPLING \
+	"Texture2D SmokeMap : register(t6);\n" \
+	"SamplerState SmokeSampler : register(s6);\n" \
+	"\n" \
+	"bool sun_point(float4 position, out float3 sun)\n" \
+	"{\n" \
+	"    float2 ndc = float2(position.x * ShadowViewport.x * 2.0 - 1.0,\n" \
+	"                        1.0 - position.y * ShadowViewport.y * 2.0);\n" \
+	"    float4 at = mul(float4(ndc, position.z, 1.0), ShadowFromClip);\n" \
+	"    sun = float3(0.0, 0.0, 0.0);\n" \
+	"    if (at.w <= 0.0) return false;\n" \
+	"    at /= at.w;\n" \
+	"    sun = float3(0.5 * at.x + 0.5, 0.5 - 0.5 * at.y, at.z);\n" \
+	"    return sun.x >= 0.0 && sun.x <= 1.0 && sun.y >= 0.0 && sun.y <= 1.0;\n" \
+	"}\n" \
+	"\n" \
+	"float smoke_reaching(float4 position)\n" \
+	"{\n" \
+	"    float3 sun;\n" \
+	"    if (VolumeParameters.x <= 0.0 || !sun_point(position, sun)) return 1.0;\n" \
+	"    float4 sums = SmokeMap.SampleLevel(SmokeSampler, sun.xy, 0);\n" \
+	"    if (sums.x < 0.001) return 1.0;\n" \
+	"    float centre = sums.y / sums.x;\n" \
+	"    float width = sqrt(max(sums.z / sums.x - centre * centre, 1e-10));\n" \
+	"    // the bell curve's integral up to here, the logistic stand-in for the normal distribution\n" \
+	"    float ahead = 1.0 / (1.0 + exp(-1.702 * (sun.z - centre) / width));\n" \
+	"    return 1.0 - VolumeParameters.x * (1.0 - exp(-sums.x * ahead));\n" \
+	"}\n" \
+	"\n" \
+	"float sun_reaching_coarse(float4 position)\n" \
+	"{\n" \
+	"    float3 sun;\n" \
+	"    if (ShadowParameters.z <= 0.0 || !sun_point(position, sun)) return 1.0;\n" \
+	"    if (sun.z < 0.0 || sun.z > 1.0) return 1.0;\n" \
+	"    float reach = ShadowParameters.x * ShadowParameters.w * 0.5;\n" \
+	"    float bias = ShadowParameters.y * 2.0;\n" \
+	"    float blocked = 0.0;\n" \
+	"    blocked += (ShadowMap.SampleLevel(ShadowSampler, sun.xy + float2(-reach, -reach), 0).r + bias < sun.z) ? 1.0 : 0.0;\n" \
+	"    blocked += (ShadowMap.SampleLevel(ShadowSampler, sun.xy + float2( reach, -reach), 0).r + bias < sun.z) ? 1.0 : 0.0;\n" \
+	"    blocked += (ShadowMap.SampleLevel(ShadowSampler, sun.xy + float2(-reach,  reach), 0).r + bias < sun.z) ? 1.0 : 0.0;\n" \
+	"    blocked += (ShadowMap.SampleLevel(ShadowSampler, sun.xy + float2( reach,  reach), 0).r + bias < sun.z) ? 1.0 : 0.0;\n" \
+	"    return 1.0 - ShadowParameters.z * (1.0 - ShadowSoftness.w) * (blocked * 0.25);\n" \
+	"}\n" \
+	"\n" \
+	"float light_reaching(float4 position)\n" \
+	"{\n" \
+	"    float sun = 1.0;\n" \
+	"    if (VolumeParameters.z > 0.5) sun = sun_reaching_coarse(position);\n" \
+	"    else sun = sun_reaching(position);\n" \
+	"    return sun * smoke_reaching(position);\n" \
+	"}\n" \
+	"\n"
+
+// The constant block's field for it, declared after SkyUp: DX11BackendClass::PixelConstantBlock.
+#define VOLUMETRIC_CONSTANTS \
+	"    float4 VolumeParameters;\n"
+
+// SHADOW_APPLY with the smoke in it.
+#define VOLUMETRIC_SHADOW_APPLY SHADOW_LIT \
+	"    current.rgb *= lerp(1.0, light_reaching(input.Position), shadow_lit);\n"
 
 // The HLSL for one description, or false when the description names an operation or an argument
 // this does not generate.  A refusal is not a failure: the caller keeps the fixed-function path for

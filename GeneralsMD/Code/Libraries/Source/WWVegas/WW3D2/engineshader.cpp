@@ -229,7 +229,7 @@ static const char * const TERRAIN_BUMP_FUNCTION =
 	"}\n"
 	"\n";
 
-static void write_pixel_preamble(std::string & hlsl, bool bumped = false)
+static void write_pixel_preamble(std::string & hlsl, bool bumped = false, bool volumetric = false)
 {
 	for (unsigned stage = 0; stage < MAXIMUM_COMBINER_STAGES; ++stage) {
 		char line[128];
@@ -267,11 +267,18 @@ static void write_pixel_preamble(std::string & hlsl, bool bumped = false)
 		"    float4 ShadowSoftness;\n"
 		"    float4 Sky;\n"
 		"    float4 SkyUp;\n";
+	// The smoke's field follows them, on the Direct3D 11 text alone (VOLUMETRIC_SAMPLING).
+	if (volumetric) {
+		hlsl += VOLUMETRIC_CONSTANTS;
+	}
 	hlsl += "};\n";
 	if (bumped) {
 		hlsl += "Texture2D NormalMap : register(t4);\n";
 	}
 	hlsl += SHADOW_SAMPLING;
+	if (volumetric) {
+		hlsl += VOLUMETRIC_SAMPLING;
+	}
 	hlsl +=
 		"\n"
 		"struct Input\n"
@@ -418,9 +425,9 @@ static void write_monochrome(std::string & hlsl)
 // matters is the one at the top, and it applies at every step, not only the last: a chain that
 // overflows in the middle and comes back down is a different colour with the clamps than without them.
 static void write_multiply_chain(std::string & hlsl, const EngineShaderEntry & entry,
-	bool bumped)
+	bool bumped, bool volumetric)
 {
-	write_pixel_preamble(hlsl, bumped);
+	write_pixel_preamble(hlsl, bumped, volumetric);
 
 	hlsl += "    float4 current = saturate(";
 	hlsl += entry.Opening;
@@ -433,7 +440,7 @@ static void write_multiply_chain(std::string & hlsl, const EngineShaderEntry & e
 	}
 
 	// The ground is where a shadow is read, so every transcribed program that paints it takes one.
-	hlsl += SHADOW_APPLY;
+	hlsl += volumetric ? VOLUMETRIC_SHADOW_APPLY : SHADOW_APPLY;
 
 	if (!bumped) {
 		return;
@@ -532,20 +539,29 @@ bool EngineShader_Vertex_Program(EngineShaderProgram program, std::string & hlsl
 	}
 }
 
+static bool write_engine_pixel_program(EngineShaderProgram program,
+	const PixelPipelineDescription & pipeline, std::string & hlsl, bool bumped, bool volumetric);
+
 bool EngineShader_Pixel_Program(EngineShaderProgram program,
 	const PixelPipelineDescription & pipeline, std::string & hlsl, bool bumped,
 	CombinerShaderTarget target)
 {
-	// As the vertex half: D3D11 only, and SDL3 GPU as the D3D11 text rebound.
+	// As the vertex half: D3D11 only, and SDL3 GPU as the D3D11 text rebound, without the smoke the
+	// SDL3 backend has no map for.
 	if (target == COMBINER_SHADER_TARGET_D3D9) {
 		hlsl.clear();
 		return false;
 	}
 	if (target == COMBINER_SHADER_TARGET_SDL3_GPU) {
-		return EngineShader_Pixel_Program(program, pipeline, hlsl, bumped, COMBINER_SHADER_TARGET_D3D11)
+		return write_engine_pixel_program(program, pipeline, hlsl, bumped, false)
 			&& SDL3_Shader_Retarget(hlsl, false);
 	}
+	return write_engine_pixel_program(program, pipeline, hlsl, bumped, true);
+}
 
+static bool write_engine_pixel_program(EngineShaderProgram program,
+	const PixelPipelineDescription & pipeline, std::string & hlsl, bool bumped, bool volumetric)
+{
 	hlsl.clear();
 	if (bumped && !EngineShader_Can_Bump(program)) {
 		return false;
@@ -553,7 +569,7 @@ bool EngineShader_Pixel_Program(EngineShaderProgram program,
 
 	const EngineShaderEntry * entry = entry_for(program);
 	if (entry != NULL && entry->Opening != NULL) {
-		write_multiply_chain(hlsl, *entry, bumped);
+		write_multiply_chain(hlsl, *entry, bumped, volumetric);
 	}
 	else if (program == ENGINE_SHADER_WATER_TRAPEZOID) {
 		write_trapezoid_water(hlsl);

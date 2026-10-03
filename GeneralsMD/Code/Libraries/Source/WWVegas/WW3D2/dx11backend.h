@@ -185,6 +185,16 @@ public:
 	bool Shadow_Map_Bound() const { return ShadowMapBound; }
 	ID3D11ShaderResourceView * Shadow_Map() const { return ShadowMapTexture; }
 
+	// The smoke's own map over the same sun, filled once a frame after End_Shadow_Map from the sun
+	// it held.  A caster is five floats: its centre in world units, its radius and the optical
+	// depth through its middle.  Strength is how dark the thickest smoke leaves what is behind it;
+	// zero casters or zero strength is a frame with no smoke in the light, and so is a frame that
+	// never calls this.  False when the device cannot hold the map at all (no blendable, filterable
+	// four channel 32-bit float target), which the caller reads as the smoke not being in the sun's
+	// light and keeps its older shade.  ffshader.h, VOLUMETRIC_SAMPLING, says what the map holds.
+	bool Fill_Smoke_Map(const float * casters, unsigned count, float strength);
+	ID3D11ShaderResourceView * Smoke_Map() const { return SmokeMapFilled ? SmokeMapTexture : NULL; }
+
 	// What is in the map, read back through a staging copy: how much of it was drawn into and how
 	// near the nearest thing is.  A caster pass that drew nothing leaves a map that is all one
 	// value, and no draw count tells that apart from a pass that drew the world.
@@ -311,6 +321,9 @@ private:
 		// share of the zenith colour in its own.
 		float Sky[4];
 		float SkyUp[4];
+		// The smoke in the sun's light (VOLUMETRIC_SAMPLING): how dark the thickest smoke leaves
+		// what is behind it, zero on a frame without; and in z, one for a draw in camera space.
+		float VolumeParameters[4];
 	};
 	// A model under directional lights, drawn by generated programs.
 	bool Normal_Mapped() const;
@@ -399,6 +412,34 @@ private:
 	float ShadowFromClipView[16];
 	float ShadowFromClipProjection[16];
 	bool ShadowFromClipValid;
+
+	// The sorted particles are written in camera space and drawn with an identity world and view
+	// (PointGroupClass::Insert_Sorted_Billboards), so the view the backend holds for them says
+	// nothing about where they are, and a shadow looked up through it lands somewhere else in the
+	// world.  This is the last view a perspective draw held that was not the identity, which is the
+	// scene camera's: the matrix a camera space draw's pixels go back to the world through.
+	float SceneView[16];
+	bool Camera_Space_Draw() const;
+
+	// The smoke's map (Fill_Smoke_Map), the program that splats the casters into it and what it
+	// draws with.  Made on the first fill and kept; refused for good if the device cannot.
+	ID3D11Texture2D * SmokeMapSurface;
+	ID3D11RenderTargetView * SmokeMapTarget;
+	ID3D11ShaderResourceView * SmokeMapTexture;
+	ID3D11SamplerState * SmokeMapSampler;
+	ID3D11VertexShader * SmokeSplatVertexShader;
+	ID3D11PixelShader * SmokeSplatPixelShader;
+	ID3D11InputLayout * SmokeSplatLayout;
+	ID3D11BlendState * SmokeSplatBlend;
+	ID3D11RasterizerState * SmokeSplatRasterizer;
+	ID3D11Buffer * SmokeSplatInstances;
+	unsigned SmokeSplatCapacity;
+	std::vector<float> SmokeSplats;
+	bool SmokeMapRefused;
+	bool SmokeMapFilled;
+	float SmokeStrength;
+	bool Make_Smoke_Map();
+	void Release_Smoke_Map();
 
 	float MaterialAmbient[4];
 	float MaterialDiffuse[4];

@@ -72,6 +72,9 @@
 #include "GameClient/View.h"
 #include "Platform/RenderTypes.h"
 #include "Lib/Clock.h"		// Clock_Ticks: QueryPerformanceCounter on Windows, a monotonic clock elsewhere
+#include "GameClient/ParticleSys.h"
+#include <math.h>
+#include <vector>
 
 #ifdef _INTERNAL
 // for occasional debugging...
@@ -134,6 +137,14 @@ const Real cosAngleToCare = cos ((0.2 * PI) / 180.0);	//1.5 degree difference
 #define SHADOW_MAP_NARROWEST_TEXELS 0.9f
 #define SHADOW_MAP_PENUMBRA_PER_UNIT 0.01f
 #define SHADOW_MAP_SKY_FILL 0.12f
+// The smoke in the sun's light.  The strength is how dark the thickest cloud leaves the ground and
+// the smoke behind it, under the solid casters' 0.45 because the sky still lights the ground under a
+// cloud and the smoke itself scatters some of the sun on.  The density scales the optical depth a
+// particle's own alpha implies, the one the eye sees through it; a particle fainter than the
+// thinnest casts nothing.  Untuned: chosen from the arithmetic, not from a frame.
+#define SMOKE_SHADOW_STRENGTH 0.4f
+#define SMOKE_SHADOW_DENSITY 1.0f
+#define SMOKE_SHADOW_THINNEST 0.02f
 
 // Whether the sun's map took this frame.  The volumes read it to know whether to stand down, and it
 // is false on a machine with no Direct3D 11 device, which is what keeps that machine's shadows.
@@ -3829,6 +3840,56 @@ DECLARE_PERF_TIMER(stencilShadows)
 DECLARE_PERF_TIMER(shadowVolumeUpdate)
 DECLARE_PERF_TIMER(shadowVolumeSubmit)
 
+/** The smoke into the sun's light: every alpha-blended billboard particle as a soft ball, its optical
+		depth the one its own alpha implies, handed to the backend's smoke map.  The systems are read
+		as the last client update left them, because the pass runs before the frame's particles are
+		drawn.  Fire is additive and casts nothing; a ground-aligned system is a decal already.  Says
+		whether the smoke is in the map, which is what takes the blob off the ground under each cloud;
+		with the option off this is a frame with no smoke, so the backend stops reading the map. */
+static Bool fillSmokeMap( void )
+{
+	static std::vector<Real> casters;	// kept: a burning base is thousands of particles every frame
+	casters.clear();
+
+	if (TheGlobalData->m_volumetricSmokeShadows && TheParticleSystemManager != NULL)
+	{
+		const size_t mostCasters = 16384;
+		ParticleSystemManager::ParticleSystemList &systems = TheParticleSystemManager->getAllParticleSystems();
+		for (ParticleSystemManager::ParticleSystemListIt it = systems.begin();
+				it != systems.end() && casters.size() < mostCasters * 5; ++it)
+		{
+			ParticleSystem *sys = *it;
+			if (sys == NULL || sys->getShaderType() != ParticleSystemInfo::ALPHA || !sys->shouldBillboard()
+					|| sys->isUsingDrawables() || sys->isUsingStreak() || sys->isUsingSmudge())
+				continue;
+			// the heat haze's texture names start with SMUD, as W3DParticleSystemManager::doParticles tests
+			if (*((UnsignedInt *)sys->getParticleTypeName().str()) == 0x44554D53)
+				continue;
+
+			// a volume particle is drawn that many layers deep, and is that much thicker to the sun
+			const Real layers = (Real)sys->getVolumeParticleDepth();
+			for (Particle *p = sys->getFirstParticle(); p && casters.size() < mostCasters * 5; p = p->m_systemNext)
+			{
+				Real alpha = p->getAlpha();
+				if (alpha < SMOKE_SHADOW_THINNEST)
+					continue;
+				if (alpha > 0.95f)
+					alpha = 0.95f;
+				const Coord3D *pos = p->getPosition();
+				casters.push_back( pos->x );
+				casters.push_back( pos->y );
+				casters.push_back( pos->z );
+				casters.push_back( p->getSize() * 0.5f );		// the billboard's size is its full width
+				casters.push_back( -(Real)log( 1.0f - alpha ) * layers * SMOKE_SHADOW_DENSITY );
+			}
+		}
+	}
+
+	const Bool held = Direct3D11_Fill_Smoke_Map( casters.empty() ? NULL : &casters[ 0 ],
+		(unsigned)( casters.size() / 5 ), SMOKE_SHADOW_STRENGTH );
+	return held && TheGlobalData->m_volumetricSmokeShadows;
+}
+
 /** The sun's depth pass.  The casters are the ones that cast a volume today, drawn again from the
 		sun into a depth buffer nothing samples yet, so this phase can be proved on its own: with it
 		off the frame is what it was, and with it on the map has the world in it and the frame is
@@ -3838,12 +3899,16 @@ DECLARE_PERF_TIMER(shadowVolumeSubmit)
 void W3DVolumetricShadowManager::renderShadowMap( CameraClass &sceneCamera )
 {
 	theShadowMapHoldsTheFrame = FALSE;
+	TheSmokeInSunMap = FALSE;
 
-	if (!TheGlobalData->m_shadowMap || m_shadowList == NULL || TheTacticalView == NULL)
+	if (!TheGlobalData->m_shadowMap || m_shadowList == NULL || TheTacticalView == NULL
+		|| !Direct3D11_Begin_Shadow_Map( SHADOW_MAP_TEXELS ))
+	{
+		//no Direct3D 11 device, or it refused the surface: the volumes keep the frame, and no smoke is
+		//read out of a map the last frame filled
+		Direct3D11_Fill_Smoke_Map( NULL, 0, 0.0f );
 		return;
-
-	if (!Direct3D11_Begin_Shadow_Map( SHADOW_MAP_TEXELS ))
-		return;		//no Direct3D 11 device, or it refused the surface: the volumes keep the frame
+	}
 
 #ifdef DEBUG_LOGGING
 	// The scene timer includes this pass and cannot say so.
@@ -3962,6 +4027,9 @@ void W3DVolumetricShadowManager::renderShadowMap( CameraClass &sceneCamera )
 		| D3DCOLORWRITEENABLE_ALPHA );
 
 	Direct3D11_End_Shadow_Map();
+
+	// The smoke goes into a map of its own through the sun the casters were just drawn with.
+	TheSmokeInSunMap = fillSmokeMap();
 
 	// The frame's own camera, put back: the view, the projection and the viewport all went with the
 	// sun.  Without this everything drawn after the pass is drawn from the sun's seat, which is the

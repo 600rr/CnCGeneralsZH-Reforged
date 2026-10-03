@@ -140,6 +140,13 @@ void Direct3D11_Set_Shadow_Parameters(float bias, float strength, float widest_r
 	float sky_fill);
 void Direct3D11_Clear_Shadow_Parameters();
 
+// The smoke in the sun's light, after Direct3D11_End_Shadow_Map and from the sun it drew with: five
+// floats a caster (world x, y, z, radius, optical depth through its middle) and how dark the
+// thickest smoke leaves what is behind it.  Called every frame the map is drawn; no casters is a
+// frame without smoke.  False when there is no backend or the device cannot hold the map, and the
+// caller keeps its older shade under the clouds.
+bool Direct3D11_Fill_Smoke_Map(const float * casters, unsigned count, float strength);
+
 // The CPU has just written this surface.  The next bind of its texture fills the Direct3D 11 copy
 // again.  A no-op when the backend is not running.
 void Direct3D11_Mark_Surface_Dirty(struct IDirect3DSurface9 * surface);

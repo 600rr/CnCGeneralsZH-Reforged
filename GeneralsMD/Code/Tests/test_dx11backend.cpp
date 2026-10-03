@@ -673,3 +673,79 @@ TEST(dx11backend_a_draw_with_nothing_bound_is_counted_as_refused)
 
 	backend.Shutdown();
 }
+
+// The smoke's map holds three sums under each caster: its optical depth, that times its depth in the
+// sun's clip space, and that times the depth squared plus its own spread squared.  The receivers
+// rebuild the cloud along the ray out of exactly those, so a sum in the wrong channel, a depth
+// through the wrong column of the sun's matrix or a disc off its centre is a shadow somewhere else.
+//
+// The sun here sees a hundred world units either side of the middle and puts depth z at
+// z / 1000 + 0.5.  One caster at height 100, radius 50, optical depth 2 lands in the middle texel
+// with depth 0.6 and a spread of half its radius, 0.025.  One outside the box draws nothing.
+TEST(dx11backend_the_smoke_map_holds_each_casters_three_sums)
+{
+	DX11DeviceClass device;
+	CHECK(device.Create_Offscreen());
+	ID3D11Device * d3d = device.Get_Device();
+
+	DX11BackendClass backend;
+	CHECK(backend.Initialise(&device));
+
+	float identity[16];
+	set_identity(identity);
+	float sun[16];
+	set_identity(sun);
+	sun[0] = 0.01f;
+	sun[5] = 0.01f;
+	sun[10] = 0.001f;
+	sun[14] = 0.5f;
+	backend.Set_Transform(D3DTS_VIEW, identity);
+	backend.Set_Transform(D3DTS_PROJECTION, sun);
+	CHECK(backend.Begin_Shadow_Map(64));
+	backend.End_Shadow_Map();
+
+	const float outside[5] = { 500.0f, 0.0f, 100.0f, 50.0f, 2.0f };
+	CHECK(backend.Fill_Smoke_Map(outside, 1, 0.5f));
+	CHECK(backend.Smoke_Map() == NULL);
+
+	const float caster[5] = { 0.0f, 0.0f, 100.0f, 50.0f, 2.0f };
+	CHECK(backend.Fill_Smoke_Map(caster, 1, 0.5f));
+	ID3D11ShaderResourceView * map = backend.Smoke_Map();
+	CHECK(map != NULL);
+	if (map == NULL) {
+		backend.Shutdown();
+		return;
+	}
+
+	ID3D11Resource * resource = NULL;
+	map->GetResource(&resource);
+	ID3D11Texture2D * texture = static_cast<ID3D11Texture2D *>(resource);
+	D3D11_TEXTURE2D_DESC description;
+	texture->GetDesc(&description);
+	description.Usage = D3D11_USAGE_STAGING;
+	description.BindFlags = 0;
+	description.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+	ID3D11Texture2D * staging = NULL;
+	CHECK(SUCCEEDED(d3d->CreateTexture2D(&description, NULL, &staging)));
+	device.Get_Context()->CopyResource(staging, texture);
+
+	D3D11_MAPPED_SUBRESOURCE mapped;
+	CHECK(SUCCEEDED(device.Get_Context()->Map(staging, 0, D3D11_MAP_READ, 0, &mapped)));
+	const float * middle = reinterpret_cast<const float *>(static_cast<const unsigned char *>(mapped.pData)
+		+ mapped.RowPitch * (description.Height / 2)) + (description.Width / 2) * 4;
+	const float * corner = static_cast<const float *>(mapped.pData);
+	printf("  middle texel %.5f %.5f %.5f %.5f\n", middle[0], middle[1], middle[2], middle[3]);
+	CHECK_NEAR(middle[0], 2.0f, 0.05f);
+	CHECK_NEAR(middle[1] / middle[0], 0.6f, 0.0001f);
+	CHECK_NEAR(middle[2] / middle[0], 0.6f * 0.6f + 0.025f * 0.025f, 0.0001f);
+	CHECK_EQ(corner[0], 0.0f);
+	device.Get_Context()->Unmap(staging, 0);
+
+	// Nothing handed over is a frame without smoke: the receivers stop reading the map.
+	CHECK(backend.Fill_Smoke_Map(NULL, 0, 0.5f));
+	CHECK(backend.Smoke_Map() == NULL);
+
+	staging->Release();
+	resource->Release();
+	backend.Shutdown();
+}
