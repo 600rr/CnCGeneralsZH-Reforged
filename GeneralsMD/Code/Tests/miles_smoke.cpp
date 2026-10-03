@@ -156,6 +156,13 @@ int main(void)
 		return 1;
 	}
 
+	/* The distance curve every 3D sample plays at, which needs no device: full inside the minimum,
+	   minimum / distance past it, a straight line with RangeVolumeFade, silent from the maximum. */
+	CHECK(AIL_ex_3D_distance_gain(5.0f, 10.0f, 110.0f, 0) == 1.0f, "inside the minimum is not full volume");
+	CHECK(fabs(AIL_ex_3D_distance_gain(60.0f, 10.0f, 110.0f, 0) - 10.0f / 60.0f) < 1e-6, "past the minimum is not minimum / distance");
+	CHECK(fabs(AIL_ex_3D_distance_gain(60.0f, 10.0f, 110.0f, 1) - 0.5f) < 1e-6, "the linear falloff is not halfway at halfway");
+	CHECK(AIL_ex_3D_distance_gain(110.0f, 10.0f, 110.0f, 0) == 0.0f, "the maximum is not silent");
+
 	AIL_startup();
 	if (!AIL_quick_startup(1, 0, 44100, 16, 2)) {
 		printf("skip: no audio device\n");

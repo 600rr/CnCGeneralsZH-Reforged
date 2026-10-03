@@ -263,6 +263,12 @@ void      AILCALL AIL_quick_set_volume(HAUDIO audio, F32 volume, F32 extravol);
 S32       AILCALL AIL_ex_start_capture(const char *pathname);
 void      AILCALL AIL_ex_stop_capture(void);
 
+/* ---- distance falloff -------------------------------------------------- */
+/* Not Miles.  Nonzero makes every 3D sample fall off in a straight line from min_dist to max_dist
+   instead of Miles' min_dist / distance; MilesAudioManager passes AudioSettings.ini's
+   RangeVolumeFade, so what plays and what getEffectiveVolume culls follow one curve. */
+void      AILCALL AIL_ex_set_3D_linear_falloff(S32 linear);
+
 /* ---- file format helpers ---------------------------------------------- */
 S32       AILCALL AIL_WAV_info(const void *data, AILSOUNDINFO *info);
 S32       AILCALL AIL_decompress_ADPCM(const AILSOUNDINFO *info, void **outdata, U32 *outsize);
@@ -271,5 +277,20 @@ void      AILCALL AIL_mem_free_lock(void *ptr);
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
+
+/* Not Miles: the distance curve both backends play a 3D sample at and the one
+   MilesAudioManager::getEffectiveVolume culls with, kept in one place so the two cannot drift.  Full
+   inside min_dist, then min_dist / distance (Miles' rolloff), or a straight line to zero when linear
+   is set, and silent from max_dist on. */
+static inline F32 AIL_ex_3D_distance_gain(F32 distance, F32 min_dist, F32 max_dist, S32 linear)
+{
+	if (distance >= max_dist)
+		return 0.0f;
+	if (distance <= min_dist)
+		return 1.0f;
+	if (linear && max_dist > min_dist)
+		return 1.0f - (distance - min_dist) / (max_dist - min_dist);
+	return min_dist / distance;
+}
 
 #endif /* MSS_H */

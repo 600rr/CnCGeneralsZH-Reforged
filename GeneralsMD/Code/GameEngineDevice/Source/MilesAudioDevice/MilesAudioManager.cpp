@@ -1689,6 +1689,7 @@ void MilesAudioManager::openDevice( void )
 
 	// AIL_quick_startup should be replaced later with a call to actually pick which device to use, etc
 	const AudioSettings *audioSettings = getAudioSettings();
+	AIL_ex_set_3D_linear_falloff(audioSettings->m_rangeVolumeFade);
 	m_selectedSpeakerType = TheAudio->translateSpeakerTypeToUnsignedInt(m_prefSpeaker);
 
 	retval = AIL_quick_startup(audioSettings->m_useDigital, audioSettings->m_useMidi, audioSettings->m_outputRate, audioSettings->m_outputBits, audioSettings->m_outputChannels);
@@ -2610,7 +2611,7 @@ void MilesAudioManager::processPlayingList( void )
 				else
 				{
 					Real volForConsideration = getEffectiveVolume(playing->m_audioEventRTS);
-					volForConsideration /= (m_sound3DVolume > 0.0f ? m_soundVolume : 1.0f);
+					volForConsideration /= (m_sound3DVolume > 0.0f ? m_sound3DVolume : 1.0f);
 					Bool playAnyways = BitTest( playing->m_audioEventRTS->getAudioEventInfo()->m_type, ST_GLOBAL) || playing->m_audioEventRTS->getAudioEventInfo()->m_priority == AP_CRITICAL;
 					if( volForConsideration < m_audioSettings->m_minVolume && !playAnyways )
 					{
@@ -2741,7 +2742,9 @@ void MilesAudioManager::processFadingList( void )
 
 			case PAT_3DSample:
 			{
-				AIL_set_3D_sample_volume(playing->m_3DSample, volume);
+				// Not volume: that carries the distance falloff, which the backend applies again.
+				AIL_set_3D_sample_volume(playing->m_3DSample, getVoiceMixedVolume(playing->m_audioEventRTS, m_sound3DVolume)
+					* (1.0f - 1.0f * playing->m_framesFaded / getAudioSettings()->m_fadeAudioFrames));
 				break;
 			}
 			
@@ -2993,22 +2996,10 @@ Real MilesAudioManager::getEffectiveVolume(AudioEventRTS *event) const
 				// zero, so the hard cut at the maximum range makes a sound you are walking away
 				// from stop dead instead of fading out. The linear one reaches zero exactly where
 				// the cut is. Off by default: it changes how every 3D sound in the game attenuates,
-				// and that is a listening decision, not a bug fix.
-				if( TheAudio->getAudioSettings()->m_rangeVolumeFade &&
-						objMaxDistance > objMinDistance )
-				{
-					if( objDistance > objMinDistance )
-						volume *= 1.0f - (objDistance - objMinDistance) / (objMaxDistance - objMinDistance);
-				}
-				else if( objDistance > objMinDistance )
-				{
-					volume *= 1 / (objDistance / objMinDistance);
-				}
-
-				if( objDistance >= objMaxDistance )
-				{
-					volume = 0.0f;
-				}
+				// and that is a listening decision, not a bug fix.  The curve is the audio backend's
+				// own, so a sound is culled on the same curve it is heard at.
+				volume *= AIL_ex_3D_distance_gain( objDistance, objMinDistance, objMaxDistance,
+					TheAudio->getAudioSettings()->m_rangeVolumeFade );
 			}
 		} 
 		else 
@@ -3115,11 +3106,13 @@ void *MilesAudioManager::playSample3D( AudioEventRTS *event, H3DSAMPLE sample3D 
 			// Prep any sort of filtering, etc, here
 			AIL_register_3D_EOS_callback(sample3D, set3DSampleCompleted);
 
-			// Set the position values of the sample here
+			// Set the position values of the sample here.  Miles takes the maximum first; EA passed the
+			// minimum first, and with the pair backwards every world sound played at full volume out to
+			// its cut-off, so far-reaching ambient loops drowned the fighting next to the camera.
 			if (event->getAudioEventInfo()->m_type & ST_GLOBAL) {
-				AIL_set_3D_sample_distances(sample3D, TheAudio->getAudioSettings()->m_globalMinRange, TheAudio->getAudioSettings()->m_globalMaxRange );
+				AIL_set_3D_sample_distances(sample3D, TheAudio->getAudioSettings()->m_globalMaxRange, TheAudio->getAudioSettings()->m_globalMinRange );
 			} else {
-				AIL_set_3D_sample_distances(sample3D, event->getAudioEventInfo()->m_minDistance, event->getAudioEventInfo()->m_maxDistance );
+				AIL_set_3D_sample_distances(sample3D, event->getAudioEventInfo()->m_maxDistance, event->getAudioEventInfo()->m_minDistance );
 			}
 			
 			// Set the position of the sample here

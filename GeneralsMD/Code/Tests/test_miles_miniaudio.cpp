@@ -312,8 +312,8 @@ TEST(playback_rate_is_pitch)
 }
 
 // ---------------------------------------------------------------------------------------------
-// 3D: miles_xaudio2's linear falloff between the two distances, occlusion as a scale, and a pan
-// along up x face.
+// 3D: miles_xaudio2's min / distance falloff between the two distances (a straight line with
+// AIL_ex_set_3D_linear_falloff), occlusion as a scale, and a pan along up x face.
 // ---------------------------------------------------------------------------------------------
 
 static Heard play3D(float x, float occlusion)
@@ -357,10 +357,23 @@ static Heard play3D(float x, float occlusion)
 	return heard;
 }
 
-TEST(falloff_is_linear_between_the_distances)
+TEST(falloff_is_the_minimum_over_the_distance)
 {
-	// 60 units out, halfway from 10 to 110: half the volume, all of it on the right.
+	// 60 units out with the minimum at 10: a sixth of the volume, all of it on the right.  Full
+	// volume here is the arguments swapped (minimum 110, maximum 10), which is how every world
+	// sound in the game played until the call site was fixed.
 	Heard heard = play3D(-60.0f, 0.0f);
+	if (!audio()) return;
+	CHECK(near(heard.right, TONE_RMS / 6.0));
+	CHECK(heard.left < SILENT_RMS);
+}
+
+TEST(linear_falloff_is_a_straight_line_between_the_distances)
+{
+	// RangeVolumeFade: 60 units out, halfway from 10 to 110, is half the volume.
+	AIL_ex_set_3D_linear_falloff(1);
+	Heard heard = play3D(-60.0f, 0.0f);
+	AIL_ex_set_3D_linear_falloff(0);
 	if (!audio()) return;
 	CHECK(near(heard.right, 0.5 * TONE_RMS));
 	CHECK(heard.left < SILENT_RMS);
