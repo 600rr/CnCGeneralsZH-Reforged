@@ -93,7 +93,7 @@ extern void orderAroundPoint( std::vector<AttackAssignSlot>& slots, Real centerX
 /// Either side empty writes nothing.
 extern void assignAttacks( Int attackerCount, Int targetCount, std::vector<AttackAssignPair>& pairs );
 
-/// The points the scout and search and destroy keys walk round the circle the player put down:
+/// The points the search and destroy key walks round the circle the player put down:
 /// on a ring at seven tenths of the radius, four on a small circle and up to eight on a wide one,
 /// the first the one facing (fromX, fromY), where the selection stands, and the rest going round
 /// clockwise.  Each is held inside lo..hi.  The ground height is not filled in.

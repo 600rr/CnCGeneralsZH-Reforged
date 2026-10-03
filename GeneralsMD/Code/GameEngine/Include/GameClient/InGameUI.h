@@ -1255,17 +1255,16 @@ public:  // ********************************************************************
 	void toggleGuardArmed( void )							{ m_guardArmed = !m_guardArmed; m_attackMoveToMode = FALSE; m_forceAttackArmed = FALSE; m_moveArmed = FALSE; m_areaOrder = AREA_ORDER_NONE; }
 	Bool isGuardArmed( void ) const						{ return m_guardArmed; }
 
-	// The scout and search and destroy keys (fork) arm a sweep the same way: the next order click is
-	// the centre of a circle, sized with the wheel like a guard's, and the selection goes round it.
-	// Scout walks the ring and comes back to the centre; search and destroy attack moves round it and
-	// then guards the whole circle.  Both skip the ring's points the player already sees
-	enum AreaOrder { AREA_ORDER_NONE, AREA_ORDER_SCOUT, AREA_ORDER_HUNT };
+	// The search and destroy key (fork) arms a sweep the same way: the next order click is the centre
+	// of a circle, sized with the wheel like a guard's, and the selection attack moves round it and
+	// then guards the whole circle.  It skips the ring's points the player already sees
+	enum AreaOrder { AREA_ORDER_NONE, AREA_ORDER_HUNT };
 	void toggleAreaOrderArmed( AreaOrder order );
 	AreaOrder getAreaOrderArmed( void ) const	{ return m_areaOrder; }
 	void issueAreaSweep( const Coord3D &center );		///< the armed sweep's messages, round `center`
 
 	/** One of the page's keys past attack, hold position and move, an OrderKeyExtra (ControlBar.h),
-		* pressed with the mouse or its grid key: scout and search and destroy arm their sweep, the
+		* pressed with the mouse or its grid key: search and destroy arms its sweep, the
 		* stance key puts the selection on the other stance from the first unit's */
 	void pressOrderKey( Int key );
 
@@ -1613,7 +1612,7 @@ protected:
 	HtmlOverlay *								m_promotionFrontOverlay;		///< the grid's frames, drawn over the promotions
 	HtmlOverlay *								m_cellFrontOverlay[ CELL_GRID_COUNT ];
 	std::vector< HtmlValues >		m_cellFrontCells[ CELL_GRID_COUNT ];	///< each grid's cells as the bar's page last placed them
-	enum { ORDER_KEYS = 6 };																					///< the page's attack, hold position and move keys, then the OrderKeyExtra ones
+	enum { ORDER_KEYS = 5 };																				///< the page's attack, hold position and move keys, then the OrderKeyExtra ones
 	IRegion2D										m_orderKeyCell[ ORDER_KEYS ];					///< where the page last put each, screen pixels
 	Int													m_orderKeyPlace[ ORDER_KEYS ];				///< the CommandPlace each stands on, -1 while it is not shown
 	DisplayString *							m_orderKeyString[ ORDER_KEYS ];				///< each one's letter, on the command buttons' plate
@@ -1871,7 +1870,7 @@ protected:
 	Bool												m_attackMoveToMode;	///< are we in attack move mode?
 	Bool												m_forceAttackArmed;	///< is the attack key holding force fire for the next click?
 	Bool												m_guardArmed;				///< is the guard key holding a guard order for the next click?
-	AreaOrder										m_areaOrder;				///< the sweep the scout or search and destroy key holds for the next click
+	AreaOrder										m_areaOrder;				///< the sweep the search and destroy key holds for the next click
 	Real												m_areaPickScale;		///< what the wheel has made of the armed area order's default radius
 	Bool												m_moveArmed;				///< is the move key holding a move for the next click?
 	Bool												m_orderKeyKeptByShift;	///< an armed key was clicked with under shift, and drops when shift comes up

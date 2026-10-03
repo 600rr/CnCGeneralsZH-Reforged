@@ -220,14 +220,6 @@ GUI:OrderMoveDescription
 "The next click on the ground sends the selected units there. Drag instead and they spread out along the line you draw."
 END
 
-GUI:OrderScout
-"Scout"
-END
-
-GUI:OrderScoutDescription
-"Click a spot and the selected units walk a circle round it, looking at every part of it you cannot see yet, then come back to the middle. Roll the mouse wheel before you click to make the circle bigger or smaller."
-END
-
 GUI:OrderSearchAndDestroy
 "Search and Destroy"
 END

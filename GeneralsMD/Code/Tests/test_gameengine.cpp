@@ -3526,7 +3526,7 @@ TEST(controlbar_command_places_go_in_rows_by_what_they_are_for)
 		CHECK_EQ( places[ slot ], manyPlaces[ slot ] );
 }
 
-TEST(controlbar_scout_hunt_and_stance_keys_take_what_the_buttons_leave)
+TEST(controlbar_hunt_and_stance_keys_take_what_the_buttons_leave)
 {
 	enum { SLOTS = 14 };
 	Int places[ SLOTS ];
@@ -3535,40 +3535,32 @@ TEST(controlbar_scout_hunt_and_stance_keys_take_what_the_buttons_leave)
 	const Int nothingPinned[ SLOTS ] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
 
 	/* a Ranger: two abilities, attack move, guard, stop.  Search and destroy on F and the stance on H,
-	   their own places; no scout in the selection, so no scout key */
+	   their own places */
 	const Int ranger[ SLOTS ] = { GUI_COMMAND_FIRE_WEAPON, GUI_COMMAND_SPECIAL_POWER, N, N, N, N, N, N, N, N,
 		GUI_COMMAND_ATTACK_MOVE, N, GUI_COMMAND_GUARD, GUI_COMMAND_STOP };
 	const Int rangerGroups[ SLOTS ] = { ab, ab, ab, ab, ab, ab, ab, ab, ab, ab, ab, ab, ab, ab };
 	Bool fights = ControlBar_commandPlaces( ranger, rangerGroups, nothingPinned, SLOTS, places );
 	CHECK( fights );
-	ControlBar_orderKeyPlaces( places, SLOTS, fights, FALSE, keys );
-	CHECK_EQ( keys[ ORDER_KEY_SCOUT ], -1 );
-	CHECK_EQ( keys[ ORDER_KEY_HUNT ], (Int)COMMAND_PLACE_F );
-	CHECK_EQ( keys[ ORDER_KEY_STANCE ], (Int)COMMAND_PLACE_H );
-	// the same with a Pathfinder in the selection puts scout on G between them
-	ControlBar_orderKeyPlaces( places, SLOTS, fights, TRUE, keys );
-	CHECK_EQ( keys[ ORDER_KEY_SCOUT ], (Int)COMMAND_PLACE_G );
+	ControlBar_orderKeyPlaces( places, SLOTS, fights, keys );
 	CHECK_EQ( keys[ ORDER_KEY_HUNT ], (Int)COMMAND_PLACE_F );
 	CHECK_EQ( keys[ ORDER_KEY_STANCE ], (Int)COMMAND_PLACE_H );
 
 	/* the Humvee's set, as in the test above: passengers hold F G H B N and the drones Q W E, so the
-	   three go on in reading order, R T Y, and never move a button */
+	   two go on in reading order, R T, and never move a button */
 	const Int humvee[ SLOTS ] = { GUI_COMMAND_OBJECT_UPGRADE, GUI_COMMAND_OBJECT_UPGRADE, GUI_COMMAND_OBJECT_UPGRADE,
 		GUI_COMMAND_EXIT_CONTAINER, GUI_COMMAND_EXIT_CONTAINER, GUI_COMMAND_EXIT_CONTAINER, GUI_COMMAND_EXIT_CONTAINER,
 		GUI_COMMAND_EXIT_CONTAINER, GUI_COMMAND_EVACUATE, N, GUI_COMMAND_ATTACK_MOVE, N, GUI_COMMAND_GUARD, GUI_COMMAND_STOP };
 	const Int humveeGroups[ SLOTS ] = { ab, ab, ab, pa, pa, pa, pa, pa, ab, ab, ab, ab, ab, ab };
 	fights = ControlBar_commandPlaces( humvee, humveeGroups, nothingPinned, SLOTS, places );
-	ControlBar_orderKeyPlaces( places, SLOTS, fights, TRUE, keys );
-	CHECK_EQ( keys[ ORDER_KEY_SCOUT ], (Int)COMMAND_PLACE_R );
-	CHECK_EQ( keys[ ORDER_KEY_HUNT ], (Int)COMMAND_PLACE_T );
-	CHECK_EQ( keys[ ORDER_KEY_STANCE ], (Int)COMMAND_PLACE_Y );
+	ControlBar_orderKeyPlaces( places, SLOTS, fights, keys );
+	CHECK_EQ( keys[ ORDER_KEY_HUNT ], (Int)COMMAND_PLACE_R );
+	CHECK_EQ( keys[ ORDER_KEY_STANCE ], (Int)COMMAND_PLACE_T );
 
-	/* a Radar Van: a scan and an upgrade, nothing to attack move with.  Scout alone */
+	/* a Radar Van: a scan and an upgrade, nothing to attack move with, so neither key */
 	const Int van[ SLOTS ] = { GUI_COMMAND_SPECIAL_POWER, GUI_COMMAND_OBJECT_UPGRADE, N, N, N, N, N, N, N, N, N, N, N, GUI_COMMAND_STOP };
 	fights = ControlBar_commandPlaces( van, rangerGroups, nothingPinned, SLOTS, places );
 	CHECK( !fights );
-	ControlBar_orderKeyPlaces( places, SLOTS, fights, TRUE, keys );
-	CHECK_EQ( keys[ ORDER_KEY_SCOUT ], (Int)COMMAND_PLACE_G );
+	ControlBar_orderKeyPlaces( places, SLOTS, fights, keys );
 	CHECK_EQ( keys[ ORDER_KEY_HUNT ], -1 );
 	CHECK_EQ( keys[ ORDER_KEY_STANCE ], -1 );
 
@@ -3576,12 +3568,12 @@ TEST(controlbar_scout_hunt_and_stance_keys_take_what_the_buttons_leave)
 	Int full[ SLOTS + 4 ];
 	for( Int place = 0; place < COMMAND_PLACE_COUNT; place++ )
 		full[ place ] = place;
-	ControlBar_orderKeyPlaces( full, COMMAND_PLACE_COUNT, TRUE, TRUE, keys );
+	ControlBar_orderKeyPlaces( full, COMMAND_PLACE_COUNT, TRUE, keys );
 	for( Int key = 0; key < ORDER_KEY_EXTRAS; key++ )
 		CHECK_EQ( keys[ key ], -1 );
 }
 
-/* The scout and search and destroy keys walk a ring at seven tenths of the circle, starting on the
+/* The search and destroy key walks a ring at seven tenths of the circle, starting on the
    side the selection stands and going round clockwise, four to eight points by size, never off the map. */
 TEST(sweep_points_go_round_the_ring_from_the_selection_side)
 {
@@ -14847,14 +14839,14 @@ TEST(scenario_parses_the_order_lines)
 	CHECK_STR( action.selector.str(), "ChinaGattlingCannon" );
 	CHECK_EQ( (Int)ScenarioDrill_parseLine( "1800 tally 1", &action ), (Int)SCENARIO_PARSE_MISSING_ARGS );
 
-	// the stance key, and the two sweeps with the keys' own circle unless the line sizes it
+	// the stance key, and the sweep with the key's own circle unless the line sizes it
 	CHECK_EQ( (Int)ScenarioDrill_parseLine( "60 stance 0 AmericaTankCrusader aggressive", &action ), (Int)SCENARIO_PARSE_OK );
 	CHECK_EQ( (Int)action.action, (Int)SCENARIO_ACTION_STANCE );
 	CHECK_STR( action.name.str(), "aggressive" );
 	CHECK_EQ( (Int)ScenarioDrill_parseLine( "60 stance 0 * bold", &action ), (Int)SCENARIO_PARSE_BAD_ACTION );
 	CHECK_EQ( (Int)ScenarioDrill_parseLine( "60 stance 0 *", &action ), (Int)SCENARIO_PARSE_MISSING_ARGS );
-	CHECK_EQ( (Int)ScenarioDrill_parseLine( "60 scout 0 * 900 700", &action ), (Int)SCENARIO_PARSE_OK );
-	CHECK_EQ( (Int)action.action, (Int)SCENARIO_ACTION_SCOUT );
+	CHECK_EQ( (Int)ScenarioDrill_parseLine( "60 hunt 0 * 900 700", &action ), (Int)SCENARIO_PARSE_OK );
+	CHECK_EQ( (Int)action.action, (Int)SCENARIO_ACTION_HUNT );
 	CHECK( action.radius == 300.0f );
 	CHECK_EQ( (Int)ScenarioDrill_parseLine( "60 hunt 0 * 900 700 450", &action ), (Int)SCENARIO_PARSE_OK );
 	CHECK_EQ( (Int)action.action, (Int)SCENARIO_ACTION_HUNT );

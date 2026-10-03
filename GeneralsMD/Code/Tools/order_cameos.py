@@ -1,13 +1,12 @@
-"""The command bar's attack, hold position, move, scout, search and destroy and stance cameos,
+"""The command bar's attack, hold position, move, search and destroy and stance cameos,
 painted in the manner of EA's command cameos (SSStop, SSGuard): a sign with a bevelled steel rim and
 four bolts standing over a painted backdrop.  No command set has a button for any of these orders,
 so the game has no picture for them.
 
 Attack is a red plate with a white crosshair over a burning sky, hold position a blue plate with a
-raised palm over a blue one, move a green diamond with a white arrow over an overcast field.  Scout
-is an amber disc with an open eye over a dawn sky, search and destroy an orange plate with a
-magnifying glass over a dusk one, the aggressive stance a red pennant of two chevrons pointing ahead
-and the defensive one a steel blue shield.  Each is painted at four times its size and brought down,
+raised palm over a blue one, move a green diamond with a white arrow over an overcast field.  Search
+and destroy is an orange plate with a magnifying glass over a dusk sky, the aggressive stance a red
+pennant of two chevrons pointing ahead and the defensive one a steel blue shield.  Each is painted at four times its size and brought down,
 which is
 what softens the edges into the look of the shipped art.  The noise is seeded, so the file comes
 out the same every time.
@@ -27,7 +26,7 @@ from PIL import Image, ImageDraw, ImageFilter
 CAMEO_W, CAMEO_H = 60, 48           # every command cameo in the shipped mapped images
 SUPER = 4                           # painted at this many times the size
 TEXTURE_W, TEXTURE_H = 256, 128
-CAMEO_PLACES = {"attack": (0, 0), "hold": (64, 0), "move": (0, 64), "scout": (64, 64), "hunt": (128, 0),
+CAMEO_PLACES = {"attack": (0, 0), "hold": (64, 0), "move": (0, 64), "hunt": (128, 0),
                 "aggressive": (192, 0), "defensive": (128, 64)}
 SEED = 20260928
 OUT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Data", "Art", "Textures", "ReforgedOrders.tga")
@@ -186,32 +185,9 @@ def move(rng):
     return image
 
 
-def corner_bolts(cx, cy, reach):
-    return [(cx - reach, cy - reach), (cx + reach, cy - reach), (cx - reach, cy + reach), (cx + reach, cy + reach)]
-
-
 def octagon(left, top, right, bottom, cut):
     return [(left + cut, top), (right - cut, top), (right, top + cut), (right, bottom - cut),
             (right - cut, bottom), (left + cut, bottom), (left, bottom - cut), (left, top + cut)]
-
-
-def scout(rng):
-    image = backdrop(rng, (60, 70, 112), (232, 172, 112), (240, 222, 200), (40, 36, 30))
-    cx, cy, radius = W / 2, H / 2 - SUPER, H * 0.44
-    plate(image, circle_points(cx, cy, radius), (222, 160, 28), corner_bolts(cx, cy, radius * 0.62))
-    # an open eye: the white of it, a dark iris and a glint
-    draw = ImageDraw.Draw(image)
-    white = (248, 246, 240)
-    across, tall = radius * 0.6, radius * 0.32
-    eye = [(cx + across * math.cos(t), cy + tall * math.sin(t) * abs(math.sin(t)) ** 0.2)
-           for t in np.linspace(0, 2 * math.pi, 64, endpoint=False)]
-    draw.polygon(eye, fill=white)
-    iris = tall * 0.95
-    draw.ellipse((cx - iris, cy - iris, cx + iris, cy + iris), fill=(44, 40, 34))
-    glint = iris * 0.32
-    draw.ellipse((cx - glint - iris * 0.3, cy - glint - iris * 0.3, cx + glint - iris * 0.3, cy + glint - iris * 0.3),
-                 fill=white)
-    return image
 
 
 def hunt(rng):
@@ -284,7 +260,7 @@ def texture():
     rng = np.random.default_rng(SEED)
     sheet = Image.new("RGBA", (TEXTURE_W, TEXTURE_H), (0, 0, 0, 0))
     # in this order: the stream is shared, so a new cameo goes last and leaves the others as they were
-    for name, paint in (("attack", attack), ("hold", hold), ("move", move), ("scout", scout), ("hunt", hunt),
+    for name, paint in (("attack", attack), ("hold", hold), ("move", move), ("hunt", hunt),
                         ("aggressive", aggressive), ("defensive", defensive)):
         sheet.paste(cameo(paint(rng)).convert("RGBA"), CAMEO_PLACES[name])
     return sheet
@@ -304,14 +280,12 @@ def selfcheck():
     assert attack_mid[0] > attack_mid[2], attack_mid
     assert hold_mid[2] > hold_mid[0], hold_mid
     assert move_side[1] > move_side[0] and move_side[1] > move_side[2], move_side
-    # and the four after them: amber, orange, red and steel blue plates
+    # and the three after them: orange, red and steel blue plates
     def face(x0, y0, x1, y1):
         return np.asarray(sheet.crop((x0, y0, x1, y1)), dtype=int)[:, :, :3].mean(axis=(0, 1))
-    scout_top = face(64 + 27, 64 + 6, 64 + 33, 64 + 10)
     hunt_foot = face(128 + 16, 32, 128 + 20, 36)
     aggressive_foot = face(192 + 27, 34, 192 + 33, 38)
     defensive_top = face(128 + 16, 64 + 8, 128 + 20, 64 + 14)
-    assert scout_top[0] > 200 and scout_top[1] > 140 and scout_top[2] < 80, scout_top
     assert hunt_foot[0] > 160 and 60 < hunt_foot[1] < 140 and hunt_foot[2] < 60, hunt_foot
     assert aggressive_foot[0] > 140 and aggressive_foot[1] < 60, aggressive_foot
     assert defensive_top[2] > defensive_top[0] + 50, defensive_top

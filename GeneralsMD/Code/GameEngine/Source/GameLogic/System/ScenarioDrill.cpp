@@ -95,7 +95,7 @@ static const Int SCENARIO_SHIFTPOWER_NAME_TOKEN = 6;
 static const Int SCENARIO_SHIFTUPGRADE_NAME_TOKEN = 4;
 static const Int SCENARIO_STANCE_NAME_TOKEN = 4;
 
-/// a scout's or a hunt's circle when the line does not say, the keys' own before the wheel
+/// a hunt's circle when the line does not say, the key's own before the wheel
 static const Real SCENARIO_DEFAULT_SWEEP_RADIUS = 300.0f;
 
 // where the position starts in each line that has one
@@ -217,8 +217,6 @@ static Bool parseActionType( const AsciiString &token, ScenarioActionType *actio
 		*action = SCENARIO_ACTION_CONSTRUCT;
 	else if (token == "stance")
 		*action = SCENARIO_ACTION_STANCE;
-	else if (token == "scout")
-		*action = SCENARIO_ACTION_SCOUT;
 	else if (token == "hunt")
 		*action = SCENARIO_ACTION_HUNT;
 	else
@@ -303,7 +301,6 @@ static Int tokensNeededFor( ScenarioActionType action )
 		case SCENARIO_ACTION_SHIFTATTACKMOVE:	return SCENARIO_TOKENS_MOVE;
 		case SCENARIO_ACTION_SHIFTGUARD:	return SCENARIO_TOKENS_MOVE;
 		case SCENARIO_ACTION_CONSTRUCT:		return SCENARIO_TOKENS_MOVE;
-		case SCENARIO_ACTION_SCOUT:				return SCENARIO_TOKENS_MOVE;
 		case SCENARIO_ACTION_HUNT:				return SCENARIO_TOKENS_MOVE;
 		case SCENARIO_ACTION_STANCE:			return SCENARIO_TOKENS_STANCE;
 		case SCENARIO_ACTION_SHIFTATTACK:	return SCENARIO_TOKENS_ATTACK;
@@ -386,14 +383,13 @@ ScenarioParseResult ScenarioDrill_parseLine( const char *line, ScenarioAction *a
 		case SCENARIO_ACTION_SHIFTATTACKMOVE:
 		case SCENARIO_ACTION_SHIFTGUARD:
 		case SCENARIO_ACTION_CONSTRUCT:
-		case SCENARIO_ACTION_SCOUT:
 		case SCENARIO_ACTION_HUNT:
 		{
 			Int next = SCENARIO_ORDER_POSITION_TOKEN;
 			const ScenarioParseResult position = parseScenarioPosition( tokens, count, &next, action );
 			if (position != SCENARIO_PARSE_OK)
 				return position;
-			if (actionType == SCENARIO_ACTION_SCOUT || actionType == SCENARIO_ACTION_HUNT)
+			if (actionType == SCENARIO_ACTION_HUNT)
 				action->radius = (count > next) ? (Real)atof( tokens[ next ].str() ) : SCENARIO_DEFAULT_SWEEP_RADIUS;
 			if (actionType == SCENARIO_ACTION_ARRIVE && count > next)
 				action->radius = (Real)atof( tokens[ next ].str() );
@@ -1326,10 +1322,10 @@ static Bool executeStance( const ScenarioAction &action, Player *player, AIGroup
 	return TRUE;
 }
 
-/** The scout and search and destroy keys: the ring sweepRoute gives this seat round the point, from
-	  where the units stand, each point handed to the order queue the way the key's messages arrive -
-	  the first fresh, the rest behind it - and then the centre, or a guard of the whole circle.  Each
-	  message gets a group of its own, because the queue destroys the one it takes. */
+/** The search and destroy key: the ring sweepRoute gives this seat round the point, from where the
+	  units stand, each point handed to the order queue the way the key's messages arrive - the first
+	  fresh, the rest behind it - and then a guard of the whole circle.  Each message gets a group of
+	  its own, because the queue destroys the one it takes. */
 static Bool executeSweep( const ScenarioAction &action, Player *player, const Coord3D &center, AIGroup *group, Int taken )
 {
 	Coord3D from;
@@ -1345,7 +1341,6 @@ static Bool executeSweep( const ScenarioAction &action, Player *player, const Co
 	from.y /= taken;
 	TheAI->destroyGroup( group );
 
-	const Bool hunt = action.action == SCENARIO_ACTION_HUNT;
 	std::vector<Coord3D> route;
 	sweepRoute( player->getPlayerIndex(), center, action.radius, from, route );
 	route.push_back( center );
@@ -1353,9 +1348,7 @@ static Bool executeSweep( const ScenarioAction &action, Player *player, const Co
 	for( size_t i = 0; i < route.size(); i++ )
 	{
 		const Bool last = i + 1 == route.size();
-		GameMessage::Type type = hunt ? GameMessage::MSG_DO_ATTACKMOVETO : GameMessage::MSG_DO_MOVETO;
-		if( last && hunt )
-			type = GameMessage::MSG_DO_GUARD_POSITION;
+		const GameMessage::Type type = last ? GameMessage::MSG_DO_GUARD_POSITION : GameMessage::MSG_DO_ATTACKMOVETO;
 		GameMessage *msg = newInstance( GameMessage )( type );
 		msg->friend_setPlayerIndex( player->getPlayerIndex() );
 		msg->appendLocationArgument( route[ i ] );
@@ -1371,11 +1364,11 @@ static Bool executeSweep( const ScenarioAction &action, Player *player, const Co
 		player->getOrderQueue()->takeMessage( msg, members, player );
 		msg->deleteInstance();
 
-		DEBUG_LOG(("SCENARIO: frame %d %s slot %d '%s' step %d of %d at (%.0f,%.0f)\n", action.frame, hunt ? "hunt" : "scout",
+		DEBUG_LOG(("SCENARIO: frame %d hunt slot %d '%s' step %d of %d at (%.0f,%.0f)\n", action.frame,
 							 action.slot, action.selector.str(), (Int)i + 1, (Int)route.size(), route[ i ].x, route[ i ].y));
 	}
 
-	DEBUG_LOG(("SCENARIO: frame %d %s slot %d '%s' x%d round (%.0f,%.0f) radius %.0f\n", action.frame, hunt ? "hunt" : "scout",
+	DEBUG_LOG(("SCENARIO: frame %d hunt slot %d '%s' x%d round (%.0f,%.0f) radius %.0f\n", action.frame,
 						 action.slot, action.selector.str(), taken, center.x, center.y, action.radius));
 	return TRUE;
 }
@@ -1464,7 +1457,6 @@ static Bool executeOrder( const ScenarioAction &action, Player *player, const Co
 		case SCENARIO_ACTION_STANCE:
 			return executeStance( action, player, group, taken );		// the dispatcher destroys the group
 
-		case SCENARIO_ACTION_SCOUT:
 		case SCENARIO_ACTION_HUNT:
 			return executeSweep( action, player, dest, group, taken );		// and so does this
 

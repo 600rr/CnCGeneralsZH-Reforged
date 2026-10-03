@@ -379,30 +379,30 @@ Bool ControlBar_commandPlaces( const Int *types, const Int *groups, const Int *p
 }
 
 //-------------------------------------------------------------------------------------------------
-void ControlBar_orderKeyPlaces( const Int *places, Int count, Bool fights, Bool scouts, Int *keys )
+void ControlBar_orderKeyPlaces( const Int *places, Int count, Bool fights, Int *keys )
 {
+	for( Int key = 0; key < ORDER_KEY_EXTRAS; key++ )
+		keys[ key ] = -1;
+	if( !fights )
+		return;
+
 	Bool taken[ COMMAND_PLACE_COUNT ] = { FALSE };
 	for( Int slot = 0; slot < count; slot++ )
 		if( places[ slot ] >= 0 )
 			taken[ places[ slot ] ] = TRUE;
-	if( fights )
-		taken[ COMMAND_PLACE_ATTACK ] = taken[ COMMAND_PLACE_HOLD ] = taken[ COMMAND_PLACE_MOVE ] = TRUE;
+	taken[ COMMAND_PLACE_ATTACK ] = taken[ COMMAND_PLACE_HOLD ] = taken[ COMMAND_PLACE_MOVE ] = TRUE;
 
-	static const Int OWN[ ORDER_KEY_EXTRAS ] = { COMMAND_PLACE_G, COMMAND_PLACE_F, COMMAND_PLACE_H };
-	const Bool offered[ ORDER_KEY_EXTRAS ] = { scouts, fights, fights };
+	static const Int OWN[ ORDER_KEY_EXTRAS ] = { COMMAND_PLACE_F, COMMAND_PLACE_H };
 	for( Int key = 0; key < ORDER_KEY_EXTRAS; key++ )
-	{
-		keys[ key ] = -1;
-		if( offered[ key ] && !taken[ OWN[ key ] ] )
+		if( !taken[ OWN[ key ] ] )
 			keys[ key ] = OWN[ key ];
-	}
 	for( Int key = 0; key < ORDER_KEY_EXTRAS; key++ )
 		if( keys[ key ] >= 0 )
 			taken[ keys[ key ] ] = TRUE;
 
 	for( Int key = 0; key < ORDER_KEY_EXTRAS; key++ )
 	{
-		if( !offered[ key ] || keys[ key ] >= 0 )
+		if( keys[ key ] >= 0 )
 			continue;
 		static const Int SPARE[] = { COMMAND_PLACE_B, COMMAND_PLACE_N };
 		for( Int each = 0; each < (Int)ARRAY_SIZE( SPARE ) && keys[ key ] < 0; each++ )
@@ -421,15 +421,7 @@ void ControlBar::getOrderKeyPlaces( Int *keys ) const
 {
 	Int places[ MAX_COMMANDS_PER_SET ];
 	const Bool fights = getCommandPlaces( places );
-	// no keys at all for a selection whose command group is hidden, as getCommandPlaces has no buttons
-	Bool scouts = FALSE;
-	if( !m_contextParent[ CP_COMMAND ]->winIsHidden() )
-	{
-		const DrawableList *selected = TheInGameUI->getAllSelectedLocalDrawables();
-		for( DrawableListCIt it = selected->begin(); it != selected->end() && !scouts; ++it )
-			scouts = (*it)->getObject() && (*it)->getObject()->isKindOf( KINDOF_SCOUT );
-	}
-	ControlBar_orderKeyPlaces( places, MAX_COMMANDS_PER_SET, fights, scouts, keys );
+	ControlBar_orderKeyPlaces( places, MAX_COMMANDS_PER_SET, fights, keys );
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -492,7 +484,7 @@ void ControlBar::pressCommandButton( Int place )
 	if( place < 0 || place >= COMMAND_PLACE_COUNT )
 		return;
 
-	// the page's scout, search and destroy and stance keys stand where no button does
+	// the page's search and destroy and stance keys stand where no button does
 	Int keys[ ORDER_KEY_EXTRAS ];
 	getOrderKeyPlaces( keys );
 	for( Int key = 0; key < ORDER_KEY_EXTRAS; key++ )

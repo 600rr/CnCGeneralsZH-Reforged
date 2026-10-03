@@ -173,7 +173,6 @@ enum KindOfType : int
 	KINDOF_CONSERVATIVE_BUILDING,		///< Conservative structures aren't considered part of your base for sneak attack boundary calculations...
 	KINDOF_IGNORE_DOCKING_BONES,		///< Structure will not look up docking bones. Patch 1.03 hack.
 	KINDOF_NO_ATTACK_WARNING,				///< Damage to this raises no "under attack" alarm, ping or EVA line.
-	KINDOF_SCOUT,										///< A reconnaissance unit: the command bar offers it the scout key (fork)
 
 	KINDOF_COUNT										// total number of kindofs
 	

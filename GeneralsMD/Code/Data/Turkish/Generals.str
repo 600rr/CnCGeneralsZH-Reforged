@@ -14825,14 +14825,6 @@ GUI:OrderMoveDescription
 "Zemine bir sonraki tıklama seçili birlikleri oraya gönderir. Bunun yerine sürüklerseniz birlikler çizdiğiniz çizgi boyunca dizilir."
 END
 
-GUI:OrderScout
-"Keşif"
-END
-
-GUI:OrderScoutDescription
-"Bir noktaya tıklayın; seçili birlikler çevresinde bir daire boyunca dolaşıp dairenin henüz göremediğiniz her yerine bakar, sonra ortaya döner. Daireyi büyütmek ya da küçültmek için tıklamadan önce fare tekerleğini çevirin."
-END
-
 GUI:OrderSearchAndDestroy
 "Ara ve Yok Et"
 END

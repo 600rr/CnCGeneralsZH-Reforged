@@ -1610,7 +1610,7 @@ GameMessage::Type CommandTranslator::evaluateContextCommand( Drawable *draw,
 																														 const Coord3D *pos, 
 																														 CommandEvaluateType type )
 {
-	// the scout and search and destroy keys sweep a circle round the point, whatever stands on it
+	// the search and destroy key sweeps a circle round the point, whatever stands on it
 	if( TheInGameUI->getAreaOrderArmed() != InGameUI::AREA_ORDER_NONE && TheInGameUI->areSelectedObjectsControllable() )
 	{
 		if( type == DO_COMMAND )
