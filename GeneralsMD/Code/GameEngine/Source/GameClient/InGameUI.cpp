@@ -14795,7 +14795,28 @@ Bool InGameUI::drawTooltipPage( const UnicodeString &cursorText, const RGBColor 
 	if( !isTooltipPageReady() )
 		return FALSE;
 
+	const ICoord2D &mouse = TheMouse->getMouseStatus()->pos;
 	const BuildTooltipCard *card = TheControlBar->getBuildTooltipCard();
+
+	// the attack, hold position and move keys are the page's own, with no window behind them for the
+	// bar's tooltip to find, so their cards are made here and stand on the console as a button's does
+	static const char *const ORDER_KEY_LABELS[ ORDER_KEYS ] = { "GUI:OrderForceAttack", "GUI:OrderHoldPosition", "GUI:OrderMove" };
+	BuildTooltipCard orderCard = BuildTooltipCard();
+	if( m_controlBarPageShown && m_orderKeysShown && !areTooltipsDisabled() && !isQuitMenuVisible() )
+	{
+		for( Int key = 0; key < ORDER_KEYS; key++ )
+		{
+			const IRegion2D &cell = m_orderKeyCell[ key ];
+			if( mouse.x < cell.lo.x || mouse.x >= cell.hi.x || mouse.y < cell.lo.y || mouse.y >= cell.hi.y )
+				continue;
+			AsciiString label = ORDER_KEY_LABELS[ key ];
+			orderCard.name = TheGameText->fetch( label );
+			label.concat( "Description" );
+			orderCard.description = TheGameText->fetch( label );
+			orderCard.anchor = cell;
+			card = &orderCard;
+		}
+	}
 	if( card == NULL && cursorText.isEmpty() )
 		return TRUE;
 
@@ -14831,7 +14852,6 @@ Bool InGameUI::drawTooltipPage( const UnicodeString &cursorText, const RGBColor 
 
 	const Int screenWidth = TheDisplay->getWidth();
 	const Int screenHeight = TheDisplay->getHeight();
-	const ICoord2D &mouse = TheMouse->getMouseStatus()->pos;
 	const Int gap = REAL_TO_INT( TOOLTIP_ANCHOR_GAP * ControlBarHudPageScale() );
 	for( Int pass = 0; pass < TOOLTIP_LAYOUT_PASSES; pass++ )
 	{

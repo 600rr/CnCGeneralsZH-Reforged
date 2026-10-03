@@ -193,6 +193,33 @@ GUI:StopDescription
 "Stops what the selected units are doing."
 END
 
+// The command grid's own attack, hold position and move keys, which stand in no command set:
+// the cards they show under the pointer.
+
+GUI:OrderForceAttack
+"Force Attack"
+END
+
+GUI:OrderForceAttackDescription
+"The next click attacks whatever is under the pointer, the ground and your own side included. Click the key again to call it off."
+END
+
+GUI:OrderHoldPosition
+"Hold Position"
+END
+
+GUI:OrderHoldPositionDescription
+"The selected units guard the spot they stand on and fight whatever comes near, without chasing it out of the area."
+END
+
+GUI:OrderMove
+"Move"
+END
+
+GUI:OrderMoveDescription
+"The next click on the ground sends the selected units there. Drag instead and they spread out along the line you draw."
+END
+
 // Smoke signals.  The three ...Placed lines are what an ally reads; %s is the sender's name.  The
 // ...Label words are written over the smoke, which is in the sender's colour.
 GUI:SignalAttack

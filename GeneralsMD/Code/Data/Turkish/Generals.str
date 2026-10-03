@@ -14801,6 +14801,30 @@ GUI:StopDescription
 "Seçili birliklerin yaptığı işi durdurur."
 END
 
+GUI:OrderForceAttack
+"Zorla Saldır"
+END
+
+GUI:OrderForceAttackDescription
+"Bir sonraki tıklama imlecin altındaki her şeye saldırır, zemin ve kendi tarafınız da buna dahil. Vazgeçmek için tuşa yeniden tıklayın."
+END
+
+GUI:OrderHoldPosition
+"Mevzini Koru"
+END
+
+GUI:OrderHoldPositionDescription
+"Seçili birlikler durdukları yeri korur ve yaklaşan her şeyle savaşır, ama onu bölgenin dışına kadar kovalamaz."
+END
+
+GUI:OrderMove
+"Hareket Et"
+END
+
+GUI:OrderMoveDescription
+"Zemine bir sonraki tıklama seçili birlikleri oraya gönderir. Bunun yerine sürüklerseniz birlikler çizdiğiniz çizgi boyunca dizilir."
+END
+
 GUI:SignalAttack
 "Sinyal: Saldır"
 END
