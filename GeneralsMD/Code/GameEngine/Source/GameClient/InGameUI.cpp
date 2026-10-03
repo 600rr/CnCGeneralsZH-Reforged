@@ -12297,10 +12297,10 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	const Int gridWellWidth = REAL_TO_INT( COMMAND_COLUMNS * ( COMMAND_CELL_WIDTH + CELL_GAP ) * scale );
 	const ICoord2D cell = cellSize();
 	const Int cellGap = REAL_TO_INT( SKILL_CELL_GAP * scale );
-	// a watcher with nothing selected has no portrait to show, and the bar has already stood the
-	// portrait's panel down (ControlBar::watchPlayer): the selection's well goes with it and the
-	// console is the radar alone, until a click on a unit brings both back
-	const Bool selectionShown = !watching || centreShown || ( panelCount > 2 && shown[ 2 ] );
+	// a watcher with nothing selected has no portrait to show: the selection's well beside the radar
+	// goes and the console is the radar alone, until a click on a unit brings it back.  Read from the
+	// selection itself, not the portrait panel's state, which stayed up for an -observer start
+	const Bool selectionShown = !watching || centreShown || getSelectCount() > 0;
 	Int consoleWidth = radarWellWidth;
 	if( selectionShown )
 		consoleWidth += border + selectionWellWidth;
