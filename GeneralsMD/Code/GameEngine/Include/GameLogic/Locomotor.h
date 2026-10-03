@@ -392,7 +392,7 @@ protected:
 	void moveTowardsPositionHover(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed, const Coord3D *faceTarget);
 	void moveTowardsPositionHelicopter(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed, const Coord3D *faceTarget);
 	void brakeHelicopter(Object* obj, PhysicsBehavior *physics);
-	PhysicsTurningType turnHelicopter(Object* obj, const Coord3D *toward);
+	PhysicsTurningType turnHelicopter(Object* obj, const Coord3D *toward, Real rateShare = 1.0f);
 	void steerHelicopter(Object* obj, PhysicsBehavior *physics, Real wantX, Real wantY);
 	Real getHelicopterStopDecel(BodyDamageType condition) const;
 	void moveTowardsPositionThrust(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed);

@@ -2103,6 +2103,7 @@ void Locomotor::moveTowardsPositionHelicopter(Object* obj, PhysicsBehavior *phys
 	const Real LONG_FLIGHT_SECONDS = 3.0f;
 	const Real LONG_FLIGHT_MIN_DIST = 400.0f;	// so a slow Helix still slides a short hop instead of turning for it
 	const Real TOO_CLOSE_TO_AIM = 1.0f;	// right over the target the bearing to it is noise
+	const Real LONG_FLIGHT_TURN_FROM_HOVER = 0.25f;	// share of TurnRate a long flight's turn starts at from a hover
 
 	BodyDamageType bdt = obj->getBodyModule()->getDamageState();
 	Real maxSpeed = getMaxSpeedForCondition(bdt);
@@ -2110,7 +2111,10 @@ void Locomotor::moveTowardsPositionHelicopter(Object* obj, PhysicsBehavior *phys
 		desiredSpeed = maxSpeed;
 
 	const Coord3D *pos = obj->getPosition();
+	const Coord3D *vel = physics->getVelocity();
+	Real speed = sqrt(sqr(vel->x) + sqr(vel->y));
 	const Coord3D *noseToward = NULL;
+	Real rateShare = 1.0f;
 	if (faceTarget)
 	{
 		if (fabs(faceTarget->x - pos->x) > TOO_CLOSE_TO_AIM || fabs(faceTarget->y - pos->y) > TOO_CLOSE_TO_AIM)
@@ -2119,9 +2123,15 @@ void Locomotor::moveTowardsPositionHelicopter(Object* obj, PhysicsBehavior *phys
 	else if (onPathDistToGoal > maxSpeed * LOGICFRAMES_PER_SECOND * LONG_FLIGHT_SECONDS
 					 && onPathDistToGoal > LONG_FLIGHT_MIN_DIST)
 	{
+		/* Turning into the flight is no hurry: the nose comes round as the speed builds, at
+			 LONG_FLIGHT_TURN_FROM_HOVER of TurnRate from a hover and all of it at full speed. At full
+			 TurnRate a Comanche swings 180 degrees before it has gone 30, and the turn reads as done on
+			 the spot. */
 		noseToward = &goalPos;
+		if (speed < maxSpeed)
+			rateShare = LONG_FLIGHT_TURN_FROM_HOVER + (1.0f - LONG_FLIGHT_TURN_FROM_HOVER) * speed / maxSpeed;
 	}
-	physics->setTurning(turnHelicopter(obj, noseToward));
+	physics->setTurning(turnHelicopter(obj, noseToward, rateShare));
 
 	Real goalSpeed = desiredSpeed;
 	if (!getFlag(NO_SLOW_DOWN_AS_APPROACHING_DEST))
@@ -2131,8 +2141,6 @@ void Locomotor::moveTowardsPositionHelicopter(Object* obj, PhysicsBehavior *phys
 			 the ease speed taken off, the braking fades out at the end. The distance is counted short
 			 by the travel of the lead frames, the time the eased braking takes to build up, or the
 			 helicopter overshoots a short hop. */
-		const Coord3D *vel = physics->getVelocity();
-		Real speed = sqrt(sqr(vel->x) + sqr(vel->y));
 		Real distLeft = onPathDistToGoal - speed * HELICOPTER_STOP_LEAD_FRAMES;
 		if (distLeft < 0.0f)
 			distLeft = 0.0f;
@@ -2215,12 +2223,14 @@ void Locomotor::brakeHelicopter(Object* obj, PhysicsBehavior *physics)
 /**
 	Swing a helicopter's nose towards a point, or let the swing die away when toward is null. The
 	turn winds up to TurnRate over HELICOPTER_YAW_EASE_FRAMES and winds down again so it stops on the
-	heading, where rotateTowardsPosition jumps straight to full rate and stops dead.
+	heading, where rotateTowardsPosition jumps straight to full rate and stops dead. rateShare takes
+	the top rate below TurnRate.
 */
-PhysicsTurningType Locomotor::turnHelicopter(Object* obj, const Coord3D *toward)
+PhysicsTurningType Locomotor::turnHelicopter(Object* obj, const Coord3D *toward, Real rateShare)
 {
-	Real maxRate = getMaxTurnRate(obj->getBodyModule()->getDamageState());
-	Real yawAccel = maxRate / HELICOPTER_YAW_EASE_FRAMES;
+	Real turnRate = getMaxTurnRate(obj->getBodyModule()->getDamageState());
+	Real yawAccel = turnRate / HELICOPTER_YAW_EASE_FRAMES;
+	Real maxRate = turnRate * rateShare;
 	Real angle = obj->getOrientation();
 
 	Real wantRate = 0.0f;
