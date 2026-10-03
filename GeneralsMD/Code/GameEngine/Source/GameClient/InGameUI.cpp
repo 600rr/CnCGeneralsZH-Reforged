@@ -6617,6 +6617,8 @@ void InGameUI::createCommandHint( const GameMessage *msg )
 					{
 						if( !drawSelectable && srcObj && srcObj->isLocallyControlled() && srcObj->isKindOf(KINDOF_STRUCTURE))
 							setMouseCursor( Mouse::GENERIC_INVALID );
+						else if( m_areaOrder != AREA_ORDER_NONE )
+							setMouseCursor( Mouse::CROSS );	// a sweep circles the point whatever stands on it, own units included
 						else if( drawSelectable && obj->isLocallyControlled() && !obj->isKindOf(KINDOF_MINE))
 							setMouseCursor( Mouse::SELECTING );
 						else if( TheRadar->isRadarWindow( window ) &&
@@ -6624,7 +6626,7 @@ void InGameUI::createCommandHint( const GameMessage *msg )
 										 (TheRadar->isRadarHidden() || 
 										 ThePlayerList->getLocalPlayer()->hasRadar() == FALSE) )
 							setMouseCursor( Mouse::ARROW );
-						else if( isGuardArmed() || m_areaOrder != AREA_ORDER_NONE )
+						else if( isGuardArmed() )
 							setMouseCursor( Mouse::CROSS );	// the targeting cross, the cursor EA's own guard button arms
 						else
 							setMouseCursor( Mouse::MOVETO );

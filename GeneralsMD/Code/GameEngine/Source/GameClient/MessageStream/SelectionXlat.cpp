@@ -430,9 +430,12 @@ GameMessageDisposition SelectionTranslator::translateGameMessage(const GameMessa
 			}
 
 			// with attack move or guard armed a left drag draws the order line over in CommandXlat, so
-			// no selection box grows under it
-			const Bool leftDrawsLine = TheInGameUI->isLineOrderArmed() && TheInGameUI->getSelectCount() > 0;
-			if (m_leftMouseButtonIsDown && !leftDrawsLine)
+			// no selection box grows under it.  Scout and search and destroy have no line to draw, and
+			// their drag is no box either: the key stays armed for the click that aims it
+			const Bool leftDragIsOrder = (TheInGameUI->isLineOrderArmed()
+																		|| TheInGameUI->getAreaOrderArmed() != InGameUI::AREA_ORDER_NONE)
+																	 && TheInGameUI->getSelectCount() > 0;
+			if (m_leftMouseButtonIsDown && !leftDragIsOrder)
 			{
 				ICoord2D delta;
 
