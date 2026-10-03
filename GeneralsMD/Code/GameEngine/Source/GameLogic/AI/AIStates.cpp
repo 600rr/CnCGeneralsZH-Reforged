@@ -6420,6 +6420,7 @@ void AIAttackState::onExit( StateExitType status )
 	if (ai) 
 	{	
 		//ai->notifyVictimIsDead();	no, do NOT do this here.
+		ai->noteWithdrawTarget(ai->getCurrentVictim());
 		ai->setCurrentVictim(NULL);
 		for (int i = 0; i < MAX_TURRETS; ++i)
 			ai->setTurretTargetObject((WhichTurretType)i, NULL, NULL);

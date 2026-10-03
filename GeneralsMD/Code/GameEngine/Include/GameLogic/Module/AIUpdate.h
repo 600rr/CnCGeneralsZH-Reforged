@@ -613,6 +613,8 @@ public:
 	Object *getCurrentVictim( void ) const;
 	virtual void notifyVictimIsDead() { }
 	Bool isCarriedGunOn( const Object *victim ) const;	///< a rider's turret or a passenger is already shooting at victim
+	void noteWithdrawTarget( const Object *victim );		///< an attack is ending; a helicopter may keep shooting victim while it moves
+	void updateWithdrawTarget();												///< keep the turret on that target while it can, let go once it cannot
 
 	// if we are attacking a position (and NOT an object), return it. otherwise return null.
 	const Coord3D *getCurrentVictimPos( void ) const;	
@@ -837,7 +839,9 @@ private:
 	AIStateMachine*			m_stateMachine;							///< the state machine
 	UnsignedInt					m_nextEnemyScanTime;				///< how long until the next enemy scan
 	ObjectID						m_currentVictimID;					///< if not INVALID_ID, this agent's current victim.
-	Real								m_desiredSpeed;							///< the desired speed of the tank
+	ObjectID						m_withdrawTargetID;					///< what a helicopter told to move mid-fight keeps shooting while it flies
+	UnsignedInt					m_withdrawFrame;						///< the last frame that target was still held
+	Real								m_desiredSpeed;						///< the desired speed of the tank
 	CommandSourceType		m_lastCommandSource;			/**< Keep track of the source of the last command we got.
 																									This is set immediately before the SetState that goes
 																									to the state machine, so onEnter in there can know where

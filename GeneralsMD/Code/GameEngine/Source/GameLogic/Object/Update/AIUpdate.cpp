@@ -285,6 +285,8 @@ AIUpdateInterface::AIUpdateInterface( Thing *thing, const ModuleData* moduleData
 	m_stateMachine = NULL;
 	m_nextEnemyScanTime = 0;
 	m_currentVictimID = INVALID_ID;
+	m_withdrawTargetID = INVALID_ID;
+	m_withdrawFrame = 0;
 	m_desiredSpeed = FAST_AS_POSSIBLE;
 	m_lastCommandSource = CMD_FROM_AI;
 	m_guardMode = GUARDMODE_NORMAL;
@@ -3916,6 +3918,7 @@ UpdateSleepTime AIUpdateInterface::doLocomotor( void )
 			const Coord3D *faceTarget = NULL;
 			if (m_curLocomotor->isHelicopter(getObject()))
 			{
+				updateWithdrawTarget();
 				Object *target = NULL;
 				WhichTurretType tur = getWhichTurretForCurWeapon();
 				if (tur == TURRET_INVALID)
@@ -6215,6 +6218,66 @@ Bool AIUpdateInterface::isCarriedGunOn( const Object *victim ) const
 	return contain && AIUpdate_containsGunOn(contain, victim);
 }
 
+//-------------------------------------------------------------------------------------------------
+/**
+	A helicopter told to move in the middle of a fight keeps shooting what it was attacking while it
+	flies. The attack is ending (AIAttackState::onExit), so remember its victim; updateWithdrawTarget
+	then holds the turret on it for as long as the helicopter is on a plain move. Only a helicopter,
+	and only one that already had a victim: a move order never picks a new target.
+*/
+void AIUpdateInterface::noteWithdrawTarget( const Object *victim )
+{
+	if (victim &&m_curLocomotor && m_curLocomotor->isHelicopter(getObject()))
+	{
+		m_withdrawTargetID = victim->getID();
+		m_withdrawFrame = TheGameLogic->getFrame();
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+/**
+	Hold the turret the current weapon is on (the Comanche's does not turn, so its nose stays on the
+	target and it backs or slides away) on the remembered target, every frame of a plain move, while
+	the target is alive, attackable and in range. The first frame any of that fails, or a frame is
+	missed, the turret lets go and the helicopter flies the move as it would have. The move itself is
+	never touched.
+*/
+void AIUpdateInterface::updateWithdrawTarget()
+{
+	if (m_withdrawTargetID == INVALID_ID)
+		return;
+
+	Object *obj = getObject();
+	UnsignedInt now = TheGameLogic->getFrame();
+	Object *target = TheGameLogic->findObjectByID(m_withdrawTargetID);
+	StateID state = getStateMachine()->getCurrentStateID();
+	Bool hold = (state == AI_MOVE_TO || state == AI_FOLLOW_PATH) && now <= m_withdrawFrame + 1
+		&& target && !target->isEffectivelyDead();
+	// the attack state picked the weapon; with it gone, a pod reloading would hold the gun silent
+	if (hold)
+		obj->chooseBestWeaponForTarget(target, PREFER_MOST_DAMAGE, getLastCommandSource());
+	WhichTurretType tur = getWhichTurretForCurWeapon();
+	Weapon *weapon = obj->getCurrentWeapon();
+
+	hold = hold && tur != TURRET_INVALID && weapon && weapon->isWithinAttackRange(obj, target);
+	if (hold)
+	{
+		// the same test the turret applies to a target it already has: stealth, a changed side
+		CanAttackResult result = obj->getAbleToAttackSpecificObject(ATTACK_CONTINUED_TARGET, target, getLastCommandSource());
+		hold = result == ATTACKRESULT_POSSIBLE || result == ATTACKRESULT_POSSIBLE_AFTER_MOVING;
+	}
+	if (hold)
+	{
+		m_withdrawFrame = now;
+		setTurretTargetObject(tur, target, FALSE);
+		return;
+	}
+
+	if (target && tur != TURRET_INVALID && getTurretTargetObject(tur, FALSE) == target)
+		setTurretTargetObject(tur, NULL, FALSE);
+	m_withdrawTargetID = INVALID_ID;
+}
+
 // if we are attacking a position (and NOT an object), return it. otherwise return null.
 const Coord3D *AIUpdateInterface::getCurrentVictimPos( void ) const
 {
@@ -7179,12 +7242,13 @@ void AIUpdateInterface::crc( Xfer *x )
 	* 13: m_pathfindFoundNothing
 	* 14: the salvage return position and its flag
 	* 16: the tunnel trip's goal and its flag
-	* 17: how the tunnel trip's last leg is walked */
+	* 17: how the tunnel trip's last leg is walked
+	* 18: the target a helicopter keeps shooting while it moves away */
 // ------------------------------------------------------------------------------------------------
 void AIUpdateInterface::xfer( Xfer *xfer )
 {
   // version
-  const XferVersion currentVersion = 17;
+  const XferVersion currentVersion = 18;
   XferVersion version = currentVersion;
   xfer->xferVersion( &version, currentVersion );
  
@@ -7515,6 +7579,12 @@ void AIUpdateInterface::xfer( Xfer *xfer )
 		Int end = (Int)m_tunnelTripEnd;
 		xfer->xferInt(&end);
 		m_tunnelTripEnd = (TunnelTripEnd)end;
+	}
+
+	if (version >= 18)
+	{
+		xfer->xferObjectID(&m_withdrawTargetID);
+		xfer->xferUnsignedInt(&m_withdrawFrame);
 	}
 
 }  // end xfer
