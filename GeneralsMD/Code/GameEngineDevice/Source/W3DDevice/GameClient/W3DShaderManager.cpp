@@ -3403,23 +3403,22 @@ RenderResult W3DShaderManager::LoadAndCreateD3DVertexShader(const char* strFileP
 enum { UNMEASURED_CPU_REPORTED_MHZ = 3049 };
 #endif
 
-#if !defined(_WIN32)
 /* The chipset reported for a device getChipset cannot place: the top of the table (R300), which every
 	 LODPreset any GameLODPresets.ini can name (GameLOD.cpp's VideoNames, XX to R300) meets.  Decision 2,
-	 extended to the GPU: the POSIX device answers no vendor or device ID the table knows, so getChipset
-	 says DC_UNKNOWN, GameLOD presumed a TNT2, and every shipped preset - LOW included - asks for a GF3
-	 or GF4, so a first launch fell to LOW on any Mac.  Only the preset choice sees this value: it is what
+	 extended to the GPU: getChipset's table ends at the GeForce4 and the Radeon 9700, so any later card
+	 (and the POSIX device, which has no vendor ID at all) comes back DC_UNKNOWN or placed only by its
+	 caps, GameLOD presumed a TNT2, and every shipped preset - LOW included - asks for a GF3 or GF4, so a
+	 first launch fell to LOW on Windows and Mac alike.  Only the preset choice sees this value: it is what
 	 testMinimumRequirements hands GameLOD, while the renderer keeps asking getChipset itself.  An
 	 override (-noshaders, GlobalData's ChipsetType) is not DC_UNKNOWN and is reported as it is.
 	 test_render_hooks checks the value against the game's own file. */
 enum { UNKNOWN_CHIPSET_REPORTED = DC_MAX - 1 };
 
-/* Which chipset the presets see for the one getChipset found (testMinimumRequirements' POSIX branch, a
-	 function of its own so test_render_hooks can table it).  Placing a device only by its caps is not
-	 placing it: since A3e the POSIX device claims pixel shader 1.1, so getChipset answers
-	 DC_GENERIC_PIXEL_SHADER_1_1 rather than DC_UNKNOWN, and that is below the GF3 every shipped preset
-	 asks for - every Mac would fall to LOW again.  An override (-noshaders, GlobalData's ChipsetType) is
-	 reported as it is. */
+/* Which chipset the presets see for the one getChipset found (testMinimumRequirements, a function of its
+	 own so test_render_hooks can table it).  Placing a device only by its caps is not placing it: the
+	 POSIX device claims pixel shader 1.1 (A3e) and a Windows adapter the table does not name is read off
+	 whatever caps the D3D9 device admits to, and DC_GENERIC_PIXEL_SHADER_1_1 is below the GF3 every
+	 shipped preset asks for.  An override (-noshaders, GlobalData's ChipsetType) is reported as it is. */
 ChipsetType chipsetForPresets(ChipsetType detected, Bool overridden)
 {
 	if (overridden)
@@ -3429,7 +3428,6 @@ ChipsetType chipsetForPresets(ChipsetType detected, Bool overridden)
 		return (ChipsetType)UNKNOWN_CHIPSET_REPORTED;
 	return detected;
 }
-#endif
 
 Bool testMinimumRequirements(ChipsetType *videoChipType, CpuType *cpuType, Int *cpuFreq, Int *numRAM, Real *intBenchIndex, Real *floatBenchIndex, Real *memBenchIndex)
 {
@@ -3440,13 +3438,9 @@ Bool W3DShaderManager::testMinimumRequirements(ChipsetType *videoChipType, CpuTy
 {
 	if (videoChipType)
 	{
-		*videoChipType = getChipset();
-#if !defined(_WIN32)
 		// Decision 2 for the GPU: a device the chipset table cannot place counts as meeting every preset
-		// (chipsetForPresets).  Windows' D3D9 names its adapter, and keeps the original presumption
-		// (GameLOD: a TNT2).
-		*videoChipType = chipsetForPresets(*videoChipType, TheGlobalData != NULL && TheGlobalData->m_chipSetType != DC_UNKNOWN);
-#endif
+		// (chipsetForPresets), on every platform.
+		*videoChipType = chipsetForPresets(getChipset(), TheGlobalData != NULL && TheGlobalData->m_chipSetType != DC_UNKNOWN);
 	}
 
 	if (cpuType)

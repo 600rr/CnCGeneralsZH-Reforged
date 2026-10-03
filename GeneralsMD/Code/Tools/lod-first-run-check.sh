@@ -15,8 +15,9 @@
 #	You should have received a copy of the GNU General Public License
 #	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-# Decision 2 for the GPU, run for real: a first launch off Windows chooses the top detail preset the CPU
-# and memory rules allow, where before every Mac's chose LOW.
+# Decision 2 for the GPU, run for real: a first launch chooses the top detail preset the CPU and memory
+# rules allow, where before every Mac's chose LOW, and so did a Windows machine whose card is newer than
+# W3DShaderManager::getChipset's table.
 #
 # Before the rule, the POSIX device answered no vendor or device ID W3DShaderManager::getChipset knows,
 # so it said DC_UNKNOWN; GameLOD presumed a TNT2, and every LODPreset in the shipped GameLODPresets.ini,
@@ -36,7 +37,10 @@
 #      is this rule's doing, and this check can see a Low.
 #
 # WHAT THIS DOES NOT SEE: a machine with less than 512 MB (every Mac the port supports has more), and
-# Windows, where the rule is not compiled and the original presumption stands.
+# Windows. The rule is the same code there (chipsetForPresets has no platform guard), but this script
+# drives the POSIX executable only. On Windows the CPU half reaches HIGH by its own road: a CPU the
+# cpudetect tables cannot name (every Ryzen, most Core) is XX and takes the same benchmark stub, and one
+# they misname as a P3 or P4 is matched by its measured MHz, above the lowest HIGH preset's (P3 1400, P4 1500).
 #
 # RULE 9: the root is a farm, never the install, and the install is listed before and after
 # (Tools/install-guard.sh).
