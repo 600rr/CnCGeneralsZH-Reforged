@@ -94,6 +94,13 @@ extern void DoParticles(RenderInfoClass & rinfo);
 	ShaderClass::DETAILCOLOR_DISABLE, ShaderClass::DETAILALPHA_DISABLE) )
 static ShaderClass PlayerColorShader(SC_PLAYER_COLOR);
 
+// The player's option, gated by the stencil buffer the markers need. Asked per frame and never
+// written back: a device reset that loses the stencil for a moment must not clear the option.
+static Bool behindBuildingMarkersEnabled()
+{
+	return TheGlobalData->m_enableBehindBuildingMarkers && DX8Wrapper::Has_Stencil();
+}
+
 //=============================================================================
 // RTS3DScene::RTS3DScene
 //=============================================================================
@@ -507,7 +514,7 @@ void RTS3DScene::Visibility_Check(CameraClass * camera)
 						{	drawInfo->m_flags |= DrawableInfo::ERF_IS_TRANSLUCENT;	//object is translucent
 							m_translucentObjectsBuffer[m_translucentObjectsCount++] = robj;
 						}
-						if (TheGlobalData->m_enableBehindBuildingMarkers && TheGameLogic->getShowBehindBuildingMarkers())
+						if (behindBuildingMarkersEnabled() && TheGameLogic->getShowBehindBuildingMarkers())
 						{
 							//visible drawable. Check if it's either an occluder or occludee
 							if (draw->isKindOf(KINDOF_STRUCTURE) && m_numPotentialOccluders < TheGlobalData->m_maxVisibleOccluderObjects)
@@ -1005,7 +1012,7 @@ void RTS3DScene::updatePlayerColorPasses(void)
 #ifdef USE_NON_STENCIL_OCCLUSION
 	Vector3 hsv,rgb;
 
-	if (TheGlobalData->m_enableBehindBuildingMarkers && TheGameLogic->getShowBehindBuildingMarkers())
+	if (behindBuildingMarkersEnabled() && TheGameLogic->getShowBehindBuildingMarkers())
 	{
 		Int numPlayers=ThePlayerList->getPlayerCount();
 
@@ -1031,9 +1038,6 @@ void RTS3DScene::Render(RenderInfoClass & rinfo)
 {
 	USE_PERF_TIMER(NonTerrainRender)
 	DX8Wrapper::Set_Fog(FogEnabled, FogColor, FogStart, FogEnd);
-
-	//Override the behind building selection if it's not available on current hardware (needs stencil).
-	TheWritableGlobalData->m_enableBehindBuildingMarkers = TheWritableGlobalData->m_enableBehindBuildingMarkers && DX8Wrapper::Has_Stencil();
 
 	if (Get_Extra_Pass_Polygon_Mode() == EXTRA_PASS_DISABLE)
 	{
@@ -2044,7 +2048,7 @@ void RTS3DScene::Visibility_Check(CameraClass * camera)
 						{	drawInfo->m_flags |= DrawableInfo::ERF_IS_TRANSLUCENT;	//object is translucent
 							m_translucentObjectsBuffer[m_translucentObjectsCount++] = robj;
 						}
-						if (TheGlobalData->m_enableBehindBuildingMarkers && TheGameLogic->getShowBehindBuildingMarkers())
+						if (behindBuildingMarkersEnabled() && TheGameLogic->getShowBehindBuildingMarkers())
 						{
 							//visible drawable. Check if it's either an occluder or occludee
 							if (draw->isKindOf(KINDOF_STRUCTURE) && m_numPotentialOccluders < TheGlobalData->m_maxVisibleOccluderObjects)

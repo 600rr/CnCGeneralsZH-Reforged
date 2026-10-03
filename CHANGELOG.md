@@ -1272,6 +1272,10 @@ The whole HUD is on the hardware. Four colours carry it, and they mean the same 
   building so you can still make it out, and the flag that says "yes, something is in front of this
   one" was set once and never cleared - so the first unit genuinely behind a wall made every unit
   checked after it see-through too, wall or no wall. On a busy screen that was most of them.
+- The outlines of your units behind a building stay switched on. If the screen was lost for a
+  moment, an alt-tab or a resolution change, the game turned the setting itself off, so the
+  outlines were gone until you found the box and ticked it again.
+  A lost screen now hides them only while it lasts.
 - Bloom and antialiasing work together. Turning bloom on with antialiasing on gave you a black battlefield under a live interface: the glow pass draws the world into its own picture first, and that picture came with a depth buffer nobody had cleared, so every triangle in the scene was rejected as being behind something that was not there.
 - Lakes stop showing jagged bands of shore while you scroll. The glow and smoothing effects draw the world into a picture of their own, and that picture was never wiped between frames, so the water kept reading last frame's shoreline from wherever the camera had just been.
 - A switch you write in `Options.ini` by hand takes `yes`, `true`, `on` or `1` for on. Only the
