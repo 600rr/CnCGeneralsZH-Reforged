@@ -12297,7 +12297,13 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	const Int gridWellWidth = REAL_TO_INT( COMMAND_COLUMNS * ( COMMAND_CELL_WIDTH + CELL_GAP ) * scale );
 	const ICoord2D cell = cellSize();
 	const Int cellGap = REAL_TO_INT( SKILL_CELL_GAP * scale );
-	Int consoleWidth = radarWellWidth + border + selectionWellWidth;
+	// a watcher with nothing selected has no portrait to show, and the bar has already stood the
+	// portrait's panel down (ControlBar::watchPlayer): the selection's well goes with it and the
+	// console is the radar alone, until a click on a unit brings both back
+	const Bool selectionShown = !watching || centreShown || ( panelCount > 2 && shown[ 2 ] );
+	Int consoleWidth = radarWellWidth;
+	if( selectionShown )
+		consoleWidth += border + selectionWellWidth;
 	if( centreShown )
 		consoleWidth += border + gridWellWidth + powersTrayWidth( scale );
 
@@ -12308,7 +12314,7 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 
 	IRegion2D wells;
 	wells.lo.x = radarWell.lo.x;
-	wells.hi.x = centreShown ? gridWell.hi.x : selectionWell.hi.x;
+	wells.hi.x = centreShown ? gridWell.hi.x : selectionShown ? selectionWell.hi.x : radarWell.hi.x;
 	wells.lo.y = consoleTopLine;
 	wells.hi.y = foot;
 	const IRegion2D consoleBox = framed( wells, border );
@@ -12322,7 +12328,7 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	std::vector< HtmlValues > &wellList = lists[ "wells" ];
 	size_t wellsFilled = 0;
 	putWell( wellList, wellsFilled, radarWell, leftFound, FALSE, scale );
-	putWell( wellList, wellsFilled, selectionWell, consoleShown, TRUE, scale );
+	putWell( wellList, wellsFilled, selectionWell, consoleShown && selectionShown, TRUE, scale );
 	putWell( wellList, wellsFilled, gridWell, centreShown, TRUE, scale );
 	wellList.resize( wellsFilled );
 
