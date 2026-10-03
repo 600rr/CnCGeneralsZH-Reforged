@@ -723,6 +723,10 @@ void DX8Wrapper::Invalidate_Cached_Render_States(void)
 			Textures[a]->Release();
 		}
 		Textures[a]=NULL;
+		// The Direct3D 11 backend borrows the view the D3D9 texture owns, and the release above can
+		// be that texture's last reference: a reset drops the render targets first.  Left bound, the
+		// view dangles, and the next draw into a target (the water's reflection) reads it and dies.
+		Direct3D11_Mirror_Texture(a, NULL);
 	}
 
 	ShaderClass::Invalidate();
