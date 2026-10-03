@@ -75,6 +75,10 @@
 #include "Common/GlobalData.h"
 #include "Common/GameLOD.h"
 #include "d3dx9runtime.h"
+#include "WW3D2/dx11runtime.h"
+#if defined(_WIN32)
+#include "dx11post.h"	//DX11Post_Set_Bloom; the library is not built off Windows
+#endif
 #include "d3d8shadertranslate.h"
 #include "dx8caps.h"
 #include "Common/GameLOD.h"
@@ -189,9 +193,9 @@ W3DFilterInterface *ScreenDefaultFilterList[]=
 };
 
 /*=========  Bloom	=============================================================*/
-/// Retail had no bloom and every texture in the game is LDR, so this is opt-in and tunable
-/// rather than a fixed look: m_bloomIntensity is the strength in percent (0, off, which is the
-/// default) and m_bloomThreshold the brightness, in percent, below which nothing glows.  The
+/// Retail had no bloom and every texture in the game is LDR, so this is tunable rather than a
+/// fixed look: m_bloomIntensity is the strength in percent (0 is off, 60 the default) and
+/// m_bloomThreshold the brightness, in percent, below which nothing glows.  The
 /// options screen sets both from one of a handful of named levels; nothing here knows that.
 /// It rides on ScreenDefaultFilter, which already renders the scene into a full-screen texture
 /// on the frames the smudge effects need one, so the only new work is a quarter-size bright
@@ -205,7 +209,7 @@ static IDirect3DTexture9 *s_bloomTexture[2];	///< ping-pong render targets for t
 static IDirect3DSurface9 *s_bloomSurface[2];
 static Int s_bloomWidth, s_bloomHeight;
 
-/** Bloom strength in percent - Options.ini's "Bloom" - 0 when it was never set.  Read every
+/** Bloom strength in percent - Options.ini's "Bloom" - 60 when it was never set.  Read every
 	frame rather than cached, so editing the key and reloading the options takes effect. */
 static Int bloomIntensity(void)
 {
@@ -224,6 +228,26 @@ static Int bloomThreshold(void)
 	if (threshold < 0) return 0;
 	if (threshold > 255) return 255;
 	return threshold;
+}
+
+/** The fixed-function bloom's strength, which is zero on Direct3D 11: there the post chain's own
+	bloom in dx11post.cpp follows the option instead, and running this one too would stack two
+	glows.  Everywhere else it is the option. */
+static Int fixedFunctionBloomIntensity(void)
+{
+	if (Direct3D11_Is_Active())
+	{
+#if defined(_WIN32)
+		//The option in the post chain's units, where 1.0 is white.  The chain was tuned at a
+		//threshold of 1.0 and an intensity of 1.5, so the default threshold (65%) lands on 1.0 and
+		//the middle level (60%) on 1.5; 35% and 85% fall either side, 45% and 85% thresholds at
+		//0.69 and 1.31.  Pushed every frame, so a change on the options screen shows at once.
+		const Int percent = TheGlobalData != NULL ? TheGlobalData->m_bloomThreshold : 65;
+		DX11Post_Set_Bloom((Real)percent / 65.0f, (Real)bloomIntensity() * 0.025f);
+#endif
+		return 0;
+	}
+	return bloomIntensity();
 }
 
 static void releaseBloomTargets(void)
@@ -389,7 +413,9 @@ Bool ScreenDefaultFilter::preRender(Bool &skipRender, CustomScenePassModes &scen
 {
 	//Right now this filter is only used for smudges, so don't bother if none are present -
 	//unless bloom is on, which needs the scene in a texture on every frame.
-	if (TheSmudgeManager && bloomIntensity() == 0)
+	//Called before the smudge check so the Direct3D 11 chain gets the option every frame.
+	const Int fixedBloom = fixedFunctionBloomIntensity();
+	if (TheSmudgeManager && fixedBloom == 0)
 	{	if (((W3DSmudgeManager *)TheSmudgeManager)->getSmudgeCountLastFrame() == 0)
 			return FALSE;
 	}
@@ -443,7 +469,7 @@ Bool ScreenDefaultFilter::postRender(enum FilterModes mode, Coord2D &scrollDelta
 	DX8Wrapper::_Draw_DX8_Primitive_UP(D3DPT_TRIANGLESTRIP, 2, v, sizeof(_TRANS_LIT_TEX_VERTEX));
 
 	//v[3] is the top left corner of the viewport inside the scene texture, v[0] the bottom right
-	if (bloomIntensity() > 0)
+	if (fixedFunctionBloomIntensity() > 0)
 		renderBloom(tex, (Real)xpos, (Real)ypos, (Real)width, (Real)height,
 								v[3].u, v[3].v, v[0].u, v[0].v);
 

@@ -12692,6 +12692,7 @@ TEST(bloom_levels_carry_the_percentages_the_shader_reads)
 	// what GlobalData's constructor put there, before anything below scribbles on it
 	const Int shippedIntensity = TheGlobalData->m_bloomIntensity;
 	const Int shippedThreshold = TheGlobalData->m_bloomThreshold;
+	CHECK_EQ( bloom->get(), 2 );		// a fresh install starts on Medium, not Off
 
 	// off is off, and nothing else is: a level that mapped to 0 would be a silent second Off entry
 	bloom->set( 0 );

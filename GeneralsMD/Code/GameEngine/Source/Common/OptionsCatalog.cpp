@@ -339,9 +339,9 @@ const OptionDef TheOptionCatalog[] =
 	// constructor, so there is nothing left to load or save.  Gameplay is health bars and nothing
 	// else.
 
-	// Off, subtle, normal, strong.  Off is the default, which is what GameData.ini says: the game's
-	// artwork has no HDR range in it, so how much glow looks right is a matter of taste rather than
-	// something to pick on the player's behalf.  The key is "Bloom", not "BloomLevel" - it predates
+	// Off, subtle, normal, strong.  Normal (60, the menu's Medium) is the default, set in
+	// GlobalData's constructor: it is the strength the Direct3D 11 frame applied before there was a
+	// setting at all, so a fresh install looks the way it did.  The key is "Bloom", not "BloomLevel" - it predates
 	// the levels and an Options.ini in the wild already spells it this way.
 	{ "Bloom",										OPT_WND( "ComboBoxBloom" ), "GUI:Bloom",
 		OPTION_ENUM, APPLY_LIVE, 0, BLOOM_LEVEL_COUNT - 1,

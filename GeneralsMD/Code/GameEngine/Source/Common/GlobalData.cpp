@@ -1189,13 +1189,13 @@ GlobalData::GlobalData()
 	m_detailedBuildTooltips = TRUE;
 	m_archiveReplays = TRUE;
 
-	// Bloom is the one that does NOT default on: it changes how the game looks rather than what it
-	// can do, and the artwork was painted in 2003 for a screen with no glow at all.  Both fields are
-	// percentages and GameData.ini sets them as such - the strength, and the brightness below which
-	// nothing glows.  The options screen offers levels instead and stores one of those in
-	// Options.ini; OptionsCatalog.cpp holds the percentage each level stands for, and 0 and 65 here
-	// are two of them.
-	m_bloomIntensity = 0;
+	// Bloom defaults to the options screen's Medium: 60 percent, which the Direct3D 11 post chain
+	// turns into the 1.5 strength it used to apply unconditionally.  Both fields are percentages and
+	// GameData.ini sets them as such - the strength, and the brightness below which nothing glows.
+	// The options screen offers levels instead and stores one of those in Options.ini;
+	// OptionsCatalog.cpp holds the percentage each level stands for, and 60 and 65 here are two of
+	// them.
+	m_bloomIntensity = 60;
 	m_bloomThreshold = 65;
 	
 	m_animateWindows = TRUE;

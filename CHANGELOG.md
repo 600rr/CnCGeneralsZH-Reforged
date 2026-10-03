@@ -1255,7 +1255,7 @@ The whole HUD is on the hardware. Four colours carry it, and they mean the same 
   water covers, and only every other frame while the camera holds still. On one 1280x720 view of
   Golden Oasis, where the river fills the screen, a frame takes 6.7ms against 5.8ms with no
   reflection; before that work it took 8.3ms.
-- Bright things can bleed light into the air. Off by default, because the artwork was painted in 2003 for a screen that had no glow at all.
+- Bright things can bleed light into the air. The glow setting works on the new renderer now: it used to glow at one fixed strength there whatever the box said, and Off did not turn it off. On top of that, picking any level stacked the old renderer's glow over the new one, so the battlefield got two hazes at once. Now there is one, it follows the box the moment you change it, and a fresh install starts on Medium, which is the look the new renderer always had.
 - Two dropdowns on the display page, not two percentages. Glow is off, subtle, normal or strong; what glows is only the brightest, bright things, or most of the picture. The numbers underneath were a strength you had to find by experiment and a brightness that ran backwards, where turning it down put more of the screen in the haze, and nothing on screen told you that.
 - Scorch marks follow the texture quality setting like everything else. The terrain and the trees
   dropped to the resolution you asked for and the burn marks did not, so on Low the ground went soft
