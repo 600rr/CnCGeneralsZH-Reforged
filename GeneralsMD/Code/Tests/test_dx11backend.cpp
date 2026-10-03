@@ -368,6 +368,92 @@ TEST(dx11backend_the_same_state_resolves_to_one_pipeline)
 	backend.Shutdown();
 }
 
+// The sorted smoke billboards carry a fire's glow in their normals, and the backend adds it to what
+// the stages made.  The quad's normal is (0, 0, 1), so with the glow on the blue channel goes to full
+// and the other two keep the vertex colour; the glow is its own pipeline and turning it off goes
+// back to the first one without building a third.
+TEST(dx11backend_the_smoke_glow_is_read_from_the_normal)
+{
+	DX11DeviceClass device;
+	CHECK(device.Create_Offscreen());
+	ID3D11Device * d3d = device.Get_Device();
+
+	DX11BackendClass backend;
+	CHECK(backend.Initialise(&device));
+
+	D3D11_TEXTURE2D_DESC target_description;
+	memset(&target_description, 0, sizeof(target_description));
+	target_description.Width = TARGET_SIZE;
+	target_description.Height = TARGET_SIZE;
+	target_description.MipLevels = 1;
+	target_description.ArraySize = 1;
+	target_description.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	target_description.SampleDesc.Count = 1;
+	target_description.Usage = D3D11_USAGE_DEFAULT;
+	target_description.BindFlags = D3D11_BIND_RENDER_TARGET;
+
+	ID3D11Texture2D * target = NULL;
+	CHECK(SUCCEEDED(d3d->CreateTexture2D(&target_description, NULL, &target)));
+
+	D3D11_TEXTURE2D_DESC staging_description = target_description;
+	staging_description.Usage = D3D11_USAGE_STAGING;
+	staging_description.BindFlags = 0;
+	staging_description.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+
+	ID3D11Texture2D * staging = NULL;
+	CHECK(SUCCEEDED(d3d->CreateTexture2D(&staging_description, NULL, &staging)));
+
+	ID3D11RenderTargetView * target_view = NULL;
+	CHECK(SUCCEEDED(d3d->CreateRenderTargetView(target, NULL, &target_view)));
+	device.Get_Context()->OMSetRenderTargets(1, &target_view, NULL);
+
+	backend.Set_Viewport(0, 0, TARGET_SIZE, TARGET_SIZE);
+	configure_unlit_pass_through(backend);
+
+	ID3D11Buffer * vertices = NULL;
+	CHECK(DX11Resource_Create_Vertex_Buffer(d3d, sizeof(QUAD_VERTICES), D3DPOOL_MANAGED, 0,
+		QUAD_VERTICES, &vertices));
+	ID3D11Buffer * indices = NULL;
+	CHECK(DX11Resource_Create_Index_Buffer(d3d, sizeof(QUAD_INDICES), D3DPOOL_MANAGED, 0,
+		QUAD_INDICES, &indices));
+	backend.Set_Stream_Source(vertices, sizeof(BackendVertex), 0);
+	backend.Set_Indices(indices, DXGI_FORMAT_R16_UINT);
+
+	CHECK(backend.Draw_Indexed_Triangles(6, 0, 0));
+	backend.Set_Smoke_Glow(true);
+	CHECK(backend.Draw_Indexed_Triangles(6, 0, 0));
+
+	device.Get_Context()->CopyResource(staging, target);
+	D3D11_MAPPED_SUBRESOURCE mapped;
+	CHECK(SUCCEEDED(device.Get_Context()->Map(staging, 0, D3D11_MAP_READ, 0, &mapped)));
+	const unsigned char * centre = static_cast<const unsigned char *>(mapped.pData)
+		+ mapped.RowPitch * (TARGET_SIZE / 2) + (TARGET_SIZE / 2) * 4;
+	CHECK_EQ(centre[0], 0xff);
+	CHECK_EQ(centre[1], EXPECTED_GREEN);
+	CHECK_EQ(centre[2], EXPECTED_RED);
+	device.Get_Context()->Unmap(staging, 0);
+
+	unsigned pipelines = 0;
+	unsigned long long made = 0;
+	unsigned long long refused = 0;
+	backend.Statistics(pipelines, made, refused);
+	CHECK_EQ(pipelines, 2u);
+
+	backend.Set_Smoke_Glow(false);
+	CHECK(backend.Draw_Indexed_Triangles(6, 0, 0));
+	backend.Statistics(pipelines, made, refused);
+	CHECK_EQ(pipelines, 2u);
+	CHECK_EQ(made, 3ull);
+	CHECK_EQ(refused, 0ull);
+
+	indices->Release();
+	vertices->Release();
+	target_view->Release();
+	staging->Release();
+	target->Release();
+	backend.Shutdown();
+}
+
 static const char * const CACHE_FILE_NAME = "dx11backend_test_shaders.cache";
 static const long LAST_RECORD_CUT_BYTES = 4;
 

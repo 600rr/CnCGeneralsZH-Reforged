@@ -52,6 +52,7 @@
 #include <wwprofile.h>
 #include <algorithm>
 #include "Lib/Clock.h"		// Clock_Ticks: QueryPerformanceCounter on Windows, a monotonic clock elsewhere
+#include "dx11runtime.h"
 
 #ifdef _INTERNAL
 // for occasional debugging...
@@ -147,6 +148,7 @@ public:
 	unsigned short min_vertex_index;		// First index used in the vb
 	unsigned short vertex_count;			// Number of vertices used in vb
 	bool quads;									// four vertices a quad, in order from min_vertex_index; the ib is not read
+	bool glow;									// the normals hold a fire's glow (Insert_Quads)
 };
 
 static DLListClass<SortingNodeStruct> sorted_list;
@@ -231,6 +233,7 @@ void SortingRendererClass::Insert_Triangles(
 	state->min_vertex_index=min_vertex_index;
 	state->vertex_count=vertex_count;
 	state->quads=false;
+	state->glow=false;
 
 	SortingVertexBufferClass* vertex_buffer=static_cast<SortingVertexBufferClass*>(state->sorting_state.vertex_buffers[0]);
 	WWASSERT(vertex_buffer);
@@ -316,7 +319,8 @@ void SortingRendererClass::Insert_Triangles(
 void SortingRendererClass::Insert_Quads(
 	unsigned short quad_count,
 	unsigned short min_vertex_index,
-	unsigned short vertex_count)
+	unsigned short vertex_count,
+	bool glow)
 {
 	const unsigned short polygon_count=quad_count*2;
 	if (!WW3D::Is_Sorting_Enabled()) {
@@ -340,6 +344,7 @@ void SortingRendererClass::Insert_Quads(
 	state->min_vertex_index=min_vertex_index;
 	state->vertex_count=vertex_count;
 	state->quads=true;
+	state->glow=glow;
 	state->transformed_center=Vector3(0.0f,0.0f,0.0f);
 	unsorted_list.Add_Tail(state);
 }
@@ -693,8 +698,9 @@ static void Flush_Sorting_Batch(const TempIndexStruct* entries,unsigned entry_co
 		if (entry_node!=node_id) {
 			SortingNodeStruct* state=overlapping_nodes[node_id];
 			SortingNodeStruct* next=overlapping_nodes[entry_node];
-			if (!Same_Draw_State(state->sorting_state,next->sorting_state)) {
+			if (state->glow!=next->glow || !Same_Draw_State(state->sorting_state,next->sorting_state)) {
 				Apply_Render_State(state->sorting_state);
+				Direct3D11_Set_Smoke_Glow(state->glow);
 				DX8Wrapper::Draw_Triangles(run_first_index,run_triangles,run_first_vertex,vertex_cursor-run_first_vertex);
 				run_first_index=index_cursor;
 				run_first_vertex=vertex_cursor;
@@ -708,7 +714,9 @@ static void Flush_Sorting_Batch(const TempIndexStruct* entries,unsigned entry_co
 	}
 
 	Apply_Render_State(overlapping_nodes[node_id]->sorting_state);
+	Direct3D11_Set_Smoke_Glow(overlapping_nodes[node_id]->glow);
 	DX8Wrapper::Draw_Triangles(run_first_index,run_triangles,run_first_vertex,vertex_cursor-run_first_vertex);
+	Direct3D11_Set_Smoke_Glow(false);
 
 	tDrawEnd = Clock_Ticks();
 	flush_profile_draw_ms += flushProfileElapsedMS(tCopyEnd, tDrawEnd);
@@ -1017,6 +1025,7 @@ void SortingRendererClass::Insert_VolumeParticle(
 	state->polygon_count=polygon_count * layerCount;//THIS IS VOLUME_PARTICLE SPECIFIC
 	state->vertex_count=vertex_count * layerCount;//THIS IS VOLUME_PARTICLE SPECIFIC
 	state->quads=false;
+	state->glow=false;
 
 	SortingVertexBufferClass* vertex_buffer=static_cast<SortingVertexBufferClass*>(state->sorting_state.vertex_buffers[0]);
 	WWASSERT(vertex_buffer);

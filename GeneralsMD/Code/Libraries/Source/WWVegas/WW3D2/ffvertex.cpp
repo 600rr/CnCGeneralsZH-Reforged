@@ -512,6 +512,10 @@ bool VertexShader_Generate(const VertexPipelineDescription & description,
 	if (description.NormalMapped && is_pretransformed(description.FVF)) {
 		return false;
 	}
+	if (description.SmokeGlow
+		&& (description.LightingEnabled || !has_normal(description.FVF) || is_pretransformed(description.FVF))) {
+		return false;
+	}
 
 	// A pre-transformed vertex has been through the transform, the lighting and the coordinate
 	// generation already: its position is in pixels, its colour is in the vertex, and D3D9 reads
@@ -624,9 +628,14 @@ bool VertexShader_Generate(const VertexPipelineDescription & description,
 		}
 		// And the specular colour is the vertex's where there is one, which the pixel adds with
 		// D3DRS_SPECULARENABLE (dx8renderer.cpp gives a mesh with a second colour array one).
-		body += has_specular(description.FVF)
-			? "    output.Specular = input.Specular;\n"
-			: "    output.Specular = float4(0.0, 0.0, 0.0, 0.0);\n";
+		if (description.SmokeGlow) {
+			body += "    output.Specular = float4(input.Normal, 0.0);\n";
+		}
+		else {
+			body += has_specular(description.FVF)
+				? "    output.Specular = input.Specular;\n"
+				: "    output.Specular = float4(0.0, 0.0, 0.0, 0.0);\n";
+		}
 	}
 
 	if (description.FogEnabled) {
@@ -767,6 +776,9 @@ std::string VertexShader_Key(const VertexPipelineDescription & description)
 	key += field;
 	if (description.NormalMapped) {
 		key += ":N";
+	}
+	if (description.SmokeGlow) {
+		key += ":G";
 	}
 	return key;
 }

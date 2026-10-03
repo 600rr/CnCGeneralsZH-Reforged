@@ -334,6 +334,13 @@ void Direct3D11_Set_Scene_View(const float view[16])
 	}
 }
 
+void Direct3D11_Set_Smoke_Glow(bool glow)
+{
+	if (Active) {
+		Backend.Set_Smoke_Glow(glow);
+	}
+}
+
 void Direct3D11_Clear_Shadow_Parameters()
 {
 	if (Active) {

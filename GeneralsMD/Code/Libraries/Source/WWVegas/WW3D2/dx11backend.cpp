@@ -260,6 +260,7 @@ DX11BackendClass::DX11BackendClass()
 	, ShadowUnitsPerDepth(0.0f)
 	, ShadowSkyFill(0.0f)
 	, ShadowReceiving(false)
+	, SmokeGlow(false)
 	, NormalMappedDraws(0)
 	, DrawsMade(0)
 	, DrawsRefused(0)
@@ -918,6 +919,21 @@ void DX11BackendClass::Set_Scene_View(const float view[16])
 		SceneViewKnown = true;
 		ConstantsChanged = true;
 	}
+}
+
+void DX11BackendClass::Set_Smoke_Glow(bool glow)
+{
+	if (SmokeGlow != glow) {
+		SmokeGlow = glow;
+		PipelineChanged = true;
+	}
+}
+
+bool DX11BackendClass::Smoke_Glow() const
+{
+	return SmokeGlow && VertexProgram == ENGINE_SHADER_NONE && PixelProgram == ENGINE_SHADER_NONE
+		&& RenderStates.Get_Render_State(D3DRS_LIGHTING) == FALSE
+		&& (VertexFormat & D3DFVF_NORMAL) != 0 && (VertexFormat & D3DFVF_XYZRHW) == 0;
 }
 
 bool DX11BackendClass::Views_Current_Target(unsigned stage, ID3D11ShaderResourceView * texture) const
@@ -1648,6 +1664,7 @@ bool DX11BackendClass::Build_Combiner_Description(CombinerDescription & descript
 	}
 	description.NormalMapped = description.StageCount > 0 && Normal_Mapped();
 	description.ShadowReceiving = description.StageCount > 0 && Shadow_Receiving();
+	description.SmokeGlow = Smoke_Glow();
 	return description.StageCount > 0;
 }
 
@@ -1730,6 +1747,7 @@ bool DX11BackendClass::Build_Vertex_Description(VertexPipelineDescription & desc
 	description.FogVertexMode = RenderStates.Get_Render_State(D3DRS_FOGVERTEXMODE);
 	description.NormalMapped = (Normal_Mapped()
 		&& StageStates[0][D3DTSS_COLOROP] != D3DTOP_DISABLE) || Terrain_Bumped();
+	description.SmokeGlow = Smoke_Glow();
 	return true;
 }
 
