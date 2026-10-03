@@ -1014,7 +1014,7 @@ Int parseNoSmokeFireLight(char *args[], int)
 	 own figure (the field stays below zero).  All of it is client-side colour and shade, read by the
 	 renderer every frame, so a network game and a replay are untouched.
 		 -smokeselfshadow <0..1>      how dark a particle on a plume's far side goes (0.8)
-		 -smokeselfcurve <0.25..32>   how fast that shade grows from the plume's sun side (8: the
+		 -smokeselfcurve <0.25..32>   how fast that shade grows from the plume's sun side (16: the
 		                              sun side keeps its brightness, the back takes it all)
 		 -smokegroundshadow <0..1>    how dark the thickest smoke leaves the ground and units (0.4)
 		 -smokedensity <0..10>        scale on every particle's thickness to the sun (1)

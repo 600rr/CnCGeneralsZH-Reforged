@@ -142,13 +142,14 @@ const Real cosAngleToCare = cos ((0.2 * PI) / 180.0);	//1.5 degree difference
 // cloud and the smoke itself scatters some of the sun on.  How thick each particle is to the sun is
 // particleSunMapOpticalDepth's.  The self-shade is a particle's own: how dark one on its plume's far
 // side goes, and the power that keeps the sun side lit (ffshader.h, smoke_reaching).  The ground
-// figure held up on Golden Oasis on 2026-10-03, and 0.8 and 8 are what the 2026-10-04 sweep picked
-// for the self-shade on soot (sun side 6% under the unshaded plume, far side 0.73 of it), before
-// the shade was measured from the plume's front rather than from a width ahead of its centre.
+// figure held up on Golden Oasis on 2026-10-03.  The self-shade's 0.8 and 16 are the 2026-10-04
+// re-sweep's, with the shade measured from the plume's front: white smoke's sun side 6.2% under the
+// unshaded plume and its far side 0.85 of the sun side, soot 2.4% and 0.87.  At 8 white lost 10.8%
+// on its sun side; at 32 soot went flat.
 // -smokegroundshadow, -smokeselfshadow, -smokeselfcurve and -smokedensity overrule them for a run.
 #define SMOKE_SHADOW_STRENGTH 0.4f
 #define SMOKE_SELF_SHADOW_GAIN 0.8f
-#define SMOKE_SELF_SHADOW_CURVE 8.0f
+#define SMOKE_SELF_SHADOW_CURVE 16.0f
 
 // W3DParticleSys.cpp: the fire light values the last particle pass used.
 extern void W3DSmokeFireTuningInForce( Real *gain, Real *radius, Real *height, Real *cap, Real *fullWeight );

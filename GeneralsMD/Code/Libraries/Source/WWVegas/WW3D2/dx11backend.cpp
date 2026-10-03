@@ -321,7 +321,7 @@ DX11BackendClass::DX11BackendClass()
 	SmokeMapFilled = false;
 	SmokeStrength = 0.0f;
 	SmokeSelfGain = 0.8f;
-	SmokeSelfCurve = 8.0f;
+	SmokeSelfCurve = 16.0f;
 	for (unsigned stage = 0; stage < DX11_BACKEND_TEXTURE_STAGES; ++stage) {
 		set_identity(TextureTransforms[stage]);
 	}
