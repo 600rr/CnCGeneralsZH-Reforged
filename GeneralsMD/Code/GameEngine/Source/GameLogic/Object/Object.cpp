@@ -6535,6 +6535,19 @@ Bool Object::getCaptureProgress( ObjectID *targetID, Real *progress ) const
 }
 
 // ------------------------------------------------------------------------------------------------
+Bool Object::getCaptureTarget( ObjectID *targetID ) const
+{
+	for( BehaviorModule** u = m_behaviors; *u; ++u )
+	{
+		SpecialPowerUpdateInterface *spInterface = (*u)->getSpecialPowerUpdateInterface();
+		if( spInterface && spInterface->getCaptureTarget( targetID ) )
+			return TRUE;
+	}
+
+	return FALSE;
+}
+
+// ------------------------------------------------------------------------------------------------
 SpecialPowerUpdateInterface* Object::findSpecialPowerWithOverridableDestinationActive( SpecialPowerType type ) const
 {
 	for( BehaviorModule** u = m_behaviors; *u; ++u )

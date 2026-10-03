@@ -618,19 +618,28 @@ Bool SpecialAbilityUpdate::isPowerCurrentlyInUse( const CommandButton *command )
 //-------------------------------------------------------------------------------------------------
 Bool SpecialAbilityUpdate::getCaptureProgress( ObjectID *targetID, Real *progress ) const
 {
-	if( !m_active || m_prepFrames == 0 || m_targetID == INVALID_ID )
-		return FALSE;
-
-	const SpecialPowerType type = getSpecialPowerType();
-	if( type != SPECIAL_INFANTRY_CAPTURE_BUILDING && type != SPECIAL_BLACKLOTUS_CAPTURE_BUILDING )
+	if( m_prepFrames == 0 || !getCaptureTarget( targetID ) )
 		return FALSE;
 
 	const UnsignedInt total = getSpecialAbilityUpdateModuleData()->m_preparationFrames;
 	if( total == 0 || m_prepFrames > total )
 		return FALSE;
 
-	*targetID = m_targetID;
 	*progress = 1.0f - (Real)m_prepFrames / (Real)total;
+	return TRUE;
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool SpecialAbilityUpdate::getCaptureTarget( ObjectID *targetID ) const
+{
+	if( !m_active || m_targetID == INVALID_ID )
+		return FALSE;
+
+	const SpecialPowerType type = getSpecialPowerType();
+	if( type != SPECIAL_INFANTRY_CAPTURE_BUILDING && type != SPECIAL_BLACKLOTUS_CAPTURE_BUILDING )
+		return FALSE;
+
+	*targetID = m_targetID;
 	return TRUE;
 }
 

@@ -1234,11 +1234,23 @@ static Bool executeShiftOrder( const ScenarioAction &action, Player *player, con
 
 /** Shift on an object upgrade button, once for every unit that matches: the two messages the command
 	  bar sends, handed to the dispatcher the way they arrive.  An upgrade names the unit that buys it, so
-	  unlike the other shift verbs this one needs nothing selected. */
-static Bool executeShiftUpgrade( const ScenarioAction &action, Player *player, AIGroup *group, Int taken )
+	  unlike the other shift verbs this one needs nothing selected - and the buyer can be a building,
+	  which takes no orders: a barracks researching Capture Building is a shift-click on its button too. */
+static Bool executeShiftUpgrade( const ScenarioAction &action, Player *player )
 {
-	const std::vector<ObjectID> buyers = group->getAllIDs();
-	TheAI->destroyGroup( group );
+	std::vector<ObjectID> buyers;
+	for( Object *obj = TheGameLogic->getFirstObject(); obj; obj = obj->getNextObject() )
+	{
+		if (obj->getControllingPlayer() == player && !obj->isEffectivelyDead() && selectorMatches( action.selector, obj ))
+			buyers.push_back( obj->getID() );
+	}
+	const Int taken = (Int)buyers.size();
+	if (taken == 0)
+	{
+		DEBUG_LOG(("SCENARIO: frame %d: slot %d owns nothing matching '%s'\n",
+							 action.frame, action.slot, action.selector.str()));
+		return FALSE;
+	}
 
 	const UpgradeTemplate *upgrade = TheUpgradeCenter->findUpgrade( action.name );
 	if (upgrade == NULL)
@@ -1270,6 +1282,9 @@ static Bool executeShiftUpgrade( const ScenarioAction &action, Player *player, A
 
 static Bool executeOrder( const ScenarioAction &action, Player *player, const Coord3D &dest )
 {
+	if (action.action == SCENARIO_ACTION_SHIFTUPGRADE)
+		return executeShiftUpgrade( action, player );
+
 	AIGroup *group = TheAI->createGroup();
 	const Int taken = gatherIntoGroup( player, action.selector, group );
 	if (taken == 0)
@@ -1345,9 +1360,6 @@ static Bool executeOrder( const ScenarioAction &action, Player *player, const Co
 		case SCENARIO_ACTION_SHIFTGUARD:
 		case SCENARIO_ACTION_SHIFTPOWER:
 			return executeShiftOrder( action, player, dest, group, taken );		// the group is gone either way
-
-		case SCENARIO_ACTION_SHIFTUPGRADE:
-			return executeShiftUpgrade( action, player, group, taken );
 
 		case SCENARIO_ACTION_STOP:
 		{

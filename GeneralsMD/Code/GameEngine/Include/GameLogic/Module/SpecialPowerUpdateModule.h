@@ -57,6 +57,10 @@ public:
 		* it is, nought to one. Asked by the client so the building can wear a clock. Not pure, because
 		* taking a building is one ability out of dozens and the rest have no answer to give. */
 	virtual Bool getCaptureProgress( ObjectID *targetID, Real *progress ) const { return FALSE; }
+
+	/** The building this module is taking, from the moment the man sets off for the door until he has
+		* packed up again - the walk and the wait included, which getCaptureProgress leaves out. */
+	virtual Bool getCaptureTarget( ObjectID *targetID ) const { return FALSE; }
 };
 
 //-------------------------------------------------------------------------------------------------

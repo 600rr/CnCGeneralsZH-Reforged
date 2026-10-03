@@ -5255,6 +5255,15 @@ void InGameUI::collectOrderHints( void )
 		Coord3D resolvedGoal;
 		Bool goalResolved = FALSE;
 		Bool legsDrawn = FALSE;		// the order drew its own threads, and the shift list follows on from them
+
+		// a capture walks its man to the door with a plain move of its own and then stands him idle
+		// while the building turns, so the state machine reads as a move and then as nothing at all.
+		// The ability knows better, and the thread is the capture's for as long as it runs
+		ObjectID capturedID = INVALID_ID;
+		const Object *captured = obj->getCaptureTarget( &capturedID ) ? TheGameLogic->findObjectByID( capturedID ) : NULL;
+		if( captured && isHiddenByShroud( captured ) )
+			captured = NULL;
+
 		switch( ai->getCurrentStateID() )
 		{
 			case AI_MOVE_TO:
@@ -5372,10 +5381,17 @@ void InGameUI::collectOrderHints( void )
 				// gave it, and that order is held out of reach of the goal until the wheels are up.
 				// Ask for it, or an air strike shows nothing at all during the seconds the plane spends
 				// taxiing, which is exactly when the player wants to see where it is going
-				if( !getHeldAircraftOrder( obj, hint.kind, resolvedGoal ) )
+				if( captured == NULL && !getHeldAircraftOrder( obj, hint.kind, resolvedGoal ) )
 					continue;
 				goalResolved = TRUE;
 				break;
+		}
+
+		if( captured )
+		{
+			hint.kind = ORDER_HINT_CAPTURE;
+			resolvedGoal = *captured->getPosition();
+			goalResolved = TRUE;
 		}
 
 		if( !legsDrawn )

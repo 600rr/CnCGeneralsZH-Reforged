@@ -963,9 +963,10 @@ void W3DInGameUI::drawAttackCircle( void )
 
 //-------------------------------------------------------------------------------------------------
 /** The thread is coloured by what it is for: anything that ends in a shot is red, an attack move
-	* is pink, a post to be held is blue, everything else is green.  The marker on the end of it is
-	* the plain pointer in the same colour - one shape for every order, so the colour is the whole
-	* message.  A dot and a ring were tried in its place and players wanted the pointer back. */
+	* is pink, a post to be held is blue, a building to be taken is gold, everything else is green.
+	* The marker on the end of it is the plain pointer in the same colour - one shape for every
+	* order, so the colour is the whole message.  A dot and a ring were tried in its place and
+	* players wanted the pointer back. */
 //-------------------------------------------------------------------------------------------------
 static UnsignedInt orderHintLineColor( InGameUI::OrderHintKind kind )
 {
@@ -979,6 +980,8 @@ static UnsignedInt orderHintLineColor( InGameUI::OrderHintKind kind )
 			return 0x66FF5555;
 		case InGameUI::ORDER_HINT_GUARD:
 			return 0x6655CCFF;
+		case InGameUI::ORDER_HINT_CAPTURE:
+			return 0x66FFCC33;
 		default:
 			return 0x6655FF55;
 	}
@@ -1127,7 +1130,8 @@ static const Image *orderCursorImage( Mouse::MouseCursor cursor, ICoord2D *hotSp
 
 //-------------------------------------------------------------------------------------------------
 /** The cursor a kind of order is given with, for the kinds whose colour is the plain green and so
-	* says nothing on its own.  Mouse::NONE for the rest. */
+	* says nothing on its own, and for a capture, whose gold is new enough to want saying twice.
+	* Mouse::NONE for the rest. */
 //-------------------------------------------------------------------------------------------------
 static Mouse::MouseCursor orderHintCursor( InGameUI::OrderHintKind kind )
 {
@@ -1286,7 +1290,8 @@ void W3DInGameUI::drawOrderHints( void )
 																			| ( (UnsignedInt)REAL_TO_INT( 255.0f * eased ) << 24 );
 			TheDisplay->drawImage( image, x, y, x + w, y + h, markerColor );
 
-			if( it->step > 0 || it->icon )
+			// a capture carries its cursor even alone: a lone one is the case that looked like a walk
+			if( it->step > 0 || it->icon || it->kind == ORDER_HINT_CAPTURE )
 			{
 				ICoord2D tip;
 				tip.x = to.x + slide;
