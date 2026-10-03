@@ -320,17 +320,19 @@ const OptionDef TheOptionCatalog[] =
 
 	// 0 bilinear, 1 trilinear, 2 anisotropic. Retail shipped bilinear with point mip selection,
 	// which is a 2003 fill-rate budget and is why distant ground used to shimmer; 2 is the default
-	// here. The filter table is built when the device is made, so this needs a device reset.  A combo
-	// box on the Graphics page; stored as the same decimal the hand-edited key always was.
+	// here. The filter table is built when the device is made, and W3DDisplay::init is the only place
+	// that hands this value to WW3D2 - a reset from the display page does not push it again - so it
+	// waits for the next launch.  A combo box on the Graphics page; stored as the same decimal the
+	// hand-edited key always was.
 	{ "TextureFilter",						OPT_WND( "ComboBoxTextureFilter" ), "GUI:TextureFilter",
-		OPTION_ENUM, APPLY_DEVICE_RESET, 0, TEXTURE_FILTER_MODE_COUNT - 1,
+		OPTION_ENUM, APPLY_RESTART, 0, TEXTURE_FILTER_MODE_COUNT - 1,
 		get_m_textureFilterMode, set_m_textureFilterMode },
 
 	// Samples anisotropic filtering may take. 0 means whatever the card offers, capped at 16, and
 	// asking for more than the card has still gets you the card's answer. Only read when the filter
-	// above is anisotropic.  The slider beside the filter box.
+	// above is anisotropic.  The slider beside the filter box; pushed in by W3DDisplay::init with it.
 	{ "Anisotropy",								OPT_WND( "SliderAnisotropy" ), "GUI:Anisotropy",
-		OPTION_INT, APPLY_DEVICE_RESET, 0, 16,
+		OPTION_INT, APPLY_RESTART, 0, 16,
 		get_m_anisotropyLevel, set_m_anisotropyLevel },
 
 	// Eight rows used to sit here: grid and nudge build placement, snap-to-45 building rotation, the
@@ -364,9 +366,10 @@ const OptionDef TheOptionCatalog[] =
 
 	// Multisampling, as an index into 0/2/4/8/16 rather than a sample count - the device offers
 	// those and nothing between them, so a slider would spend most of its travel on values that
-	// silently round down.
+	// silently round down.  W3DDisplay::init hands it to the device once, and only to a Direct3D 9
+	// frame: the default Direct3D 11 picture asks for no samples and smooths its edges with FXAA.
 	{ "MSAA",											OPT_WND( "ComboBoxMSAA" ), "GUI:MSAA",
-		OPTION_ENUM, APPLY_DEVICE_RESET, 0, OPTION_MSAA_LEVEL_COUNT - 1,
+		OPTION_ENUM, APPLY_RESTART, 0, OPTION_MSAA_LEVEL_COUNT - 1,
 		get_m_msaaLevel, set_m_msaaLevel },
 
 	// Wait for the monitor.  Off is what the uncapped picture shipped as: D3D9 honours the
@@ -448,18 +451,19 @@ const OptionDef TheOptionCatalog[] =
 		get_m_textLanguage, set_m_textLanguage },
 
 	// The Effects page.  These four sat in GameData.ini with no control, all on.  Each is read when the
-	// thing that casts the shadow is made, so a change shows on the next map rather than on the units
-	// already standing there - except smoke clouds, which ask every frame.
+	// thing that casts the shadow is made (fillShadowInfoFromTemplate, promoteSkinShadowToVolume), so a
+	// change shows on the next map rather than on the units already standing there - except smoke
+	// clouds, which ask every frame.
 	{ "UseShadowVolumesForSkins",	OPT_WND( "CheckInfantryShadows" ), "GUI:InfantryShadows",
-		OPTION_BOOL, APPLY_LIVE, 0, 1,
+		OPTION_BOOL, APPLY_NEXT_MAP, 0, 1,
 		get_m_useShadowVolumesForSkins, set_m_useShadowVolumesForSkins },
 
 	{ "ShadowsForProjectiles",		OPT_WND( "CheckProjectileShadows" ), "GUI:ProjectileShadows",
-		OPTION_BOOL, APPLY_LIVE, 0, 1,
+		OPTION_BOOL, APPLY_NEXT_MAP, 0, 1,
 		get_m_shadowsForProjectiles, set_m_shadowsForProjectiles },
 
 	{ "ShadowsForProps",					OPT_WND( "CheckPropShadows" ), "GUI:PropShadows",
-		OPTION_BOOL, APPLY_LIVE, 0, 1,
+		OPTION_BOOL, APPLY_NEXT_MAP, 0, 1,
 		get_m_shadowsForProps, set_m_shadowsForProps },
 
 	{ "ShadowsForParticles",			OPT_WND( "CheckParticleShadows" ), "GUI:ParticleShadows",

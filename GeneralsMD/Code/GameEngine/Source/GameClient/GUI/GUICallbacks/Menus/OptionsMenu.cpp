@@ -2116,6 +2116,25 @@ static void showDetailPreset( Int index )
 	updateSliderReadouts();
 }
 
+/** The grey line under the detail box: what the picked preset turns on, and that picking one only
+	* fills in the boxes until Accept.  GUI:DetailNote0..4 follow the box's own order, Ultra to Custom. */
+static void updateDetailNote( void )
+{
+	GameWindow *note = TheWindowManager->winGetWindowFromId( NULL, NAMEKEY( "OptionsMenu.wnd:DetailNote" ) );
+	// a stale Run/Window layout without the line still opens; it just says nothing
+	if( note == NULL )
+		return;
+
+	Int index = CUSTOMDETAIL;
+	GadgetComboBoxGetSelectedPos( comboBoxDetail, &index );
+	if( index < ULTRADETAIL || index > CUSTOMDETAIL )
+		index = CUSTOMDETAIL;
+
+	AsciiString key;
+	key.format( "GUI:DetailNote%d", index );
+	GadgetStaticTextSetText( note, TheGameText->fetch( key ) );
+}
+
 /** A detail control was touched, so what the page shows is nobody's preset any more. */
 static void markDetailCustom( void )
 {
@@ -2127,6 +2146,7 @@ static void markDetailCustom( void )
 	ignoreSelected = TRUE;
 	GadgetComboBoxSetSelectedPos( comboBoxDetail, CUSTOMDETAIL );
 	ignoreSelected = FALSE;
+	updateDetailNote();
 }
 //-------------------------------------------------------------------------------------------------
 /** Initialize the options menu */
@@ -2560,6 +2580,7 @@ void OptionsMenuInit( WindowLayout *layout, void *userData )
 
 	fillCatalogWidgets();
 	updateSliderReadouts();
+	updateDetailNote();
 	showOptionsPage( 0 );
 
 	// show menu
@@ -2755,6 +2776,7 @@ WindowMsgHandledType OptionsMenuSystem( GameWindow *window, UnsignedInt msg,
 					Int index = CUSTOMDETAIL;
 					GadgetComboBoxGetSelectedPos( comboBoxDetail, &index );
 					showDetailPreset( index );
+					updateDetailNote();
 				}
 				else if( controlID == comboBoxMonitorID )
 				{
