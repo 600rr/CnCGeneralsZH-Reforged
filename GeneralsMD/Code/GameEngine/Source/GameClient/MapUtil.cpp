@@ -805,7 +805,30 @@ Bool MapCache::addMap( AsciiString dirName, AsciiString fname, FileInfo *fileInf
 
 	DEBUG_LOG(("MapCache::addMap(): caching '%s' because '%s' was not found\n", fname.str(), lowerFname.str()));
 
-	loadMap(fname); // Just load for querying the data, since we aren't playing this map.
+	// Just load for querying the data, since we aren't playing this map.  A user's map is a file
+	// nobody here made, and one the chunk reader could not parse (ERROR_CORRUPT_FILE_FORMAT) used to
+	// stop the game at startup, along with every good map in the same folder.  It is left out of the
+	// list instead.  A shipped map that does not load under -buildMapCache is still an error.
+	try
+	{
+		loadMap(fname);
+	}
+	catch (ErrorCode ec)
+	{
+		if (isOfficial)
+			throw;
+		DEBUG_LOG(("MapCache::addMap(): skipping '%s', it does not load (ErrorCode 0x%08x)\n", fname.str(), (UnsignedInt)ec));
+		resetMap();
+		return FALSE;
+	}
+	catch (...)
+	{
+		if (isOfficial)
+			throw;
+		DEBUG_LOG(("MapCache::addMap(): skipping '%s', it does not load (not an ErrorCode)\n", fname.str()));
+		resetMap();
+		return FALSE;
+	}
 
 	// The map is now loaded.  Pick out what we need.
 	md.m_fileName = lowerFname;
