@@ -410,7 +410,12 @@ void ScoreScreenShutdown( WindowLayout *layout, void *userData )
 	// our shutdown is complete
 	TheShell->shutdownComplete( layout );
 
-	TheAudio->removeAudioEvent( AHSV_StopTheMusicFade );
+	// Stopped, not faded.  A fade steps once per audio update, and what comes next is a map load
+	// (the shell map, or the next mission) that runs no audio update until it is done.  The score
+	// music held its volume through the whole load and did all two seconds of its fade on top of
+	// the track the shell map's first script frame starts, so both played at once.
+	TheAudio->removeAudioEvent( AHSV_StopTheMusic );
+	TheAudio->update();	// so the stop lands at the click, before the load rather than after it
 
 }
 
