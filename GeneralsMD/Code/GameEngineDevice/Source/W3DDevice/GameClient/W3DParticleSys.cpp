@@ -111,41 +111,6 @@ static const Real	SMOKE_LIGHT_SOOT_SHARE				= 0.35f;	///< share of the light eve
 static const Real	SMOKE_LIGHT_THIN_ALPHA				= 0.25f;	///< a particle thinner than this takes its share of the light
 static const Real	FIRE_LIGHT_RED = 1.0f, FIRE_LIGHT_GREEN = 0.55f, FIRE_LIGHT_BLUE = 0.24f;	///< 255,140,60
 
-/** The figures above that -smokefiregain, -smokefireradius, -smokefireheight, -smokefirecap and
-	* -smokefirefull overrule for a run, taken once a frame before the jobs start and only read by
-	* them.  The gain scales the pulses' light too, and the radius the cap on a big fire's reach.  The
-	* full weight is the one a fire's size is judged against, and a small fire well under it lights at
-	* that fraction of the gain. */
-struct SmokeFireTuning
-{
-	Real gain, pulseGain, radius, maxRadius, height, cap, fullWeight;
-};
-static SmokeFireTuning theSmokeFire = { FIRE_LIGHT_GAIN, PULSE_LIGHT_GAIN, FIRE_LIGHT_RADIUS,
-	FIRE_LIGHT_MAX_RADIUS, FIRE_LIGHT_HEIGHT, SMOKE_LIGHT_MAX_GLOW, FIRE_LIGHT_FULL_WEIGHT };
-
-static void refreshSmokeFireTuning( void )
-{
-	const Real gain = TheGlobalData->m_smokeFireGain >= 0.0f ? TheGlobalData->m_smokeFireGain : FIRE_LIGHT_GAIN;
-	const Real radius = TheGlobalData->m_smokeFireRadius >= 0.0f ? TheGlobalData->m_smokeFireRadius : FIRE_LIGHT_RADIUS;
-	theSmokeFire.gain = gain;
-	theSmokeFire.pulseGain = PULSE_LIGHT_GAIN * gain / FIRE_LIGHT_GAIN;
-	theSmokeFire.radius = radius;
-	theSmokeFire.maxRadius = FIRE_LIGHT_MAX_RADIUS * radius / FIRE_LIGHT_RADIUS;
-	theSmokeFire.height = TheGlobalData->m_smokeFireHeight >= 1.0f ? TheGlobalData->m_smokeFireHeight : FIRE_LIGHT_HEIGHT;
-	theSmokeFire.cap = TheGlobalData->m_smokeFireCap >= 0.0f ? TheGlobalData->m_smokeFireCap : SMOKE_LIGHT_MAX_GLOW;
-	theSmokeFire.fullWeight = TheGlobalData->m_smokeFireFullWeight >= 1.0f
-		? TheGlobalData->m_smokeFireFullWeight : FIRE_LIGHT_FULL_WEIGHT;
-}
-
-/** The fire light values in force this frame, for the SMOKEMAP line in the log. */
-void W3DSmokeFireTuningInForce( Real *gain, Real *radius, Real *height, Real *cap, Real *fullWeight )
-{
-	*gain = theSmokeFire.gain;
-	*radius = theSmokeFire.radius;
-	*height = theSmokeFire.height;
-	*cap = theSmokeFire.cap;
-	*fullWeight = theSmokeFire.fullWeight;
-}
 
 /** A light as the smoke sees it: its colour is already scaled by its strength and gain.  A fire's
 	* reaches its radius sideways, its height upwards and a share of the radius downwards; a pulse's
@@ -205,11 +170,11 @@ static void gatherFireLight( ParticleSystem *sys, SmokeLight *lights, Int &count
 	light.y = y * inv;
 	light.z = z * inv;
 	const Real variance = sq * inv - (light.x * light.x + light.y * light.y + light.z * light.z);
-	Real radius = theSmokeFire.radius + FIRE_LIGHT_SPREAD_SCALE * (variance > 0.0f ? sqrtf( variance ) : 0.0f);
-	if (radius > theSmokeFire.maxRadius)
-		radius = theSmokeFire.maxRadius;
+	Real radius = FIRE_LIGHT_RADIUS + FIRE_LIGHT_SPREAD_SCALE * (variance > 0.0f ? sqrtf( variance ) : 0.0f);
+	if (radius > FIRE_LIGHT_MAX_RADIUS)
+		radius = FIRE_LIGHT_MAX_RADIUS;
 
-	const Real height = theSmokeFire.height;
+	const Real height = FIRE_LIGHT_HEIGHT;
 	const Real reach = radius > height ? radius : height;
 	if (WWMath::Fabs( light.x - view.Center.X ) > view.Extent.X + reach
 			|| WWMath::Fabs( light.y - view.Center.Y ) > view.Extent.Y + reach
@@ -217,8 +182,8 @@ static void gatherFireLight( ParticleSystem *sys, SmokeLight *lights, Int &count
 		return;
 
 	// fire's own colour, and the strength from how much of the flames there is
-	light.strength = w < theSmokeFire.fullWeight ? w / theSmokeFire.fullWeight : 1.0f;
-	const Real scale = light.strength * theSmokeFire.gain;
+	light.strength = w < FIRE_LIGHT_FULL_WEIGHT ? w / FIRE_LIGHT_FULL_WEIGHT : 1.0f;
+	const Real scale = light.strength * FIRE_LIGHT_GAIN;
 	light.r = FIRE_LIGHT_RED * scale;
 	light.g = FIRE_LIGHT_GREEN * scale;
 	light.b = FIRE_LIGHT_BLUE * scale;
@@ -265,9 +230,9 @@ static void gatherPulseLights( SmokeLight *lights, Int &count, const AABoxClass 
 		light.invHeight = 0.0f;		// a ball
 		light.invBelow = 0.0f;
 		light.reachSq = light.radiusSq;
-		light.r = diffuse.X * theSmokeFire.pulseGain;
-		light.g = diffuse.Y * theSmokeFire.pulseGain;
-		light.b = diffuse.Z * theSmokeFire.pulseGain;
+		light.r = diffuse.X * PULSE_LIGHT_GAIN;
+		light.g = diffuse.Y * PULSE_LIGHT_GAIN;
+		light.b = diffuse.Z * PULSE_LIGHT_GAIN;
 		light.strength = WWMath::Max( diffuse.X, WWMath::Max( diffuse.Y, diffuse.Z ) );
 		if (light.strength > 0.0f)
 			addSmokeLight( lights, count, light );
@@ -371,7 +336,7 @@ static inline void lightSmoke( const Coord3D *pos, Real alpha, const SmokeLight 
 	Real peak = WWMath::Max( r, WWMath::Max( g, b ) );
 	if (peak <= 0.0f)
 		return;
-	Real scale = (peak > theSmokeFire.cap) ? theSmokeFire.cap / peak : 1.0f;
+	Real scale = (peak > SMOKE_LIGHT_MAX_GLOW) ? SMOKE_LIGHT_MAX_GLOW / peak : 1.0f;
 	if (alpha < SMOKE_LIGHT_THIN_ALPHA)
 		scale *= alpha / SMOKE_LIGHT_THIN_ALPHA;
 
@@ -604,7 +569,6 @@ void W3DParticleSystemManager::doParticles(RenderInfoClass &rinfo)
 	fillJob.extentX = beX;
 	fillJob.extentY = beY;
 	fillJob.extentZ = beZ;
-	refreshSmokeFireTuning();
 	fillJob.lightCount = TheGlobalData->m_smokeFireLighting ? gatherSmokeLights( fillJob.lights, bbox ) : 0;
 	JobSystem::parallel_for( (Int)m_billboardFills.size(), BILLBOARD_FILLS_PER_CLAIM, fillBillboards, &fillJob );
 	size_t nextFill = 0;

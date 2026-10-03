@@ -320,8 +320,6 @@ DX11BackendClass::DX11BackendClass()
 	SmokeMapRefused = false;
 	SmokeMapFilled = false;
 	SmokeStrength = 0.0f;
-	SmokeSelfGain = 0.8f;
-	SmokeSelfCurve = 16.0f;
 	for (unsigned stage = 0; stage < DX11_BACKEND_TEXTURE_STAGES; ++stage) {
 		set_identity(TextureTransforms[stage]);
 	}
@@ -615,6 +613,13 @@ static const unsigned SMOKE_MAP_TEXELS = 512;
 static const unsigned SMOKE_MAP_SLOT = DX11_BACKEND_TEXTURE_STAGES + 2;		///< t6 and s6, after the depth map's
 static const unsigned SMOKE_SPLAT_FLOATS = 6;		///< per caster: sun clip x, y, z, radius, optical depth, depth spread
 static const unsigned SMOKE_MOST_CASTERS = 16384;
+// How a smoke particle shades itself (VOLUMETRIC_SAMPLING, smoke_reaching): how dark one on its
+// plume's far side goes, and the power on the share of the plume ahead of it that keeps the sun
+// side lit.  The 2026-10-04 sweep: at 16 white smoke's sun side came out 6.2% under the unshaded
+// plume and its far side 0.85 of the sun side, soot 2.4% and 0.87; at 8 white lost 10.8% on its sun
+// side, and at 32 soot went flat.
+static const float SMOKE_SELF_SHADOW_GAIN = 0.8f;
+static const float SMOKE_SELF_SHADOW_CURVE = 16.0f;
 
 // Each caster is a disc facing the sun, drawn as a four corner strip whose corners come from the
 // vertex number, so the only buffer is the one holding the casters.
@@ -779,7 +784,7 @@ bool DX11BackendClass::Fill_Smoke_Map(const float * casters, unsigned count, flo
 	}
 	// Nothing to draw is not a reason to make the map; whether it could be made is answered the
 	// first time there is.  A ground strength of nought still fills it for the smoke's own shade.
-	if (casters == NULL || count == 0 || (strength <= 0.0f && SmokeSelfGain <= 0.0f)) {
+	if (casters == NULL || count == 0) {
 		return !SmokeMapRefused;
 	}
 	if (!Make_Smoke_Map()) {
@@ -911,15 +916,6 @@ void DX11BackendClass::Set_Scene_View(const float view[16])
 	if (!SceneViewKnown || memcmp(SceneView, view, sizeof(SceneView)) != 0) {
 		memcpy(SceneView, view, sizeof(SceneView));
 		SceneViewKnown = true;
-		ConstantsChanged = true;
-	}
-}
-
-void DX11BackendClass::Set_Smoke_Self_Shadow(float gain, float curve)
-{
-	if (gain != SmokeSelfGain || curve != SmokeSelfCurve) {
-		SmokeSelfGain = gain;
-		SmokeSelfCurve = curve;
 		ConstantsChanged = true;
 	}
 }
@@ -2121,9 +2117,9 @@ void DX11BackendClass::Upload_Constants()
 			}
 		}
 		pixel_block.VolumeParameters[0] = SmokeMapFilled ? SmokeStrength : 0.0f;
-		pixel_block.VolumeParameters[1] = SmokeMapFilled ? SmokeSelfGain : 0.0f;
+		pixel_block.VolumeParameters[1] = SmokeMapFilled ? SMOKE_SELF_SHADOW_GAIN : 0.0f;
 		pixel_block.VolumeParameters[2] = camera_space ? 1.0f : 0.0f;
-		pixel_block.VolumeParameters[3] = SmokeSelfCurve;
+		pixel_block.VolumeParameters[3] = SMOKE_SELF_SHADOW_CURVE;
 		memcpy(pixel_block.ShadowFromClip, ShadowFromClip, sizeof(pixel_block.ShadowFromClip));
 		pixel_block.ShadowParameters[0] = (ShadowMapSize > 0)
 			? 1.0f / static_cast<float>(ShadowMapSize) : 0.0f;

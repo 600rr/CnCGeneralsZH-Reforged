@@ -1009,88 +1009,6 @@ Int parseNoSmokeFireLight(char *args[], int)
 	return 1;
 }
 
-/* Temporary: the smoke's light and shade swept from the command line without a rebuild.  Each takes
-	 one number, clamped to its range; a switch with no number, or one never given, leaves the build's
-	 own figure (the field stays below zero).  All of it is client-side colour and shade, read by the
-	 renderer every frame, so a network game and a replay are untouched.
-		 -smokeselfshadow <0..1>      how dark a particle on a plume's far side goes (0.8)
-		 -smokeselfcurve <0.25..32>   how fast that shade grows from the plume's sun side (16: the
-		                              sun side keeps its brightness, the back takes it all)
-		 -smokegroundshadow <0..1>    how dark the thickest smoke leaves the ground and units (0.4)
-		 -smokedensity <0..10>        scale on every particle's thickness to the sun (1)
-		 -smokefiregain <0..4>        fire light a full-strength fire puts on the smoke just above
-		                              it (0.7)
-		 -smokefireradius <1..1000>   reach of a fire's light sideways past its own flames, world
-		                              units (35)
-		 -smokefireheight <1..2000>   height over the flames at which the light is gone (90)
-		 -smokefirecap <0..1>         most fire light any particle takes (0.9)
-		 -smokefirefull <1..10000>    flame brightness times size at which a fire lights at full
-		                              strength; a smaller fire lights at its share of it (120) */
-static Int parseSmokeTuning(char *args[], int num, Real *field, Real lo, Real hi)
-{
-	if (num > 1 && args[1][0] != '-')
-	{
-		Real value = (Real)atof(args[1]);
-		*field = value < lo ? lo : (value > hi ? hi : value);
-		return 2;
-	}
-	return 1;
-}
-
-Int parseSmokeSelfShadow(char *args[], int num)
-{
-	return TheWritableGlobalData
-		? parseSmokeTuning(args, num, &TheWritableGlobalData->m_smokeSelfShadowGain, 0.0f, 1.0f) : 1;
-}
-
-Int parseSmokeSelfCurve(char *args[], int num)
-{
-	return TheWritableGlobalData
-		? parseSmokeTuning(args, num, &TheWritableGlobalData->m_smokeSelfShadowCurve, 0.25f, 32.0f) : 1;
-}
-
-Int parseSmokeGroundShadow(char *args[], int num)
-{
-	return TheWritableGlobalData
-		? parseSmokeTuning(args, num, &TheWritableGlobalData->m_smokeGroundShadow, 0.0f, 1.0f) : 1;
-}
-
-Int parseSmokeDensity(char *args[], int num)
-{
-	return TheWritableGlobalData
-		? parseSmokeTuning(args, num, &TheWritableGlobalData->m_smokeShadowDensity, 0.0f, 10.0f) : 1;
-}
-
-Int parseSmokeFireGain(char *args[], int num)
-{
-	return TheWritableGlobalData
-		? parseSmokeTuning(args, num, &TheWritableGlobalData->m_smokeFireGain, 0.0f, 4.0f) : 1;
-}
-
-Int parseSmokeFireRadius(char *args[], int num)
-{
-	return TheWritableGlobalData
-		? parseSmokeTuning(args, num, &TheWritableGlobalData->m_smokeFireRadius, 1.0f, 1000.0f) : 1;
-}
-
-Int parseSmokeFireCap(char *args[], int num)
-{
-	return TheWritableGlobalData
-		? parseSmokeTuning(args, num, &TheWritableGlobalData->m_smokeFireCap, 0.0f, 1.0f) : 1;
-}
-
-Int parseSmokeFireHeight(char *args[], int num)
-{
-	return TheWritableGlobalData
-		? parseSmokeTuning(args, num, &TheWritableGlobalData->m_smokeFireHeight, 1.0f, 2000.0f) : 1;
-}
-
-Int parseSmokeFireFull(char *args[], int num)
-{
-	return TheWritableGlobalData
-		? parseSmokeTuning(args, num, &TheWritableGlobalData->m_smokeFireFullWeight, 1.0f, 10000.0f) : 1;
-}
-
 Int parseNoShaders(char *args[], int)
 {
 	if (TheWritableGlobalData)
@@ -2488,15 +2406,6 @@ static CommandLineParam params[] =
 	{ "-noparticleshadows", parseNoParticleShadows },
 	{ "-novolumetricsmoke", parseNoVolumetricSmoke },
 	{ "-nosmokefirelight", parseNoSmokeFireLight },
-	{ "-smokeselfshadow", parseSmokeSelfShadow },
-	{ "-smokeselfcurve", parseSmokeSelfCurve },
-	{ "-smokegroundshadow", parseSmokeGroundShadow },
-	{ "-smokedensity", parseSmokeDensity },
-	{ "-smokefiregain", parseSmokeFireGain },
-	{ "-smokefireradius", parseSmokeFireRadius },
-	{ "-smokefirecap", parseSmokeFireCap },
-	{ "-smokefirefull", parseSmokeFireFull },
-	{ "-smokefireheight", parseSmokeFireHeight },
 	{ "-quickstart", parseQuickStart },
 	/* In every build: EA kept them to Debug and Internal, so a Release run could not skip the logo or the
 		 movies. */

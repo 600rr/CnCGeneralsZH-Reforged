@@ -152,10 +152,6 @@ bool Direct3D11_Fill_Smoke_Map(const float * casters, unsigned count, float stre
 // looks its shadow up through it.
 void Direct3D11_Set_Scene_View(const float view[16]);
 
-// How a smoke particle shades itself: the darkness on its plume's far side and the power on the
-// share of the plume in front of it.  Set every frame the smoke map is filled.
-void Direct3D11_Set_Smoke_Self_Shadow(float gain, float curve);
-
 // The CPU has just written this surface.  The next bind of its texture fills the Direct3D 11 copy
 // again.  A no-op when the backend is not running.
 void Direct3D11_Mark_Surface_Dirty(struct IDirect3DSurface9 * surface);

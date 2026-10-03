@@ -139,26 +139,10 @@ const Real cosAngleToCare = cos ((0.2 * PI) / 180.0);	//1.5 degree difference
 #define SHADOW_MAP_SKY_FILL 0.12f
 // The smoke in the sun's light.  The strength is how dark the thickest cloud leaves the ground and
 // the smoke behind it, under the solid casters' 0.45 because the sky still lights the ground under a
-// cloud and the smoke itself scatters some of the sun on.  How thick each particle is to the sun is
-// particleSunMapOpticalDepth's.  The self-shade is a particle's own: how dark one on its plume's far
-// side goes, and the power that keeps the sun side lit (ffshader.h, smoke_reaching).  The ground
-// figure held up on Golden Oasis on 2026-10-03.  The self-shade's 0.8 and 16 are the 2026-10-04
-// re-sweep's, with the shade measured from the plume's front: white smoke's sun side 6.2% under the
-// unshaded plume and its far side 0.85 of the sun side, soot 2.4% and 0.87.  At 8 white lost 10.8%
-// on its sun side; at 32 soot went flat.
-// -smokegroundshadow, -smokeselfshadow, -smokeselfcurve and -smokedensity overrule them for a run.
+// cloud and the smoke itself scatters some of the sun on; it held up on Golden Oasis on 2026-10-03.
+// How thick each particle is to the sun is particleSunMapOpticalDepth's, and how a particle shades
+// itself is the backend's (SMOKE_SELF_SHADOW_* in dx11backend.cpp).
 #define SMOKE_SHADOW_STRENGTH 0.4f
-#define SMOKE_SELF_SHADOW_GAIN 0.8f
-#define SMOKE_SELF_SHADOW_CURVE 16.0f
-
-// W3DParticleSys.cpp: the fire light values the last particle pass used.
-extern void W3DSmokeFireTuningInForce( Real *gain, Real *radius, Real *height, Real *cap, Real *fullWeight );
-
-/** A tuning switch's value, or the build's own figure when it was not given (below zero). */
-static inline Real smokeTuning( Real given, Real builtIn )
-{
-	return given >= 0.0f ? given : builtIn;
-}
 
 // Whether the sun's map took this frame.  The volumes read it to know whether to stand down, and it
 // is false on a machine with no Direct3D 11 device, which is what keeps that machine's shadows.
@@ -3887,7 +3871,7 @@ static void fillSmokeMap( const Matrix3D &sunTransform, const Vector3 &focus )
 {
 	static std::vector<SmokeCaster> found;	// kept: a burning base is thousands of particles every frame
 	static std::vector<Real> packed;
-	static Int systemsLastReport = -1;
+	static Bool reported = FALSE;
 	static UnsignedInt nextReportFrame = 0;
 	const size_t mostCasters = 16384;		// the backend's own SMOKE_MOST_CASTERS
 
@@ -3895,8 +3879,7 @@ static void fillSmokeMap( const Matrix3D &sunTransform, const Vector3 &focus )
 	found.clear();
 	packed.clear();
 
-	const Real density = smokeTuning( TheGlobalData->m_smokeShadowDensity, 1.0f );
-	if (TheGlobalData->m_volumetricSmokeShadows && TheParticleSystemManager != NULL && density > 0.0f)
+	if (TheGlobalData->m_volumetricSmokeShadows && TheParticleSystemManager != NULL)
 	{
 		ParticleSystemManager::ParticleSystemList &systems = TheParticleSystemManager->getAllParticleSystems();
 		for (ParticleSystemManager::ParticleSystemListIt it = systems.begin(); it != systems.end(); ++it)
@@ -3912,7 +3895,7 @@ static void fillSmokeMap( const Matrix3D &sunTransform, const Vector3 &focus )
 			const UnsignedInt layers = sys->getVolumeParticleDepth();
 			for (Particle *p = sys->getFirstParticle(); p; p = p->m_systemNext)
 			{
-				const Real opticalDepth = particleSunMapOpticalDepth( p->getAlpha(), layers ) * density;
+				const Real opticalDepth = particleSunMapOpticalDepth( p->getAlpha(), layers );
 				if (opticalDepth <= 0.0f)
 					continue;
 				const Coord3D *pos = p->getPosition();
@@ -3960,10 +3943,8 @@ static void fillSmokeMap( const Matrix3D &sunTransform, const Vector3 &focus )
 		packed.push_back( found[ i ].opticalDepth );
 	}
 
-	Direct3D11_Set_Smoke_Self_Shadow( smokeTuning( TheGlobalData->m_smokeSelfShadowGain, SMOKE_SELF_SHADOW_GAIN ),
-		smokeTuning( TheGlobalData->m_smokeSelfShadowCurve, SMOKE_SELF_SHADOW_CURVE ) );
 	const Bool held = Direct3D11_Fill_Smoke_Map( packed.empty() ? NULL : &packed[ 0 ],
-		(unsigned)found.size(), smokeTuning( TheGlobalData->m_smokeGroundShadow, SMOKE_SHADOW_STRENGTH ) );
+		(unsigned)found.size(), SMOKE_SHADOW_STRENGTH );
 	if (!held)
 		return;
 
@@ -3980,21 +3961,14 @@ static void fillSmokeMap( const Matrix3D &sunTransform, const Vector3 &focus )
 	// A run's log says whether the smoke was in the map at all: the first frame it held any, and
 	// every ten seconds while it does.
 	const UnsignedInt frame = TheGameLogic ? TheGameLogic->getFrame() : 0;
-	if (!found.empty() && (systemsLastReport < 0 || frame >= nextReportFrame))
+	if (!found.empty() && (!reported || frame >= nextReportFrame))
 	{
 		nextReportFrame = frame + 10 * LOGICFRAMES_PER_SECOND;
-		systemsLastReport = systemsHeld;
-		Real fireGain, fireRadius, fireHeight, fireCap, fireFull;
-		W3DSmokeFireTuningInForce( &fireGain, &fireRadius, &fireHeight, &fireCap, &fireFull );
+		reported = TRUE;
 		DEBUG_LOG(("SMOKEMAP: frame %u, %d casters from %d systems in the sun's map, %d more past its limit;"
-			" ground %.2f self %.2f curve %.2f density %.2f; fire light %s gain %.2f radius %.0f height %.0f"
-			" cap %.2f full %.0f\n",
+			" fire light %s\n",
 			frame, (Int)found.size(), systemsHeld, (Int)( inBox - found.size() ),
-			smokeTuning( TheGlobalData->m_smokeGroundShadow, SMOKE_SHADOW_STRENGTH ),
-			smokeTuning( TheGlobalData->m_smokeSelfShadowGain, SMOKE_SELF_SHADOW_GAIN ),
-			smokeTuning( TheGlobalData->m_smokeSelfShadowCurve, SMOKE_SELF_SHADOW_CURVE ), density,
-			TheGlobalData->m_smokeFireLighting ? "on" : "off", fireGain, fireRadius, fireHeight, fireCap,
-			fireFull));
+			TheGlobalData->m_smokeFireLighting ? "on" : "off"));
 	}
 }
 
