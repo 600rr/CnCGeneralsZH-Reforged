@@ -3910,7 +3910,8 @@ UpdateSleepTime AIUpdateInterface::doLocomotor( void )
 			/* A helicopter flies with its nose on what it is shooting at.  That matters for a gun with
 				 no turret of its own, or the Comanche's, which has a turn rate of 0 and only fires along
 				 the nose: without this a Comanche passing a target never shot at it.  A weapon on a
-				 turret that turns needs no help. */
+				 turret that turns needs no help, and neither does a fixed gun whose target a carried
+				 turret is already on: a Helix flies where it likes while its gattling cannon tracks. */
 			Coord3D faceTargetPos;
 			const Coord3D *faceTarget = NULL;
 			if (m_curLocomotor->isHelicopter(getObject()))
@@ -3927,7 +3928,7 @@ UpdateSleepTime AIUpdateInterface::doLocomotor( void )
 					if (target == NULL)
 						target = getCurrentVictim();
 				}
-				if (target && !target->isEffectivelyDead())
+				if (target && !target->isEffectivelyDead() && !isCarriedGunOn(target))
 				{
 					faceTargetPos = *target->getPosition();
 					faceTarget = &faceTargetPos;
@@ -6168,6 +6169,50 @@ Object *AIUpdateInterface::getCurrentVictim( void ) const
 		return TheGameLogic->findObjectByID( m_currentVictimID );
 
 	return NULL;
+}
+
+//-------------------------------------------------------------------------------------------------
+/**
+	Whether something in contain is already shooting at victim and can do it without its carrier
+	turning: a rider whose gun is on a turret that turns (a Helix's gattling cannon), a passenger
+	allowed to fire out (the infantry in a Helix's bunker), or the same inside the rider (the Infantry
+	General's Helix bunker holds its infantry itself). No turret in this tree limits its arc, so such a
+	gun reaches the victim from any heading.
+*/
+static Bool AIUpdate_containsGunOn( ContainModuleInterface *contain, const Object *victim )
+{
+	const Object *rider = contain->friend_getRider();
+	if (rider)
+	{
+		const AIUpdateInterface *riderAI = rider->getAI();
+		if (riderAI && riderAI->getCurrentVictim() == victim)
+		{
+			WhichTurretType tur = riderAI->getWhichTurretForCurWeapon();
+			if (tur != TURRET_INVALID && riderAI->getTurretTurnRate(tur) != 0.0f)
+				return TRUE;
+		}
+		if (rider->getContain() && AIUpdate_containsGunOn(rider->getContain(), victim))
+			return TRUE;
+	}
+
+	const ContainedItemsList *passengers = contain->getContainedItemsList();
+	for (ContainedItemsList::const_iterator it = passengers->begin(); it != passengers->end(); ++it)
+	{
+		const Object *passenger = *it;
+		const AIUpdateInterface *passengerAI = passenger->getAI();
+		if (passengerAI && passenger->isKindOf(KINDOF_INFANTRY) && contain->isPassengerAllowedToFire(passenger->getID())
+				&& passengerAI->getCurrentVictim() == victim)
+			return TRUE;
+	}
+	return FALSE;
+}
+
+//-------------------------------------------------------------------------------------------------
+/// whether something this unit carries is already shooting at victim from any heading (AIUpdate_containsGunOn)
+Bool AIUpdateInterface::isCarriedGunOn( const Object *victim ) const
+{
+	ContainModuleInterface *contain = getObject()->getContain();
+	return contain && AIUpdate_containsGunOn(contain, victim);
 }
 
 // if we are attacking a position (and NOT an object), return it. otherwise return null.

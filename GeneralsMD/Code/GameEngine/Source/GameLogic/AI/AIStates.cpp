@@ -5695,9 +5695,13 @@ StateReturnType AIAttackAimAtTargetState::update()
 		}
 
 		//DEBUG_LOG(("AIM: desired %f, actual %f, delta %f, aimDelta %f, goalpos %f %f\n",rad2deg(obj->getOrientation() + relAngle),rad2deg(obj->getOrientation()),rad2deg(relAngle),rad2deg(aimDelta),victim->getPosition()->x,victim->getPosition()->y));
+		// a helicopter whose carried turret is already on the victim keeps its heading; its own fixed
+		// gun fires when the victim comes past the nose
+		const Locomotor *loco = sourceAI->getCurLocomotor();
+		Bool headingFree = m_isAttackingObject && loco && loco->isHelicopter(source) && sourceAI->isCarriedGunOn(victim);
 		if (m_canTurnInPlace)
 		{
-			if (fabs(relAngle) > aimDelta) 
+			if (fabs(relAngle) > aimDelta && !headingFree)
 			{
 				Real desiredAngle = source->getOrientation() + relAngle;
 				sourceAI->setLocomotorGoalOrientation(desiredAngle);

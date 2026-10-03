@@ -610,8 +610,9 @@ public:
 	void transferAttack(ObjectID fromID, ObjectID toID);
 
 	void setCurrentVictim( const Object *nemesis );			///<  Current victim.
-	Object *getCurrentVictim( void ) const;	
+	Object *getCurrentVictim( void ) const;
 	virtual void notifyVictimIsDead() { }
+	Bool isCarriedGunOn( const Object *victim ) const;	///< a rider's turret or a passenger is already shooting at victim
 
 	// if we are attacking a position (and NOT an object), return it. otherwise return null.
 	const Coord3D *getCurrentVictimPos( void ) const;	
