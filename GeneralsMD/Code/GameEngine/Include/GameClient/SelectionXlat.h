@@ -65,6 +65,7 @@ private:
 	UnsignedInt m_pendingSquadLands[ NUM_HOTKEY_SQUADS ];
 
 	Bool isSquadPending( Int group ) const;
+	Bool isTakenByLaterSquad( ObjectID id, Int group ) const;
 	void selectHotkeySquad( Player *player, Int group, Bool ownOnly );	///< what the logic will have in the squad by the time a select sent now lands
 
 	Bool selectFriends( Drawable *draw, GameMessage *createTeamMsg, Bool dragSelecting );
