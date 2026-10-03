@@ -1260,6 +1260,10 @@ The whole HUD is on the hardware. Four colours carry it, and they mean the same 
 - Scorch marks follow the texture quality setting like everything else. The terrain and the trees
   dropped to the resolution you asked for and the burn marks did not, so on Low the ground went soft
   underneath craters that stayed sharp.
+- Texture quality reaches the ground on the new renderer. Turned down, it softened the units and
+  buildings and left the terrain, the trees and the scorch marks at full size, because the new
+  renderer kept its own full copy of those and ignored what the setting had asked for. They drop
+  with everything else now, and the change shows during a match without a restart.
 - The craters a map ships with stay on the ground. Scorch marks live in a list of 500 and the list
   makes room by throwing away its oldest entry - which is always one the level designer placed, so a
   long battle rubbed out the map's own burn marks one at a time. Only marks the fighting made are
