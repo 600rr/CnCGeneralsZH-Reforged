@@ -378,6 +378,8 @@ ScenarioParseResult ScenarioDrill_parseLine( const char *line, ScenarioAction *a
 				return position;
 			if (actionType == SCENARIO_ACTION_ARRIVE && count > next)
 				action->radius = (Real)atof( tokens[ next ].str() );
+			if (actionType == SCENARIO_ACTION_SHIFTGUARD)
+				action->radius = (count > next) ? (Real)atof( tokens[ next ].str() ) : 0.0f;	// the wheeled radius, none by default
 			if (actionType == SCENARIO_ACTION_POWER && count > next)
 				action->targetSelector = tokens[ next ];	// fire only the power of this name
 			break;
@@ -1220,7 +1222,11 @@ static Bool executeShiftOrder( const ScenarioAction &action, Player *player, con
 		if (type == GameMessage::MSG_DO_ATTACKMOVETO)
 			msg->appendBooleanArgument( FALSE );
 		if (type == GameMessage::MSG_DO_GUARD_POSITION)
+		{
 			msg->appendIntegerArgument( GUARDMODE_GUARD_WITHOUT_PURSUIT );
+			if (action.radius > 0.0f)
+				msg->appendRealArgument( action.radius );
+		}
 	}
 
 	player->getOrderQueue()->setNextOrderMode( ORDER_QUEUE_APPEND );

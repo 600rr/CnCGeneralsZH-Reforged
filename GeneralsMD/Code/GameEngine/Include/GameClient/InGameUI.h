@@ -560,7 +560,7 @@ public:  // ********************************************************************
 	};
 	struct OrderHint
 	{
-		OrderHint( void ) : kind( ORDER_HINT_MOVE ), owner( INVALID_ID ), bornMs( 0 ), step( 0 ), icon( NULL ) {}
+		OrderHint( void ) : kind( ORDER_HINT_MOVE ), owner( INVALID_ID ), bornMs( 0 ), step( 0 ), icon( NULL ), radius( 0.0f ) {}
 
 		Coord3D from;						///< where the unit is now
 		Coord3D to;							///< where it is going
@@ -569,6 +569,7 @@ public:  // ********************************************************************
 		UnsignedInt bornMs;			///< when the marker first appeared, so it can be slid in
 		Int step;								///< its place in the order the unit will get to its points, from 1; 0 when it has only the one
 		const Image *icon;			///< the upgrade's own button art on an upgrade step, NULL otherwise
+		Real radius;						///< the circle a guard holds round 'to', 0 for every other kind
 	};
 	const std::vector<OrderHint>& getOrderHints( void ) const { return m_drawnOrderHints; }
 
@@ -1254,6 +1255,14 @@ public:  // ********************************************************************
 	void toggleGuardArmed( void )							{ m_guardArmed = !m_guardArmed; m_attackMoveToMode = FALSE; m_forceAttackArmed = FALSE; m_moveArmed = FALSE; }
 	Bool isGuardArmed( void ) const						{ return m_guardArmed; }
 
+	// An order that covers a circle around the point it is given on (the guard key, EA's guard
+	// buttons) is armed with a radius: the wheel grows and shrinks it instead of zooming, a ring
+	// under the cursor shows it, and the order carries it.  The scale drops back to 1 when nothing
+	// is armed any more.
+	Bool isAreaPicking( void ) const;
+	Real getAreaPickRadius( void ) const;			///< what the next area order covers, in world units
+	void adjustAreaPickRadius( Real notches );
+
 	// the move key arms the order a right click gives, for the left button: the next order click is
 	// that move, and a left drag draws the formation line
 	void toggleMoveArmed( void )							{ m_moveArmed = !m_moveArmed; m_attackMoveToMode = FALSE; m_forceAttackArmed = FALSE; m_guardArmed = FALSE; }
@@ -1848,6 +1857,7 @@ protected:
 	Bool												m_attackMoveToMode;	///< are we in attack move mode?
 	Bool												m_forceAttackArmed;	///< is the attack key holding force fire for the next click?
 	Bool												m_guardArmed;				///< is the guard key holding a guard order for the next click?
+	Real												m_areaPickScale;		///< what the wheel has made of the armed area order's default radius
 	Bool												m_moveArmed;				///< is the move key holding a move for the next click?
 	Bool												m_orderKeyKeptByShift;	///< an armed key was clicked with under shift, and drops when shift comes up
 	Bool												m_preferSelection;		///< the shift key has been depressed.

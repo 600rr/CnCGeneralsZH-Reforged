@@ -290,6 +290,7 @@ AIUpdateInterface::AIUpdateInterface( Thing *thing, const ModuleData* moduleData
 	m_desiredSpeed = FAST_AS_POSSIBLE;
 	m_lastCommandSource = CMD_FROM_AI;
 	m_guardMode = GUARDMODE_NORMAL;
+	m_guardRadius = 0.0f;
 	m_guardTargetType[0] = m_guardTargetType[1] = GUARDTARGET_NONE;
 	m_locationToGuard.zero();
 	m_objectToGuard = INVALID_ID;
@@ -6063,6 +6064,9 @@ void AIUpdateInterface::privateGuardPosition( const Coord3D *pos, GuardMode guar
 	}
 	m_locationToGuard = adjPos;
 	m_guardMode = guardMode;
+	// only a player's guard order carries a radius, set just before it arrives here
+	if (cmdSource != CMD_FROM_PLAYER)
+		m_guardRadius = 0.0f;
 
 	getStateMachine()->clear();
 	// The guard machine moves on its own goal, so the outer one kept whatever the last order left
@@ -6113,6 +6117,8 @@ void AIUpdateInterface::privateGuardObject( Object *objectToGuard, GuardMode gua
 	}
 	m_guardMode = guardMode;
 	m_objectToGuard = objectToGuard->getID();
+	if (cmdSource != CMD_FROM_PLAYER)
+		m_guardRadius = 0.0f;
 
 	getStateMachine()->clear();
 	setLastCommandSource( cmdSource );
@@ -6139,6 +6145,7 @@ void AIUpdateInterface::privateGuardArea( const PolygonTrigger *areaToGuard, Gua
 	}
 	m_areaToGuard = areaToGuard;
 	m_guardMode = guardMode;
+	m_guardRadius = 0.0f;		// the area is the radius
 
 	Coord3D pos;
 	m_areaToGuard->getCenterPoint(&pos);
@@ -7309,12 +7316,13 @@ void AIUpdateInterface::crc( Xfer *x )
 	* 14: the salvage return position and its flag
 	* 16: the tunnel trip's goal and its flag
 	* 17: how the tunnel trip's last leg is walked
-	* 18: the target a helicopter keeps shooting while it moves away */
+	* 18: the target a helicopter keeps shooting while it moves away
+	* 19: the radius a player's guard order set */
 // ------------------------------------------------------------------------------------------------
 void AIUpdateInterface::xfer( Xfer *xfer )
 {
   // version
-  const XferVersion currentVersion = 18;
+  const XferVersion currentVersion = 19;
   XferVersion version = currentVersion;
   xfer->xferVersion( &version, currentVersion );
  
@@ -7652,6 +7660,9 @@ void AIUpdateInterface::xfer( Xfer *xfer )
 		xfer->xferObjectID(&m_withdrawTargetID);
 		xfer->xferUnsignedInt(&m_withdrawFrame);
 	}
+
+	if (version >= 19)
+		xfer->xferReal(&m_guardRadius);
 
 }  // end xfer
 

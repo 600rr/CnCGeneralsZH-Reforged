@@ -376,6 +376,9 @@ public:
 	virtual GuardTargetType getGuardTargetType() const { return m_guardTargetType[1]; }
 	virtual void clearGuardTargetType() { m_guardTargetType[1] = m_guardTargetType[0]; m_guardTargetType[0] = GUARDTARGET_NONE; }
 	virtual GuardMode getGuardMode() const { return m_guardMode; }
+	// the radius a player's guard order gave this unit; 0 leaves it on its own vision-based range
+	Real getGuardRadius() const { return m_guardRadius; }
+	void setGuardRadius( Real radius ) { m_guardRadius = radius; }
 
 	virtual Object* construct( const ThingTemplate *what, 
 														 const Coord3D *pos, Real angle, 
@@ -851,6 +854,7 @@ private:
 																								*/
 
 	GuardMode							m_guardMode;
+	Real									m_guardRadius;				///< set by a player's guard order; 0 for the vision-based range
 	GuardTargetType				m_guardTargetType[2];
 	Coord3D								m_locationToGuard;
 	ObjectID							m_objectToGuard;

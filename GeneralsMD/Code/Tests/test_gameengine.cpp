@@ -14733,6 +14733,9 @@ TEST(scenario_parses_the_order_lines)
 	CHECK_EQ( (Int)action.action, (Int)SCENARIO_ACTION_SHIFTATTACKMOVE );
 	CHECK_EQ( (Int)ScenarioDrill_parseLine( "200 shiftguard 0 * 900 700", &action ), (Int)SCENARIO_PARSE_OK );
 	CHECK_EQ( (Int)action.action, (Int)SCENARIO_ACTION_SHIFTGUARD );
+	CHECK( action.radius == 0.0f );
+	CHECK_EQ( (Int)ScenarioDrill_parseLine( "200 shiftguard 0 * 900 700 350", &action ), (Int)SCENARIO_PARSE_OK );
+	CHECK( action.radius == 350.0f );
 	CHECK_EQ( (Int)ScenarioDrill_parseLine( "200 shiftattack 0 * 1 AmericaCommandCenter", &action ), (Int)SCENARIO_PARSE_OK );
 	CHECK_EQ( (Int)action.action, (Int)SCENARIO_ACTION_SHIFTATTACK );
 	CHECK_STR( action.targetSelector.str(), "AmericaCommandCenter" );

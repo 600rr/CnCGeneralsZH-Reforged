@@ -64,6 +64,7 @@
 #include "GameLogic/ObjectIter.h"
 #include "GameLogic/PartitionManager.h"
 #include "GameLogic/AI.h"
+#include "GameLogic/AIGuard.h"
 #include "GameLogic/Module/AIUpdate.h"
 #include "GameLogic/Module/DozerAIUpdate.h"
 #include "GameLogic/Module/SupplyTruckAIUpdate.h"
@@ -293,6 +294,32 @@ static void doClearRallyPoint( Object *obj )
 	if( obj->isLocallyControlled() && draw && draw->isSelected() )
 		TheControlBar->markUIDirty();
 
+}
+
+// ------------------------------------------------------------------------------------------------
+/** A guard order's last argument is the radius the player wheeled to, one circle for the whole
+	* group.  A message without it, a double-click guard or a replay recorded before it, leaves each
+	* unit on its own vision-based range.  The number came over the network, so anything that is not
+	* a sane distance reads as none, or as the cap. */
+// ------------------------------------------------------------------------------------------------
+static void setGroupGuardRadius( AIGroup *group, const GameMessage *msg, Int argIndex )
+{
+	Real radius = 0.0f;
+	if( msg->getArgumentCount() > argIndex && msg->getArgumentDataType( argIndex ) == ARGUMENTDATATYPE_REAL )
+		radius = msg->getArgument( argIndex )->real;
+	if( !( radius >= 0.0f ) )		// NaN fails this too
+		radius = 0.0f;
+	if( radius > GUARD_RADIUS_MAX )
+		radius = GUARD_RADIUS_MAX;
+	DEBUG_LOG(( "GUARD RADIUS: frame %d player %d radius %.0f\n", TheGameLogic->getFrame(), msg->getPlayerIndex(), radius ));
+
+	const VecObjectID& ids = group->getAllIDs();
+	for( VecObjectID::const_iterator it = ids.begin(); it != ids.end(); ++it )
+	{
+		Object *obj = TheGameLogic->findObjectByID( *it );
+		if( obj && obj->getAIUpdateInterface() )
+			obj->getAIUpdateInterface()->setGuardRadius( radius );
+	}
 }
 
 static Object * getSingleObjectFromSelection(const AIGroup *currentlySelectedGroup)
@@ -1074,6 +1101,7 @@ void GameLogic::logicMessageDispatcher( GameMessage *msg, AIGroup *orderedGroup 
 			GuardMode gm = (GuardMode)msg->getArgument( 1 )->integer;
 			if (currentlySelectedGroup)
 			{
+				setGroupGuardRadius( currentlySelectedGroup, msg, 2 );
 				currentlySelectedGroup->groupGuardPosition(&loc, gm, CMD_FROM_PLAYER);
 			}
 
@@ -1100,7 +1128,10 @@ void GameLogic::logicMessageDispatcher( GameMessage *msg, AIGroup *orderedGroup 
 
 					AIUpdateInterface *ai = obj->getAIUpdateInterface();
 					if (ai)
+					{
+						ai->setGuardRadius( 0.0f );
 						ai->aiGuardPosition( obj->getPosition(), gm, CMD_FROM_PLAYER );
+					}
 				}
 			}
 
@@ -1176,7 +1207,10 @@ void GameLogic::logicMessageDispatcher( GameMessage *msg, AIGroup *orderedGroup 
 				station.z = TheTerrainLogic->getGroundHeight( station.x, station.y );
 
 				if (guardAlong)
+				{
+					movers[ i ]->getAIUpdateInterface()->setGuardRadius( 0.0f );
 					movers[ i ]->getAIUpdateInterface()->aiGuardPosition( &station, GUARDMODE_GUARD_WITHOUT_PURSUIT, CMD_FROM_PLAYER );
+				}
 				else if (fireAlong)
 					movers[ i ]->getAIUpdateInterface()->aiAttackPosition( &station, NO_MAX_SHOTS_LIMIT, CMD_FROM_PLAYER );
 				else if (attackAlong)
@@ -1198,6 +1232,7 @@ void GameLogic::logicMessageDispatcher( GameMessage *msg, AIGroup *orderedGroup 
 			GuardMode gm = (GuardMode)msg->getArgument( 1 )->integer;
 			if (currentlySelectedGroup)
 			{
+				setGroupGuardRadius( currentlySelectedGroup, msg, 2 );
 				currentlySelectedGroup->groupGuardObject(obj, gm, CMD_FROM_PLAYER);
 			}
 

@@ -1334,6 +1334,7 @@ InGameUI::InGameUI()
 	m_attackMoveToMode	= false;
 	m_forceAttackArmed	= false;
 	m_guardArmed				= false;
+	m_areaPickScale			= 1.0f;
 	m_moveArmed					= false;
 	m_orderKeyKeptByShift	= false;
 	m_preferSelection		= false;
@@ -1590,7 +1591,8 @@ void InGameUI::setRadiusCursor(RadiusCursorType cursorType, const SpecialPowerTe
 			radius = w ? w->getContinueAttackRange() : 0.0f;
 			break;
 		case RADIUSCURSOR_GUARD_AREA:
-			radius = AIGuardMachine::getStdGuardRange(obj);
+			// no decal: its size was fixed when the button was pressed, and the wheel changes the radius
+			// after that.  The area pick ring takes its place (isAreaPicking)
 			break;
 		case RADIUSCURSOR_FRIENDLY_SPECIALPOWER:
 		case RADIUSCURSOR_OFFENSIVE_SPECIALPOWER:
@@ -3769,6 +3771,10 @@ void InGameUI::update( void )
 
 	updateReplaySeek();
 
+	// the wheeled radius belongs to the order it was wheeled for; a shift-kept key keeps it
+	if( !isAreaPicking() )
+		m_areaPickScale = 1.0f;
+
 	/// @todo make sure this code gets called even when the UI is not being drawn
 	if ( m_videoStream && m_videoBuffer )
 	{
@@ -4226,6 +4232,7 @@ void InGameUI::reset( void )
 	m_attackMoveToMode	= false;
 	m_forceAttackArmed	= false;
 	m_guardArmed				= false;
+	m_areaPickScale			= 1.0f;
 	m_moveArmed					= false;
 	m_orderKeyKeptByShift	= false;
 	m_preferSelection		= false;
@@ -5373,6 +5380,9 @@ void InGameUI::collectOrderHints( void )
 				if( !getGuardedSpot( ai, resolvedGoal ) )
 					continue;
 				goalResolved = TRUE;
+				// and the circle it holds there
+				if( ai->getCurrentStateID() == AI_GUARD )
+					hint.radius = AIGuardMachine::getGuardRange( obj );
 				break;
 			}
 
@@ -7345,6 +7355,62 @@ void InGameUI::adjustPlacementRowGap( Real spin )
 	}
 
 }  // end adjustPlacementRowGap
+
+static const Real AREA_PICK_RADIUS_MIN = 50.0f;
+static const Real AREA_PICK_STEP = 1.15f;		///< what one notch of the wheel multiplies the radius by
+
+//-------------------------------------------------------------------------------------------------
+/** The guard key, or one of EA's guard buttons waiting for its click. */
+//-------------------------------------------------------------------------------------------------
+Bool InGameUI::isAreaPicking( void ) const
+{
+	if( m_guardArmed )
+		return TRUE;
+
+	const CommandButton *command = m_pendingGUICommand;
+	return command && ( command->getCommandType() == GUI_COMMAND_GUARD ||
+											command->getCommandType() == GUI_COMMAND_GUARD_WITHOUT_PURSUIT ||
+											command->getCommandType() == GUI_COMMAND_GUARD_FLYING_UNITS_ONLY );
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The radius the armed order starts from before the wheel touches it.  A guard used to cover
+	* each unit's own vision, so riflemen and rocket troops on one spot held two different circles;
+	* the whole selection now takes the widest of them. */
+//-------------------------------------------------------------------------------------------------
+static Real areaPickBaseRadius( const DrawableList& selected )
+{
+	Real widest = 0.0f;
+	for( DrawableList::const_iterator it = selected.begin(); it != selected.end(); ++it )
+	{
+		const Object *obj = (*it)->getObject();
+		if( obj && obj->isLocallyControlled() && obj->getAI() )
+			widest = max( widest, AIGuardMachine::getStdGuardRange( obj ) );
+	}
+	return widest;
+}
+
+//-------------------------------------------------------------------------------------------------
+Real InGameUI::getAreaPickRadius( void ) const
+{
+	const Real radius = areaPickBaseRadius( m_selectedDrawables ) * m_areaPickScale;
+	return min( max( radius, AREA_PICK_RADIUS_MIN ), GUARD_RADIUS_MAX );
+}
+
+//-------------------------------------------------------------------------------------------------
+/** A notch away from the player grows the circle by a fixed share, so the wheel feels the same on a
+	* small circle as on a big one.  The scale stops where the radius does, so the wheel never winds
+	* up travel that has to be undone before the circle moves again. */
+//-------------------------------------------------------------------------------------------------
+void InGameUI::adjustAreaPickRadius( Real notches )
+{
+	const Real base = areaPickBaseRadius( m_selectedDrawables );
+	if( base <= 0.0f )
+		return;
+
+	m_areaPickScale *= (Real)pow( AREA_PICK_STEP, notches );
+	m_areaPickScale = min( max( m_areaPickScale, AREA_PICK_RADIUS_MIN / base ), GUARD_RADIUS_MAX / base );
+}
 
 //-------------------------------------------------------------------------------------------------
 /** Every piece faces 'angle', the heading on the ghost before the drag began: the drag is spent on
