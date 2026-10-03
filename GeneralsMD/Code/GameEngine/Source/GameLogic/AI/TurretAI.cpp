@@ -186,6 +186,7 @@ TurretAIData::TurretAIData()
 	m_turnRate = DEFAULT_TURN_RATE;
 	m_pitchRate = DEFAULT_PITCH_RATE;
 	m_naturalTurretAngle = 0.0f;
+	m_yawLimit = PI;
 	m_naturalTurretPitch = 0.0f;
 	for( Int slotIndex = 0; slotIndex < WEAPONSLOT_COUNT; ++slotIndex )
 	{
@@ -248,6 +249,7 @@ void TurretAIData::buildFieldParse(MultiIniFieldParse& p)
 		{ "TurretTurnRate",					INI::parseAngularVelocityReal,				NULL, offsetof( TurretAIData, m_turnRate ) },
 		{ "TurretPitchRate",				INI::parseAngularVelocityReal,				NULL, offsetof( TurretAIData, m_pitchRate ) },
 		{ "NaturalTurretAngle",			INI::parseAngleReal,									NULL, offsetof( TurretAIData, m_naturalTurretAngle ) },
+		{ "TurretYawLimit",					INI::parseAngleReal,									NULL, offsetof( TurretAIData, m_yawLimit ) },
 		{ "NaturalTurretPitch",			INI::parseAngleReal,									NULL, offsetof( TurretAIData, m_naturalTurretPitch ) },
 		{ "FirePitch",							INI::parseAngleReal,									NULL, offsetof( TurretAIData, m_firePitch ) },
 		{ "MinPhysicalPitch",				INI::parseAngleReal,									NULL, offsetof( TurretAIData, m_minPitch ) },
@@ -407,6 +409,29 @@ Bool TurretAI::friend_turnTowardsAngle(Real desiredAngle, Real rateModifier, Rea
 	Real turnRate = getTurnRate() * rateModifier;
 	Real angleDiff = normalizeAngle(desiredAngle - actualAngle);
 
+	/* A turret with a limited arc stops at its edge when the angle asked for is outside it, and is
+		 not aligned there. Measured from the natural angle both ends sit inside the arc, so the turn
+		 between them never takes the short way round through the back it cannot reach. */
+	Bool beyondArc = FALSE;
+	Real limit = getYawLimit();
+	if (limit < PI)
+	{
+		Real natural = getNaturalTurretAngle();
+		Real wanted = normalizeAngle(desiredAngle - natural);
+		if (wanted > limit)
+		{
+			wanted = limit;
+			beyondArc = TRUE;
+		}
+		else if (wanted < -limit)
+		{
+			wanted = -limit;
+			beyondArc = TRUE;
+		}
+		desiredAngle = normalizeAngle(natural + wanted);
+		angleDiff = wanted - normalizeAngle(actualAngle - natural);
+	}
+
 	// Are we close enough to the desired angle to just snap there?
 	if (fabs(angleDiff) < turnRate)
 	{
@@ -431,9 +456,30 @@ Bool TurretAI::friend_turnTowardsAngle(Real desiredAngle, Real rateModifier, Rea
 	if( m_angle != origAngle )
 		getOwner()->reactToTurretChange( m_whichTurret, origAngle, m_pitch );
 
-	Bool aligned = fabs(m_angle - desiredAngle) <= relThresh;
+	Bool aligned = fabs(m_angle - desiredAngle) <= relThresh && !beyondArc;
 
 	return aligned;
+}
+
+//----------------------------------------------------------------------------------------------------------
+/**
+	How far the turret's owner has to turn so a target at relAngle from its nose sits inside the
+	turret's arc, ARC_MARGIN in from the edge so it does not hang on the boundary; 0 when it is inside
+	already or the turret goes all the way round.
+*/
+Real TurretAI::getArcShortfall(Real relAngle) const
+{
+	const Real ARC_MARGIN = 0.17f;	// about 10 degrees
+	Real limit = getYawLimit();
+	if (limit >= PI)
+		return 0.0f;
+
+	Real off = normalizeAngle(relAngle - getNaturalTurretAngle());
+	if (off > limit)
+		return off - (limit - ARC_MARGIN);
+	if (off < -limit)
+		return off + (limit - ARC_MARGIN);
+	return 0.0f;
 }
 
 //----------------------------------------------------------------------------------------------------------

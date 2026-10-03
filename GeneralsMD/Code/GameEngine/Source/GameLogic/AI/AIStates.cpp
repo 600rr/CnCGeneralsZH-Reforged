@@ -5663,8 +5663,23 @@ StateReturnType AIAttackAimAtTargetState::update()
 		// if we have a turret, but it is incapable of turning, turn ourself.
 		// (gotta do this for units like the Comanche, which have fake "turrets"
 		// solely to allow for attacking-on-the-move...)
-		if (sourceAI->getTurretTurnRate(tur) != 0.0f)	
+		if (sourceAI->getTurretTurnRate(tur) != 0.0f)
 		{
+			// a turret with a limited arc (the Comanche's chin gun) needs the body turned just far enough
+			// to bring a target behind it into the arc; inside it, the body is left alone
+			if (m_canTurnInPlace)
+			{
+				Real relAngle = m_isAttackingObject ?
+													ThePartitionManager->getRelativeAngle2D( source, victim ) :
+													ThePartitionManager->getRelativeAngle2D( source, getMachineGoalPosition() );
+				Real shortfall = sourceAI->getTurretArcShortfall(tur, relAngle);
+				if (shortfall != 0.0f)
+				{
+					sourceAI->setLocomotorGoalOrientation(source->getOrientation() + shortfall);
+					m_setLocomotor = true;
+				}
+			}
+
 			// The Body can never return Success if the weapon is on the turret, or else we end
 			// up shooting the current weapon (which is on the turret) in the wrong direction.
 			// We always say Continue, so the Turret can do its own Aiming state.
@@ -5677,7 +5692,28 @@ StateReturnType AIAttackAimAtTargetState::update()
 
 		// else fall thru!
 	}
-	
+
+	// a fixed gun reloading its clip cannot fire, so a turret that turns has the aiming meanwhile
+	// (the Comanche's chin gun between missile volleys) and the body turns only for its arc
+	Bool noseAims;
+	WhichTurretType aimTurret = sourceAI->getAimingTurret(&noseAims);
+	if (!noseAims)
+	{
+		if (m_canTurnInPlace)
+		{
+			Real relAngle = m_isAttackingObject ?
+												ThePartitionManager->getRelativeAngle2D( source, victim ) :
+												ThePartitionManager->getRelativeAngle2D( source, getMachineGoalPosition() );
+			Real shortfall = sourceAI->getTurretArcShortfall(aimTurret, relAngle);
+			if (shortfall != 0.0f)
+			{
+				sourceAI->setLocomotorGoalOrientation(source->getOrientation() + shortfall);
+				m_setLocomotor = true;
+			}
+		}
+		return STATE_CONTINUE;
+	}
+
 	// no else here!
 	{
 		Real relAngle = m_isAttackingObject ?

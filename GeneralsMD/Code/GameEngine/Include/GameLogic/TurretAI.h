@@ -221,6 +221,7 @@ public:
 	Real						m_turnRate;
 	Real						m_pitchRate;
 	Real						m_naturalTurretAngle;
+	Real						m_yawLimit;							///< how far either side of the natural angle the turret can swing; PI is all the way round
 	Real						m_naturalTurretPitch;
 	Real						m_turretFireAngleSweep[WEAPONSLOT_COUNT];	///< if nonzero, sweep within +/- this angle range while firing
 	Real						m_turretSweepSpeedModifier[WEAPONSLOT_COUNT];	///< While sweeping, change your speed by this
@@ -274,6 +275,8 @@ public:
 	Bool isAllowsPitch() const { return m_data->m_isAllowsPitch; }
 	Real getTurnRate() const { return m_data->m_turnRate; }
 	Real getNaturalTurretAngle() const { return m_data->m_naturalTurretAngle; }
+	Real getYawLimit() const { return m_data->m_yawLimit; }
+	Real getArcShortfall(Real relAngle) const;
 	Real getPitchRate() const { return m_data->m_pitchRate; }
 	Real getFirePitch() const { return m_data->m_firePitch; }
 	Real getGroundUnitPitch() const { return m_data->m_groundUnitPitch; }

@@ -452,6 +452,8 @@ public:
 	Bool isWeaponSlotOnTurretAndAimingAtTarget(WeaponSlotType wslot, const Object* victim) const;
 	Bool getTurretRotAndPitch(WhichTurretType tur, Real* turretAngle, Real* turretPitch) const;
 	Real getTurretTurnRate(WhichTurretType tur) const;
+	Real getTurretArcShortfall(WhichTurretType tur, Real relAngle) const;
+	WhichTurretType getAimingTurret(Bool *noseAims) const;	///< the turret the current attack aims with, and whether the nose has to
 	void setTurretTargetObject(WhichTurretType tur, Object* o, Bool isForceAttacking = FALSE);
 	Object *getTurretTargetObject( WhichTurretType tur, Bool clearDeadTargets = TRUE );
 	void setTurretTargetPosition(WhichTurretType tur, const Coord3D* pos);

@@ -898,6 +898,51 @@ Real AIUpdateInterface::getTurretTurnRate(WhichTurretType tur) const
 }
 
 //=============================================================================
+/**
+	Which turret the current attack aims with, and whether that leaves the nose to do it. A gun with no
+	turret, or on one that cannot turn, aims with the nose; but while its clip reloads it cannot fire,
+	so a turret that turns does the aiming instead and the nose is free. That is the Comanche between
+	missile volleys, its pod reloading for fifteen seconds while the chin gun keeps firing.
+*/
+WhichTurretType AIUpdateInterface::getAimingTurret(Bool *noseAims) const
+{
+	WhichTurretType tur = getWhichTurretForCurWeapon();
+	if (getTurretTurnRate(tur) != 0.0f)
+	{
+		*noseAims = FALSE;
+		return tur;
+	}
+
+	// the turret is found first: Weapon::getStatus refreshes the weapon's saved status, so it is asked
+	// only of a unit that has somewhere else to aim from
+	for (Int i = 0; i < MAX_TURRETS; ++i)
+	{
+		if (getTurretTurnRate((WhichTurretType)i) != 0.0f)
+		{
+			const Weapon *weapon = getObject()->getCurrentWeapon();
+			if (weapon && weapon->getStatus() == RELOADING_CLIP)
+			{
+				*noseAims = FALSE;
+				return (WhichTurretType)i;
+			}
+			break;
+		}
+	}
+
+	*noseAims = TRUE;
+	return tur;
+}
+
+//=============================================================================
+/// how far the body has to turn to bring a target at relAngle into turret tur's arc (TurretAI::getArcShortfall)
+Real AIUpdateInterface::getTurretArcShortfall(WhichTurretType tur, Real relAngle) const
+{
+	return (tur != TURRET_INVALID && m_turretAI[tur] != NULL) ?
+					m_turretAI[tur]->getArcShortfall(relAngle) :
+					0.0f;
+}
+
+//=============================================================================
 WhichTurretType AIUpdateInterface::getWhichTurretForCurWeapon() const
 {
 	for (int i = 0; i < MAX_TURRETS; ++i)
@@ -3920,12 +3965,13 @@ UpdateSleepTime AIUpdateInterface::doLocomotor( void )
 			{
 				updateWithdrawTarget();
 				Object *target = NULL;
-				WhichTurretType tur = getWhichTurretForCurWeapon();
-				if (tur == TURRET_INVALID)
+				Bool noseAims;
+				WhichTurretType tur = getAimingTurret(&noseAims);
+				if (noseAims && tur == TURRET_INVALID)
 				{
 					target = getCurrentVictim();
 				}
-				else if (getTurretTurnRate(tur) == 0.0f)
+				else if (noseAims)
 				{
 					target = getTurretTargetObject(tur, FALSE);
 					if (target == NULL)
@@ -3935,6 +3981,26 @@ UpdateSleepTime AIUpdateInterface::doLocomotor( void )
 				{
 					faceTargetPos = *target->getPosition();
 					faceTarget = &faceTargetPos;
+				}
+				else if (!noseAims)
+				{
+					// a turret with a limited arc: turn the body only as far as brings its target into the arc
+					const Real HEADING_POINT_DIST = 100.0f;	// any distance does; the nose is turned to its bearing
+					Object *turretTarget = getTurretTargetObject(tur, FALSE);
+					if (turretTarget == NULL)
+						turretTarget = getCurrentVictim();
+					if (turretTarget && !turretTarget->isEffectivelyDead())
+					{
+						Real shortfall = getTurretArcShortfall(tur, ThePartitionManager->getRelativeAngle2D(getObject(), turretTarget->getPosition()));
+						if (shortfall != 0.0f)
+						{
+							Real heading = getObject()->getOrientation() + shortfall;
+							faceTargetPos = *getObject()->getPosition();
+							faceTargetPos.x += Cos(heading) * HEADING_POINT_DIST;
+							faceTargetPos.y += Sin(heading) * HEADING_POINT_DIST;
+							faceTarget = &faceTargetPos;
+						}
+					}
 				}
 			}
 
