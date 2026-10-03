@@ -203,6 +203,11 @@ public:
 	// frame's camera is back; until the first one, such a draw uses the view it was drawn with.
 	void Set_Scene_View(const float view[16]);
 
+	// How a smoke particle shades itself, apart from what the smoke does to the ground: how dark a
+	// particle on its plume's far side goes, and the power the share of the plume in front of it is
+	// raised to, which keeps the sun side lit (VOLUMETRIC_SAMPLING, smoke_reaching).
+	void Set_Smoke_Self_Shadow(float gain, float curve);
+
 	// What is in the map, read back through a staging copy: how much of it was drawn into and how
 	// near the nearest thing is.  A caster pass that drew nothing leaves a map that is all one
 	// value, and no draw count tells that apart from a pass that drew the world.
@@ -330,7 +335,8 @@ private:
 		float Sky[4];
 		float SkyUp[4];
 		// The smoke in the sun's light (VOLUMETRIC_SAMPLING): how dark the thickest smoke leaves
-		// what is behind it, zero on a frame without; and in z, one for a draw in camera space.
+		// what is behind it, zero on a frame without; the same for a particle shading itself; one
+		// for a draw in camera space; and the power on the self-shade.
 		float VolumeParameters[4];
 	};
 	// A model under directional lights, drawn by generated programs.
@@ -446,6 +452,8 @@ private:
 	bool SmokeMapRefused;
 	bool SmokeMapFilled;
 	float SmokeStrength;
+	float SmokeSelfGain;
+	float SmokeSelfCurve;
 	bool Make_Smoke_Map();
 	void Release_Smoke_Map();
 

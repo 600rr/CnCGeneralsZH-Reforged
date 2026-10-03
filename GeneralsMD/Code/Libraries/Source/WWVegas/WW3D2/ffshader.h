@@ -224,7 +224,8 @@ const unsigned NORMAL_MAPPED_LIGHTS = 4;
 // sums.
 //
 // VolumeParameters.x is how dark a pixel behind the thickest smoke goes, zero on a frame with no
-// smoke in the map.  .z is one for a draw whose vertices are in camera space already, which is the
+// smoke in the map, and .y the same for a particle shading itself, with .w the power that keeps its
+// plume's sun side lit.  .z is one for a draw whose vertices are in camera space already, which is the
 // particles: they take the sun's map through four wide taps, because a smoke sprite drawn twenty
 // deep would otherwise pay the fifty taps the ground pays, twenty times over.
 #define VOLUMETRIC_SAMPLING \
@@ -246,14 +247,27 @@ const unsigned NORMAL_MAPPED_LIGHTS = 4;
 	"float smoke_reaching(float4 position)\n" \
 	"{\n" \
 	"    float3 sun;\n" \
-	"    if (VolumeParameters.x <= 0.0 || !sun_point(position, sun)) return 1.0;\n" \
+	"    bool particle = VolumeParameters.z > 0.5;\n" \
+	"    float gain = particle ? VolumeParameters.y : VolumeParameters.x;\n" \
+	"    if (gain <= 0.0 || !sun_point(position, sun)) return 1.0;\n" \
 	"    float4 sums = SmokeMap.SampleLevel(SmokeSampler, sun.xy, 0);\n" \
 	"    if (sums.x < 0.001) return 1.0;\n" \
 	"    float centre = sums.y / sums.x;\n" \
 	"    float width = sqrt(max(sums.z / sums.x - centre * centre, 1e-10));\n" \
-	"    // the bell curve's integral up to here, the logistic stand-in for the normal distribution\n" \
-	"    float ahead = 1.0 / (1.0 + exp(-1.702 * (sun.z - centre) / width));\n" \
-	"    return 1.0 - VolumeParameters.x * (1.0 - exp(-sums.x * ahead));\n" \
+	"    float behind = (sun.z - centre) / width;\n" \
+	"    float ahead;\n" \
+	"    if (particle) {\n" \
+	"        // A particle inside its own plume: none of the plume ahead of it at the near edge, a\n" \
+	"        // width in front of the centre, and all of it at the far edge, a width behind.  The\n" \
+	"        // bell curve's tails darkened the sun side too, which greyed the whole plume; raised to\n" \
+	"        // a power the share stays near nothing on the sun side and climbs at the back.\n" \
+	"        ahead = pow(saturate(behind * 0.5 + 0.5), VolumeParameters.w);\n" \
+	"    }\n" \
+	"    else {\n" \
+	"        // the bell curve's integral up to here, the logistic stand-in for the normal distribution\n" \
+	"        ahead = 1.0 / (1.0 + exp(-1.702 * behind));\n" \
+	"    }\n" \
+	"    return 1.0 - gain * (1.0 - exp(-sums.x * ahead));\n" \
 	"}\n" \
 	"\n" \
 	"float sun_reaching_coarse(float4 position)\n" \
@@ -284,8 +298,11 @@ const unsigned NORMAL_MAPPED_LIGHTS = 4;
 #define VOLUMETRIC_CONSTANTS \
 	"    float4 VolumeParameters;\n"
 
-// SHADOW_APPLY with the smoke in it.
+// SHADOW_APPLY with the smoke in it.  A particle takes the shade whatever its own brightness: the
+// threshold is there for ground under the shroud, and on smoke it tied the shade to the colour, so
+// the fire's glow, lifting a dark plume over the threshold, made it take more shade and go darker.
 #define VOLUMETRIC_SHADOW_APPLY SHADOW_LIT \
+	"    if (VolumeParameters.z > 0.5) shadow_lit = 1.0;\n" \
 	"    current.rgb *= lerp(1.0, light_reaching(input.Position), shadow_lit);\n"
 
 // The HLSL for one description, or false when the description names an operation or an argument

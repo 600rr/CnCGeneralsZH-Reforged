@@ -320,6 +320,8 @@ DX11BackendClass::DX11BackendClass()
 	SmokeMapRefused = false;
 	SmokeMapFilled = false;
 	SmokeStrength = 0.0f;
+	SmokeSelfGain = 0.8f;
+	SmokeSelfCurve = 2.0f;
 	for (unsigned stage = 0; stage < DX11_BACKEND_TEXTURE_STAGES; ++stage) {
 		set_identity(TextureTransforms[stage]);
 	}
@@ -772,8 +774,8 @@ bool DX11BackendClass::Fill_Smoke_Map(const float * casters, unsigned count, flo
 		return false;
 	}
 	// Nothing to draw is not a reason to make the map; whether it could be made is answered the
-	// first time there is.
-	if (casters == NULL || count == 0 || strength <= 0.0f) {
+	// first time there is.  A ground strength of nought still fills it for the smoke's own shade.
+	if (casters == NULL || count == 0 || (strength <= 0.0f && SmokeSelfGain <= 0.0f)) {
 		return !SmokeMapRefused;
 	}
 	if (!Make_Smoke_Map()) {
@@ -905,6 +907,15 @@ void DX11BackendClass::Set_Scene_View(const float view[16])
 	if (!SceneViewKnown || memcmp(SceneView, view, sizeof(SceneView)) != 0) {
 		memcpy(SceneView, view, sizeof(SceneView));
 		SceneViewKnown = true;
+		ConstantsChanged = true;
+	}
+}
+
+void DX11BackendClass::Set_Smoke_Self_Shadow(float gain, float curve)
+{
+	if (gain != SmokeSelfGain || curve != SmokeSelfCurve) {
+		SmokeSelfGain = gain;
+		SmokeSelfCurve = curve;
 		ConstantsChanged = true;
 	}
 }
@@ -2106,7 +2117,9 @@ void DX11BackendClass::Upload_Constants()
 			}
 		}
 		pixel_block.VolumeParameters[0] = SmokeMapFilled ? SmokeStrength : 0.0f;
+		pixel_block.VolumeParameters[1] = SmokeMapFilled ? SmokeSelfGain : 0.0f;
 		pixel_block.VolumeParameters[2] = camera_space ? 1.0f : 0.0f;
+		pixel_block.VolumeParameters[3] = SmokeSelfCurve;
 		memcpy(pixel_block.ShadowFromClip, ShadowFromClip, sizeof(pixel_block.ShadowFromClip));
 		pixel_block.ShadowParameters[0] = (ShadowMapSize > 0)
 			? 1.0f / static_cast<float>(ShadowMapSize) : 0.0f;

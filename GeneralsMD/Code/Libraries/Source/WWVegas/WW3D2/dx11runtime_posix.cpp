@@ -73,6 +73,7 @@ void Direct3D11_Set_Shadow_Parameters(float, float, float, float, float, float, 
 void Direct3D11_Clear_Shadow_Parameters() {}
 bool Direct3D11_Fill_Smoke_Map(const float *, unsigned, float) { return false; }
 void Direct3D11_Set_Scene_View(const float [16]) {}
+void Direct3D11_Set_Smoke_Self_Shadow(float, float) {}
 
 void Direct3D11_Mark_Surface_Dirty(struct IDirect3DSurface9 *) {}
 void Direct3D11_Mirror_Render_Target(struct IDirect3DSurface9 *) {}
