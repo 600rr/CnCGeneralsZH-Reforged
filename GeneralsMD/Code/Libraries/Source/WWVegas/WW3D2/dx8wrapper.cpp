@@ -480,9 +480,8 @@ bool DX8Wrapper::Init(void * hwnd, bool lite)
 	memset(Shadow_Map,0,sizeof(ZTextureClass*)*MAX_SHADOW_MAPS);
 
 	// D3DX9 has no import library and is bound by hand, so this has to happen before
-	// anything reaches a D3DX entry point.  A machine without d3dx9_43.dll gets a
-	// renderer with no texture loading and no shaders rather than a null call, which is
-	// why the failure is logged here and not left for the first caller to trip over.
+	// anything reaches a D3DX entry point.  A machine without d3dx9_43.dll binds the
+	// port's own D3DX, the one ARM64 runs; W3DDisplay::init logs which one it got.
 	if (!Bind_D3DX9_Runtime()) {
 		WWDEBUG_SAY(("DX8Wrapper: d3dx9_43.dll did not bind; textures and shaders will not load\n"));
 	}

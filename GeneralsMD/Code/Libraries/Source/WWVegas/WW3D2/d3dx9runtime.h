@@ -127,11 +127,10 @@ extern D3DXLoadSurfaceFromSurfaceFunction	D3DXLoadSurfaceFromSurface;
 extern D3DXGetFVFVertexSizeFunction			D3DXGetFVFVertexSize;
 
 // Loads d3dx9_43.dll and resolves all seventeen entry points, this header's and
-// d3dx9math.h's.  Returns false and leaves every pointer null if the DLL is missing or
-// any one of them is not exported, so a caller that checks the return value never has
-// to check the pointers.  Calling it a second time is free and reports the first call.
-// On ARM64, and on x64 with ZH_D3DX_PORTABLE=1, it binds the port's own bodies instead
-// (d3dx9runtime.cpp says which) and returns true.
+// d3dx9math.h's.  Calling it a second time is free and reports the first call.  On ARM64,
+// on x64 with ZH_D3DX_PORTABLE=1, and on x64 when the DLL is missing or any one of them
+// is not exported, it binds the port's own bodies instead (D3DX9_Runtime_Name says which)
+// and returns true, so on Windows it does not fail.
 bool Bind_D3DX9_Runtime(void);
 
 // Frees the DLL and nulls every pointer, so the next Bind_D3DX9_Runtime tries again.

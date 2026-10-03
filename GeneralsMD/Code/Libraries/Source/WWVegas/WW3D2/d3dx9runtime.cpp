@@ -70,7 +70,7 @@ static bool BoundPortable = false;
 static void release_module(void);
 
 /* The port's own D3DX, for Windows on Arm, which has no DLL: Microsoft shipped d3dx9_43.dll for x86 and
-	 x64 only, and an ARM64 process cannot load either.
+	 x64 only, and an ARM64 process cannot load either.  An x64 machine that lacks the DLL lands here too.
 	 - The arithmetic is d3dx9portable.cpp, what macOS and Linux use, held against the DLL by
 		 test_d3dx9portable_oracle on x64.  None of it reaches the simulation, whose D3DXVec4Transform is
 		 d3dx9math.h's.
@@ -212,6 +212,14 @@ static void bind_portable_runtime(void)
 	D3DXVec3Transform = (D3DXVec3TransformFunction)D3DXPortable_Vec3_Transform;
 }
 
+static bool bind_portable_fallback(void)
+{
+	bind_portable_runtime();
+	BoundPortable = true;
+	BindSucceeded = true;
+	return true;
+}
+
 struct ErrorName
 {
 	HRESULT Result;
@@ -252,15 +260,14 @@ bool Bind_D3DX9_Runtime(void)
 	BindAttempted = true;
 
 	if (portable_wanted()) {
-		bind_portable_runtime();
-		BoundPortable = true;
-		BindSucceeded = true;
-		return true;
+		return bind_portable_fallback();
 	}
 
+	// A repack that never ran the DirectX June 2010 redistributable has no d3dx9_43.dll.  It gets
+	// the code Windows on ARM64 runs instead of a null D3DXCreateTexture at the first texture.
 	D3DX9Module = LoadLibraryA(D3DX9_MODULE_NAME);
 	if (D3DX9Module == NULL) {
-		return false;
+		return bind_portable_fallback();
 	}
 
 	D3DXAssembleShader = (D3DXAssembleShaderFunction)
@@ -322,6 +329,7 @@ bool Bind_D3DX9_Runtime(void)
 
 	if (!BindSucceeded) {
 		release_module();
+		return bind_portable_fallback();
 	}
 	return BindSucceeded;
 }

@@ -363,15 +363,17 @@ int main(int argument_count, char ** arguments)
 	// d3dx9runtime.cpp is what the renderer will bind, so the test binds the same thing
 	// rather than a copy of it: a missing entry point fails here before it fails in a match.
 	BoundD3DX9Runtime d3dx9;
+	// Without the DLL the bind lands on the port's own D3DX and still succeeds, so ask what it bound.
+	const bool boundDLL = d3dx9.Is_Bound() && strcmp(D3DX9_Runtime_Name(), "d3dx9_43.dll") == 0;
 #if defined(_M_ARM64)
 	// There is no d3dx9_43.dll for ARM64, so the rest of this - the DLL's assembler, its math against the
 	// signatures, its CPU dispatch - has nothing to run against.  The device checks above have run.
-	if (!d3dx9.Is_Bound()) {
+	if (!boundDLL) {
 		printf("SKIP: no d3dx9_43.dll exists for ARM64; the D3DX half of this check needs it\n");
 		return 77;
 	}
 #endif
-	if (!d3dx9.Is_Bound()) {
+	if (!boundDLL) {
 		printf("FAIL: d3dx9_43.dll did not bind; all seventeen entry points are phase 1 dependencies\n");
 		return 1;
 	}
