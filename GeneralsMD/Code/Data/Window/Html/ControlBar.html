@@ -4,14 +4,14 @@
   out the way the owner drew them on 2026-10-01: the console standing on the middle of the screen's
   bottom edge, one plate of steel with a well for each section side by side - the radar with the
   experience bar beside it, as tall as the console; the selection with, in the header strip over
-  it, the idle worker's key, the skills key, the under-attack light and the smoke signals; the
+  it, the idle worker's key, the skills key and the smoke signals; the
   command grid with the power bar in its header - with the general's powers growing out of its right
   hand end, and the top page hanging from the middle of the top edge, the match clock's plate over
   the money's.  Laid out at
   ControlBarHudScale(), 70 percent of the uniform scale the
   tooltips and the boards use.  The command buttons, the radar, the money and the
-  portrait are still the bar's windows and paint over this page.  The under-attack light, the power
-  bar and the experience bar are the page's to draw: their windows take the clicks and draw
+  portrait are still the bar's windows and paint over this page.  The power bar and the experience
+  bar are the page's to draw: their windows take the clicks and draw
   nothing.  The menu, idle worker and promotion buttons are the page's altogether, pressed through
   data-click="press:Name"; the chat button is gone and Enter still opens the chat.  Same materials
   as Window/Html/Spectator.html, whose header says what the renderer draws and what not.
@@ -89,9 +89,9 @@
                            radar's, which reaches up to the console's top line
     {{idletab.x}} ...      in the selection's header from its left, on a grid of seven 30 pixel
     {{skillstab.x}} ...    slots: the idle worker's key, {{idleflash}} "flash" for half of every
-    {{alerttab.x}} ...     0.7 seconds of the client's clock while one is idle; the skills key, two
-                           slots, the rank's stars, pressed through data-click="press:ButtonGeneral"
-                           for the promotion screen; and the under-attack light
+                           0.7 seconds of the client's clock while one is idle; and the skills key,
+                           two slots, the rank's stars, pressed through
+                           data-click="press:ButtonGeneral" for the promotion screen
     {{powerframe.x}} ...   the power bar's groove in the command grid's header strip;
                            {{powerframe.inner}} the height inside the frame and its lip
     {{clock.x}} ...        the match clock's well at the top of the top page, its figure
@@ -103,9 +103,8 @@
                            and {{Name.state}} any of "disabled", "hilite", "pushed", for LeftHUD (the
                            radar), RightHUD (the portrait's box), CameoWindow (the portrait),
                            CommandWindow, MoneyDisplay, PowerWindow, GeneralsExp, ButtonGeneral,
-                           ButtonLarge (the minimise button, stood down), ButtonOptions, ButtonIdleWorker,
-                           PopupCommunicator and WinUAttack (the under-attack light: "disabled" while
-                           it is lit, which is how the bar blinks it)
+                           ButtonLarge (the minimise button, stood down), ButtonOptions, ButtonIdleWorker
+                           and PopupCommunicator
   All in the page's pixels, a pixel of an 800x600 screen.  Without this page the plates draw.
 
   Edit the copy under Run/Window/Html and the next match reads it.
@@ -311,16 +310,8 @@
   /* the key in each one's top left corner is the game's, lettered the way the command buttons'
      are (InGameUI::drawCellGridFront) */
 
-  /* the under-attack light: a red lamp in a tab of a slot in the selection's header, dark until the
-     bar blinks it.  The lamp is a bar 22 by 10 with its rim */
-  .alert .led { position: absolute; left: 3px; top: 5px; width: 20px; height: 8px; border: 1px solid #120302;
-                background: linear-gradient(to bottom, #4a0d08, #2a0604); }
-  .alert .glint { position: absolute; left: 2px; top: 1px; width: 16px; height: 2px; background-color: #6a2a24; }
-  .alert.disabled .led { border-color: #ff9a80; background: linear-gradient(to bottom, #ff6a50, #d01a08); }
-  .alert.disabled .glint { background-color: #ffe4dc; }
-
   /* the skills key: the rank, and the promotion button, a key like the idle worker's in a tab of two
-     slots between the idle worker's and the under-attack light, a star on it for every rank there
+     slots after the idle worker's, a star on it for every rank there
      is, gold up to the one reached and dark past it.  The key is 58 by 17 with its rim, a pixel in
      from the tab's left and two down.  Under the pointer it comes
      up as lit steel with a gold rim, and while a promotion waits to be spent it blinks in the side's own
@@ -355,7 +346,7 @@
      on the screen's edge */
   .bezel .base { position: absolute; height: 1px; background-color: #0c1114; }
 
-  /* the smoke signals: three slots after the under-attack light, a key in each: a crosshair to
+  /* the smoke signals: three slots after the skills key, a key in each: a crosshair to
      attack, a shield to defend, an eye to look */
   /* each key stands at its own left, pushed down by {{signalN.drop}} while it rises: a relatively
      placed box inside an absolutely placed one is laid out from the screen's corner here, and the
@@ -383,7 +374,6 @@
     <div class="rungs" style="width: {{expframe.innerw}}px"><div class="rung {{lit}}" data-each="expcells" style="top: {{y}}px; height: {{h}}px; width: {{expframe.innerw}}px"><div class="seg" style="width: {{expframe.innerw}}px; height: {{segh}}px"></div></div></div>
     <div class="lip"></div>
   </div>
-  <div class="piece tab alert {{alerttab.shown}} {{WinUAttack.state}}" style="left: {{alerttab.x}}px; top: {{alerttab.y}}px; width: {{alerttab.w}}px; height: {{alerttab.h}}px"><div class="led"><div class="glint"></div></div></div>
   <div class="piece tab rank {{skillstab.shown}} {{promotion}} {{blink}} {{ButtonGeneral.state}}" style="left: {{skillstab.x}}px; top: {{skillstab.y}}px; width: {{skillstab.w}}px; height: {{skillstab.h}}px">
     <div class="key" data-click="press:ButtonGeneral"><div class="star {{lit}}" data-each="rankstars" style="left: {{x}}px"></div><div class="veil"></div></div>
   </div>

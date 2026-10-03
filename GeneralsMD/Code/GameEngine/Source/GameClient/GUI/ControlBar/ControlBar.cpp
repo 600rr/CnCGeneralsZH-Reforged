@@ -1560,9 +1560,6 @@ ControlBar::ControlBar( void )
 	m_sideSelectAnimateDown = FALSE;
 	updateCommanBarBorderColors(GAME_COLOR_UNDEFINED,GAME_COLOR_UNDEFINED,GAME_COLOR_UNDEFINED,GAME_COLOR_UNDEFINED);
 
-	m_radarAttackGlowOn = FALSE;
-	m_remainingRadarAttackGlowFrames = 0;
-	m_radarAttackGlowWindow = NULL;
 	m_pageSolidsActive = FALSE;
 
 #if defined( _INTERNAL ) || defined( _DEBUG )
@@ -2912,7 +2909,6 @@ void ControlBar::shutdownWindows( void )
 	m_rightHUDCameoWindow = NULL;
 	m_rightHUDUnitSelectParent = NULL;
 	m_communicatorButton = NULL;
-	m_radarAttackGlowWindow = NULL;
 	m_animateDownWindow = NULL;
 	m_multiSelectTiles.clear();
 	m_sideSelectAnimateDown = FALSE;
@@ -3130,7 +3126,11 @@ void ControlBar::initWindows( void )
 			win->winSetTooltipFunc(commandButtonTooltip);
 		}
 
-		m_radarAttackGlowWindow = TheWindowManager->winGetWindowFromId(NULL, TheNameKeyGenerator->nameToKey("ControlBar.wnd:WinUAttack"));
+		// the radar's under-attack light is gone from the bar: the radar ping, the EVA line and the
+		// message say it already
+		win = TheWindowManager->winGetWindowFromId(NULL, TheNameKeyGenerator->nameToKey("ControlBar.wnd:WinUAttack"));
+		if(win)
+			win->winHide(TRUE);
 
 
 		win = TheWindowManager->winGetWindowFromId(NULL,TheNameKeyGenerator->nameToKey( AsciiString( "ControlBar.wnd:BackgroundMarker" ) ));
@@ -3183,10 +3183,6 @@ void ControlBar::reset( void )
 	hideSpecialPowerShortcut();
 	// do not destroy the rally drawable, it will get destroyed with everythign else during a reset
 	m_rallyPointDrawableID = INVALID_DRAWABLE_ID;
-	if(m_radarAttackGlowWindow)
-		m_radarAttackGlowWindow->winEnable(TRUE);
-	m_radarAttackGlowOn = FALSE;
-	m_remainingRadarAttackGlowFrames = 0;
 
 	m_displayedConstructPercent = -1.0f;
 	m_displayedOCLTimerSeconds = 0;
@@ -3296,9 +3292,7 @@ void ControlBar::update( void )
 	// This is driven by the client, once per RENDER frame, but nearly everything it recomputes -
 	// button availability, build clocks, special power readiness, the general's star flash - is
 	// keyed to the LOGIC frame and cannot change twice inside one tick.  With the renderer
-	// uncapped that was several whole passes per tick for nothing, and updateRadarAttackGlow()
-	// was actively wrong: it burns one frame off its own countdown per call, so the "under
-	// attack" radar glow blinked (fps/30)x too fast and went dark early.  Latch that work to the
+	// uncapped that was several whole passes per tick for nothing.  Latch that work to the
 	// logic frame.  The scheme/video/animation managers and the window runUpdate()s below really
 	// are per-render and stay outside the latch, and so does anything the UI marks dirty, which
 	// must still answer a selection change on the frame it happens.  See FINDINGS.md 7.4.
@@ -3311,7 +3305,6 @@ void ControlBar::update( void )
 	if( logicTick )
 	{
 		getStarImage();
-		updateRadarAttackGlow();
 	}
 
 	//
@@ -6250,40 +6243,6 @@ void ControlBar::drawTransitionHandler( void )
 {
 //	if(m_transitionHandler)
 //		m_transitionHandler->draw();
-}
-enum{
-	RADAR_ATTACK_GLOW_FRAMES = 150,
-	RADAR_ATTACK_GLOW_NUM_TIMES = 15  ///< number of times we'll flash
-};
-
-void ControlBar::triggerRadarAttackGlow( void )
-{
-	if(!m_radarAttackGlowWindow)
-		return;
-	m_radarAttackGlowOn = TRUE;
-	m_remainingRadarAttackGlowFrames = RADAR_ATTACK_GLOW_FRAMES;
-	if(BitTest(m_radarAttackGlowWindow->winGetStatus(),WIN_STATUS_ENABLED) == TRUE)
-		m_radarAttackGlowWindow->winEnable(FALSE);
-}
-
-void ControlBar::updateRadarAttackGlow ( void )
-{
-	if(!m_radarAttackGlowOn || !m_radarAttackGlowWindow)
-		return;
-	m_remainingRadarAttackGlowFrames--;
-	if(m_remainingRadarAttackGlowFrames <= 0)
-	{
-		m_radarAttackGlowOn = FALSE;
-		m_radarAttackGlowWindow->winEnable(TRUE);
-		return;
-	}
-	
-	if(m_remainingRadarAttackGlowFrames % RADAR_ATTACK_GLOW_NUM_TIMES == 0)
-	{
-		m_radarAttackGlowWindow->winEnable(!BitTest(m_radarAttackGlowWindow->winGetStatus(),WIN_STATUS_ENABLED));
-	}
-
-	
 }
 void ControlBar::initSpecialPowershortcutBar( Player *player)
 {

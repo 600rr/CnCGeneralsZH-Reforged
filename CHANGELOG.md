@@ -20,7 +20,7 @@ found and fixed â€” EA's own, not port damage.**
 
 ## The command bar moves to the middle
 
-- The command bar is one console standing in the middle of the bottom edge: a taller radar, your selection and the build grid side by side, with the power bar over the grid. The idle worker, rank and under-attack keys sit in a row over your selection, and in multiplayer the smoke signals join them.
+- The command bar is one console standing in the middle of the bottom edge: a taller radar, your selection and the build grid side by side, with the power bar over the grid. The idle worker and rank keys sit in a row over your selection, and in multiplayer the smoke signals join them. The red under-attack lamp is gone: the ping on the radar, the voice and the line in the event feed already tell you where you are hit, and the lamp only blinked about it a second time.
 - Your general's powers grow out of the console's right end, a column for each F key with its powers stacked up it, and only the powers you have take any room.
 - A single unit's name and health stand beside its portrait, and a veteran gets his gold stars there too. A group shows every type it holds in the same box, five to a row.
 - The match clock hangs from the middle of the top edge with your money in its own box under it. Superweapon countdowns in the top right corner are as big as your general's power buttons. Hold Tab and the scoreboard drops down from it.

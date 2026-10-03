@@ -1058,8 +1058,6 @@ public:
 	///< put the general's powers bar on screen now, filled in, with no slide-in (control changed hands)
 	void showSpecialPowerShortcutInstantly( Player *player );
 
-	void triggerRadarAttackGlow( void );
-
 	void drawSpecialPowerShortcutMultiplierText();
 
 	Bool hasAnyShortcutSelection() const;
@@ -1174,8 +1172,6 @@ protected:
 										 Int oldParentX, Int oldParentY, Int newParentX, Int newParentY,
 										 Int shiftX = 0 );
 
-	void updateRadarAttackGlow ( void );
-	
 	void setDefaultControlBarConfig( void );
 	void setSquishedControlBarConfig( void );
 	void setLowControlBarConfig( void );
@@ -1564,10 +1560,6 @@ private:
 	
 	ICoord2D m_controlBarForegroundMarkerPos;
 	ICoord2D m_controlBarBackgroundMarkerPos;
-	
-	Bool m_radarAttackGlowOn;
-	Int m_remainingRadarAttackGlowFrames;
-	GameWindow *m_radarAttackGlowWindow;
 
 #if defined( _INTERNAL ) || defined( _DEBUG )
 	UnsignedInt m_lastFrameMarkedDirty;

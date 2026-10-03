@@ -11385,16 +11385,14 @@ static void standDownPromotionScreen( void );
 static const char *const CONTROL_BAR_WINDOWS[] =
 {
 	"LeftHUD", "RightHUD", "CameoWindow", "CommandWindow", "MoneyDisplay", "PowerWindow", "GeneralsExp",
-	"ButtonGeneral", "ButtonLarge", "ButtonOptions", "ButtonIdleWorker", "PopupCommunicator",
-	"WinUAttack"
+	"ButtonGeneral", "ButtonLarge", "ButtonOptions", "ButtonIdleWorker", "PopupCommunicator"
 };
 
 /** The bar's windows the page draws instead of letting them paint themselves: the promotion and
-	* minimise buttons and the radar's under-attack light.  They still take their clicks; only their
-	* pictures are the page's. */
+	* minimise buttons among them.  They still take their clicks; only their pictures are the page's. */
 static const char *const CONTROL_BAR_CUSTOM[] =
 {
-	"ButtonGeneral", "ButtonLarge", "WinUAttack", "PowerWindow", "GeneralsExp", "ExpBarForeground", "RightHUD",
+	"ButtonGeneral", "ButtonLarge", "PowerWindow", "GeneralsExp", "ExpBarForeground", "RightHUD",
 	"WinUnitSelected"
 };
 
@@ -11616,8 +11614,8 @@ static const Int UPGRADE_CAMEOS = 5;		///< UnitUpgrade1 to 5, a single unit's up
 	* the radar with the experience bar beside it, then the command grid, six by three, with the power
 	* bar lying along its top and the money on the power bar's left end, then the portrait bar on the
 	* screen's bottom edge.  Since 2026-10-01 the radar's keys stand in the selection's header instead,
-	* the idle worker's key, the skills key and the under-attack light from its left, the smoke signals
-	* after them, and the radar has the height of its header too. */
+	* the idle worker's key and the skills key from its left, the smoke signals after them, and the
+	* radar has the height of its header too. */
 enum
 {
 	COMMAND_BUTTON_WIDTH	= 50,		///< a command button as ControlBar.wnd authors it, the promotion screen's cell
@@ -11639,10 +11637,10 @@ enum
 	EXPERIENCE_GAP				= 4,		///< between it and the radar
 	PANEL_FOOT						= 4,		///< a grid's ring over the screen's bottom edge, the steel under it
 	HEADER_SLOTS					= 7,		///< the selection's header, in slots of a seventh of it: the idle worker's key,
-																///< the skills key two, the under-attack light, and a smoke signal's key each
+																///< the skills key two and a smoke signal's key each; the last slot is bare
+																///< steel since the under-attack light went, so the keys kept their size
 	IDLE_SLOTS						= 1,
 	SKILLS_SLOTS					= 2,
-	ALERT_SLOTS						= 1,
 	SIGNAL_BUTTONS				= 3,		///< attack, defend, look, a slot each
 	SIGNAL_STEP_HEIGHT		= 24,		///< how far each smoke signal key rises into its place
 	MONEY_TEXT_MARGIN			= 5,		///< the money's well each side of its figure, which sets the well's width
@@ -12338,11 +12336,10 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	putExperienceBar( values, lists[ "expcells" ], lists[ "rankstars" ] );
 
 	// in the selection's header, on its grid of HEADER_SLOTS from its left: the idle worker's key, the
-	// skills key - the rank's stars, and the button that opens the promotion screen - the under-attack
-	// light, and in a multiplayer game the three smoke signals.  A key that is not there leaves no gap:
-	// a watcher, or a player beaten, has no idle worker's key and no promotions to buy, and only the
-	// light is left at the header's left end.  Every edge is a whole slot from the header's left, each
-	// rounded once, so two tabs share theirs
+	// skills key - the rank's stars, and the button that opens the promotion screen - and in a
+	// multiplayer game the three smoke signals.  A key that is not there leaves no gap: a watcher, or a
+	// player beaten, has no idle worker's key and no promotions to buy.  Every edge is a whole slot
+	// from the header's left, each rounded once, so two tabs share theirs
 	const Bool idleShown = leftFound && centreShown;
 	const Bool skillsShown = leftFound && ThePlayerList->getLocalPlayer()->isPlayerActive();
 	const IRegion2D header = wellHeader( selectionWell, scale );
@@ -12361,11 +12358,9 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	Int slot = 0;
 	const IRegion2D idleTab = Slots::take( header, slotWidth, slot, idleShown ? IDLE_SLOTS : 0 );
 	const IRegion2D skillsTab = Slots::take( header, slotWidth, slot, skillsShown ? SKILLS_SLOTS : 0 );
-	const IRegion2D alertTab = Slots::take( header, slotWidth, slot, ALERT_SLOTS );
 	const IRegion2D signalTabs = Slots::take( header, slotWidth, slot, signalsShown ? SIGNAL_BUTTONS : 0 );
 	putPageRect( values, "idletab", idleTab, idleShown, scale );
 	putPageRect( values, "skillstab", skillsTab, skillsShown, scale );
-	putPageRect( values, "alerttab", alertTab, leftFound, scale );
 	putPageRect( values, "signals", signalTabs, signalsShown, scale );
 	const UnsignedInt nowMs = Clock_Milliseconds();
 

@@ -45,7 +45,6 @@
 #include "GameClient/Eva.h"
 #include "GameClient/GameWindowManager.h"
 #include "GameClient/InGameUI.h"
-#include "GameClient/ControlBar.h"
 #include "GameClient/PlayerColorScheme.h"
 
 #include "GameLogic/GameLogic.h"
@@ -1239,8 +1238,6 @@ void Radar::tryUnderAttackEvent( const Object *obj )
 	// if event created, do some more feedback
 	if( eventCreated )
 	{
-
-		TheControlBar->triggerRadarAttackGlow();
 		//
 		///@todo Should make an INI data driven table for radar event strings, and audio events
 		//
