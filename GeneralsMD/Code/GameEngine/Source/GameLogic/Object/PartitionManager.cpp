@@ -67,7 +67,6 @@
 
 #include "GameLogic/AIPathfind.h"
 #include "GameLogic/GameLogic.h"
-#include "GameLogic/IncomingDamage.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/Module/AIUpdate.h"
 #include "GameLogic/Module/BodyModule.h"
@@ -5838,18 +5837,6 @@ Bool PartitionFilterPossibleToAttack::allow(Object *objOther)
 	// disable this assert for INTERNAL builds (srj)
 	DEBUG_ASSERTCRASH(m_obj && m_obj->isAbleToAttack(), ("if the object is unable to attack at all, you should filter that out ahead of time!"));
 #endif
-	//
-	// Someone else's shots, in the air or announced and about to be fired, already add up to more
-	// than this thing has left, so acquiring it would spend a volley on a corpse.  Our own
-	// announcement does not count against us, or a unit re-scanning would refuse the target it is
-	// currently lining up.  Skipping it here is what spreads a
-	// group's fire over several targets instead of piling all of it onto the nearest one.  This
-	// filter is only ever used to acquire a target on the unit's own initiative - guarding, attack
-	// moving, idle scanning - so an explicit attack order is never touched by it.
-	//
-	if (IncomingDamageTracker::isSpokenFor(objOther, m_obj->getID()))
-		return FALSE;
-
 	//
 	// A capturable tech building is income, not a target.  The computer razed the enemy's oil derricks
 	// on sight - the one thing you can do with a derrick that earns nobody anything - when it could

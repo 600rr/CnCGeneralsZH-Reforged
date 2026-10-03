@@ -50,7 +50,6 @@
 #include "GameClient/ControlBar.h"	// COMMAND_FIRED_BY_SCRIPT, the flag every script-fired power carries
 #include "GameClient/ParticleSys.h"
 #include "GameLogic/PartitionManager.h"
-#include "GameLogic/IncomingDamage.h"
 #include "GameLogic/Module/BodyModule.h"
 #include "GameLogic/Weapon.h"
 
@@ -965,16 +964,14 @@ static void updateStatues( UnsignedInt now )
 		else
 			++theStatueVictimOutOfRange;
 
-		// "spoken for" is somebody else's shot, in the air or announced, covering what the victim has left
 		if (theStatueStops <= STATUE_DETAIL_LINES)
 		{
-			DEBUG_LOG(("STATUE: frame %d id %d '%s' state %d idle %d waiting %d blocked %d victim %d '%s' at %.0f health %.0f spoken for %d, enemy %d '%s' at %.0f, range %.0f, weapon '%s' status %d\n",
+			DEBUG_LOG(("STATUE: frame %d id %d '%s' state %d idle %d waiting %d blocked %d victim %d '%s' at %.0f health %.0f, enemy %d '%s' at %.0f, range %.0f, weapon '%s' status %d\n",
 								 now, obj->getID(), obj->getTemplate()->getName().str(), (Int)state, ai->isIdle(),
 								 ai->isWaitingForPath(), ai->getNumFramesBlocked(),
 								 victim ? victim->getID() : 0, victim ? victim->getTemplate()->getName().str() : "",
 								 victim ? sqrt( ThePartitionManager->getDistanceSquared( obj, victim, FROM_BOUNDINGSPHERE_2D ) ) : 0.0f,
 								 victim ? victim->getBodyModule()->getHealth() : 0.0f,
-								 victim ? IncomingDamageTracker::isSpokenFor( victim, obj->getID() ) : 0,
 								 enemy->getID(), enemy->getTemplate()->getName().str(), enemyDist,
 								 weapon->getAttackRange( obj ), weapon->getName().str(), (Int)weapon->getStatus()));
 		}

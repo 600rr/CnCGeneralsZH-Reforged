@@ -401,7 +401,6 @@ GameEngine/Include/GameLogic/FPUControl.h
 GameEngine/Include/GameLogic/FiringTracker.h
 GameEngine/Include/GameLogic/GameLogic.h
 GameEngine/Include/GameLogic/GhostObject.h
-GameEngine/Include/GameLogic/IncomingDamage.h
 GameEngine/Include/GameLogic/Locomotor.h
 GameEngine/Include/GameLogic/LocomotorSet.h
 GameEngine/Include/GameLogic/LogicRandomValue.h
@@ -1142,7 +1141,6 @@ GameEngine/Source/GameLogic/Object/Helper/ObjectWeaponStatusHelper.cpp
 GameEngine/Source/GameLogic/Object/Helper/StatusDamageHelper.cpp
 GameEngine/Source/GameLogic/Object/Helper/SubdualDamageHelper.cpp
 GameEngine/Source/GameLogic/Object/Helper/TempWeaponBonusHelper.cpp
-GameEngine/Source/GameLogic/Object/IncomingDamage.cpp
 GameEngine/Source/GameLogic/Object/Locomotor.cpp
 GameEngine/Source/GameLogic/Object/Object.cpp
 GameEngine/Source/GameLogic/Object/ObjectCreationList.cpp

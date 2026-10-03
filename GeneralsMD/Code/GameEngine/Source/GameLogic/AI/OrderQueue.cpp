@@ -29,7 +29,6 @@
 #include "GameLogic/AI.h"
 #include "GameLogic/AIStateMachine.h"
 #include "GameLogic/GameLogic.h"
-#include "GameLogic/IncomingDamage.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/Module/AIUpdate.h"
 #include "GameLogic/Module/JetAIUpdate.h"
@@ -252,12 +251,6 @@ static Bool OrderQueue_isWalking( const AIUpdateInterface *ai )
 		default:
 			return FALSE;
 	}
-}
-
-//-------------------------------------------------------------------------------------------------
-static Bool OrderQueue_isAttack( GameMessage::Type type )
-{
-	return type == GameMessage::MSG_DO_ATTACK_OBJECT || type == GameMessage::MSG_DO_FORCE_ATTACK_OBJECT;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -754,11 +747,6 @@ Bool OrderQueue::isStepOver( OrderChain& chain, Player *owner )
 		const Object *target = TheGameLogic->findObjectByID( targetID );
 		if( target == NULL || target->isEffectivelyDead() )
 			return TRUE;
-
-		// a flight fires from range and its missiles take seconds to arrive, so a target with enough
-		// already in the air to kill it is finished as far as the list is concerned
-		if( OrderQueue_isAttack( chain.m_active.getType() ) && IncomingDamageTracker::isAlreadyDoomed( target ) )
-			return TRUE;
 	}
 
 	// a post never ends by itself; the object it guards dying is the one way off it, above
@@ -844,8 +832,7 @@ Bool OrderQueue::advance( OrderChain& chain, Player *owner )
 		if( targetID != INVALID_ID )
 		{
 			const Object *target = TheGameLogic->findObjectByID( targetID );
-			if( target == NULL || target->isEffectivelyDead()
-					|| ( OrderQueue_isAttack( next.getType() ) && IncomingDamageTracker::isAlreadyDoomed( target ) ) )
+			if( target == NULL || target->isEffectivelyDead() )
 				continue;
 
 			// the list was copied when the chain split, and the upgrade belongs to whichever half has the unit

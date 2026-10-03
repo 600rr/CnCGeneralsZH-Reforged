@@ -38,7 +38,6 @@
 #include "Common/Xfer.h"
 
 #include "GameLogic/GameLogic.h"
-#include "GameLogic/IncomingDamage.h"
 #include "GameLogic/Module/AIUpdate.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/PartitionManager.h"
@@ -1048,15 +1047,6 @@ StateReturnType TurretAIAimTurretState::update()
 				{
 					turret->setTurretTargetObject(NULL, FALSE);
 				}
-				return STATE_FAILURE;
-			}
-
-			// The fire state holds the round on a victim already paid for and hands back to this state, which
-			// never looks for another target, so a turret that had picked the target on its own sat silent
-			// until the booking lapsed.  Drop it; hold scans again, and its scan passes over doomed targets.
-			if (turret->friend_getTargetWasSetByIdleMood() && IncomingDamageTracker::isSpokenFor(enemy, obj->getID()))
-			{
-				turret->setTurretTargetObject(NULL, FALSE);
 				return STATE_FAILURE;
 			}
 

@@ -57,7 +57,6 @@
 #include "GameLogic/AITNGuard.h"
 #include "GameLogic/AIStateMachine.h"
 #include "GameLogic/AIPathfind.h"
-#include "GameLogic/IncomingDamage.h"
 #include "GameLogic/Locomotor.h"
 #include "GameLogic/PartitionManager.h"
 #include "GameLogic/PolygonTrigger.h"
@@ -5541,22 +5540,6 @@ StateReturnType AIAttackAimAtTargetState::onEnter()
 
 //----------------------------------------------------------------------------------------------------------
 /**
- * Put this unit's intended shot on the ledger before it is fired. Said again every frame the unit is
- * still lining the shot up, and forgotten a few frames after it stops saying it.
- */
-static void announceIntendedShot(Object *shooter, Object *victim)
-{
-	Weapon *weapon = shooter->getCurrentWeapon();
-	if (weapon == NULL)
-		return;
-
-	IncomingDamageTracker::claimShot(victim->getID(), shooter->getID(),
-																	 weapon->estimateWeaponDamage(shooter, victim),
-																	 TheGameLogic->getFrame());
-}
-
-//----------------------------------------------------------------------------------------------------------
-/**
  * Would a plane that turns toward its target as hard as it can get the target inside its aim cone while it
  * is still minDist or more away?  relX is how far the target lies ahead of the nose, relY how far to the
  * side, both in the plane's own frame; cosAimDelta is the cosine of the weapon's aim cone.  The turn is
@@ -5664,23 +5647,6 @@ StateReturnType AIAttackAimAtTargetState::update()
 	{
 		if (!victim || victim->isEffectivelyDead())
 			return STATE_FAILURE;	// can't aim at dead things
-
-		// The fire state holds the round when the victim is already paid for and falls back to aiming,
-		// and aiming hands it straight back to the fire state, so a unit that keeps this victim keeps
-		// holding its fire for as long as somebody else's claim covers it.  In a crowd that is most of
-		// a squad standing silent beside enemies nobody has claimed while a few of them whittle down
-		// one target.  Let go of a target we chose ourselves: the scan that chose it passes over
-		// doomed ones and finds the next.  An order is kept, as the fire state promises.
-		if (sourceAI->getLastCommandSource() == CMD_FROM_AI &&
-				IncomingDamageTracker::isSpokenFor(victim, source->getID()))
-		{
-			return STATE_FAILURE;
-		}
-
-		// tell everyone else what this shot is going to take off the victim while it is still being
-		// aimed, so a second unit lining up the same target can see the kill is covered before it
-		// commits to the trip rather than on the frame the first round launches
-		announceIntendedShot(source, victim);
 	}
 
 	WhichTurretType tur = sourceAI->getWhichTurretForCurWeapon();
@@ -5915,31 +5881,6 @@ StateReturnType AIAttackFireWeaponState::update()
 		// if our target is dead, go ahead and stop.
 		if (!victim || victim->isEffectivelyDead())
 			return STATE_FAILURE;
-
-		//
-		// What is in the air, plus what other units have announced they are about to fire, adds up to
-		// more than the victim has left: this round would be spent on something that is dead the
-		// moment the rest of it lands.
-		//
-		// Hold the shot.  Failing out of the fire state goes back to aiming rather than out of the
-		// attack, so nothing is given up: the unit keeps the victim and keeps its aim, it just does
-		// not spend the round.  A unit that picked this target itself gets a fresh scan out of the
-		// thing that put it here - guarding, attack moving, the idle scan - and that scan passes over
-		// a doomed victim, so it moves on.  One under orders waits for whoever re-aims it, which is
-		// what an attack circle working down its target list does, and arrives at the next victim
-		// with a full load instead of an empty one.
-		//
-		// A player order used to be exempt from this and fire regardless, which is what put all four
-		// loads of a four plane flight into the first tank they reached: missiles are seconds in the
-		// air, and the other three planes could not see that the kill was already paid for.  Booked
-		// damage lapses on its own if the shot never lands, so nothing holds fire forever.
-		//
-		if (IncomingDamageTracker::isSpokenFor(victim, obj->getID()))
-			return STATE_FAILURE;
-
-		// still ours to take, so keep saying so: the wind-up before a shot can run for a second and
-		// nothing is in the air during it
-		announceIntendedShot(obj, victim);
 	}
 	WeaponSlotType wslot;
 	Weapon* weapon = obj->getCurrentWeapon(&wslot);
