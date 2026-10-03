@@ -38,6 +38,7 @@
 #include "Common/Xfer.h"
 
 #include "GameClient/Drawable.h"
+#include "GameClient/FXList.h"
 
 #include "GameLogic/GameLogic.h"
 #include "GameLogic/PartitionManager.h"
@@ -83,6 +84,7 @@ PointDefenseLaserUpdate::PointDefenseLaserUpdate( Thing *thing, const ModuleData
 	m_bestTargetID = INVALID_ID;
 	m_nextScanFrames = 0;
 	m_nextShotAvailableInFrames = 0;
+	m_shotsFiredFromClip = 0;
 	m_inRange  					= false;
 	setWakeFrame(getObject(), UPDATE_SLEEP_NONE);// No starting sleep, but we want to sleep later.
 } 
@@ -216,13 +218,25 @@ void PointDefenseLaserUpdate::fireWhenReady()
 		{
 			if( !target->isEffectivelyDead() )
 			{
+				// The shot lands where the target is now: a weapon with no laser and no projectile shows
+				// the hit with its ProjectileDetonationFX there, which nothing else would play.
+				Coord3D hitPos = *target->getPosition();
+
 				Weapon* w = TheWeaponStore->allocateNewWeapon( wt, TERTIARY_WEAPON );
 				w->loadAmmoNow( getObject() );
 				w->fireWeapon( getObject(), target );
 				w->deleteInstance();
 
-				// And now that we have shot, set our internal reload timer.
+				FXList::doFXPos( wt->getProjectileDetonateFX( getObject()->getVeterancyLevel() ), &hitPos );
+
+				// And now that we have shot, set our internal reload timer.  A weapon a fresh copy of is
+				// fired every time never empties its clip, so the clip is counted here.
 				m_nextShotAvailableInFrames = wt->getDelayBetweenShots( bonus );
+				if( wt->getClipSize() > 0 && ++m_shotsFiredFromClip >= wt->getClipSize() )
+				{
+					m_shotsFiredFromClip = 0;
+					m_nextShotAvailableInFrames = wt->getClipReloadTime( bonus );
+				}
 			}
 
 			if( target->isEffectivelyDead() )
@@ -385,13 +399,14 @@ void PointDefenseLaserUpdate::crc( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Xfer method
 	* Version Info:
-	* 1: Initial version */
+	* 1: Initial version
+	* 2: shots fired from the clip */
 // ------------------------------------------------------------------------------------------------
 void PointDefenseLaserUpdate::xfer( Xfer *xfer )
 {
 
 	// version
-	XferVersion currentVersion = 1;
+	XferVersion currentVersion = 2;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -409,6 +424,9 @@ void PointDefenseLaserUpdate::xfer( Xfer *xfer )
 
 	// next shot available in frames
 	xfer->xferInt( &m_nextShotAvailableInFrames );
+
+	if( version >= 2 )
+		xfer->xferInt( &m_shotsFiredFromClip );
 
 }  // end xfer
 

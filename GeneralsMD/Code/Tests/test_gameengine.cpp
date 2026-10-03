@@ -637,7 +637,8 @@ TEST(balance_patch_edits_a_weapon_in_place)
 	 a regeneration that loses the LightPulse ships a file that lights nothing and still refuses
 	 every player who does not have that exact copy.  Since then the file also carries fixes that
 	 are not lights: the Artillery Barrage's sound, with EA's own light, and the Superweapon uplink's
-	 pink death, which has none and is the one block the count leaves out. */
+	 pink death, which has none and is the one block the count leaves out.  The Paladin's and the
+	 Avenger's hard-kill charge added two of the fork's own, its launch and its blast, lit too. */
 static const char *const s_unlitReforgedFXList = "FXList SupW_FX_ParticleUplinkDeathInitial";
 
 TEST(fxlist_reforged_ini_parses_and_keeps_its_light)
@@ -686,7 +687,7 @@ TEST(fxlist_reforged_ini_parses_and_keeps_its_light)
 	}
 	fclose( fp );
 
-	CHECK_EQ( blocks, 90 );
+	CHECK_EQ( blocks, 92 );
 	CHECK_EQ( lit, blocks );
 }
 

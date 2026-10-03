@@ -97,7 +97,8 @@ CountermeasuresBehavior::CountermeasuresBehavior( Thing *thing, const ModuleData
 	m_divertedMissiles = 0;
 	m_incomingMissiles = 0;
 	m_nextVolleyFrame = 0;
-	
+	m_reloadFrame = 0;	// EA left it to the memory pool, whose reused blocks hold another object's bytes
+
 	setWakeFrame( getObject(), UPDATE_SLEEP_NONE );
 }
 
@@ -118,11 +119,17 @@ void CountermeasuresBehavior::reportMissileForCountermeasures( Object *missile )
 	//Record the number of missiles that have been fired at us
 	m_incomingMissiles++;
 
+	const CountermeasuresBehaviorModuleData *data = getCountermeasuresBehaviorModuleData();
+
+	// Flares fitted from birth are flares and nothing else.  EA's upgrade decoys a missile fired at a
+	// parked aircraft too, and with no flare in the air to turn onto it flies on and does no damage.
+	if( data->m_startsActive && !getObject()->isAirborneTarget() )
+		return;
+
   if( m_availableCountermeasures + m_activeCountermeasures > 0 )
 	{
-		//We have countermeasures we can use. Determine now whether or not the incoming missile will 
+		//We have countermeasures we can use. Determine now whether or not the incoming missile will
 		//be diverted.
-		const CountermeasuresBehaviorModuleData *data = getCountermeasuresBehaviorModuleData();
 
 		if( GameLogicRandomValueReal( 0.0f, 1.0f ) < data->m_evasionRate )
 		{
@@ -203,8 +210,8 @@ ObjectID CountermeasuresBehavior::calculateCountermeasureToDivertTo( const Objec
 //-------------------------------------------------------------------------------------------------
 Bool CountermeasuresBehavior::isActive() const
 {
-	return isUpgradeActive();
-}	
+	return getCountermeasuresBehaviorModuleData()->m_startsActive || isUpgradeActive();
+}
 
 //-------------------------------------------------------------------------------------------------
 /** The update callback. */
@@ -219,7 +226,7 @@ UpdateSleepTime CountermeasuresBehavior::update( void )
 	{
 		return UPDATE_SLEEP_FOREVER;
 	}
-	if( !isUpgradeActive()  )
+	if( !isActive() )
 	{
 		return UPDATE_SLEEP_FOREVER;
 	}
@@ -265,6 +272,13 @@ UpdateSleepTime CountermeasuresBehavior::update( void )
 				m_nextVolleyFrame = now + data->m_framesBetweenVolleys;
 			}
 		}
+	}
+	else if( m_reactionFrame && m_reactionFrame <= now )
+	{
+		// The reaction came due on the ground and no flare went up.  Left set, it would never match
+		// the clock again and would keep every later reaction from starting, so the aircraft would
+		// never fire another flare.
+		m_reactionFrame = 0;
 	}
 
 	//Handle auto-reloading (data->m_reloadFrames of zero means it's not possible to auto-reload).
@@ -376,13 +390,15 @@ void CountermeasuresBehavior::crc( Xfer *xfer )
 //------------------------------------------------------------------------------------------------
 /** Xfer method
 	* Version Info:
-	* 1: Initial version */
+	* 1: Initial version
+	* 2: the flares, their counts and the volley frames
+	* 3: the reload frame */
 //------------------------------------------------------------------------------------------------
 void CountermeasuresBehavior::xfer( Xfer *xfer )
 {
 
 	// version
-	XferVersion currentVersion = 2;
+	XferVersion currentVersion = 3;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -402,6 +418,9 @@ void CountermeasuresBehavior::xfer( Xfer *xfer )
 		xfer->xferUnsignedInt( &m_reactionFrame );
 		xfer->xferUnsignedInt( &m_nextVolleyFrame );
 	}
+
+	if( version >= 3 )
+		xfer->xferUnsignedInt( &m_reloadFrame );
 
 }  // end xfer
 
