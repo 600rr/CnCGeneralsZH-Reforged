@@ -72,6 +72,12 @@ GlobalData* TheWritableGlobalData = NULL;				///< The global data singleton
 //-------------------------------------------------------------------------------------------------
 GlobalData* GlobalData::m_theOriginal = NULL;
 
+// A key the shipped GameData.ini still carries but nothing reads. It has to stay in the table,
+// because an unknown key throws, so it is parsed into nothing.
+static void parseIgnoredField( INI *, void *, void *, const void * )
+{
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // PRIVATE DATA ///////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -103,7 +109,7 @@ GlobalData* GlobalData::m_theOriginal = NULL;
 	{ "TerrainLOD",									INI::parseIndexList,	TerrainLODNames,	offsetof( GlobalData, m_terrainLOD ) },
 	{ "TerrainLODTargetTimeMS",			INI::parseInt,				NULL,			offsetof( GlobalData, m_terrainLODTargetTimeMS ) },
 	{ "RightMouseAlwaysScrolls",		INI::parseBool,				NULL,			offsetof( GlobalData, m_rightMouseAlwaysScrolls ) },
-	{ "UseWaterPlane",							INI::parseBool,				NULL,			offsetof( GlobalData, m_useWaterPlane ) },
+	{ "UseWaterPlane",							parseIgnoredField,		NULL,			0 },
 	{ "UseCloudPlane",							INI::parseBool,				NULL,			offsetof( GlobalData, m_useCloudPlane ) },
 	{ "DownwindAngle",							INI::parseReal,				NULL,			offsetof( GlobalData, m_downwindAngle ) },
 	{ "UseShadowVolumes",						INI::parseBool,				NULL,			offsetof( GlobalData, m_useShadowVolumes ) },
@@ -677,7 +683,6 @@ GlobalData::GlobalData()
 	m_enableDynamicLOD = TRUE;
 	m_enableStaticLOD = TRUE;
 	m_rightMouseAlwaysScrolls = FALSE;
-	m_useWaterPlane = FALSE;
 	m_useCloudPlane = FALSE;
 	m_downwindAngle = ( -0.785f );//Northeast!
 	m_useShadowVolumes = FALSE;

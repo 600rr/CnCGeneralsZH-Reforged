@@ -4926,7 +4926,7 @@ GameMessageDisposition CommandTranslator::translateGameMessage(const GameMessage
 		//-----------------------------------------------------------------------------------------
 		case GameMessage::MSG_META_DEMO_TOGGLE_WATERPLANE:
 		{
-			TheWritableGlobalData->m_useWaterPlane = !TheGlobalData->m_useWaterPlane;
+			// The water plane it toggled is gone; the message is kept so the enum does not shift.
 			disp = DESTROY_MESSAGE;
 			break;
 		}  

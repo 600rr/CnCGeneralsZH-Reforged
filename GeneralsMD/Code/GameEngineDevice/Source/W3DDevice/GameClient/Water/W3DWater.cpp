@@ -1878,36 +1878,6 @@ void WaterRenderObjClass::Render(RenderInfoClass & rinfo)
 				/*************************************************************************************/
 			#endif
 
-			#if 0	// No longer do simple rendering.
-				if (TheGlobalData->m_useWaterPlane)
-				{
-					//@todo : Would it be better to create a new camera or change the transform of the
-					//existing one?
-					rinfo.Camera.Set_Transform( reflectedTransform );
-					rinfo.Camera.Apply();	//force an update of all the camera dependent parameters like frustum clip planes
-
-					if(m_useCloudLayer)
-					{	
-						if (TheGlobalData && TheGlobalData->m_drawEntireTerrain)
-							m_skyBox->Render(rinfo);
-						else
-						{
-							renderSky();
-							if (m_tod == TIME_OF_DAY_NIGHT)
-								renderSkyBody(&reflectedTransform);
-						}
-					}
-
-					WW3D::Render(m_parentScene,&rinfo.Camera);
-
-					rinfo.Camera.Set_Transform(OldCameraMatrix);	//restore original non-reflected matrix
-					rinfo.Camera.Apply();	//force an update of all the camera dependent parameters like frustum clip planes
-
-					//clear the z-buffer to remove changes made by objects inside mirror
-					DX8Wrapper::Clear(false,true,Vector3(0.1f,0.1f,0.1f));
-				}
-			#endif
-
 			#ifdef CLIP_GEOMETRY_TO_PLANE
 				//restore default culling mode
 			//	DX8Wrapper::Set_DX8_Render_State(D3DRS_CLIPPLANEENABLE, 0 );	//turn off first clip plane
