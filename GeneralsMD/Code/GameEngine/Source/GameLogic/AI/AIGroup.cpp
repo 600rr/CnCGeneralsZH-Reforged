@@ -3667,18 +3667,15 @@ static Bool mayPlayerSell( const Object *obj )
 	*/
 void AIGroup::groupSell( CommandSourceType cmdSource )
 {
-	std::list<Object *>::iterator i, thisIterator;
-	Object *obj;
-
-	for( i = m_memberList.begin(); i != m_memberList.end(); /*empty*/ )
+	// sellObject deselects what it sells, and deselecting rebuilds the player's selection as a new
+	// group: every other member leaves this one, which deletes itself once it is empty.  Walking
+	// m_memberList through that read freed list nodes on the second building of a selection.
+	const VecObjectID members = getAllIDs();
+	for( VecObjectID::const_iterator i = members.begin(); i != members.end(); ++i )
 	{
-
-		// work off of 'thisIterator' as we may change the contents of this list
-		thisIterator = i;
-		++i;
-
-		// get object
-		obj = *thisIterator;
+		Object *obj = TheGameLogic->findObjectByID( *i );
+		if( obj == NULL )
+			continue;
 
 		if( cmdSource == CMD_FROM_PLAYER && !mayPlayerSell( obj ) )
 			continue;
@@ -3794,15 +3791,15 @@ void AIGroup::groupCombatDrop( Object *target, const Coord3D &pos, CommandSource
 //-------------------------------------------------------------------------------------
 void AIGroup::groupDoCommandButton( const CommandButton *commandButton, CommandSourceType cmdSource )
 {
-	std::list<Object *>::iterator i;
-	Object *source;
-
-	for( i = m_memberList.begin(); i != m_memberList.end(); ++i )
+	// A sell button sells through BuildAssistant::sellObject, which empties and deletes this group
+	// the way groupSell explains, so the members are taken down first.
+	const VecObjectID members = getAllIDs();
+	for( VecObjectID::const_iterator i = members.begin(); i != members.end(); ++i )
 	{
+		Object *source = TheGameLogic->findObjectByID( *i );
+		if( source == NULL )
+			continue;
 
-		// get object
-		source = *i;
-		
 		source->doCommandButton( commandButton, cmdSource );
 	}  // end for, i
 }
