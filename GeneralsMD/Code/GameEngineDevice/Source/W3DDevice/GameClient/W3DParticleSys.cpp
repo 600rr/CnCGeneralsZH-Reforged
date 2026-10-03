@@ -88,9 +88,6 @@ static Bool particlePresetShader( ParticleSystemInfo::ParticleShaderType type, S
 // what measure the light.  All of it is client-side colour on the CPU, so both devices draw it.
 //-------------------------------------------------------------------------------------------------
 
-/// placeholder for the option; becomes TheGlobalData->m_smokeFireLighting once that field exists
-static const Bool SMOKE_FIRE_LIGHTING = TRUE;
-
 static const Int	SMOKE_LIGHTS_MAX							= 32;			///< lights gathered a frame, the strongest kept
 static const Int	SMOKE_LIGHTS_PER_SYSTEM				= 4;			///< lights one smoke system evaluates per particle
 static const Real	FIRE_LIGHT_FULL_WEIGHT				= 120.0f;	///< sum of brightness x size at which a fire is full strength
@@ -521,7 +518,7 @@ void W3DParticleSystemManager::doParticles(RenderInfoClass &rinfo)
 	fillJob.extentX = beX;
 	fillJob.extentY = beY;
 	fillJob.extentZ = beZ;
-	fillJob.lightCount = SMOKE_FIRE_LIGHTING ? gatherSmokeLights( fillJob.lights, bbox ) : 0;
+	fillJob.lightCount = TheGlobalData->m_smokeFireLighting ? gatherSmokeLights( fillJob.lights, bbox ) : 0;
 	JobSystem::parallel_for( (Int)m_billboardFills.size(), BILLBOARD_FILLS_PER_CLAIM, fillBillboards, &fillJob );
 	size_t nextFill = 0;
 	for( ParticleSystemManager::ParticleSystemListIt it = particleSysList.begin(); it != particleSysList.end(); ++it)
