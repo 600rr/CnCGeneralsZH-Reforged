@@ -192,6 +192,8 @@ public:
 	void setAllowBouncing(Bool allow) { setFlag(ALLOW_BOUNCE, allow); }
 	void setAllowCollideForce(Bool allow) { setFlag(ALLOW_COLLIDE_FORCE, allow); }
 	void setAllowAirborneFriction(Bool allow) { setFlag(APPLY_FRICTION2D_WHEN_AIRBORNE, allow); }
+	/// the locomotor steers the whole 2D velocity (a helicopter), so no sideways friction while it drives
+	void setMotiveSteersSideways(Bool steers) { setFlag(MOTIVE_STEERS_SIDEWAYS, steers); }
 	void setImmuneToFallingDamage(Bool allow) { setFlag(IMMUNE_TO_FALLING_DAMAGE, allow); }
 	void setStunned(Bool allow) { setFlag(IS_STUNNED, allow); }
 
@@ -268,6 +270,7 @@ private:
 		IS_IN_FREEFALL									= 0x0200,
 		IS_IN_UPDATE										= 0x0400,
 		IS_STUNNED											= 0x0800,
+		MOTIVE_STEERS_SIDEWAYS					= 0x1000,
 	};
 
 	/*

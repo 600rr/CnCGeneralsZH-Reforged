@@ -1017,6 +1017,9 @@ void Locomotor::locoUpdate_moveTowardsAngle(Object* obj, Real goalAngle)
 		desiredPos.y += Sin(goalAngle) * 1000.0f;
 		PhysicsTurningType rotating = rotateTowardsPosition(obj, desiredPos);
 		physics->setTurning(rotating);
+		// a helicopter turning in place has no sideways friction to stop a slide it came in with
+		if (isHelicopter(obj))
+			brakeHelicopter(obj, physics);
 		handleBehaviorZ(obj, physics, *obj->getPosition());
 	}
 
@@ -1048,11 +1051,22 @@ void Locomotor::setPhysicsOptions(Object* obj)
 	physics->setExtraFriction(m_template->m_extra2DFriction + extraExtraFriction);
 	physics->setAllowAirborneFriction(getApply2DFrictionWhenAirborne());	// you'd think we wouldn't want friction in the air, but it's needed for realistic behavior.
 	physics->setStickToGround(getStickToGround()); // walking guys aren't allowed to catch huge (or even small) air.
+	physics->setMotiveSteersSideways(isHelicopter(obj));
 }
 
 //-------------------------------------------------------------------------------------------------
-void Locomotor::locoUpdate_moveTowardsPosition(Object* obj, const Coord3D& goalPos, 
-																							 Real onPathDistToGoal, Real desiredSpeed, Bool *blocked)
+Bool Locomotor::isHelicopter(const Object* obj) const
+{
+	return m_template->m_appearance == LOCO_HOVER
+		&& BitTest(m_template->m_surfaces, LOCOMOTORSURFACE_AIR)
+		&& obj->isKindOf(KINDOF_AIRCRAFT)
+		&& !obj->isEffectivelyDead();	// a dying one spirals on HelicopterSlowDeathBehavior's forces and the old friction
+}
+
+//-------------------------------------------------------------------------------------------------
+void Locomotor::locoUpdate_moveTowardsPosition(Object* obj, const Coord3D& goalPos,
+																							 Real onPathDistToGoal, Real desiredSpeed, Bool *blocked,
+																							 const Coord3D *faceTarget)
 {
 	setFlag(MAINTAIN_POS_IS_VALID, false);
 
@@ -1195,7 +1209,7 @@ void Locomotor::locoUpdate_moveTowardsPosition(Object* obj, const Coord3D& goalP
 					moveTowardsPositionTreads(obj, physics, goalPos, onPathDistToGoal, desiredSpeed);
 					break;
 			case LOCO_HOVER:
-					moveTowardsPositionHover(obj, physics, goalPos, onPathDistToGoal, desiredSpeed);
+					moveTowardsPositionHover(obj, physics, goalPos, onPathDistToGoal, desiredSpeed, faceTarget);
 					break;
 			case LOCO_WINGS:
 					moveTowardsPositionWings(obj, physics, goalPos, onPathDistToGoal, desiredSpeed);
@@ -1251,9 +1265,11 @@ void Locomotor::locoUpdate_moveTowardsPosition(Object* obj, const Coord3D& goalP
 		{
 			// not projectiles only cheat in x & y.
 			// Normalize.
-			if (dist > 0.001f) 
+			if (dist > 0.001f)
 			{
-				Real vel = fabs(physics->getForwardSpeed2D());
+				// a helicopter's speed need not lie along its nose
+				const Coord3D *v = physics->getVelocity();
+				Real vel = isHelicopter(obj) ? sqrt(sqr(v->x) + sqr(v->y)) : fabs(physics->getForwardSpeed2D());
 				if (vel < MIN_VEL) 
 					vel = MIN_VEL;
 				if (vel > dist)
@@ -1997,10 +2013,13 @@ void Locomotor::moveTowardsPositionWings(Object* obj, PhysicsBehavior *physics, 
 }
 
 //-------------------------------------------------------------------------------------------------
-void Locomotor::moveTowardsPositionHover(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed)
+void Locomotor::moveTowardsPositionHover(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed, const Coord3D *faceTarget)
 {
 	// handle the 2D component.
-	moveTowardsPositionOther(obj, physics, goalPos, onPathDistToGoal, desiredSpeed);
+	if (isHelicopter(obj))
+		moveTowardsPositionHelicopter(obj, physics, goalPos, onPathDistToGoal, desiredSpeed, faceTarget);
+	else
+		moveTowardsPositionOther(obj, physics, goalPos, onPathDistToGoal, desiredSpeed);
 
 	// Only hover locomotors care about their OverWater special effects.  (OverWater also affects speed, so this is not a client thing)
 	Coord3D newPosition = *obj->getPosition();
@@ -2022,6 +2041,100 @@ void Locomotor::moveTowardsPositionHover(Object* obj, PhysicsBehavior *physics, 
 			obj->clearModelConditionState( MODELCONDITION_OVER_WATER );
 		}
 	}
+}
+
+//-------------------------------------------------------------------------------------------------
+/*
+	A helicopter flies the velocity it wants rather than the way it faces. Every frame it pushes its
+	2D velocity towards the goal at the speed it can still stop from, by at most its Acceleration,
+	or its Braking while it is shedding speed in the direction it is going. The nose is a separate
+	choice: on the target when there is one, turned into the flight while the goal is more than
+	LONG_FLIGHT_SECONDS out at full speed, and otherwise left where it is, so a short hop behind or
+	beside the helicopter is flown backwards or sideways and a long one turns as it goes.
+*/
+void Locomotor::moveTowardsPositionHelicopter(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed, const Coord3D *faceTarget)
+{
+	const Real LONG_FLIGHT_SECONDS = 3.0f;
+	const Real TOO_CLOSE_TO_AIM = 1.0f;	// right over the target the bearing to it is noise
+
+	BodyDamageType bdt = obj->getBodyModule()->getDamageState();
+	Real maxSpeed = getMaxSpeedForCondition(bdt);
+	if (desiredSpeed > maxSpeed)
+		desiredSpeed = maxSpeed;
+
+	const Coord3D *pos = obj->getPosition();
+	PhysicsTurningType rotating = TURN_NONE;
+	if (faceTarget)
+	{
+		if (fabs(faceTarget->x - pos->x) > TOO_CLOSE_TO_AIM || fabs(faceTarget->y - pos->y) > TOO_CLOSE_TO_AIM)
+			rotating = rotateTowardsPosition(obj, *faceTarget);
+	}
+	else if (onPathDistToGoal > maxSpeed * LOGICFRAMES_PER_SECOND * LONG_FLIGHT_SECONDS)
+	{
+		rotating = rotateTowardsPosition(obj, goalPos);
+	}
+	physics->setTurning(rotating);
+
+	Real goalSpeed = desiredSpeed;
+	if (!getFlag(NO_SLOW_DOWN_AS_APPROACHING_DEST))
+	{
+		Real stopSpeed = sqrt(2.0f * getBraking() * onPathDistToGoal);
+		if (goalSpeed > stopSpeed)
+			goalSpeed = stopSpeed;
+	}
+
+	Real wantX = 0.0f;
+	Real wantY = 0.0f;
+	Real dx = goalPos.x - pos->x;
+	Real dy = goalPos.y - pos->y;
+	Real dist = sqrt(dx*dx + dy*dy);
+	if (dist > 0.001f)
+	{
+		wantX = dx * goalSpeed / dist;
+		wantY = dy * goalSpeed / dist;
+	}
+
+	const Coord3D *vel = physics->getVelocity();
+	Real ax = wantX - vel->x;
+	Real ay = wantY - vel->y;
+	Real need = sqrt(ax*ax + ay*ay);
+	if (need == 0.0f)
+		return;
+
+	Real limit = (ax * vel->x + ay * vel->y < 0.0f) ? getBraking() : getMaxAcceleration(bdt);
+	if (need > limit)
+	{
+		ax *= limit / need;
+		ay *= limit / need;
+	}
+
+	Real mass = physics->getMass();
+	Coord3D force;
+	force.x = mass * ax;
+	force.y = mass * ay;
+	force.z = 0.0f;
+	physics->applyMotiveForce(&force);
+}
+
+//-------------------------------------------------------------------------------------------------
+/// stop a helicopter's 2D velocity whichever way it points, at its Braking
+void Locomotor::brakeHelicopter(Object* obj, PhysicsBehavior *physics)
+{
+	const Coord3D *vel = physics->getVelocity();
+	Real speed = sqrt(sqr(vel->x) + sqr(vel->y));
+	if (speed == 0.0f)
+		return;
+
+	Real cut = getBraking();
+	if (cut > speed)
+		cut = speed;
+
+	Real scale = -physics->getMass() * cut / speed;
+	Coord3D force;
+	force.x = scale * vel->x;
+	force.y = scale * vel->y;
+	force.z = 0.0f;
+	physics->applyMotiveForce(&force);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2724,6 +2837,12 @@ void Locomotor::maintainCurrentPositionWings(Object* obj, PhysicsBehavior *physi
 void Locomotor::maintainCurrentPositionHover(Object* obj, PhysicsBehavior *physics)
 {
 	physics->setTurning(TURN_NONE);
+	if (isHelicopter(obj))
+	{
+		if (physics->isMotive())
+			brakeHelicopter(obj, physics);
+		return;
+	}
 	if (physics->isMotive())	// no need to stop something that isn't moving.
 	{
 		DEBUG_ASSERTCRASH(m_template->m_minSpeed == 0.0f, ("HOVER should always have zero minSpeeds (otherwise, they WING)"));

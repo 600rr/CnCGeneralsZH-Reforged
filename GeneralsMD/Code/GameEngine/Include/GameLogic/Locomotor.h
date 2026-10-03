@@ -230,8 +230,12 @@ public:
 
 	void setPhysicsOptions(Object* obj);
 
-	void locoUpdate_moveTowardsPosition(Object* obj, const Coord3D& goalPos, 
-		Real onPathDistToGoal, Real desiredSpeed, Bool *blocked);
+	/**
+		faceTarget, when not null, is where a helicopter keeps its nose while it flies to goalPos.
+		Every other locomotor ignores it.
+	*/
+	void locoUpdate_moveTowardsPosition(Object* obj, const Coord3D& goalPos,
+		Real onPathDistToGoal, Real desiredSpeed, Bool *blocked, const Coord3D *faceTarget = NULL);
 	void locoUpdate_moveTowardsAngle(Object* obj, Real angle);
 	/**
 		Kill any current (2D) velocity (but stay at current position, or as close as possible)
@@ -301,6 +305,13 @@ public:
 	inline Real getWanderAboutPointRadius() const {return m_template->m_wanderAboutPointRadius;}
 
 	Real calcMinTurnRadius(BodyDamageType condition, Real* timeToTravelThatDist) const;
+
+	/**
+		A live aircraft on a hovering air locomotor: Comanche, Chinook, Helix and every general's copy.
+		Its locomotor steers the whole 2D velocity, so it flies sideways and backwards and the nose
+		is free to point elsewhere. Drones and parachutes hover too, but are not KINDOF_AIRCRAFT.
+	*/
+	Bool isHelicopter(const Object* obj) const;
 
 	/// this is handy for doing things like forcing helicopters to crash realistically: cut their lift.
 	inline void setMaxLift(Real lift) { m_maxLift = lift; }
@@ -378,7 +389,9 @@ protected:
 	void moveTowardsPositionWheels(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed);
 	void moveTowardsPositionTreads(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed);
 	void moveTowardsPositionOther(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed);
-	void moveTowardsPositionHover(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed);
+	void moveTowardsPositionHover(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed, const Coord3D *faceTarget);
+	void moveTowardsPositionHelicopter(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed, const Coord3D *faceTarget);
+	void brakeHelicopter(Object* obj, PhysicsBehavior *physics);
 	void moveTowardsPositionThrust(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed);
 	void moveTowardsPositionWings(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed);
 

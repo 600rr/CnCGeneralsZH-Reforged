@@ -1736,19 +1736,58 @@ void Drawable::calcPhysicsXformHoverOrWings( const Locomotor *locomotor, Physics
 	m_locoInfo->m_pitch += m_locoInfo->m_pitchRate * UNIFORM_AXIAL_DAMPING;
 	m_locoInfo->m_roll += m_locoInfo->m_rollRate   * UNIFORM_AXIAL_DAMPING;
 
-	// process chassis acceleration dynamics - damp back towards zero
+	/* A helicopter tilts its rotor the way it wants to go: nose down to speed up, nose up to brake,
+		 a roll into a push sideways, and a little lean held into the airflow while it cruises. The
+		 lean is the point the acceleration spring below settles on, at the locomotor's PitchStiffness
+		 and RollStiffness, so it comes level again in a hover. The velocity-roll factor its INI
+		 carries was tuned for the small skid of a turn and would roll one flying sideways onto its
+		 back, so a helicopter does not use it. */
+	const Bool helicopter = locomotor->isHelicopter(obj);
+	Real accelPitchLimit = ACCEL_PITCH_LIMIT;
+	Real decelPitchLimit = DECEL_PITCH_LIMIT;
+	Real pitchTarget = 0.0f;
+	Real rollTarget = 0.0f;
+	if (helicopter)
+	{
+		const Real LEAN_AT_FULL_ACCEL = 0.2f;	// radians, at the locomotor's own Acceleration
+		const Real LEAN_AT_FULL_SPEED = 0.12f;	// radians, held at the locomotor's own Speed
+		const Real MAX_LEAN = 0.4f;
+		if (accelPitchLimit == 0.0f)
+			accelPitchLimit = MAX_LEAN;
+		if (decelPitchLimit == 0.0f)
+			decelPitchLimit = MAX_LEAN;
 
-	m_locoInfo->m_accelerationPitchRate += ((-PITCH_STIFFNESS * (m_locoInfo->m_accelerationPitch)) + (-PITCH_DAMPING * m_locoInfo->m_accelerationPitchRate));		// spring/damper
+		if (physics->isMotive())
+		{
+			BodyDamageType bdt = obj->getBodyModule()->getDamageState();
+			Real maxAccel = locomotor->getMaxAcceleration(bdt);
+			Real maxSpeed = locomotor->getMaxSpeedForCondition(bdt);
+			Real accelScale = maxAccel > 0.0f ? LEAN_AT_FULL_ACCEL / maxAccel : 0.0f;
+			Real speedScale = maxSpeed > 0.0f ? LEAN_AT_FULL_SPEED / maxSpeed : 0.0f;
+
+			Real forwardVel = dir->x * vel->x + dir->y * vel->y;
+			Real lateralVel = -dir->y * vel->x + dir->x * vel->y;
+			Real forwardAccel = dir->x * accel->x + dir->y * accel->y;
+			Real lateralAccel = -dir->y * accel->x + dir->x * accel->y;
+
+			pitchTarget = forwardAccel * accelScale + forwardVel * speedScale;
+			rollTarget = lateralAccel * accelScale + lateralVel * speedScale;
+		}
+	}
+
+	// process chassis acceleration dynamics - damp back towards zero, or a helicopter's lean
+
+	m_locoInfo->m_accelerationPitchRate += ((-PITCH_STIFFNESS * (m_locoInfo->m_accelerationPitch - pitchTarget)) + (-PITCH_DAMPING * m_locoInfo->m_accelerationPitchRate));		// spring/damper
 	m_locoInfo->m_accelerationPitch += m_locoInfo->m_accelerationPitchRate;
 
-	m_locoInfo->m_accelerationRollRate += ((-ROLL_STIFFNESS * m_locoInfo->m_accelerationRoll) + (-ROLL_DAMPING * m_locoInfo->m_accelerationRollRate));		// spring/damper
+	m_locoInfo->m_accelerationRollRate += ((-ROLL_STIFFNESS * (m_locoInfo->m_accelerationRoll - rollTarget)) + (-ROLL_DAMPING * m_locoInfo->m_accelerationRollRate));		// spring/damper
 	m_locoInfo->m_accelerationRoll += m_locoInfo->m_accelerationRollRate;
 
 	// compute total pitch and roll of tank
 	info.m_totalPitch = m_locoInfo->m_pitch + m_locoInfo->m_accelerationPitch;
 	info.m_totalRoll = m_locoInfo->m_roll + m_locoInfo->m_accelerationRoll;
 
-	if (physics->isMotive()) 
+	if (!helicopter && physics->isMotive())
   {
 		if (Z_VEL_PITCH_COEFF != 0.0f)
 		{
@@ -1777,15 +1816,15 @@ void Drawable::calcPhysicsXformHoverOrWings( const Locomotor *locomotor, Physics
 
 	// limit acceleration pitch and roll
 
-	if (m_locoInfo->m_accelerationPitch > DECEL_PITCH_LIMIT)
-		m_locoInfo->m_accelerationPitch = DECEL_PITCH_LIMIT;
-	else if (m_locoInfo->m_accelerationPitch < -ACCEL_PITCH_LIMIT)
-		m_locoInfo->m_accelerationPitch = -ACCEL_PITCH_LIMIT;
+	if (m_locoInfo->m_accelerationPitch > decelPitchLimit)
+		m_locoInfo->m_accelerationPitch = decelPitchLimit;
+	else if (m_locoInfo->m_accelerationPitch < -accelPitchLimit)
+		m_locoInfo->m_accelerationPitch = -accelPitchLimit;
 
-	if (m_locoInfo->m_accelerationRoll > DECEL_PITCH_LIMIT)
-		m_locoInfo->m_accelerationRoll = DECEL_PITCH_LIMIT;
-	else if (m_locoInfo->m_accelerationRoll < -ACCEL_PITCH_LIMIT)
-		m_locoInfo->m_accelerationRoll = -ACCEL_PITCH_LIMIT;
+	if (m_locoInfo->m_accelerationRoll > decelPitchLimit)
+		m_locoInfo->m_accelerationRoll = decelPitchLimit;
+	else if (m_locoInfo->m_accelerationRoll < -accelPitchLimit)
+		m_locoInfo->m_accelerationRoll = -accelPitchLimit;
 
 
 

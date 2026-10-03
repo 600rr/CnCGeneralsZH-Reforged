@@ -37,6 +37,12 @@ found and fixed â€” EA's own, not port damage.**
 
 - A kill used to promote only the unit that fired the last shot. Two Crusaders could grind an Overlord down to a sliver and a passing Humvee's rocket took every point of it. Now the killing blow earns a quarter and the rest is shared out among everything that hurt the target in the last ten seconds, by how much of its health each one took off. A unit that died before the kill leaves its share to the killer. Healing counts too: an Emperor, or an Overlord or Helix with a Propaganda Tower, earns for every friendly unit it patches up, half of that unit's worth as a kill for a full repair and less for less. The kill on the scoreboard and your general's promotion points still go to the last shot. Replays recorded before this change play out differently.
 
+## Helicopters fly like helicopters
+
+- Every helicopter in the game, on every side and for every general, used to drive like a tank with rotors. Told to go somewhere behind it, a Comanche swung its nose all the way round on the spot and only then flew off nose first. Now it flies where it is sent, backwards or sideways, with its nose left where it was. Sent 300 behind itself, a Comanche turned 178 degrees before it went and was 30 out after a second and a half; now it goes tail first, never turns, and is 30 out after one second. On a long flight the nose comes round into the direction of travel while the helicopter is already on its way.
+- A Comanche keeps its guns on what it is shooting at while it flies. Its cannon and missiles only fire straight ahead, so a Comanche ordered to move in the middle of a fight turned away from its target. It now holds its nose on the target and slides along beside it: one sent across in front of an Overlord it had been shooting stayed within a degree of the tank the whole way, where it used to point 84 degrees off on average. One flying past a supply truck 120 off its line now turns to it and shoots, where it used to fly straight by.
+- A helicopter leans into the move. It dips its nose to speed up and lifts it to stop, rolls into a slide sideways, holds a slight lean at cruising speed, and comes level again in a hover. A replay recorded before this change plays back differently.
+
 ## The frame rate cap is gone
 
 - The picture now runs uncapped; the rules keep their own steady clock.

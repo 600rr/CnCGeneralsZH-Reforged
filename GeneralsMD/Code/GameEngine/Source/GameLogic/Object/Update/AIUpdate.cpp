@@ -3907,6 +3907,33 @@ UpdateSleepTime AIUpdateInterface::doLocomotor( void )
 		}
 		else
 		{
+			/* A helicopter flies with its nose on what it is shooting at.  That matters for a gun with
+				 no turret of its own, or the Comanche's, which has a turn rate of 0 and only fires along
+				 the nose: without this a Comanche passing a target never shot at it.  A weapon on a
+				 turret that turns needs no help. */
+			Coord3D faceTargetPos;
+			const Coord3D *faceTarget = NULL;
+			if (m_curLocomotor->isHelicopter(getObject()))
+			{
+				Object *target = NULL;
+				WhichTurretType tur = getWhichTurretForCurWeapon();
+				if (tur == TURRET_INVALID)
+				{
+					target = getCurrentVictim();
+				}
+				else if (getTurretTurnRate(tur) == 0.0f)
+				{
+					target = getTurretTargetObject(tur, FALSE);
+					if (target == NULL)
+						target = getCurrentVictim();
+				}
+				if (target && !target->isEffectivelyDead())
+				{
+					faceTargetPos = *target->getPosition();
+					faceTarget = &faceTargetPos;
+				}
+			}
+
 			switch (m_locomotorGoalType)
 			{
 				case POSITION_EXPLICIT:
@@ -3915,8 +3942,8 @@ UpdateSleepTime AIUpdateInterface::doLocomotor( void )
 						Real myMaxSpeed = m_curLocomotor->getMaxSpeedForCondition(getObject()->getBodyModule()->getDamageState());
 						if( speed == FAST_AS_POSSIBLE || speed > myMaxSpeed )
 							speed = myMaxSpeed;
-						m_curLocomotor->locoUpdate_moveTowardsPosition(getObject(), 
-							m_locomotorGoalData, 0.0f, speed, &blocked);
+						m_curLocomotor->locoUpdate_moveTowardsPosition(getObject(),
+							m_locomotorGoalData, 0.0f, speed, &blocked, faceTarget);
 						m_doFinalPosition = FALSE;
 					}
 					break;
@@ -4019,7 +4046,7 @@ UpdateSleepTime AIUpdateInterface::doLocomotor( void )
 						}
 
 						m_curLocomotor->locoUpdate_moveTowardsPosition(getObject(), goalPos,
-							onPathDistToGoal+getPathExtraDistance(), speed, &blocked);
+							onPathDistToGoal+getPathExtraDistance(), speed, &blocked, faceTarget);
 
 						m_doFinalPosition = FALSE;
 					}

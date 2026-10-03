@@ -475,7 +475,8 @@ void PhysicsBehavior::applyFrictionalForces()
 			Real lateralVel_x = lateralDot * -dir->y;
 			Real lateralVel_y = lateralDot * dir->x;
 
-			Real lf = mass * getLateralFriction();
+			// a helicopter flying sideways is not skidding: its locomotor holds that velocity on purpose
+			Real lf = (isMotive() && getFlag(MOTIVE_STEERS_SIDEWAYS)) ? 0.0f : mass * getLateralFriction();
 
 			Coord3D accel;
 			accel.x = -(lf * lateralVel_x);
