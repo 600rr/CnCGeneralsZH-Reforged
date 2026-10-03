@@ -334,6 +334,18 @@ m_role(AIROLE_AGGRESSIVE)
 	m_shuttleFrontFrame = 0;
 	m_lastWaveSlots = 0;
 	m_lentChinook = INVALID_ID;
+	for( Int helix = 0; helix < MAX_DUTY_HELIXES; ++helix )
+	{
+		m_dutyHelix[ helix ].id = INVALID_ID;
+		m_dutyHelix[ helix ].role = HELIX_HEALER;
+		m_dutyHelix[ helix ].phase = 0;
+		m_dutyHelix[ helix ].frame = 0;
+		m_dutyHelix[ helix ].target = INVALID_ID;
+		m_dutyHelix[ helix ].spot.zero();
+		m_dutyHelix[ helix ].targetHealth = 0.0f;
+	}
+	m_healerSeconds = 0;
+	m_healerClearSeconds = 0;
 	m_captureTimer = 1;
 	m_hijackerID = INVALID_ID;
 	m_hijackTimer = 1;
@@ -601,6 +613,7 @@ static Bool hasSuppliesNear( Player *player, const Object *supplyCenter, Real re
 
 static const TransportContainModuleData *transportContainOf( const ThingTemplate *tmpl );
 static Bool passengersFireFrom( const ThingTemplate *tmpl );
+static Bool isHelicopter( const Object *obj );
 
 struct IdleTruckSearch
 {
@@ -1743,6 +1756,9 @@ void AIPlayer::onUnitProduced( Object *factory, Object *unit )
 						}
 					}
 				}
+				// a Helix buyDutyHelix ordered; a team's Helix comes out of a team order, not a support one
+				if (order->m_isScout && isHelicopter(unit))
+					takeDutyHelix(unit);
 				found = true;
 				break;
 			}
@@ -2683,6 +2699,10 @@ void AIPlayer::computeEnemyComposition( AIEnemyComposition *out, std::vector<AIV
 					if( obj->isKindOf( KINDOF_VEHICLE ) )					armour += threat;
 					if( obj->isKindOf( KINDOF_INFANTRY ) )				infantry += threat;
 					if( obj->getStatusBits().test( OBJECT_STATUS_CAN_STEALTH ) )	stealth += threat;
+					if( obj->isKindOf( KINDOF_INFANTRY ) )
+						++out->m_infantryCount;
+					else if( obj->isKindOf( KINDOF_VEHICLE ) && !obj->isKindOf( KINDOF_AIRCRAFT ) )
+						++out->m_vehicleCount;
 				}
 			}
 		}
@@ -4478,6 +4498,7 @@ void AIPlayer::update( void )
 	AI_PHASE( AIP_TACTICS, doTactics() );						// Fight each unit from where it is strongest.
 	AI_PHASE( AIP_TACTICS, doTransports() );				// Put the helicopters' riders down at the fight.
 	AI_PHASE( AIP_TACTICS, doShuttles() );					// Fly the wave's ground units up its road.
+	AI_PHASE( AIP_TACTICS, doHelixes() );					// Helix upgrades by the enemy army, healers, bomb raids.
 
 #ifdef DEBUG_LOGGING
 	Int64 playerEnd;
@@ -4846,39 +4867,6 @@ static const ThingTemplate *buildableOfKind( Object *builder, GUICommandType com
 			return tmpl;
 	}
 	return NULL;
-}
-
-static Bool isHelicopter( const Object *obj );
-
-/** A transport helicopter buys its own upgrades, one at a time.  The Helix's riders can only shoot out
-	* once it carries its battle bunker, and the computer never bought one, so its Helixes flew empty all
-	* match.  Every upgrade on the helicopter's own buttons is bought in turn, as the bank allows. */
-static void upgradeTransportHelicopter( Object *obj, void * )
-{
-	const ContainModuleInterface *contain = obj->getContain();
-	if( !isHelicopter( obj ) || contain == NULL || contain->getContainMax() <= 0 )
-		return;
-	ProductionUpdateInterface *pu = obj->getProductionUpdateInterface();
-	const CommandSet *commandSet = TheControlBar->findCommandSet( obj->getCommandSetString() );
-	if( pu == NULL || commandSet == NULL || pu->getProductionCount() > 0 )
-		return;
-
-	for( Int i = 0; i < MAX_COMMANDS_PER_SET; ++i )
-	{
-		const CommandButton *button = commandSet->getCommandButton( i );
-		if( button == NULL || button->getCommandType() != GUI_COMMAND_OBJECT_UPGRADE )
-			continue;
-		const UpgradeTemplate *upgrade = button->getUpgradeTemplate();
-		if( upgrade == NULL || obj->hasUpgrade( upgrade ) || !obj->affectedByUpgrade( upgrade ) ||
-				!TheUpgradeCenter->canAffordUpgrade( obj->getControllingPlayer(), upgrade ) )
-			continue;
-		if( pu->queueUpgrade( upgrade ) )
-		{
-			DEBUG_LOG(("AI ECONOMY frame %d player %d upgrades '%s' with '%s'\n", TheGameLogic->getFrame(),
-				obj->getControllingPlayer()->getPlayerIndex(), obj->getTemplate()->getName().str(), upgrade->getUpgradeName().str()));
-			return;
-		}
-	}
 }
 
 /** How loaded this player's factories of one kind are.  Counted off the objects, because a factory
@@ -5323,8 +5311,6 @@ void AIPlayer::doEconomy( void )
 	// ... and what does not pay back for twice it, so the opening build order is not what pays for it
 	if( m_player->getMoney()->countMoney() <= 2 * profile->m_cashHoardThreshold )
 		return;
-
-	m_player->iterateObjects( upgradeTransportHelicopter, NULL );
 
 	/* A gun on the side the trouble comes from, before anything else the pass buys.  Production and
 		 income go round the base center, the power goes behind it, and this goes out in front, so the
@@ -6005,7 +5991,7 @@ Bool AIPlayer::isGunshipChinook( const Object *obj ) const
 
 Bool AIPlayer::isGunshipAircraft( const Object *obj ) const
 {
-	return isHelicopter( obj ) || isGunshipChinook( obj );
+	return (isHelicopter( obj ) && !isDutyHelix( obj )) || isGunshipChinook( obj );
 }
 
 Bool AIPlayer::isTransportChinook( const Object *obj ) const
@@ -6021,6 +6007,14 @@ Bool AIPlayer::isTransportChinook( const Object *obj ) const
 Bool AIPlayer::isDutyChinook( const Object *obj ) const
 {
 	return isGunshipChinook( obj ) || isTransportChinook( obj );
+}
+
+Bool AIPlayer::isDutyHelix( const Object *obj ) const
+{
+	for( Int helix = 0; helix < MAX_DUTY_HELIXES; ++helix )
+		if( m_dutyHelix[ helix ].id == obj->getID() )
+			return TRUE;
+	return FALSE;
 }
 
 /** What waits when a wave leaves: attack helicopters left on guard anywhere, and helicopters at home,
@@ -6609,7 +6603,7 @@ Bool AIPlayer::leavesToFinish( const Object *obj ) const
 	for( Int slot = 0; slot < MAX_AI_SCOUTS; ++slot )
 		if( m_scoutID[ slot ] == id )
 			return FALSE;
-	return id != m_capturerID && id != m_ferryID && id != m_hijackerID;
+	return id != m_capturerID && id != m_ferryID && id != m_hijackerID && !isDutyHelix( obj );
 }
 
 //----------------------------------------------------------------------------------------------------------
@@ -7093,25 +7087,37 @@ Bool AIPlayer::loadGunships( void )
 }
 
 /** The infantry a barracks trains to ride in a gunship: the first fighter on its buttons, so a Red
-	* Guard, a Ranger, a Rebel or a Mini-Gunner.  Not a worker, a hacker or a hero. */
-static const ThingTemplate *gunshipRiderTemplate( Object *factory )
+	* Guard, a Ranger, a Rebel or a Mini-Gunner.  Not a worker, a hacker or a hero.  Against an enemy
+	* mostly on wheels and tracks, armour names the vehicle most of his strength is in, and the rider is whichever of them
+	* kills it fastest: the Tank Hunter a bunkered Helix is bought for, a Missile Defender in a Humvee. */
+static const ThingTemplate *gunshipRiderTemplate( Object *factory, const ThingTemplate *armour )
 {
 	const CommandSet *commandSet = TheControlBar->findCommandSet( factory->getCommandSetString() );
 	if( commandSet == NULL )
 		return NULL;
+	const ThingTemplate *best = NULL;
+	Real bestFrames = 0.0f;
 	for( Int i = 0; i < MAX_COMMANDS_PER_SET; ++i )
 	{
 		const CommandButton *button = commandSet->getCommandButton( i );
 		if( button == NULL || button->getCommandType() != GUI_COMMAND_UNIT_BUILD )
 			continue;
 		const ThingTemplate *tmpl = button->getThingTemplate();
-		if( tmpl && tmpl->isKindOf( KINDOF_INFANTRY ) && tmpl->canPossiblyHaveAnyWeapon() && !tmpl->isKindOf( KINDOF_DOZER ) &&
-				!tmpl->isKindOf( KINDOF_MONEY_HACKER ) && !tmpl->isKindOf( KINDOF_HERO ) &&
-				tmpl->calcCostToBuild( factory->getControllingPlayer() ) > 0 &&
-				TheBuildAssistant->canMakeUnit( factory, tmpl ) == CANMAKE_OK )
+		if( tmpl == NULL || !tmpl->isKindOf( KINDOF_INFANTRY ) || !tmpl->canPossiblyHaveAnyWeapon() || tmpl->isKindOf( KINDOF_DOZER ) ||
+				tmpl->isKindOf( KINDOF_MONEY_HACKER ) || tmpl->isKindOf( KINDOF_HERO ) ||
+				tmpl->calcCostToBuild( factory->getControllingPlayer() ) <= 0 ||
+				TheBuildAssistant->canMakeUnit( factory, tmpl ) != CANMAKE_OK )
+			continue;
+		if( armour == NULL )
 			return tmpl;
+		const Real frames = templateFramesToKill( tmpl, armour );
+		if( best == NULL || frames < bestFrames )
+		{
+			best = tmpl;
+			bestFrames = frames;
+		}
 	}
-	return NULL;
+	return best;
 }
 
 /** The most riders one order trains: a Helix's seats. */
@@ -7128,6 +7134,23 @@ Int AIPlayer::buyGunshipRiders( Int freeSeats )
 	if( freeSeats <= 0 || m_skillLevel == AISKILL_EASY || isBaseUnderAttack() )
 		return 0;
 
+	// the vehicle most of the enemy's strength is in, when more of it is on wheels and tracks than on foot:
+	// the same reading upgradeHelix buys a bunker on
+	AIEnemyComposition enemy;
+	std::vector<AIVisibleEnemy> army;
+	computeEnemyComposition( &enemy, &army );
+	const ThingTemplate *armour = NULL;
+	Real armourWeight = 0.0f;
+	for( size_t k = 0; k < army.size() && enemy.m_armour - enemy.m_air >= enemy.m_infantry && enemy.m_totalThreat > 0.0f; ++k )
+	{
+		if( army[ k ].m_template->isKindOf( KINDOF_VEHICLE ) && !army[ k ].m_template->isKindOf( KINDOF_AIRCRAFT ) &&
+				army[ k ].m_weight > armourWeight )
+		{
+			armour = army[ k ].m_template;
+			armourWeight = army[ k ].m_weight;
+		}
+	}
+
 	std::vector<Object *> factories;
 	m_player->iterateObjects( collectFactories, &factories );
 	// the barracks at home with the shortest queue: the first order, queued at whichever came first,
@@ -7138,7 +7161,7 @@ Int AIPlayer::buyGunshipRiders( Int freeSeats )
 	{
 		if( !isAtHome( factories[ f ]->getPosition() ) )
 			continue;
-		const ThingTemplate *tmpl = gunshipRiderTemplate( factories[ f ] );
+		const ThingTemplate *tmpl = gunshipRiderTemplate( factories[ f ], armour );
 		if( tmpl && (barracks == NULL || factories[ f ]->getProductionUpdateInterface()->getProductionCount() <
 				barracks->getProductionUpdateInterface()->getProductionCount()) )
 		{
@@ -7172,9 +7195,9 @@ Int AIPlayer::buyGunshipRiders( Int freeSeats )
 	while( queued < wanted && pu->queueCreateUnit( rider, pu->requestUniqueUnitID() ) )
 		++queued;
 	if( queued > 0 )
-		DEBUG_LOG(("AI GUNSHIP frame %d player %d trains %d '%s' at '%s' for %d free seats, %d in the bank\n", TheGameLogic->getFrame(),
-			m_player->getPlayerIndex(), queued, rider->getName().str(), barracks->getTemplate()->getName().str(), freeSeats,
-			m_player->getMoney()->countMoney()));
+		DEBUG_LOG(("AI GUNSHIP frame %d player %d trains %d '%s' at '%s' for %d free seats, %d in the bank, against %s (%d infantry, %d vehicles known)\n",
+			TheGameLogic->getFrame(), m_player->getPlayerIndex(), queued, rider->getName().str(), barracks->getTemplate()->getName().str(), freeSeats,
+			m_player->getMoney()->countMoney(), armour ? armour->getName().str() : "infantry", enemy.m_infantryCount, enemy.m_vehicleCount));
 	return training + queued;
 }
 
@@ -8019,6 +8042,737 @@ void AIPlayer::doShuttles( void )
 				break;
 		}
 	}
+}
+
+//----------------------------------------------------------------------------------------------------------
+/** China's Helix carries one of three portable structures, and each shuts the other two out.  The
+	* computer bought every upgrade on the Helix's buttons in button order, so every Helix it flew got a
+	* battle bunker whatever it was up against, and napalm on top.  Now a team's Helix takes the gattling
+	* against an enemy of more men than vehicles and the bunker otherwise, and the computer buys Helixes
+	* for jobs of their own: two healers under a propaganda tower, a third once the army is big, that
+	* hang behind the wave out of every known gun's reach, and two raiders that bomb the enemy's
+	* buildings from whichever side his anti-air does not cover. */
+//----------------------------------------------------------------------------------------------------------
+static const Int HELIX_CHECK_RATE = LOGICFRAMES_PER_SECOND;
+
+/** The Helix upgrades by what they do, matched on the name: the Nuke and Infantry generals carry their
+	* own copies, Nuke_Upgrade_HelixNukeBomb and Upgrade_Infa_ChinaHelixBattleBunker. */
+enum { HELIX_GATTLING, HELIX_BUNKER, HELIX_TOWER, HELIX_BOMB, HELIX_UPGRADE_KINDS };
+static const char *const HELIX_UPGRADE_MARK[ HELIX_UPGRADE_KINDS ] = { "GattlingCannon", "BattleBunker", "PropagandaTower", "Bomb" };
+static const char *const HELIX_ROLE_NAME[ 2 ] = { "healer", "raider" };
+
+static const Int MIN_HEALERS = 2;
+static const Int MAX_HEALERS = 3;
+static const Int HEALER_THIRD_ARMY = 30;		///< fighting units before a third healer is bought
+static const Int MAX_RAIDERS = 2;
+static const Real HEALER_PATIENT_HEALTH = 0.9f;	///< a unit below this share of its health is worth hovering over
+static const UnsignedInt HEALER_HIT_FRAMES = 3 * LOGICFRAMES_PER_SECOND;	///< a healer hit this recently pulls back
+static const UnsignedInt HEALER_REPORT_FRAMES = 60 * LOGICFRAMES_PER_SECOND;
+
+/** How far past a known gun's reach a Helix keeps, for the gun's own step forward. */
+static const Real HELIX_GUN_MARGIN = 80.0f;
+/** A Helix's spot has to move this far before it is given a new one; it also counts as arrived. */
+static const Real HELIX_REORDER_DISTANCE = 60.0f;
+
+/** A raid comes in to its building from this far out, on whichever of eight sides the fewest known
+	* anti-air guns cover, and leaves the same way.  The flight out to that point crosses none. */
+static const Real RAID_ENTRY_DISTANCE = 400.0f;
+static const Int RAID_SIDES = 8;
+static const Real RAID_SIDE[ RAID_SIDES ][ 2 ] = {
+	{ 1.0f, 0.0f }, { 0.7071f, 0.7071f }, { 0.0f, 1.0f }, { -0.7071f, 0.7071f },
+	{ -1.0f, 0.0f }, { -0.7071f, -0.7071f }, { 0.0f, -1.0f }, { 0.7071f, -0.7071f } };
+static const Int RAID_MAX_GUNS_ON_RUN = 1;
+/** How far ahead on its way in a raider looks for anti-air turning up.  The whole road, looked at
+	* from home, turned hot within two seconds on raid after raid: a gun on wheels crossing the far end
+	* of a flight across the map has moved on by the time the Helix gets there. */
+static const Real RAID_LOOKAHEAD = 600.0f;
+/** Nothing heals a Helix at home but a healer passing over it, so the bar to leave is low. */
+static const Real RAID_DEPART_HEALTH = 0.7f;
+static const Real RAID_ABORT_HEALTH = 0.5f;
+static const UnsignedInt RAID_RUN_FRAMES = 30 * LOGICFRAMES_PER_SECOND;
+static const UnsignedInt RAID_LEG_FRAMES = 90 * LOGICFRAMES_PER_SECOND;
+
+/** How far round a healer looks for clear ground when the way home is covered. */
+static const Real REAR_SEARCH_REACH = 900.0f;
+
+/** What deepestReach answers with no gun at all: further out than any gun reaches. */
+static const Real NO_GUN_DEPTH = -1.0e9f;
+
+/** One kind of Helix upgrade on the buttons a Helix of this kind is built with, NULL when it has none.
+	* The built-with set, because an upgraded Helix swaps its own for a shorter one. */
+static const UpgradeTemplate *helixUpgradeOn( const ThingTemplate *tmpl, Int kind )
+{
+	const CommandSet *commandSet = TheControlBar->findCommandSet( tmpl->friend_getCommandSetString() );
+	if( commandSet == NULL )
+		return NULL;
+	for( Int i = 0; i < MAX_COMMANDS_PER_SET; ++i )
+	{
+		const CommandButton *button = commandSet->getCommandButton( i );
+		if( button && button->getCommandType() == GUI_COMMAND_OBJECT_UPGRADE && button->getUpgradeTemplate() &&
+				strstr( button->getUpgradeTemplate()->getUpgradeName().str(), HELIX_UPGRADE_MARK[ kind ] ) != NULL )
+			return button->getUpgradeTemplate();
+	}
+	return NULL;
+}
+
+/** How much a raid wants a building: production, then income, then power; 0 for anything else. */
+static Int raidPreference( const Object *obj )
+{
+	if( obj->isKindOf( KINDOF_FS_BARRACKS ) || obj->isKindOf( KINDOF_FS_WARFACTORY ) || obj->isKindOf( KINDOF_FS_AIRFIELD ) )
+		return 3;
+	if( obj->isKindOf( KINDOF_FS_SUPPLY_CENTER ) || obj->isKindOf( KINDOF_FS_SUPPLY_DROPZONE ) || obj->isKindOf( KINDOF_FS_BLACK_MARKET ) ||
+			obj->isKindOf( KINDOF_FS_INTERNET_CENTER ) || obj->isKindOf( KINDOF_CASH_GENERATOR ) )
+		return 2;
+	if( obj->isKindOf( KINDOF_FS_POWER ) )
+		return 1;
+	return 0;
+}
+
+/** How far inside the reach of the gun that reaches it deepest a point stands; below zero it is clear
+	* of every one. */
+static Real deepestReach( const std::vector<AIKnownGun> &guns, Real x, Real y, Bool aircraftOnly )
+{
+	Real deepest = NO_GUN_DEPTH;
+	for( size_t g = 0; g < guns.size(); ++g )
+	{
+		const Real reach = aircraftOnly ? guns[ g ].m_airReach : guns[ g ].m_reach;
+		if( reach <= 0.0f )
+			continue;
+		const Real depth = reach - (Real)sqrt( sqr( x - guns[ g ].m_x ) + sqr( y - guns[ g ].m_y ) );
+		if( depth > deepest )
+			deepest = depth;
+	}
+	return deepest;
+}
+
+/** The known anti-air guns that reach a straight flight from a to b, margin included, each counted once. */
+static Int gunsOverFlight( const std::vector<AIKnownGun> &guns, Real ax, Real ay, Real bx, Real by )
+{
+	const Real dx = bx - ax;
+	const Real dy = by - ay;
+	const Real lengthSqr = dx * dx + dy * dy;
+	Int count = 0;
+	for( size_t g = 0; g < guns.size(); ++g )
+	{
+		if( guns[ g ].m_airReach <= 0.0f )
+			continue;
+		Real along = 0.0f;
+		if( lengthSqr > 0.0f )
+			along = ((guns[ g ].m_x - ax) * dx + (guns[ g ].m_y - ay) * dy) / lengthSqr;
+		if( along < 0.0f )
+			along = 0.0f;
+		if( along > 1.0f )
+			along = 1.0f;
+		if( sqr( guns[ g ].m_x - (ax + dx * along) ) + sqr( guns[ g ].m_y - (ay + dy * along) ) <= sqr( guns[ g ].m_airReach + HELIX_GUN_MARGIN ) )
+			++count;
+	}
+	return count;
+}
+
+/** The next stretch of a raid's way in crosses a known anti-air gun: the next RAID_LOOKAHEAD of the
+	* flight to the entry point, and the bomb run itself once the entry point is that close. */
+static Bool raidAheadIsHot( const std::vector<AIKnownGun> &guns, const Coord3D *pos, const Coord3D *entry, const Coord3D *target )
+{
+	const Real dx = entry->x - pos->x;
+	const Real dy = entry->y - pos->y;
+	const Real left = (Real)sqrt( dx * dx + dy * dy );
+	const Real share = left > RAID_LOOKAHEAD ? RAID_LOOKAHEAD / left : 1.0f;
+	if( gunsOverFlight( guns, pos->x, pos->y, pos->x + dx * share, pos->y + dy * share ) > 0 )
+		return TRUE;
+	return left <= RAID_LOOKAHEAD && gunsOverFlight( guns, entry->x, entry->y, target->x, target->y ) > RAID_MAX_GUNS_ON_RUN;
+}
+
+void AIPlayer::collectKnownGuns( std::vector<AIKnownGun> *guns ) const
+{
+	const Int me = m_player->getPlayerIndex();
+	for( Object *obj = TheGameLogic->getFirstObject(); obj; obj = obj->getNextObject() )
+	{
+		// not a superweapon: a Scud Storm's weapon reaches 999999, and once one was known every healer saw
+		// the whole map in reach and hung over its own base center pulling back until it was shot down
+		if( obj->isEffectivelyDead() || obj->isKindOf( KINDOF_PROJECTILE ) || obj->isKindOf( KINDOF_FS_SUPERWEAPON ) ||
+				m_player->getRelationship( obj->getTeam() ) != ENEMIES || !observerKnowsAbout( obj, me ) )
+			continue;
+		AIKnownGun gun;
+		gun.m_x = obj->getPosition()->x;
+		gun.m_y = obj->getPosition()->y;
+		gun.m_reach = 0.0f;
+		gun.m_airReach = 0.0f;
+		for( Int slot = PRIMARY_WEAPON; slot < WEAPONSLOT_COUNT; ++slot )
+		{
+			const Weapon *weapon = obj->getWeaponInWeaponSlot( (WeaponSlotType)slot );
+			if( weapon == NULL )
+				continue;
+			const Real range = weapon->getAttackRange( obj );
+			if( range > gun.m_reach )
+				gun.m_reach = range;
+			if( (weapon->getTemplate()->getAntiMask() & WEAPON_ANTI_AIRBORNE_VEHICLE) != 0 && range > gun.m_airReach )
+				gun.m_airReach = range;
+		}
+		if( gun.m_reach > 0.0f )
+			guns->push_back( gun );
+	}
+}
+
+Int AIPlayer::helixRoleWanted( const ThingTemplate *tmpl ) const
+{
+	Int healers = 0;
+	Int raiders = 0;
+	Int free = 0;
+	for( Int slot = 0; slot < MAX_DUTY_HELIXES; ++slot )
+	{
+		if( m_dutyHelix[ slot ].id == INVALID_ID )
+			++free;
+		else if( m_dutyHelix[ slot ].role == HELIX_HEALER )
+			++healers;
+		else
+			++raiders;
+	}
+	if( free == 0 )
+		return -1;
+	const Int healersWanted = tallyBase( m_player ).army >= HEALER_THIRD_ARMY ? MAX_HEALERS : MIN_HEALERS;
+	if( healers < healersWanted && helixUpgradeOn( tmpl, HELIX_TOWER ) )
+		return HELIX_HEALER;
+	if( raiders < MAX_RAIDERS && helixUpgradeOn( tmpl, HELIX_BOMB ) )
+		return HELIX_RAIDER;
+	return -1;
+}
+
+/** One order at a time, through the support-unit queue like the gunship Chinook, out of the bank above
+	* the cash hoard.  The job is read off the Helix's own buttons: the Infantry General's has no
+	* propaganda tower and never heals. */
+void AIPlayer::buyDutyHelix( void )
+{
+	if( isBaseUnderAttack() || scoutInQueue() || (Int)m_player->getMoney()->countMoney() <= getSkillProfile()->m_cashHoardThreshold )
+		return;
+	std::vector<Object *> factories;
+	m_player->iterateObjects( collectFactories, &factories );
+	for( size_t f = 0; f < factories.size(); ++f )
+	{
+		const CommandSet *commandSet = TheControlBar->findCommandSet( factories[ f ]->getCommandSetString() );
+		if( commandSet == NULL )
+			continue;
+		for( Int i = 0; i < MAX_COMMANDS_PER_SET; ++i )
+		{
+			const CommandButton *button = commandSet->getCommandButton( i );
+			if( button == NULL || button->getCommandType() != GUI_COMMAND_UNIT_BUILD )
+				continue;
+			const ThingTemplate *tmpl = button->getThingTemplate();
+			if( tmpl == NULL || !tmpl->isKindOf( KINDOF_AIRCRAFT ) || tmpl->isKindOf( KINDOF_HARVESTER ) ||
+					TheBuildAssistant->canMakeUnit( factories[ f ], tmpl ) != CANMAKE_OK )
+				continue;
+			const Int role = helixRoleWanted( tmpl );
+			if( role < 0 )
+				continue;
+			queueSupportUnit( tmpl, "HELIX" );
+			if( scoutInQueue() )
+				DEBUG_LOG(("AI HELIX frame %d player %d orders '%s' as a %s, %d in the bank\n", TheGameLogic->getFrame(),
+					m_player->getPlayerIndex(), tmpl->getName().str(), HELIX_ROLE_NAME[ role ], m_player->getMoney()->countMoney()));
+			return;
+		}
+	}
+}
+
+void AIPlayer::takeDutyHelix( Object *helix )
+{
+	const Int role = helixRoleWanted( helix->getTemplate() );
+	if( role < 0 )
+		return;		// the need went while it was trained: it stays a plain helicopter for the waves
+	for( Int slot = 0; slot < MAX_DUTY_HELIXES; ++slot )
+	{
+		DutyHelix &duty = m_dutyHelix[ slot ];
+		if( duty.id != INVALID_ID )
+			continue;
+		duty.id = helix->getID();
+		duty.role = role;
+		duty.phase = role == HELIX_HEALER ? HEAL_HOME : RAID_HOME;
+		duty.frame = TheGameLogic->getFrame();
+		duty.target = INVALID_ID;
+		duty.spot = *helix->getPosition();
+		duty.targetHealth = 0.0f;
+		DEBUG_LOG(("AI HELIX frame %d player %d '%s' %d comes out as a %s\n", TheGameLogic->getFrame(), m_player->getPlayerIndex(),
+			helix->getTemplate()->getName().str(), helix->getID(), HELIX_ROLE_NAME[ role ]));
+		return;
+	}
+}
+
+/** role is -1 for a team's Helix.  China's attack-team script queues the gattling on every Helix it
+	* launches, so a structure queued by anyone that is not the one wanted is taken back off the queue. */
+void AIPlayer::upgradeHelix( Object *helix, Int role, AIEnemyComposition *enemy, Bool *enemyRead )
+{
+	const UpgradeTemplate *upgrades[ HELIX_UPGRADE_KINDS ];
+	Bool any = FALSE;
+	for( Int kind = 0; kind < HELIX_UPGRADE_KINDS; ++kind )
+	{
+		upgrades[ kind ] = helixUpgradeOn( helix->getTemplate(), kind );
+		any = any || upgrades[ kind ] != NULL;
+	}
+	if( !any )
+		return;
+
+	Bool settled = FALSE;
+	for( Int kind = HELIX_GATTLING; kind <= HELIX_TOWER; ++kind )
+		if( upgrades[ kind ] && helix->hasUpgrade( upgrades[ kind ] ) )
+			settled = TRUE;
+	if( !*enemyRead )
+	{
+		computeEnemyComposition( enemy );
+		*enemyRead = TRUE;
+	}
+	Int portable = HELIX_GATTLING;
+	if( role == HELIX_HEALER )
+		portable = HELIX_TOWER;
+	else if( role < 0 )
+	{
+		// by threat, as the rest of the counter code reads the enemy: by head, infantry outnumbered the
+		// vehicles in every match of the first batch, the Tank General's army included
+		portable = enemy->m_infantry > enemy->m_armour - enemy->m_air ? HELIX_GATTLING : HELIX_BUNKER;
+		if( upgrades[ portable ] == NULL )
+			portable = portable == HELIX_GATTLING ? HELIX_BUNKER : HELIX_GATTLING;
+	}
+	const UpgradeTemplate *wanted = upgrades[ portable ];
+
+	ProductionUpdateInterface *pu = helix->getProductionUpdateInterface();
+	for( Int kind = HELIX_GATTLING; kind <= HELIX_TOWER && !settled; ++kind )
+	{
+		if( upgrades[ kind ] && upgrades[ kind ] != wanted && pu->isUpgradeInQueue( upgrades[ kind ] ) )
+		{
+			pu->cancelUpgrade( upgrades[ kind ] );
+			DEBUG_LOG(("AI HELIX frame %d player %d takes '%s' off '%s' %d's queue\n", TheGameLogic->getFrame(), m_player->getPlayerIndex(),
+				upgrades[ kind ]->getUpgradeName().str(), helix->getTemplate()->getName().str(), helix->getID()));
+		}
+	}
+	if( pu->getProductionCount() > 0 )
+		return;
+
+	// a raider its bomb first; a team's Helix pays out of the bank above the hoard, one bought for a job pays for the job
+	const UpgradeTemplate *next = settled ? NULL : wanted;
+	if( role == HELIX_RAIDER && upgrades[ HELIX_BOMB ] && !helix->hasUpgrade( upgrades[ HELIX_BOMB ] ) )
+		next = upgrades[ HELIX_BOMB ];
+	if( next == NULL || !helix->affectedByUpgrade( next ) || !TheUpgradeCenter->canAffordUpgrade( m_player, next ) )
+		return;
+	if( role < 0 && (Int)m_player->getMoney()->countMoney() <= getSkillProfile()->m_cashHoardThreshold + next->calcCostToBuild( m_player ) )
+		return;
+	if( pu->queueUpgrade( next ) )
+		DEBUG_LOG(("AI HELIX frame %d player %d upgrades '%s' %d with '%s' as a %s, enemy known: %d infantry, %d vehicles, threat %.0f%% infantry %.0f%% ground vehicles\n",
+			TheGameLogic->getFrame(), m_player->getPlayerIndex(), helix->getTemplate()->getName().str(), helix->getID(),
+			next->getUpgradeName().str(), role < 0 ? "team gunship" : HELIX_ROLE_NAME[ role ], enemy->m_infantryCount, enemy->m_vehicleCount,
+			enemy->m_infantry * 100.0f, (enemy->m_armour - enemy->m_air) * 100.0f));
+}
+
+Coord3D AIPlayer::rearOf( const Coord3D *from, const std::vector<AIKnownGun> &guns ) const
+{
+	const Real dx = m_baseCenter.x - from->x;
+	const Real dy = m_baseCenter.y - from->y;
+	const Real length = (Real)sqrt( dx * dx + dy * dy );
+	Coord3D spot = m_baseCenter;
+	spot.z = TheTerrainLogic->getGroundHeight( spot.x, spot.y );
+	for( Real along = 0.0f; along < length; along += INFLUENCE_CELL_SIZE )
+	{
+		const Real x = from->x + dx * along / length;
+		const Real y = from->y + dy * along / length;
+		if( deepestReach( guns, x, y, FALSE ) < -HELIX_GUN_MARGIN )
+		{
+			spot.set( x, y, TheTerrainLogic->getGroundHeight( x, y ) );
+			return spot;
+		}
+	}
+	// the whole way home is covered, the base itself among it: the nearest clear ground any way round,
+	// out to REAR_SEARCH_REACH
+	Region3D extent;
+	TheTerrainLogic->getExtent( &extent );
+	for( Real reach = INFLUENCE_CELL_SIZE; reach <= REAR_SEARCH_REACH; reach += INFLUENCE_CELL_SIZE )
+	{
+		for( Int side = 0; side < RAID_SIDES; ++side )
+		{
+			const Real x = from->x + RAID_SIDE[ side ][ 0 ] * reach;
+			const Real y = from->y + RAID_SIDE[ side ][ 1 ] * reach;
+			if( x >= extent.lo.x && x <= extent.hi.x && y >= extent.lo.y && y <= extent.hi.y &&
+					deepestReach( guns, x, y, FALSE ) < -HELIX_GUN_MARGIN )
+			{
+				spot.set( x, y, TheTerrainLogic->getGroundHeight( x, y ) );
+				return spot;
+			}
+		}
+	}
+	return spot;
+}
+
+/** A healer goes over the most hurt of ours that stands clear of every known gun, out with the army
+	* when the army is out; with nobody hurt it hangs behind the middle of whoever is out, at the first
+	* point toward home no known gun reaches.  Hit, or with a known anti-air gun in reach, it pulls back
+	* the same way.  It carries nobody and is in no wave. */
+void AIPlayer::steerHealer( Int slot, const std::vector<AIKnownGun> &guns )
+{
+	DutyHelix &duty = m_dutyHelix[ slot ];
+	Object *helix = TheGameLogic->findObjectByID( duty.id );
+	AIUpdateInterface *ai = helix->getAI();
+	const Coord3D *pos = helix->getPosition();
+	const UnsignedInt now = TheGameLogic->getFrame();
+
+	// the measure, out of the base only: further from the nearest known gun than that gun reaches
+	const AIKnownGun *nearest = NULL;
+	Real nearestSqr = 0.0f;
+	for( size_t g = 0; g < guns.size(); ++g )
+	{
+		const Real distSqr = sqr( guns[ g ].m_x - pos->x ) + sqr( guns[ g ].m_y - pos->y );
+		if( nearest == NULL || distSqr < nearestSqr )
+		{
+			nearest = &guns[ g ];
+			nearestSqr = distSqr;
+		}
+	}
+	if( !isAtHome( pos ) )
+	{
+		++m_healerSeconds;
+		if( nearest == NULL || nearestSqr > sqr( nearest->m_reach ) )
+			++m_healerClearSeconds;
+	}
+
+	const UpgradeTemplate *tower = helixUpgradeOn( helix->getTemplate(), HELIX_TOWER );
+	const UnsignedInt lastHit = helix->getBodyModule()->getLastDamageTimestamp();
+	const Bool hit = lastHit != 0 && now - lastHit < HEALER_HIT_FRAMES;
+	// anti-air with the margin; any other gun once the healer is inside its reach, which is short of the
+	// margin a patient has to stand clear by, so the two do not hand the healer back and forth
+	const Bool antiAirNear = deepestReach( guns, pos->x, pos->y, TRUE ) > -HELIX_GUN_MARGIN;
+	const Bool inReach = deepestReach( guns, pos->x, pos->y, FALSE ) > 0.0f;
+	Int phase = HEAL_HOME;
+	Object *patient = NULL;
+	Coord3D spot = m_baseCenter;
+	Int out = 0;
+	if( hit || antiAirNear || inReach )
+	{
+		phase = HEAL_PULLBACK;
+		spot = rearOf( pos, guns );
+	}
+	else if( helix->hasUpgrade( tower ) )
+	{
+		std::vector<Object *> owned;
+		m_player->iterateObjects( collectOwned, &owned );
+		Object *hurtOut = NULL;
+		Object *hurtHome = NULL;
+		Real missingOut = 0.0f;
+		Real missingHome = 0.0f;
+		Coord3D middle;
+		middle.zero();
+		for( size_t o = 0; o < owned.size(); ++o )
+		{
+			Object *obj = owned[ o ];
+			if( obj->isEffectivelyDead() || obj->isContained() || obj->isKindOf( KINDOF_STRUCTURE ) || obj->isKindOf( KINDOF_AIRCRAFT ) ||
+					(!obj->isKindOf( KINDOF_INFANTRY ) && !obj->isKindOf( KINDOF_VEHICLE )) || aiCombatPower( obj ) <= 0.0f )
+				continue;
+			const Coord3D *at = obj->getPosition();
+			const Bool home = isAtHome( at );
+			if( !home )
+			{
+				middle.x += at->x;
+				middle.y += at->y;
+				++out;
+			}
+			const BodyModuleInterface *body = obj->getBodyModule();
+			const Real missing = body->getMaxHealth() - body->getHealth();
+			if( body->getHealth() >= HEALER_PATIENT_HEALTH * body->getMaxHealth() || deepestReach( guns, at->x, at->y, FALSE ) >= -HELIX_GUN_MARGIN )
+				continue;
+			if( !home && missing > missingOut )
+			{
+				hurtOut = obj;
+				missingOut = missing;
+			}
+			else if( home && missing > missingHome )
+			{
+				hurtHome = obj;
+				missingHome = missing;
+			}
+		}
+		patient = hurtOut ? hurtOut : (out > 0 ? NULL : hurtHome);
+		if( patient )
+		{
+			phase = HEAL_PATIENT;
+			spot = *patient->getPosition();
+		}
+		else if( out > 0 )
+		{
+			phase = HEAL_REAR;
+			middle.x /= out;
+			middle.y /= out;
+			spot = rearOf( &middle, guns );
+		}
+	}
+	if( phase == HEAL_HOME && isAtHome( pos ) )
+		spot = *pos;
+	spot.z = TheTerrainLogic->getGroundHeight( spot.x, spot.y );
+
+	const ObjectID patientID = patient ? patient->getID() : INVALID_ID;
+	const Bool moved = sqr( spot.x - duty.spot.x ) + sqr( spot.y - duty.spot.y ) > sqr( HELIX_REORDER_DISTANCE );
+	const Bool away = sqr( spot.x - pos->x ) + sqr( spot.y - pos->y ) > sqr( HELIX_REORDER_DISTANCE );
+	if( !moved && phase == duty.phase && !(ai->isIdle() && away) )
+		return;
+	if( phase != duty.phase || patientID != duty.target )
+	{
+		static const char *const doing[] = { "goes home", "hovers over a hurt unit", "follows behind the wave", "pulls back" };
+		DEBUG_LOG(("AI HEALER frame %d player %d '%s' %d %s at (%.0f,%.0f)%s%s, %d units out, nearest known gun %.0f away reaching %.0f\n",
+			now, m_player->getPlayerIndex(), helix->getTemplate()->getName().str(), duty.id, doing[ phase ], spot.x, spot.y,
+			patient ? ", over " : (hit ? ", hit" : (antiAirNear ? ", anti-air near" : (inReach ? ", in a gun's reach" : ""))),
+			patient ? patient->getTemplate()->getName().str() : "",
+			out, nearest ? (Real)sqrt( nearestSqr ) : 0.0f, nearest ? nearest->m_reach : 0.0f));
+	}
+	ai->aiMoveToPosition( &spot, CMD_FROM_AI );
+	duty.spot = spot;
+	duty.phase = phase;
+	duty.target = patientID;
+	duty.frame = now;
+}
+
+/** The enemy building a raid goes for: production before income before power, then the fewest known
+	* anti-air guns over the bomb run, then the shortest flight.  The way out to the entry point crosses
+	* no known anti-air gun at all, and the entry point is on the map. */
+Bool AIPlayer::pickRaidTarget( const Object *raider, const std::vector<AIKnownGun> &guns, Object **target, Coord3D *entry, Int *gunsOnRun ) const
+{
+	Region3D extent;
+	TheTerrainLogic->getExtent( &extent );
+	const Coord3D *from = raider->getPosition();
+	const Int me = m_player->getPlayerIndex();
+	Int bestPreference = 0;
+	Real bestFlight = 0.0f;
+	*target = NULL;
+	for( Object *obj = TheGameLogic->getFirstObject(); obj; obj = obj->getNextObject() )
+	{
+		const Int preference = raidPreference( obj );
+		if( preference == 0 || obj->isEffectivelyDead() || m_player->getRelationship( obj->getTeam() ) != ENEMIES || !observerKnowsAbout( obj, me ) )
+			continue;
+		const Coord3D *at = obj->getPosition();
+		for( Int side = 0; side < RAID_SIDES; ++side )
+		{
+			const Real x = at->x + RAID_SIDE[ side ][ 0 ] * RAID_ENTRY_DISTANCE;
+			const Real y = at->y + RAID_SIDE[ side ][ 1 ] * RAID_ENTRY_DISTANCE;
+			if( x < extent.lo.x || x > extent.hi.x || y < extent.lo.y || y > extent.hi.y || gunsOverFlight( guns, from->x, from->y, x, y ) > 0 )
+				continue;
+			const Int run = gunsOverFlight( guns, x, y, at->x, at->y );
+			if( run > RAID_MAX_GUNS_ON_RUN )
+				continue;
+			const Real flight = (Real)sqrt( sqr( x - from->x ) + sqr( y - from->y ) );
+			if( *target == NULL || preference > bestPreference ||
+					(preference == bestPreference && (run < *gunsOnRun || (run == *gunsOnRun && flight < bestFlight))) )
+			{
+				*target = obj;
+				entry->set( x, y, TheTerrainLogic->getGroundHeight( x, y ) );
+				*gunsOnRun = run;
+				bestPreference = preference;
+				bestFlight = flight;
+			}
+		}
+	}
+	return *target != NULL;
+}
+
+/** A raider at home with its bomb ready flies out to its entry point, drops on the building from
+	* there, and comes back the way it went.  Hit below half its health, or with a known anti-air gun
+	* turning up over the way in, it turns for home. */
+void AIPlayer::flyRaid( Int slot, const std::vector<AIKnownGun> &guns )
+{
+	DutyHelix &duty = m_dutyHelix[ slot ];
+	Object *helix = TheGameLogic->findObjectByID( duty.id );
+	AIUpdateInterface *ai = helix->getAI();
+	const Coord3D *pos = helix->getPosition();
+	const UnsignedInt now = TheGameLogic->getFrame();
+	const BodyModuleInterface *body = helix->getBodyModule();
+	const Real health = body->getHealth() / body->getMaxHealth();
+	SpecialPowerModuleInterface *bomb = helix->findSpecialPowerModuleInterface( SPECIAL_HELIX_NAPALM_BOMB );
+	Object *target = TheGameLogic->findObjectByID( duty.target );
+	const Bool targetGone = target == NULL || target->isEffectivelyDead();
+	Coord3D home = m_baseCenter;
+	home.z = TheTerrainLogic->getGroundHeight( home.x, home.y );
+	const char *abort = NULL;
+
+	switch( duty.phase )
+	{
+		case RAID_HOME:
+		{
+			// a raider waiting at home moves off from anti-air in the base, the way a healer does: 20 of the
+			// 55 raiders lost in twelve matches went down at home
+			const UnsignedInt lastHit = body->getLastDamageTimestamp();
+			if( (lastHit != 0 && now - lastHit < HEALER_HIT_FRAMES) || deepestReach( guns, pos->x, pos->y, TRUE ) > -HELIX_GUN_MARGIN )
+			{
+				const Coord3D clear = rearOf( pos, guns );
+				ai->aiMoveToPosition( &clear, CMD_FROM_AI );
+				break;
+			}
+			if( !isAtHome( pos ) )
+			{
+				if( ai->isIdle() )
+					ai->aiMoveToPosition( &home, CMD_FROM_AI );
+				break;
+			}
+			if( !bomb->isReady() || health < RAID_DEPART_HEALTH || isBaseUnderAttack() )
+				break;
+			Object *pick = NULL;
+			Coord3D entry;
+			Int gunsOnRun = 0;
+			if( !pickRaidTarget( helix, guns, &pick, &entry, &gunsOnRun ) )
+				break;
+			DEBUG_LOG(("AI RAID frame %d player %d sends '%s' %d at '%s' %d of player %d, %.0f away, in from (%.0f,%.0f), %d known anti-air guns over the run, %d known in all\n",
+				now, m_player->getPlayerIndex(), helix->getTemplate()->getName().str(), duty.id, pick->getTemplate()->getName().str(), pick->getID(),
+				pick->getControllingPlayer()->getPlayerIndex(), (Real)sqrt( sqr( pick->getPosition()->x - pos->x ) + sqr( pick->getPosition()->y - pos->y ) ),
+				entry.x, entry.y, gunsOnRun, (Int)guns.size()));
+			duty.target = pick->getID();
+			duty.spot = entry;
+			duty.targetHealth = -1.0f;
+			duty.phase = RAID_OUT;
+			duty.frame = now;
+			ai->aiMoveToPosition( &entry, CMD_FROM_AI );
+			break;
+		}
+
+		case RAID_OUT:
+			if( targetGone )
+				abort = "its target is gone";
+			else if( health < RAID_ABORT_HEALTH )
+				abort = "hit";
+			else if( raidAheadIsHot( guns, pos, &duty.spot, target->getPosition() ) )
+			{
+				// a new way in from here, to this building or another, before giving the raid up
+				Object *pick = NULL;
+				Coord3D entry;
+				Int gunsOnRun = 0;
+				if( pickRaidTarget( helix, guns, &pick, &entry, &gunsOnRun ) )
+				{
+					DEBUG_LOG(("AI RAID frame %d player %d '%s' %d turns from a hot way in, now at '%s' %d in from (%.0f,%.0f), %d known anti-air guns over the run\n",
+						now, m_player->getPlayerIndex(), helix->getTemplate()->getName().str(), duty.id, pick->getTemplate()->getName().str(), pick->getID(),
+						entry.x, entry.y, gunsOnRun));
+					duty.target = pick->getID();
+					duty.spot = entry;
+					duty.frame = now;
+					ai->aiMoveToPosition( &entry, CMD_FROM_AI );
+					break;
+				}
+				abort = "the way in turned hot";
+			}
+			if( abort )
+			{
+				ai->aiMoveToPosition( &home, CMD_FROM_AI );
+				break;
+			}
+			if( ai->isIdle() || sqr( pos->x - duty.spot.x ) + sqr( pos->y - duty.spot.y ) <= sqr( HELIX_REORDER_DISTANCE ) )
+			{
+				helix->doSpecialPowerAtLocation( bomb->getSpecialPowerTemplate(), target->getPosition(), INVALID_ANGLE, 0, FALSE );
+				duty.phase = RAID_IN;
+				duty.frame = now;
+			}
+			else if( now - duty.frame > RAID_LEG_FRAMES )
+			{
+				ai->aiMoveToPosition( &duty.spot, CMD_FROM_AI );
+				duty.frame = now;
+			}
+			break;
+
+		case RAID_IN:
+			if( !bomb->isReady() )
+			{
+				// the bomb is away: its recharge has started
+				duty.targetHealth = targetGone ? 0.0f : target->getBodyModule()->getHealth();
+				DEBUG_LOG(("AI RAID frame %d player %d '%s' %d drops on '%s' %d at (%.0f,%.0f), %d s out, the building at %.0f of %.0f health\n",
+					now, m_player->getPlayerIndex(), helix->getTemplate()->getName().str(), duty.id,
+					targetGone ? "nothing" : target->getTemplate()->getName().str(), duty.target, pos->x, pos->y, (now - duty.frame) / LOGICFRAMES_PER_SECOND,
+					duty.targetHealth, targetGone ? 0.0f : target->getBodyModule()->getMaxHealth()));
+				ai->aiMoveToPosition( &duty.spot, CMD_FROM_AI );
+				duty.phase = RAID_BACK;
+				duty.frame = now;
+			}
+			else if( targetGone )
+				abort = "its target is gone";
+			else if( health < RAID_ABORT_HEALTH )
+				abort = "hit";
+			else if( now - duty.frame > RAID_RUN_FRAMES )
+				abort = "the run took too long";
+			if( abort )
+				ai->aiMoveToPosition( &duty.spot, CMD_FROM_AI );
+			break;
+
+		case RAID_BACK:
+			if( isAtHome( pos ) && ai->isIdle() )
+			{
+				DEBUG_LOG(("AI RAID frame %d player %d '%s' %d back home after %d s, %s, target %d %s, health at the drop %.0f, now %.0f\n", now,
+					m_player->getPlayerIndex(), helix->getTemplate()->getName().str(), duty.id, (now - duty.frame) / LOGICFRAMES_PER_SECOND,
+					duty.targetHealth < 0.0f ? "aborted" : "bombed", duty.target, targetGone ? "destroyed" : "standing",
+					duty.targetHealth, targetGone ? 0.0f : target->getBodyModule()->getHealth()));
+				duty.phase = RAID_HOME;
+				duty.frame = now;
+			}
+			else if( ai->isIdle() || now - duty.frame > RAID_LEG_FRAMES )
+				ai->aiMoveToPosition( &home, CMD_FROM_AI );
+			break;
+	}
+	if( abort )
+	{
+		DEBUG_LOG(("AI RAID frame %d player %d '%s' %d aborts on '%s' %d, %s, at %.0f%% health\n", now, m_player->getPlayerIndex(),
+			helix->getTemplate()->getName().str(), duty.id, targetGone ? "nothing" : target->getTemplate()->getName().str(), duty.target,
+			abort, health * 100.0f));
+		duty.phase = RAID_BACK;
+		duty.frame = now;
+	}
+}
+
+void AIPlayer::doHelixes( void )
+{
+	if( !isSkirmishAI() || !m_baseCenterSet || m_skillLevel == AISKILL_EASY || measuringWithoutTactics() )
+		return;
+	if( (TheGameLogic->getFrame() + computeUpdatePhase( m_player->getPlayerIndex(), HELIX_CHECK_RATE )) % HELIX_CHECK_RATE != 0 )
+		return;
+	const UnsignedInt now = TheGameLogic->getFrame();
+	for( Int slot = 0; slot < MAX_DUTY_HELIXES; ++slot )
+	{
+		DutyHelix &duty = m_dutyHelix[ slot ];
+		if( duty.id == INVALID_ID )
+			continue;
+		const Object *helix = TheGameLogic->findObjectByID( duty.id );
+		if( helix && !helix->isEffectivelyDead() && helix->getControllingPlayer() == m_player )
+			continue;
+		static const char *const raidPhases[] = { "at home", "on the way in", "on the bomb run", "on the way back" };
+		static const char *const healPhases[] = { "at home", "over a hurt unit", "behind the wave", "pulling back" };
+		DEBUG_LOG(("AI HELIX frame %d player %d loses its %s %d, %s\n", now, m_player->getPlayerIndex(), HELIX_ROLE_NAME[ duty.role ], duty.id,
+			duty.role == HELIX_RAIDER ? raidPhases[ duty.phase ] : healPhases[ duty.phase ]));
+		duty.id = INVALID_ID;
+	}
+	buyDutyHelix();
+
+	AIEnemyComposition enemy;
+	Bool enemyRead = FALSE;
+	std::vector<Object *> owned;
+	m_player->iterateObjects( collectOwned, &owned );
+	for( size_t o = 0; o < owned.size(); ++o )
+	{
+		Object *helix = owned[ o ];
+		if( !isHelicopter( helix ) || helix->getProductionUpdateInterface() == NULL )
+			continue;
+		Int role = -1;
+		for( Int slot = 0; slot < MAX_DUTY_HELIXES; ++slot )
+			if( m_dutyHelix[ slot ].id == helix->getID() )
+				role = m_dutyHelix[ slot ].role;
+		upgradeHelix( helix, role, &enemy, &enemyRead );
+	}
+
+	std::vector<AIKnownGun> guns;
+	Bool gunsRead = FALSE;
+	Int healers = 0;
+	for( Int slot = 0; slot < MAX_DUTY_HELIXES; ++slot )
+	{
+		if( m_dutyHelix[ slot ].id == INVALID_ID )
+			continue;
+		if( !gunsRead )
+		{
+			collectKnownGuns( &guns );
+			gunsRead = TRUE;
+		}
+		if( m_dutyHelix[ slot ].role == HELIX_HEALER )
+		{
+			++healers;
+			steerHealer( slot, guns );
+		}
+		else
+			flyRaid( slot, guns );
+	}
+	if( healers > 0 && (now / HELIX_CHECK_RATE) % (HEALER_REPORT_FRAMES / HELIX_CHECK_RATE) == 0 )
+		DEBUG_LOG(("AI HEALER frame %d player %d has %d healers; out of the base %d of %d healer seconds clear of the nearest known gun's reach\n",
+			now, m_player->getPlayerIndex(), healers, m_healerClearSeconds, m_healerSeconds));
 }
 
 //----------------------------------------------------------------------------------------------------------
@@ -8883,7 +9637,7 @@ void AIPlayer::tacticsFor( Object *obj )
 	const TeamTemplateInfo *info = team->getPrototype()->getTemplateInfo();
 	if( info && (info->m_isBaseDefense || info->m_isPerimeterDefense) )
 		return;
-	if( obj->getID() == m_capturerID || obj->getID() == m_hijackerID )
+	if( obj->getID() == m_capturerID || obj->getID() == m_hijackerID || isDutyHelix( obj ) )
 		return;
 	for( Int i = 0; i < MAX_AI_SCOUTS; ++i )
 	{
@@ -9921,7 +10675,7 @@ void AIPlayer::doCapture( void )
 			for( size_t g = 0; g < list.gunships.size(); ++g )
 			{
 				Object *candidate = list.gunships[ g ];
-				if( candidate->getAI() == NULL || !candidate->getAI()->isIdle() ||
+				if( candidate->getAI() == NULL || !candidate->getAI()->isIdle() || isDutyHelix( candidate ) ||
 						!candidate->getContain()->isValidContainerFor( capturer, TRUE ) )
 					continue;
 				const Real distSqr = sqr( candidate->getPosition()->x - from.x ) + sqr( candidate->getPosition()->y - from.y );
@@ -10543,7 +11297,7 @@ void AIPlayer::xfer( Xfer *xfer )
 {
 
 	// version
-	XferVersion currentVersion = 15;		// 2: scout  3: rung and role  4: scouting stamps  5: the capturer  6: parked waves  7: superweapon aims  8: the hijacker  9: tactical steps  10: the ferry and dropped riders  11: the outward placement ring  12: the pressure level  13: falling back  14: gunship Chinooks and the boarding wait  15: transport Chinooks and the lent one
+	XferVersion currentVersion = 16;		// 2: scout  3: rung and role  4: scouting stamps  5: the capturer  6: parked waves  7: superweapon aims  8: the hijacker  9: tactical steps  10: the ferry and dropped riders  11: the outward placement ring  12: the pressure level  13: falling back  14: gunship Chinooks and the boarding wait  15: transport Chinooks and the lent one  16: healer and raider Helixes
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -10844,6 +11598,21 @@ void AIPlayer::xfer( Xfer *xfer )
 		xfer->xferUnsignedInt( &m_shuttleFrontFrame );
 		xfer->xferInt( &m_lastWaveSlots );
 		xfer->xferObjectID( &m_lentChinook );
+	}
+	// the healer and raider Helixes and where each is in its job
+	if( version >= 16 )
+	{
+		for( Int helix = 0; helix < MAX_DUTY_HELIXES; ++helix )
+		{
+			DutyHelix &duty = m_dutyHelix[ helix ];
+			xfer->xferObjectID( &duty.id );
+			xfer->xferInt( &duty.role );
+			xfer->xferInt( &duty.phase );
+			xfer->xferUnsignedInt( &duty.frame );
+			xfer->xferObjectID( &duty.target );
+			xfer->xferCoord3D( &duty.spot );
+			xfer->xferReal( &duty.targetHealth );
+		}
 	}
 
 	// the ladder rung and the role, which are rolled once and must come back the same way

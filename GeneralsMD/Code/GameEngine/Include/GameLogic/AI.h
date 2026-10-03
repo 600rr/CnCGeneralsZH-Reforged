@@ -222,9 +222,11 @@ struct AIEnemyComposition
 	Real m_infantry;
 	Real m_stealth;			///< ... that can go invisible
 	Real m_totalThreat;	///< and the absolute total the shares are taken from, for C2's massing
+	Int m_infantryCount;	///< how many known enemy soldiers, and ground vehicles, by head rather than threat
+	Int m_vehicleCount;
 
 	AIEnemyComposition() : m_air(0.0f), m_armour(0.0f), m_infantry(0.0f), m_stealth(0.0f),
-												 m_totalThreat(0.0f) {}
+												 m_totalThreat(0.0f), m_infantryCount(0), m_vehicleCount(0) {}
 };
 
 //-------------------------------------------------------------------------------------------------
@@ -235,6 +237,17 @@ struct AIVisibleEnemy
 	const ThingTemplate *m_template;
 	Real m_weight;			///< summed combat power of every visible unit of this kind
 	Real m_cost;				///< what one of them cost its owner
+};
+
+//-------------------------------------------------------------------------------------------------
+/** An enemy gun the AI knows of, and how far it reaches at anything and at aircraft. */
+//-------------------------------------------------------------------------------------------------
+struct AIKnownGun
+{
+	Real m_x;
+	Real m_y;
+	Real m_reach;
+	Real m_airReach;		///< 0 for a gun that cannot aim at a helicopter
 };
 
 //-------------------------------------------------------------------------------------------------

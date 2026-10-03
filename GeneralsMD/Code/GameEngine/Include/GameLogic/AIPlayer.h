@@ -356,6 +356,16 @@ protected:
 	void computeShuttleFront(Waypoint *way, AIGroup *wave);	///< where the transport Chinooks put this wave's units down
 	Int loadShuttle(Object *ship);	///< call the attack teams' ground units at home into one Chinook; how many were called
 	Bool flightIsQuiet(const Coord3D *from, Real x, Real y) const;	///< a straight flight crosses nothing the AI has seen shoot
+	void doHelixes(void);	///< China's Helixes: the upgrade the enemy army calls for, healers behind the wave, bomb raids
+	void buyDutyHelix(void);	///< Medium and up buy the healers and raiders their Helixes' buttons allow
+	Int helixRoleWanted(const ThingTemplate *tmpl) const;	///< the job a Helix of this kind would take now, -1 for none
+	void takeDutyHelix(Object *helix);	///< a Helix buyDutyHelix ordered comes out and takes its job
+	void upgradeHelix(Object *helix, Int role, AIEnemyComposition *enemy, Bool *enemyRead);	///< the upgrade this Helix's job or the enemy army calls for
+	void collectKnownGuns(std::vector<AIKnownGun> *guns) const;	///< every enemy gun this AI knows of, in object list order
+	void steerHealer(Int slot, const std::vector<AIKnownGun> &guns);	///< a healer over our hurt behind the line, clear of every known gun
+	void flyRaid(Int slot, const std::vector<AIKnownGun> &guns);	///< a raider's bomb run on an enemy building, in and out the quiet side
+	Bool pickRaidTarget(const Object *raider, const std::vector<AIKnownGun> &guns, Object **target, Coord3D *entry, Int *gunsOnRun) const;
+	Coord3D rearOf(const Coord3D *from, const std::vector<AIKnownGun> &guns) const;	///< the nearest point toward home no known gun reaches
 	Bool isGunshipRider(const Object *obj) const;	///< infantry loadGunships may put in a transport
 	void sendIdleAttackTeams(void);	///< attack teams standing at home join the next wave instead of waiting for the script's signal
 	Real addHomeStrays(AIGroup *wave) const;	///< the default team's fighters idle at home go with the wave
@@ -414,6 +424,7 @@ public:
 	Bool isGunshipAircraft( const Object *obj ) const;	///< a helicopter, or one of those Chinooks
 	Bool isTransportChinook( const Object *obj ) const;	///< a plain Chinook this AI bought to fly its wave, not to gather
 	Bool isDutyChinook( const Object *obj ) const;	///< either of those, which the gatherer counts leave out
+	Bool isDutyHelix( const Object *obj ) const;	///< a Helix this AI bought to heal or to raid, which nothing else gives orders
 protected:
 
 	/**
@@ -481,6 +492,24 @@ protected:
 	UnsignedInt	m_shuttleFrontFrame;	///< when that wave left; 0 for no wave yet
 	Int					m_lastWaveSlots;		///< transport slots the last wave's ground units take
 	ObjectID		m_lentChinook;			///< a duty Chinook gathering because no gatherer can exist otherwise
+	/// A Helix bought for a job of its own outside the teams: a healer behind the wave, or a raider
+	enum { HELIX_HEALER, HELIX_RAIDER };
+	enum { RAID_HOME, RAID_OUT, RAID_IN, RAID_BACK };
+	enum { HEAL_HOME, HEAL_PATIENT, HEAL_REAR, HEAL_PULLBACK };
+	struct DutyHelix
+	{
+		ObjectID		id;					///< INVALID_ID for a free slot
+		Int					role;				///< HELIX_HEALER or HELIX_RAIDER
+		Int					phase;			///< a raider's RAID_*, a healer's HEAL_*
+		UnsignedInt	frame;			///< when the phase began
+		ObjectID		target;			///< a raider's building, a healer's patient
+		Coord3D			spot;				///< a raider's way in and out, a healer's last ordered spot
+		Real				targetHealth;	///< the building's health when the bomb went
+	};
+	enum { MAX_DUTY_HELIXES = 5 };
+	DutyHelix		m_dutyHelix[ MAX_DUTY_HELIXES ];
+	Int					m_healerSeconds;		///< for the log only, not saved: healer seconds counted, and those clear of the nearest gun's reach
+	Int					m_healerClearSeconds;
 	Int				m_captureTimer;					///< frames until the next look for something to capture
 	ObjectID	m_hijackerID;						///< the thief currently out after an enemy vehicle
 	Int				m_hijackTimer;					///< frames until the next look for a vehicle to take
