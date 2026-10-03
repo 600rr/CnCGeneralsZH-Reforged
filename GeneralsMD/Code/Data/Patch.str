@@ -220,6 +220,38 @@ GUI:OrderMoveDescription
 "The next click on the ground sends the selected units there. Drag instead and they spread out along the line you draw."
 END
 
+GUI:OrderScout
+"Scout"
+END
+
+GUI:OrderScoutDescription
+"Click a spot and the selected units walk a circle round it, looking at every part of it you cannot see yet, then come back to the middle. Roll the mouse wheel before you click to make the circle bigger or smaller."
+END
+
+GUI:OrderSearchAndDestroy
+"Search and Destroy"
+END
+
+GUI:OrderSearchAndDestroyDescription
+"Click a spot and the selected units attack move round it, fighting whatever they run into, then stay and guard the whole circle. Roll the mouse wheel before you click to size the circle."
+END
+
+GUI:OrderStanceDefensive
+"Stance: Defensive"
+END
+
+GUI:OrderStanceDefensiveDescription
+"The selected units shoot what comes into range and hold the ground you put them on. Click to make them aggressive: they go after any enemy they see."
+END
+
+GUI:OrderStanceAggressive
+"Stance: Aggressive"
+END
+
+GUI:OrderStanceAggressiveDescription
+"The selected units go after any enemy they see and chase it. Click to make them defensive again: they only shoot what comes into range and stay where they are."
+END
+
 // Smoke signals.  The three ...Placed lines are what an ally reads; %s is the sender's name.  The
 // ...Label words are written over the smoke, which is in the sender's colour.
 GUI:SignalAttack

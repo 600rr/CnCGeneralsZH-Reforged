@@ -757,6 +757,30 @@ void GameLogic::logicMessageDispatcher( GameMessage *msg, AIGroup *orderedGroup 
 		}
 
 		//---------------------------------------------------------------------------------------------
+		// The stance key (fork): every selected unit of the sender's takes the stance.  The number came
+		// over the network, so only 0 and 1 mean anything
+		case GameMessage::MSG_SET_STANCE:
+		{
+			if( currentlySelectedGroup == NULL || msg->getArgumentCount() < 1
+					|| msg->getArgumentDataType( 0 ) != ARGUMENTDATATYPE_INTEGER )
+				break;
+			const Int stance = msg->getArgument( 0 )->integer;
+			if( stance != 0 && stance != 1 )
+				break;
+
+			const VecObjectID& ids = currentlySelectedGroup->getAllIDs();
+			for( VecObjectID::const_iterator it = ids.begin(); it != ids.end(); ++it )
+			{
+				Object *obj = TheGameLogic->findObjectByID( *it );
+				if( obj && obj->getControllingPlayer() == thisPlayer && obj->getAIUpdateInterface() )
+					obj->getAIUpdateInterface()->setAggressiveStance( stance == 1 );
+			}
+			DEBUG_LOG(( "STANCE: frame %d player %d %s, %d selected\n", TheGameLogic->getFrame(),
+									msg->getPlayerIndex(), stance == 1 ? "aggressive" : "defensive", (Int)ids.size() ));
+			break;
+		}
+
+		//---------------------------------------------------------------------------------------------
 		case GameMessage::MSG_DO_WEAPON:
 		{
 			WeaponSlotType weaponSlot = (WeaponSlotType)msg->getArgument( 0 )->integer;

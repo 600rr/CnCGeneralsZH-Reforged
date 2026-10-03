@@ -379,6 +379,10 @@ public:
 	// the radius a player's guard order gave this unit; 0 leaves it on its own vision-based range
 	Real getGuardRadius() const { return m_guardRadius; }
 	void setGuardRadius( Real radius ) { m_guardRadius = radius; }
+	// A player's unit on the aggressive stance takes what it sees, not only what it can already
+	// shoot, and goes after it the way a computer player's unit does.  Defensive is EA's rule
+	Bool hasAggressiveStance() const { return m_aggressiveStance; }
+	void setAggressiveStance( Bool aggressive ) { m_aggressiveStance = aggressive; }
 
 	virtual Object* construct( const ThingTemplate *what, 
 														 const Coord3D *pos, Real angle, 
@@ -855,6 +859,7 @@ private:
 
 	GuardMode							m_guardMode;
 	Real									m_guardRadius;				///< set by a player's guard order; 0 for the vision-based range
+	Bool									m_aggressiveStance;		///< set by MSG_SET_STANCE; FALSE is the defensive stance, EA's
 	GuardTargetType				m_guardTargetType[2];
 	Coord3D								m_locationToGuard;
 	ObjectID							m_objectToGuard;

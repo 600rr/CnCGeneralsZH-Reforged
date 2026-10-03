@@ -14825,6 +14825,38 @@ GUI:OrderMoveDescription
 "Zemine bir sonraki tıklama seçili birlikleri oraya gönderir. Bunun yerine sürüklerseniz birlikler çizdiğiniz çizgi boyunca dizilir."
 END
 
+GUI:OrderScout
+"Keşif"
+END
+
+GUI:OrderScoutDescription
+"Bir noktaya tıklayın; seçili birlikler çevresinde bir daire boyunca dolaşıp dairenin henüz göremediğiniz her yerine bakar, sonra ortaya döner. Daireyi büyütmek ya da küçültmek için tıklamadan önce fare tekerleğini çevirin."
+END
+
+GUI:OrderSearchAndDestroy
+"Ara ve Yok Et"
+END
+
+GUI:OrderSearchAndDestroyDescription
+"Bir noktaya tıklayın; seçili birlikler çevresinde saldırarak ilerler, karşılarına çıkanla savaşır, sonra kalıp bütün daireyi korur. Daireyi boyutlandırmak için tıklamadan önce fare tekerleğini çevirin."
+END
+
+GUI:OrderStanceDefensive
+"Tutum: Savunmacı"
+END
+
+GUI:OrderStanceDefensiveDescription
+"Seçili birlikler menzile gireni vurur ve koyduğunuz yeri tutar. Saldırgan yapmak için tıklayın: gördükleri her düşmanın peşine düşerler."
+END
+
+GUI:OrderStanceAggressive
+"Tutum: Saldırgan"
+END
+
+GUI:OrderStanceAggressiveDescription
+"Seçili birlikler gördükleri her düşmanın peşine düşer ve onu kovalar. Yeniden savunmacı yapmak için tıklayın: yalnızca menzile gireni vururlar ve yerlerinde kalırlar."
+END
+
 GUI:SignalAttack
 "Sinyal: Saldır"
 END

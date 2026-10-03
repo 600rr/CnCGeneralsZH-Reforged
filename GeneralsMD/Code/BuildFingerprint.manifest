@@ -65,6 +65,7 @@ Data/Scenarios/mobclose.txt
 Data/Scenarios/mobopen.txt
 Data/Scenarios/mobstress.txt
 Data/Scenarios/mobwin.txt
+Data/Scenarios/netstance.txt
 Data/Scenarios/overlordbridge.txt
 Data/Scenarios/overlordlong.txt
 Data/Scenarios/parade.txt
@@ -74,10 +75,12 @@ Data/Scenarios/scudstorm.txt
 Data/Scenarios/shiftorders.txt
 Data/Scenarios/shiftqueue.txt
 Data/Scenarios/squad30.txt
+Data/Scenarios/stance.txt
 Data/Scenarios/standinbuild.txt
 Data/Scenarios/standinfake.txt
 Data/Scenarios/stashbeside.txt
 Data/Scenarios/statues.txt
+Data/Scenarios/sweep.txt
 Data/Scenarios/techrespawn.txt
 Data/Scenarios/towncross.txt
 Data/Scenarios/trailer_arrival.txt

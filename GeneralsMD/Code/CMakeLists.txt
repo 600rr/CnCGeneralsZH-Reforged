@@ -2616,8 +2616,8 @@ if(Python3_Interpreter_FOUND)
   # synthetic one and checks the block parser did not eat an End or duplicate a key.
   add_test(NAME vfx_tune_selfcheck
            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/Tools/vfx_tune.py selfcheck)
-  # Tools/order_cameos.py paints the command bar's attack, hold position and move cameos: three
-  # whole pictures in the places the mapped images name, told apart by colour, the same every run.
+  # Tools/order_cameos.py paints the command bar's order key cameos: seven whole pictures in the
+  # places the mapped images name, told apart by colour, the same every run.
   add_test(NAME order_cameos_selfcheck
            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/Tools/run_with_modules.py numpy,PIL
                    ${CMAKE_CURRENT_SOURCE_DIR}/Tools/order_cameos.py selfcheck)

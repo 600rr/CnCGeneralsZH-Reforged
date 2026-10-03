@@ -447,12 +447,16 @@ void W3DInGameUI::draw( void )
 	drawGuardMarkers();
 
 	// the circle an armed guard will hold, under the cursor, at the size the wheel left it.  A drag
-	// is drawing a guard line instead, where every unit holds its own station
+	// is drawing a guard line instead, where every unit holds its own station.  A scout's circle is
+	// the move green and a search and destroy's the attack move colour, as their hints are
 	if( isAreaPicking() && !m_isFormationDragging )
 	{
 		Coord3D center;
 		TheTacticalView->screenToTerrain( &TheMouse->getMouseStatus()->pos, &center );
-		drawGroundRing( center, getAreaPickRadius(), 0xCC55CCFF, 2.0f );		// the guard blue the hints use
+		const UnsignedInt color = getAreaOrderArmed() == AREA_ORDER_SCOUT ? 0xCC33FF33
+														: getAreaOrderArmed() == AREA_ORDER_HUNT ? 0xCCFF66CC
+														: 0xCC55CCFF;		// the guard blue the hints use
+		drawGroundRing( center, getAreaPickRadius(), color, 2.0f );
 	}
 
 	// for each view draw hints

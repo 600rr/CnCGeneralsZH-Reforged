@@ -291,6 +291,7 @@ AIUpdateInterface::AIUpdateInterface( Thing *thing, const ModuleData* moduleData
 	m_lastCommandSource = CMD_FROM_AI;
 	m_guardMode = GUARDMODE_NORMAL;
 	m_guardRadius = 0.0f;
+	m_aggressiveStance = FALSE;
 	m_guardTargetType[0] = m_guardTargetType[1] = GUARDTARGET_NONE;
 	m_locationToGuard.zero();
 	m_objectToGuard = INVALID_ID;
@@ -6858,8 +6859,10 @@ Object* AIUpdateInterface::getNextMoodTarget( Bool calledByAI, Bool calledDuring
 	// allow us to pursue the target. therefore, we should ensure that we only
 	// look for targets that are already within attack range (as opposed to vision range).
 	// The caller can lift that restriction (attack move does) when it will actually close
-	// with what it finds instead of driving past it.
-	if (calledByAI && !allowOutOfWeaponRangeTargets && obj->getControllingPlayer()->getPlayerType() == PLAYER_HUMAN)
+	// with what it finds instead of driving past it, and so does a unit the player has put on the
+	// aggressive stance, which goes after what it sees (AIAttackApproachTargetState lets it).
+	if (calledByAI && !allowOutOfWeaponRangeTargets && !m_aggressiveStance
+			&& obj->getControllingPlayer()->getPlayerType() == PLAYER_HUMAN)
 	{
 		flags |= AI::WITHIN_ATTACK_RANGE;
 	}
@@ -7317,12 +7320,13 @@ void AIUpdateInterface::crc( Xfer *x )
 	* 16: the tunnel trip's goal and its flag
 	* 17: how the tunnel trip's last leg is walked
 	* 18: the target a helicopter keeps shooting while it moves away
-	* 19: the radius a player's guard order set */
+	* 19: the radius a player's guard order set
+	* 20: the aggressive stance */
 // ------------------------------------------------------------------------------------------------
 void AIUpdateInterface::xfer( Xfer *xfer )
 {
   // version
-  const XferVersion currentVersion = 19;
+  const XferVersion currentVersion = 20;
   XferVersion version = currentVersion;
   xfer->xferVersion( &version, currentVersion );
  
@@ -7663,6 +7667,9 @@ void AIUpdateInterface::xfer( Xfer *xfer )
 
 	if (version >= 19)
 		xfer->xferReal(&m_guardRadius);
+
+	if (version >= 20)
+		xfer->xferBool(&m_aggressiveStance);
 
 }  // end xfer
 

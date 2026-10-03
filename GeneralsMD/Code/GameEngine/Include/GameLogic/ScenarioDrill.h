@@ -82,7 +82,10 @@ enum ScenarioActionType
 	SCENARIO_ACTION_SHIFTPOWER,				///< shiftpower <slot> <selector> <targetSlot> <targetSelector> <power>; the same with a special power armed, on one object
 	SCENARIO_ACTION_SHIFTUPGRADE,			///< shiftupgrade <slot> <selector> <upgrade>; shift on an object upgrade button, bought by every unit that matches
 	SCENARIO_ACTION_DOCK,							///< dock <slot> <selector> <targetSlot> <targetSelector>; a right click on a supply point or a dock
-	SCENARIO_ACTION_CONSTRUCT					///< construct <slot> <template> <position>; the local player's placement click, whatever is selected, as a message that is recorded and crosses the network
+	SCENARIO_ACTION_CONSTRUCT,				///< construct <slot> <template> <position>; the local player's placement click, whatever is selected, as a message that is recorded and crosses the network
+	SCENARIO_ACTION_STANCE,						///< stance <slot> <selector> aggressive|defensive; the stance key, as MSG_SET_STANCE
+	SCENARIO_ACTION_SCOUT,						///< scout <slot> <selector> <position> [radius]; the scout key's sweep, through the order queue as its messages arrive
+	SCENARIO_ACTION_HUNT							///< hunt <slot> <selector> <position> [radius]; the same with search and destroy
 };
 
 /// ScenarioAction::atStart when the position is plain numbers

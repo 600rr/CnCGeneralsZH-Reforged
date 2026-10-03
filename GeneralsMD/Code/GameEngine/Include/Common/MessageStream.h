@@ -658,6 +658,7 @@ public:
 		MSG_CHEAT,																	///< (Int CheatKind, Int amount) a console cheat, refused in a network game (fork)
 		MSG_QUEUE_NEXT_ORDER,												///< (Int OrderQueueMode) the order right after this one is a shift-queued one (fork)
 		MSG_CLEAR_RALLY_POINT,											///< (objectID) the building forgets its rally point (fork)
+		MSG_SET_STANCE,															///< (Int 0 defensive, 1 aggressive) how far the selected units go after what they see (fork)
 
 		MSG_BEGIN_DEBUG_NETWORK_MESSAGES = 1900,		///< network messages that exist only in debug/internal builds. all grouped separately.
 

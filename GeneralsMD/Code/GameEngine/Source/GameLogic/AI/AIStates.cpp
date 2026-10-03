@@ -2674,11 +2674,12 @@ StateReturnType AIAttackApproachTargetState::onEnter()
 		// Check here:  If we are a player, and we got to this state via an ai command (ie we auto-acquired),
 		// we don't want to chase the unit. isAllowedToChase is set when we are in a deploy and attack state (troop crawler).
 		// Kris (July 2003): If we are retaliating... don't fail out!
+		// A player's unit on the aggressive stance chases by the computer player's rule.
 		if( ai->getCurrentStateID() != AI_GUARD_RETALIATE )
 		{
-			if (source->getControllingPlayer()->getPlayerType() == PLAYER_HUMAN) 
+			if (source->getControllingPlayer()->getPlayerType() == PLAYER_HUMAN && !ai->hasAggressiveStance())
 			{
-				if (ai->getLastCommandSource() == CMD_FROM_AI && !ai->isAllowedToChase() ) 
+				if (ai->getLastCommandSource() == CMD_FROM_AI && !ai->isAllowedToChase() )
 				{
 					if (!weapon->isContactWeapon()) 
 					{
@@ -3046,11 +3047,12 @@ StateReturnType AIAttackPursueTargetState::onEnter()
 	// Check here:  If we are a player, and we got to this state via an ai command (ie we auto-acquired), 
 	// we don't want to chase the unit. 
 	// Kris (July 2003): If we are retaliating... don't succeed out!
+	// The aggressive stance chases, as above.
 	if( ai->getCurrentStateID() != AI_GUARD_RETALIATE )
 	{
-		if (source->getControllingPlayer()->getPlayerType() == PLAYER_HUMAN) 
+		if (source->getControllingPlayer()->getPlayerType() == PLAYER_HUMAN && !ai->hasAggressiveStance())
 		{
-			if (ai->getLastCommandSource() == CMD_FROM_AI) 
+			if (ai->getLastCommandSource() == CMD_FROM_AI)
 			{
 				return STATE_SUCCESS;
 

@@ -491,6 +491,22 @@ Int ControlBar_commandGroup( const class CommandButton *command );
 	* abilities along Q, or along A under a set's production.  A row fills left to right in slot order;
 	* what does not fit goes on in the next row down with room, then in the rows above. */
 Bool ControlBar_commandPlaces( const Int *types, const Int *groups, const Int *pinned, Int count, Int *places );
+
+/** The page's keys past attack, hold position and move, which no command set has a button for either. */
+enum OrderKeyExtra
+{
+	ORDER_KEY_SCOUT = 0,		///< walk a circle, for a selection with a scout in it
+	ORDER_KEY_HUNT,					///< search and destroy: attack move round a circle and guard it, for one that attack moves
+	ORDER_KEY_STANCE,				///< aggressive or defensive, for one that attack moves
+	ORDER_KEY_EXTRAS
+};
+
+/** Where the ORDER_KEY_EXTRAS keys stand once `count` slots are at `places` (ControlBar_commandPlaces'
+	* answer, `fights` its return), or -1 for a key that is not offered or finds no room.  They come
+	* after every button, so none of them moves one.  Each has its own place, scout G, search and
+	* destroy F and the stance H; one that finds its own taken goes on B, then N, then the first free
+	* place in reading order. */
+void ControlBar_orderKeyPlaces( const Int *places, Int count, Bool fights, Bool scouts, Int *keys );
 enum { MAX_RIGHT_HUD_UPGRADE_CAMEOS = 5};
 enum { MAX_MULTI_SELECT_GROUPS = 36 };	///< unit types a multi-selection tells apart (6x6 grid, Tab focus)
 enum { 
@@ -842,6 +858,10 @@ public:
 	/** The place each command window stands at right now, -1 for a hidden one, and whether the
 		attack and hold places hold the page's two orders.  `places` has MAX_COMMANDS_PER_SET. */
 	Bool getCommandPlaces( Int *places ) const;
+
+	/** Where the page's scout, search and destroy and stance keys stand for what is selected now,
+		ORDER_KEY_EXTRAS of them, -1 for one that is not offered.  See ControlBar_orderKeyPlaces. */
+	void getOrderKeyPlaces( Int *keys ) const;
 
 	/** paint each command window's key, its place's, in its top left corner; `places` as above */
 	void labelCommandPlaces( const Int *places );
