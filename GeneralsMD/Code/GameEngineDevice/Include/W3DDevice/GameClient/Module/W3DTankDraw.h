@@ -48,9 +48,9 @@ public:
 	AsciiString m_treadDebrisNameLeft;
 	AsciiString m_treadDebrisNameRight;
 
-	Real m_treadAnimationRate;	///<amount of tread texture to scroll per sec.  1.0 == full width.
-	Real m_treadPivotSpeedFraction;	///<fraction of locomotor speed below which we allow pivoting.
-	Real m_treadDriveSpeedFraction;	///<fraction of locomotor speed below which treads stop animating.
+	Real m_treadAnimationRate;	///<amount of tread texture to scroll per sec at top speed.  1.0 == full width.
+	Real m_treadPivotSpeedFraction;	///<no longer read: the treads follow the ground. Kept so the INI key parses.
+	Real m_treadDriveSpeedFraction;	///<no longer read either.
 
 	W3DTankDrawModuleData();
 	~W3DTankDrawModuleData();
@@ -96,7 +96,6 @@ protected:
 
 	TreadObjectInfo m_treads[MAX_TREADS_PER_TANK];
 	Int m_treadCount;
-	Coord3D m_lastDirection;		///< orientation of tank last time it was drawn.
 
 	void createEmitters( void );					///< Create particle effects.
 	void tossEmitters( void );					///< Create particle effects.
@@ -104,7 +103,6 @@ protected:
 	void startMoveDebris( void );												///< start creating debris from the tank treads
 	void stopMoveDebris( void );												///< stop creating debris from the tank treads
 	void updateTreadObjects(void);												///< update pointers to sub-objects like treads.
-	void updateTreadPositions(Real uvDelta);									///< update uv coordinates on each tread
 };
 
 #endif // _W3D_TANK_DRAW_H_

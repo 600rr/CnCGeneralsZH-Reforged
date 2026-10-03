@@ -462,6 +462,8 @@ protected:
 	Real getCurAnimDistanceCovered() const;
 	Bool setCurAnimDurationInMsec(Real duration);
 
+	UnsignedInt stepGroundMotion(Real& forward, Real& turn);	///< distance driven along the heading and angle turned since the last call; returns the logic frames between
+
 
 	inline Bool getFullyObscuredByShroud() const { return m_fullyObscuredByShroud; }
 
@@ -511,6 +513,9 @@ private:
 	Int														m_whichAnimInCurState;						///< the index of the currently playing anim in cur state (if any)
 	WeaponRecoilInfoVec						m_weaponRecoilInfoVec[WEAPONSLOT_COUNT];
 	Bool													m_needRecalcBoneParticleSystems;
+	Coord3D												m_groundMotionPos;								///< where stepGroundMotion last saw the unit
+	Real													m_groundMotionAngle;
+	UnsignedInt										m_groundMotionFrame;							///< and on which logic frame, 0 before the first call
 	Bool													m_fullyObscuredByShroud;
 	Bool													m_shadowEnabled;	///< cached state of shadow.  Used to determine if shadows should be enabled via options screen.
 	Bool													m_hasModelShadow;	///< this drawable's shape is being cast by the tree buffer, so it wants no decal of its own

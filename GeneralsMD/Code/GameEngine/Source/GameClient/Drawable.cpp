@@ -226,6 +226,16 @@ DrawableLocoInfo::DrawableLocoInfo()
 	m_leanPitch[0] = m_leanPitch[1] = 0.0f;
 	m_leanRoll[0] = m_leanRoll[1] = 0.0f;
 	m_leanFrame = 0;
+	for (Int i = 0; i < 3; ++i)
+		m_groundLeanStages[0][i] = m_groundLeanStages[1][i] = 0.0f;
+	m_groundFrame = 0;
+	m_prevForwardSpeed = 0.0f;
+	m_prevAngle = 0.0f;
+	m_groundLeanPitch = 0.0f;
+	m_groundLeanRoll = 0.0f;
+	m_groundPitch = 0.0f;
+	m_groundRoll = 0.0f;
+	m_groundZ = 0.0f;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1572,15 +1582,9 @@ Bool Drawable::calcPhysicsXform(PhysicsXformInfo& info)
 			switch (locomotor->getAppearance())
 			{
 				case LOCO_WHEELS_FOUR:
-					calcPhysicsXformWheels(locomotor, info);
-					hasPhysicsXform = true;
-					break;
 				case LOCO_MOTORCYCLE:
-					calcPhysicsXformMotorcycle( locomotor, info );
-					hasPhysicsXform = TRUE;
-					break;
 				case LOCO_TREADS:
-					calcPhysicsXformTreads(locomotor, info);
+					calcPhysicsXformGround(locomotor, info);
 					hasPhysicsXform = true;
 					break;
 				case LOCO_HOVER:
@@ -1861,6 +1865,105 @@ void Drawable::calcPhysicsXformHoverOrWings( const Locomotor *locomotor, Physics
 }
 
 //-------------------------------------------------------------------------------------------------
+/** Treads, wheels and motorcycles. EA stepped their springs once a drawn frame, which was once a
+	* logic frame at the 30 pictures a second the game was tuned at; at 120 the chassis bounced and
+	* settled four times as fast. They are stepped once a logic frame here, catching up when a slow
+	* picture let more than one go by, and the pictures in between show the last result: the unit's
+	* position does not move between logic frames either.
+	*
+	* The lean from speeding up, braking and turning is worked out here as well. EA kicked the recoil
+	* spring with the physics acceleration, and with Acceleration = 1000 in most locomotors that is one
+	* frame long, so every start and stop pinned the chassis to its limit in a single picture. The
+	* spring is left to the weapon recoil, which is what it is tuned for. The lean
+	* follows the change of forward speed over a logic frame as a share of top speed, and in a turn
+	* speed times turn rate as a share of the most the locomotor can do, eased through three stages:
+	* a standing start to top speed inside one frame peaks four frames later at most of the limit and
+	* has gone by about half a second, and a slower pull away leans less for longer. */
+//-------------------------------------------------------------------------------------------------
+void Drawable::calcPhysicsXformGround( const Locomotor *locomotor, PhysicsXformInfo& info )
+{
+	if (m_locoInfo == NULL)
+		m_locoInfo = newInstance(DrawableLocoInfo);
+
+	const UnsignedInt MAX_CATCH_UP_FRAMES = 4;	// more than this unseen and there is nothing to measure against
+	const Real LEAN_EASE_FRAMES = 3.0f;					// each of the three smoothing stages, in logic frames
+	const Real START_GAIN = 11.0f;							// a one frame start from rest to top speed peaks at tanh(1.2) of the limit
+	const Real DEFAULT_LEAN_LIMIT = 0.07f;			// 4 degrees, for a locomotor that reacts but names no limit, like the Humvee's
+
+	UnsignedInt now = TheGameLogic->getFrame();
+	UnsignedInt steps = now - m_locoInfo->m_groundFrame;
+	if (steps != 0)
+	{
+		const Object *obj = getObject();
+		BodyDamageType bdt = obj->getBodyModule()->getDamageState();
+		Real speed = obj->getPhysics()->getForwardSpeed2D();
+		Real angle = getOrientation();
+		if (steps > MAX_CATCH_UP_FRAMES)
+		{
+			// long unseen, or just loaded: let the springs settle without a lurch from the gap
+			m_locoInfo->m_prevForwardSpeed = speed;
+			m_locoInfo->m_prevAngle = angle;
+			steps = MAX_CATCH_UP_FRAMES;
+		}
+		Real forwardAccel = (speed - m_locoInfo->m_prevForwardSpeed) / steps;
+		Real lateralAccel = speed * stdAngleDiff(angle, m_locoInfo->m_prevAngle) / steps;
+		m_locoInfo->m_prevForwardSpeed = speed;
+		m_locoInfo->m_prevAngle = angle;
+		m_locoInfo->m_groundFrame = now;
+
+		/* A locomotor with neither factor set never leaned under EA either (the train, a taxiing jet).
+			 One with a factor but no limit, the Humvee's, was clamped flat; it gets a small one. The
+			 change of speed is not asked whether the locomotor caused it, as EA's kick was: the last
+			 frame of a stop is not a motive one, and a shove from a blast is a lurch as well. */
+		Real pitchIn = 0.0f;
+		Real rollIn = 0.0f;
+		if (locomotor->getForwardAccelCoef() != 0.0f || locomotor->getLateralAccelCoef() != 0.0f)
+		{
+			Real maxSpeed = locomotor->getMaxSpeedForCondition(bdt);
+			Real maxLateral = maxSpeed * locomotor->getMaxTurnRate(bdt);
+			pitchIn = maxSpeed > 0.0f ? -START_GAIN * forwardAccel / maxSpeed : 0.0f;
+			rollIn = maxLateral > 0.0f ? -lateralAccel / maxLateral : 0.0f;
+		}
+		Real accelLimit = locomotor->getAccelPitchLimit();
+		Real decelLimit = locomotor->getDecelPitchLimit();
+		if (accelLimit == 0.0f)
+			accelLimit = DEFAULT_LEAN_LIMIT;
+		if (decelLimit == 0.0f)
+			decelLimit = DEFAULT_LEAN_LIMIT;
+
+		PhysicsXformInfo step;
+		for (UnsignedInt i = 0; i < steps; ++i)
+		{
+			Real *p = m_locoInfo->m_groundLeanStages[0];
+			Real *r = m_locoInfo->m_groundLeanStages[1];
+			p[0] += (pitchIn - p[0]) / LEAN_EASE_FRAMES;
+			p[1] += (p[0] - p[1]) / LEAN_EASE_FRAMES;
+			p[2] += (p[1] - p[2]) / LEAN_EASE_FRAMES;
+			r[0] += (rollIn - r[0]) / LEAN_EASE_FRAMES;
+			r[1] += (r[0] - r[1]) / LEAN_EASE_FRAMES;
+			r[2] += (r[1] - r[2]) / LEAN_EASE_FRAMES;
+			// negative is the squat of a start and the lean out of a left turn, as EA had it
+			m_locoInfo->m_groundLeanPitch = (p[2] < 0.0f ? accelLimit : decelLimit) * tanh(p[2]);
+			m_locoInfo->m_groundLeanRoll = (r[2] < 0.0f ? accelLimit : decelLimit) * tanh(r[2]);
+
+			step = PhysicsXformInfo();
+			switch (locomotor->getAppearance())
+			{
+				case LOCO_WHEELS_FOUR:	calcPhysicsXformWheels(locomotor, step);			break;
+				case LOCO_MOTORCYCLE:		calcPhysicsXformMotorcycle(locomotor, step);	break;
+				case LOCO_TREADS:				calcPhysicsXformTreads(locomotor, step);			break;
+			}
+		}
+		m_locoInfo->m_groundPitch = step.m_totalPitch;
+		m_locoInfo->m_groundRoll = step.m_totalRoll;
+		m_locoInfo->m_groundZ = step.m_totalZ;
+	}
+	info.m_totalPitch = m_locoInfo->m_groundPitch;
+	info.m_totalRoll = m_locoInfo->m_groundRoll;
+	info.m_totalZ = m_locoInfo->m_groundZ;
+}
+
+//-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 void Drawable::calcPhysicsXformTreads( const Locomotor *locomotor, PhysicsXformInfo& info )
 {
@@ -1878,9 +1981,7 @@ void Drawable::calcPhysicsXformTreads( const Locomotor *locomotor, PhysicsXformI
 	const Real ROLL_STIFFNESS =  locomotor->getRollStiffness();
 	const Real PITCH_DAMPING = locomotor->getPitchDamping();
 	const Real ROLL_DAMPING = locomotor->getRollDamping();
-	const Real FORWARD_ACCEL_COEFF = locomotor->getForwardAccelCoef();	
-	const Real LATERAL_ACCEL_COEFF = locomotor->getLateralAccelCoef();	
-	const Real UNIFORM_AXIAL_DAMPING = locomotor->getUniformAxialDamping();	
+	const Real UNIFORM_AXIAL_DAMPING = locomotor->getUniformAxialDamping();
 
 	// get object from logic
 	Object *obj = getObject();
@@ -1899,7 +2000,6 @@ void Drawable::calcPhysicsXformTreads( const Locomotor *locomotor, PhysicsXformI
 	// get our position and direction vector
 	const Coord3D *pos = getPosition();
 	const Coord3D *dir = getUnitDirectionVector2D();
-	const Coord3D *accel = physics->getAcceleration();
 	const Coord3D *vel = physics->getVelocity();
 
 	// compute perpendicular (2d)
@@ -2036,19 +2136,9 @@ void Drawable::calcPhysicsXformTreads( const Locomotor *locomotor, PhysicsXformI
 	m_locoInfo->m_accelerationRollRate += ((-ROLL_STIFFNESS * m_locoInfo->m_accelerationRoll) + (-ROLL_DAMPING * m_locoInfo->m_accelerationRollRate));		// spring/damper
 	m_locoInfo->m_accelerationRoll += m_locoInfo->m_accelerationRollRate;
 
-	// compute total pitch and roll of tank
-	info.m_totalPitch = m_locoInfo->m_pitch + m_locoInfo->m_accelerationPitch;
-	info.m_totalRoll = m_locoInfo->m_roll + m_locoInfo->m_accelerationRoll;
-
-	if (physics->isMotive()) 
-	{
-		// cause the chassis to pitch & roll in reaction to acceleration/deceleration
-		Real forwardAccel = dir->x * accel->x + dir->y * accel->y;
-		m_locoInfo->m_accelerationPitchRate += -(FORWARD_ACCEL_COEFF * forwardAccel);
-
-		Real lateralAccel = -dir->y * accel->x + dir->x * accel->y;
-		m_locoInfo->m_accelerationRollRate += -(LATERAL_ACCEL_COEFF * lateralAccel);
-	}
+	// compute total pitch and roll of tank: terrain, weapon recoil, and the lean calcPhysicsXformGround worked out
+	info.m_totalPitch = m_locoInfo->m_pitch + m_locoInfo->m_accelerationPitch + m_locoInfo->m_groundLeanPitch;
+	info.m_totalRoll = m_locoInfo->m_roll + m_locoInfo->m_accelerationRoll + m_locoInfo->m_groundLeanRoll;
 
 #ifdef RECOIL_FROM_BEING_DAMAGED
 	// recoil from being hit
@@ -2132,9 +2222,7 @@ void Drawable::calcPhysicsXformWheels( const Locomotor *locomotor, PhysicsXformI
 	const Real ROLL_STIFFNESS =  locomotor->getRollStiffness();
 	const Real PITCH_DAMPING = locomotor->getPitchDamping();
 	const Real ROLL_DAMPING = locomotor->getRollDamping();
-	const Real FORWARD_ACCEL_COEFF = locomotor->getForwardAccelCoef();	
-	const Real LATERAL_ACCEL_COEFF = locomotor->getLateralAccelCoef();	
-	const Real UNIFORM_AXIAL_DAMPING = locomotor->getUniformAxialDamping();	
+	const Real UNIFORM_AXIAL_DAMPING = locomotor->getUniformAxialDamping();
 
 	const Real MAX_SUSPENSION_EXTENSION = locomotor->getMaxWheelExtension(); //-2.3f;
 //	const Real MAX_SUSPENSION_COMPRESSION = locomotor->getMaxWheelCompression(); //1.4f;
@@ -2159,7 +2247,6 @@ void Drawable::calcPhysicsXformWheels( const Locomotor *locomotor, PhysicsXformI
 	// get our position and direction vector
 	const Coord3D *pos = getPosition();
 	const Coord3D *dir = getUnitDirectionVector2D();
-	const Coord3D *accel = physics->getAcceleration();
 
 	// compute perpendicular (2d)
 	Coord3D perp;
@@ -2179,18 +2266,18 @@ void Drawable::calcPhysicsXformWheels( const Locomotor *locomotor, PhysicsXformI
 
 	Bool airborne = obj->isSignificantlyAboveTerrain();
 
-	if (airborne) 
+	if (airborne)
 	{
-		if (DO_WHEELS) 
-		{	
+		if (DO_WHEELS)
+		{
 			// Wheels extend when airborne.
 			m_locoInfo->m_wheelInfo.m_framesAirborne = 0;
 			m_locoInfo->m_wheelInfo.m_framesAirborneCounter++;
-			if (pos->z - hheight > -MAX_SUSPENSION_EXTENSION) 
+			if (pos->z - hheight > -MAX_SUSPENSION_EXTENSION)
 			{
 				m_locoInfo->m_wheelInfo.m_rearLeftHeightOffset += (MAX_SUSPENSION_EXTENSION - m_locoInfo->m_wheelInfo.m_rearLeftHeightOffset)/2.0f;
 				m_locoInfo->m_wheelInfo.m_rearRightHeightOffset += (MAX_SUSPENSION_EXTENSION - m_locoInfo->m_wheelInfo.m_rearRightHeightOffset)/2.0f;
-			} 
+			}
 			else 
 			{
 				m_locoInfo->m_wheelInfo.m_rearLeftHeightOffset += (0 - m_locoInfo->m_wheelInfo.m_rearLeftHeightOffset)/2.0f;
@@ -2255,7 +2342,7 @@ void Drawable::calcPhysicsXformWheels( const Locomotor *locomotor, PhysicsXformI
 	m_locoInfo->m_pitch += m_locoInfo->m_pitchRate * UNIFORM_AXIAL_DAMPING;
 	m_locoInfo->m_roll += m_locoInfo->m_rollRate   * UNIFORM_AXIAL_DAMPING;
 
-	// process chassis acceleration dynamics - damp back towards zero
+	// process chassis recoil dynamics - damp back towards zero
 
 	m_locoInfo->m_accelerationPitchRate += ((-PITCH_STIFFNESS * (m_locoInfo->m_accelerationPitch)) + (-PITCH_DAMPING * m_locoInfo->m_accelerationPitchRate));		// spring/damper
 	m_locoInfo->m_accelerationPitch += m_locoInfo->m_accelerationPitchRate;
@@ -2263,21 +2350,11 @@ void Drawable::calcPhysicsXformWheels( const Locomotor *locomotor, PhysicsXformI
 	m_locoInfo->m_accelerationRollRate += ((-ROLL_STIFFNESS * m_locoInfo->m_accelerationRoll) + (-ROLL_DAMPING * m_locoInfo->m_accelerationRollRate));		// spring/damper
 	m_locoInfo->m_accelerationRoll += m_locoInfo->m_accelerationRollRate;
 
-	// compute total pitch and roll of tank
-	info.m_totalPitch = m_locoInfo->m_pitch + m_locoInfo->m_accelerationPitch;
-	info.m_totalRoll = m_locoInfo->m_roll + m_locoInfo->m_accelerationRoll;
+	// compute total pitch and roll: terrain, weapon recoil, and the lean calcPhysicsXformGround worked out
+	info.m_totalPitch = m_locoInfo->m_pitch + m_locoInfo->m_accelerationPitch + m_locoInfo->m_groundLeanPitch;
+	info.m_totalRoll = m_locoInfo->m_roll + m_locoInfo->m_accelerationRoll + m_locoInfo->m_groundLeanRoll;
 
-	if (physics->isMotive()) 
-	{
-		// cause the chassis to pitch & roll in reaction to acceleration/deceleration
-		Real forwardAccel = dir->x * accel->x + dir->y * accel->y;
-		m_locoInfo->m_accelerationPitchRate += -(FORWARD_ACCEL_COEFF * forwardAccel);
-
-		Real lateralAccel = -dir->y * accel->x + dir->x * accel->y;
-		m_locoInfo->m_accelerationRollRate += -(LATERAL_ACCEL_COEFF * lateralAccel);
-	}
-
-	// limit acceleration pitch and roll
+	// limit recoil pitch and roll
 
 	if (m_locoInfo->m_accelerationPitch > DECEL_PITCH_LIMIT)
 		m_locoInfo->m_accelerationPitch = DECEL_PITCH_LIMIT;
@@ -2296,8 +2373,8 @@ void Drawable::calcPhysicsXformWheels( const Locomotor *locomotor, PhysicsXformI
 	Real width = obj->getGeometryInfo().getMinorRadius();
 	Real pitchHeight = length*Sin(info.m_totalPitch-groundPitch);
 	Real rollHeight = width*Sin(info.m_totalRoll-groundRoll);
-	if (DO_WHEELS) 
-	{	
+	if (DO_WHEELS)
+	{
 		// calculate each wheel position
 		m_locoInfo->m_wheelInfo.m_framesAirborne = m_locoInfo->m_wheelInfo.m_framesAirborneCounter;
 		m_locoInfo->m_wheelInfo.m_framesAirborneCounter = 0;
@@ -2317,11 +2394,11 @@ void Drawable::calcPhysicsXformWheels( const Locomotor *locomotor, PhysicsXformI
 
 		//
 		///@todo Steven/John ... please review this and make sure it makes sense (CBD)
-		// we're going to add the angle to the current wheel rotation ... but we're going to 
+		// we're going to add the angle to the current wheel rotation ... but we're going to
 		// divide that number to add small angles.  This allows for "smoother" wheel turning
 		// transitions ... and when the AI has things move in a straight line, since it's
 		// constantly telling the object to go left, go straight, go right, go straight,
-		// etc, this smaller angle we'll be adding covers the constant wheel shifting 
+		// etc, this smaller angle we'll be adding covers the constant wheel shifting
 		// left and right when moving in a relatively straight line
 		//
 		#define WHEEL_SMOOTHNESS 10.0f  // higher numbers add smaller angles, make it more "smooth"
@@ -2427,9 +2504,7 @@ void Drawable::calcPhysicsXformMotorcycle( const Locomotor *locomotor, PhysicsXf
 	const Real ROLL_STIFFNESS =  locomotor->getRollStiffness();
 	const Real PITCH_DAMPING = locomotor->getPitchDamping();
 	const Real ROLL_DAMPING = locomotor->getRollDamping();
-	const Real FORWARD_ACCEL_COEFF = locomotor->getForwardAccelCoef();	
-	const Real LATERAL_ACCEL_COEFF = locomotor->getLateralAccelCoef();	
-	const Real UNIFORM_AXIAL_DAMPING = locomotor->getUniformAxialDamping();	
+	const Real UNIFORM_AXIAL_DAMPING = locomotor->getUniformAxialDamping();
 
 	const Real MAX_SUSPENSION_EXTENSION = locomotor->getMaxWheelExtension(); //-2.3f;
 //	const Real MAX_SUSPENSION_COMPRESSION = locomotor->getMaxWheelCompression(); //1.4f;
@@ -2454,7 +2529,6 @@ void Drawable::calcPhysicsXformMotorcycle( const Locomotor *locomotor, PhysicsXf
 	// get our position and direction vector
 	const Coord3D *pos = getPosition();
 	const Coord3D *dir = getUnitDirectionVector2D();
-	const Coord3D *accel = physics->getAcceleration();
 
 	// compute perpendicular (2d)
 	Coord3D perp;
@@ -2495,7 +2569,7 @@ void Drawable::calcPhysicsXformMotorcycle( const Locomotor *locomotor, PhysicsXf
 		// Calculate suspension info.
 		Real length = obj->getGeometryInfo().getMajorRadius();
 		//Real width = obj->getGeometryInfo().getMinorRadius();
-		Real pitchHeight = length*Sin(m_locoInfo->m_pitch + m_locoInfo->m_accelerationPitch - groundPitch);	
+		Real pitchHeight = length*Sin(m_locoInfo->m_pitch + m_locoInfo->m_accelerationPitch + m_locoInfo->m_groundLeanPitch - groundPitch);
 		//Real rollHeight = width*Sin(m_locoInfo->m_roll + m_locoInfo->m_accelerationRoll - groundRoll);
 		info.m_totalZ = fabs(pitchHeight)/4;// + fabs(rollHeight)/4;
 		//return; // maintain the same orientation while we fly through the air.
@@ -2561,28 +2635,14 @@ void Drawable::calcPhysicsXformMotorcycle( const Locomotor *locomotor, PhysicsXf
 	m_locoInfo->m_accelerationRollRate += ((-ROLL_STIFFNESS * m_locoInfo->m_accelerationRoll) + (-ROLL_DAMPING * m_locoInfo->m_accelerationRollRate));		// spring/damper
 	m_locoInfo->m_accelerationRoll += m_locoInfo->m_accelerationRollRate;
 
-	// compute total pitch and roll of tank
-	info.m_totalPitch = m_locoInfo->m_pitch + m_locoInfo->m_accelerationPitch;
+	// compute total pitch and roll: terrain, weapon recoil, and the lean calcPhysicsXformGround worked out
+	info.m_totalPitch = m_locoInfo->m_pitch + m_locoInfo->m_accelerationPitch + m_locoInfo->m_groundLeanPitch;
 
 
   // THis logic had recently been added to Drawable::applyPhysicsXform(), which was naughty, since it clamped the roll in every drawable in the game
   // Now only motorcycles enjoy this constraint
   Real unclampedRoll = m_locoInfo->m_roll + m_locoInfo->m_accelerationRoll;
   info.m_totalRoll = (unclampedRoll > 0.5f && unclampedRoll < -0.5f ? unclampedRoll : 0.0f);
-
-	if( airborne )
-	{
-	}
-
-	if (physics->isMotive()) 
-	{
-		// cause the chassis to pitch & roll in reaction to acceleration/deceleration
-		Real forwardAccel = dir->x * accel->x + dir->y * accel->y;
-		m_locoInfo->m_accelerationPitchRate += -(FORWARD_ACCEL_COEFF * forwardAccel);
-
-		Real lateralAccel = -dir->y * accel->x + dir->x * accel->y;
-		m_locoInfo->m_accelerationRollRate += -(LATERAL_ACCEL_COEFF * lateralAccel);
-	}
 
 	// limit acceleration pitch and roll
 

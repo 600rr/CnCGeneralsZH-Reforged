@@ -42,6 +42,7 @@
 #include "GameLogic/Module/PhysicsUpdate.h"
 #include "GameLogic/Module/BodyModule.h"
 #include "GameLogic/ScriptEngine.h"
+#include "GameLogic/Locomotor.h"
 #include "GameLogic/Module/AIUpdate.h"
 #include "GameClient/Drawable.h"
 #include "GameClient/ParticleSys.h"
@@ -400,30 +401,6 @@ void W3DTankTruckDraw::setHidden(Bool h)
 	}
 }
 
-/**Update uv coordinates on each tread object to simulate movement*/
-void W3DTankTruckDraw::updateTreadPositions(Real uvDelta)
-{
-	Real offset_u;
-	TreadObjectInfo *pTread=m_treads;
-
-	for (Int i=0; i<m_treadCount; i++)
-	{
-		if (pTread->m_type == TREAD_MIDDLE)	//this tread needs to scroll backwards
-			offset_u = pTread->m_materialSettings.customUVOffset.X + uvDelta;
-		else
-		if (pTread->m_type == TREAD_LEFT)	//this tread needs to scroll forwards
-			offset_u = pTread->m_materialSettings.customUVOffset.X + uvDelta;
-		else
-		if (pTread->m_type == TREAD_RIGHT)	//this tread needs to scroll backwards
-			offset_u = pTread->m_materialSettings.customUVOffset.X - uvDelta;
-				
-		// ensure coordinates of offset are in [0, 1] range:
-		offset_u = offset_u - WWMath::Floor(offset_u);
-		pTread->m_materialSettings.customUVOffset.Set(offset_u,0);
-		pTread++;
-	}
-}
-
 /**Grab pointers to the sub-meshes for each tread*/ 
 void W3DTankTruckDraw::updateTreadObjects(void)
 {
@@ -537,20 +514,22 @@ void W3DTankTruckDraw::doDrawModule(const Matrix3D* transformMtx)
 	const Coord3D *vel = physics->getVelocity();
 	Real speed = physics->getVelocityMagnitude();
 
+	// wheels and treads turn by the ground covered since the last picture, not by speed every picture
+	Real forward, turn;
+	UnsignedInt frames = stepGroundMotion(forward, turn);
 
 	const TWheelInfo *wheelInfo = getDrawable()->getWheelInfo();	// note, can return null!
-	if (wheelInfo && (m_frontLeftTireBone || m_rearLeftTireBone)) 
+	if (wheelInfo && (m_frontLeftTireBone || m_rearLeftTireBone))
 	{
-		static Real rotation = 0;
 		const Real rotationFactor = getW3DTankTruckDrawModuleData()->m_rotationSpeedMultiplier;
-		m_frontWheelRotation += rotationFactor*speed;
-		if (m_isPowersliding) 
+		m_frontWheelRotation += rotationFactor*forward;
+		if (m_isPowersliding)
 		{
-			m_rearWheelRotation += rotationFactor*(speed+getW3DTankTruckDrawModuleData()->m_powerslideRotationAddition);
-		} 
-		else 
+			m_rearWheelRotation += rotationFactor*(forward + frames*getW3DTankTruckDrawModuleData()->m_powerslideRotationAddition);
+		}
+		else
 		{
-			m_rearWheelRotation += rotationFactor*speed;
+			m_rearWheelRotation += rotationFactor*forward;
 		}
 		Matrix3D wheelXfrm(1);
 		if (m_frontLeftTireBone) 
@@ -707,38 +686,20 @@ void W3DTankTruckDraw::doDrawModule(const Matrix3D* transformMtx)
 	m_treadDebrisLeft->setBurstCountMultiplier( velMult.z );
 	m_treadDebrisRight->setBurstCountMultiplier( velMult.z );
 #endif
-	//Update movement of treads
-	if (m_treadCount)
+	//Update movement of treads: these vehicles steer with their wheels, so every tread runs over the
+	//distance driven, at TreadAnimationRate per top speed's worth of it, and backwards in reverse.
+	const Locomotor *loco = obj->getAIUpdateInterface()->getCurLocomotor();
+	Real maxSpeed = loco ? loco->getMaxSpeedForCondition(BODY_PRISTINE) : 0.0f;
+	if (m_treadCount && maxSpeed > 0.0f)
 	{
-		Real offset_u;
-		Real treadScrollSpeed=getW3DTankTruckDrawModuleData()->m_treadAnimationRate;
+		Real uvDelta = getW3DTankTruckDrawModuleData()->m_treadAnimationRate * forward / maxSpeed;
 		TreadObjectInfo *pTread=m_treads;
-		Real maxSpeed=obj->getAIUpdateInterface()->getCurLocomotorSpeed();
-/* Commented out because these vehicles are presumed not to turn via treads.
-		PhysicsTurningType turn=physics->getTurning();
-		//For optimization sake, we only do complex tread scrolling when tank
-		//is mostly stationary and turning
-		if ((turn=physics->getTurning()) != TURN_NONE && physics->getSpeed()/maxSpeed < getW3DTankTruckDrawModuleData()->m_treadPivotSpeedFraction)
+		for (Int i=0; i<m_treadCount; i++, pTread++)
 		{
-			if (turn == TURN_NEGATIVE)	//turning right
-				updateTreadPositions(-treadScrollSpeed);
-			else	//turning left
-				updateTreadPositions(treadScrollSpeed);
-		}
-		else*/
-		if (physics->isMotive() && physics->getVelocityMagnitude()/maxSpeed >= getW3DTankTruckDrawModuleData()->m_treadDriveSpeedFraction)
-		{	//do simple scrolling based only on speed when tank is moving straight at high speed.
-			//we stop scrolling when tank slows down to reduce the appearance of sliding
-			//tread scrolling speed was not directly tied into tank velocity because it looked odd
-			//under certain situations when tank moved sideways.
-			for (Int i=0; i<m_treadCount; i++)
-			{
-				offset_u = pTread->m_materialSettings.customUVOffset.X - treadScrollSpeed;
-				// ensure coordinates of offset are in [0, 1] range:
-				offset_u = offset_u - WWMath::Floor(offset_u);
-				pTread->m_materialSettings.customUVOffset.Set(offset_u,0);
-				pTread++;
-			}
+			Real offset_u = pTread->m_materialSettings.customUVOffset.X - uvDelta;
+			// ensure coordinates of offset are in [0, 1] range:
+			offset_u = offset_u - WWMath::Floor(offset_u);
+			pTread->m_materialSettings.customUVOffset.Set(offset_u,0);
 		}
 	}
 }

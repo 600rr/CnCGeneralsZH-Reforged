@@ -180,6 +180,15 @@ public:
 	Real m_leanPitch[2];				///< a helicopter's pitch target, smoothed through two stages once a logic frame
 	Real m_leanRoll[2];					///< the same for roll
 	UnsignedInt m_leanFrame;		///< the logic frame the lean targets were last stepped on
+	Real m_groundLeanStages[2][3];	///< a ground vehicle's pitch and roll lean, smoothed through three stages once a logic frame
+	UnsignedInt m_groundFrame;	///< the logic frame those were last stepped on
+	Real m_prevForwardSpeed;		///< a ground vehicle's forward speed on that frame
+	Real m_prevAngle;						///< and its heading
+	Real m_groundLeanPitch;			///< a ground vehicle's lean from starting, braking and turning, on top of terrain and recoil
+	Real m_groundLeanRoll;
+	Real m_groundPitch;					///< a ground vehicle's chassis pitch, roll and lift from that frame, drawn until the next one
+	Real m_groundRoll;
+	Real m_groundZ;
 	TWheelInfo m_wheelInfo;			///< Wheel offset & angle info for a wheeled type locomotor.
 
 	DrawableLocoInfo();
@@ -662,6 +671,7 @@ protected:
 	Bool calcPhysicsXform(PhysicsXformInfo& info);
 	void calcPhysicsXformThrust(const Locomotor *locomotor, PhysicsXformInfo& info);
 	void calcPhysicsXformHoverOrWings(const Locomotor *locomotor, PhysicsXformInfo& info);
+	void calcPhysicsXformGround(const Locomotor *locomotor, PhysicsXformInfo& info);
 	void calcPhysicsXformTreads(const Locomotor *locomotor, PhysicsXformInfo& info);
 	void calcPhysicsXformWheels(const Locomotor *locomotor, PhysicsXformInfo& info);
 	void calcPhysicsXformMotorcycle( const Locomotor *locomotor, PhysicsXformInfo& info );

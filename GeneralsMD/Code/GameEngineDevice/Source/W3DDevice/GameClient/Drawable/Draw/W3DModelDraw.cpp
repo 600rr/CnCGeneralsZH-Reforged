@@ -1762,6 +1762,9 @@ W3DModelDraw::W3DModelDraw(Thing *thing, const ModuleData* moduleData) : DrawMod
 	}
 	m_needRecalcBoneParticleSystems = false;
 	m_fullyObscuredByShroud = false;
+	m_groundMotionPos.zero();
+	m_groundMotionAngle = 0.0f;
+	m_groundMotionFrame = 0;
 
 	// only validate the current time-of-day and weather conditions by default.
 	getW3DModelDrawModuleData()->validateStuffForTimeAndWeather(getDrawable(), 
@@ -2532,6 +2535,34 @@ Bool W3DModelDraw::setCurAnimDurationInMsec(Real desiredDurationInMsec)
 	}
 
 	return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** How far the unit has driven along its own heading, and how far it has turned, since the last
+	* call, read off the position and heading the logic left. A wheel or a tread turned by these
+	* amounts keeps pace with the ground however many pictures a logic frame gets, and runs backwards
+	* when the unit backs up. Returns how many logic frames went by, 0 between two of them. */
+//-------------------------------------------------------------------------------------------------
+UnsignedInt W3DModelDraw::stepGroundMotion(Real& forward, Real& turn)
+{
+	const Coord3D *pos = getDrawable()->getPosition();
+	Real angle = getDrawable()->getOrientation();
+	UnsignedInt now = TheGameLogic->getFrame();
+	if (m_groundMotionFrame == 0)
+	{
+		m_groundMotionPos = *pos;
+		m_groundMotionAngle = angle;
+		m_groundMotionFrame = now;
+	}
+
+	forward = (pos->x - m_groundMotionPos.x) * Cos(angle) + (pos->y - m_groundMotionPos.y) * Sin(angle);
+	turn = stdAngleDiff(angle, m_groundMotionAngle);
+	UnsignedInt frames = now - m_groundMotionFrame;
+
+	m_groundMotionPos = *pos;
+	m_groundMotionAngle = angle;
+	m_groundMotionFrame = now;
+	return frames;
 }
 
 //-------------------------------------------------------------------------------------------------
