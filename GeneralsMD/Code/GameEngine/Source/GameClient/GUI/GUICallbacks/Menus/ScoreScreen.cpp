@@ -415,7 +415,11 @@ void ScoreScreenShutdown( WindowLayout *layout, void *userData )
 	// music held its volume through the whole load and did all two seconds of its fade on top of
 	// the track the shell map's first script frame starts, so both played at once.
 	TheAudio->removeAudioEvent( AHSV_StopTheMusic );
-	TheAudio->update();	// so the stop lands at the click, before the load rather than after it
+	// So the stop lands at the click, before the load rather than after it.  Not on the way out
+	// of the program: quitting with this screen up runs this from the shell's destructor, after
+	// the terrain and the view the listener update reads are already freed.
+	if( TheGameEngine != NULL && !TheGameEngine->getQuitting() )
+		TheAudio->update();
 
 }
 

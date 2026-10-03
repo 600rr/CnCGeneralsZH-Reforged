@@ -936,7 +936,7 @@ void WOLQuickMatchMenuShutdown( WindowLayout *layout, void *userData )
 {
 	TheGameSpyInfo->unregisterTextWindow(quickmatchTextWindow);
 
-	if (!TheGameEngine->getQuitting())
+	if (TheGameEngine != NULL && !TheGameEngine->getQuitting())	// NULL when the shell's destructor runs this on exit
 		saveQuickMatchOptions();
 
 	parentWOLQuickMatch = NULL;
