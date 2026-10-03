@@ -4307,6 +4307,48 @@ static Int drawOwnCountdown( DisplayString *&countdown, Int seconds, Int x, Int 
 }
 
 //-------------------------------------------------------------------------------------------------
+/** How far the slowest long reload on this object has come, 0 to 1, or -1 when none is running.
+	*
+	* Only a wait longer than three seconds counts. Every direct-fire tank gun in the game waits two
+	* (the Laser General's Crusader 2.3), so a lower line would hang a bar on every main battle tank
+	* that fires and empty it again before it could be read. Above it sit the weapons whose wait is
+	* the whole decision: the Nuke Cannon's ten seconds, artillery, the Inferno Cannon, SCUD and
+	* Tomahawk launchers, the Scorpion's and the Comanche's missiles, the rocket buggy's clip.
+	*
+	* A weapon that does less than one point of damage is a dummy that only drives an animation
+	* (the Battle Bus and Troop Crawler passengers' ten-second one, the angry mob's) and the SCUD
+	* Storm's, whose launch already has its own charge bar; none of those is a reload anyone waits on.
+	*
+	* This reads the two frame numbers and nothing else. Weapon::getStatus() writes m_status, which
+	* the logic CRC covers, so calling it from a draw would be the client writing logic state. */
+//-------------------------------------------------------------------------------------------------
+static Real reloadBarFraction( const Object *obj )
+{
+	const UnsignedInt RELOAD_BAR_MIN_FRAMES = 3 * LOGICFRAMES_PER_SECOND;
+	const UnsignedInt now = TheGameLogic->getFrame();
+	Real least = -1.0f;
+
+	for( Int i = 0; i < WEAPONSLOT_COUNT; ++i )
+	{
+		const Weapon *weapon = obj->getWeaponInWeaponSlot( (WeaponSlotType)i );
+		if( weapon == NULL || weapon->getTemplate()->getPrimaryDamage( WeaponBonus() ) < 1.0f )
+			continue;
+
+		// 0x7fffffff is an empty clip that does not reload itself (a jet waiting for its airfield)
+		const UnsignedInt ready = weapon->getPossibleNextShotFrame();
+		const UnsignedInt started = weapon->getLastReloadStartedFrame();
+		if( ready <= now || ready == 0x7fffffff || ready - started <= RELOAD_BAR_MIN_FRAMES )
+			continue;
+
+		Real fraction = INT_TO_REAL( now - started ) / INT_TO_REAL( ready - started );
+		if( least < 0.0f || fraction < least )
+			least = fraction;
+	}
+
+	return least;
+}
+
+//-------------------------------------------------------------------------------------------------
 void Drawable::drawHealthBar(const IRegion2D* healthBarRegion)
 {
 	if (!healthBarRegion)
@@ -4553,6 +4595,28 @@ void Drawable::drawHealthBar(const IRegion2D* healthBarRegion)
 		}
 		else
 			freeOwnCountdown( m_productionTimeDisplayString );
+
+		//
+		// A weapon on a long reload, on a unit of ours the player is looking at: selected or under
+		// the cursor, the same two cases the ammo pips go by. Nothing else on screen said when a
+		// Nuke Cannon could fire again; it just sat there for ten seconds after every shell. The
+		// fill is amber rather than white so it does not read as production or a superweapon.
+		//
+		if( showsOwnerDetail( obj ) &&
+				( isSelected() || ( TheInGameUI != NULL && TheInGameUI->getMousedOverDrawableID() == getID() ) ) )
+		{
+			const Real reload = reloadBarFraction( obj );
+			if( reload >= 0.0f )
+			{
+				Int reloadY = stackY - healthBoxHeight;
+				TheDisplay->drawOpenRect( healthBarRegion->lo.x, reloadY, healthBoxWidth, healthBoxHeight,
+																	healthBoxOutlineSize, GameMakeColor( 255, 255, 255, 255 ) );
+				TheDisplay->drawFillRect( healthBarRegion->lo.x + 1, reloadY + 1,
+																	(healthBoxWidth - 2) * reload, healthBoxHeight - 2,
+																	GameMakeColor( 255, 190, 40, 255 ) );
+				stackY = reloadY - 3;
+			}
+		}
 
 		//
 		// A superweapon charging, or a building on a timed payout (the supply drop zone), gets the
