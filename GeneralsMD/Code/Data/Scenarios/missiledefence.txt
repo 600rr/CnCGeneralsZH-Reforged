@@ -22,6 +22,12 @@
 #   Paladin and Terrorists: one Terrorist gets through and kills it, frame 378 and 397, the other
 #     five left on 540 and 398 health of 600. After: frame 397 and 398, 380 and 422.
 #
+# The charge then went from DeathType EXPLODED to DETONATED for missiles, because EXPLODED made every
+# missile it burst play EA's full Explosion and grey cloud. A missile's death draws from the logic
+# random stream, so the runs moved, read from the tallies and the KILLXP lines: the Raptors took 60
+# and 150, the Avenger died on 261 and 261, the Paladin under buggies on 381 and 381, the Paladin
+# under Terrorists on 397 and 450, and its infantry charge killed a Terrorist on frame 385 of seed 7.
+#
 # Worth filming: flares come off a Raptor and Stingers turn onto them around 2620,3005 at about 95
 # high on frames 250 to 256 (seed 7); the Avenger at 2195,3906 bursts Tank Hunter missiles about 90
 # north of it on frames 150 to 190, and the Paladin at 3300,3800 a buggy rocket 60 north on 146.
