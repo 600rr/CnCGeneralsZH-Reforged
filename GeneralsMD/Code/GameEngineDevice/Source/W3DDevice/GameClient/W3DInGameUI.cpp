@@ -1391,22 +1391,39 @@ void W3DInGameUI::drawBuildPlanNumbers( void )
 }  // end drawBuildPlanNumbers
 
 //-------------------------------------------------------------------------------------------------
+/** A heater shield filled one screen row at a time: straight sides for the upper part, then a
+	* curve closing to the point at the bottom. */
+//-------------------------------------------------------------------------------------------------
+static void drawShieldShape( Int x, Int y, Int width, Int height, UnsignedInt color )
+{
+	const Real SHOULDER = 0.45f;		// share of the height above the taper
+	for( Int row = 0; row < height; ++row )
+	{
+		const Real t = ( row + 0.5f ) / height;
+		Real half = width * 0.5f;
+		if( t > SHOULDER )
+			half *= sqrtf( ( 1.0f - t ) / ( 1.0f - SHOULDER ) );
+		const Int span = REAL_TO_INT( half * 2.0f + 0.5f );
+		if( span > 0 )
+			TheDisplay->drawFillRect( x + ( width - span ) / 2, y + row, span, 1, color );
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
 /** A guarding unit looks like an idle one until something walks into its circle, so each of the
-	* local player's guards wears the guard button's own art over its head, selected or not.  Two
-	* groups on overlapping posts can then be told apart from the ones simply standing about. */
+	* local player's guards wears a small shield over its head, selected or not.  Two groups on
+	* overlapping posts can then be told apart from the ones simply standing about. */
 //-------------------------------------------------------------------------------------------------
 void W3DInGameUI::drawGuardMarkers( void )
 {
 	const Real MARKER_HEIGHT = 14.0f;
 	const Real MARKER_LIFT = 6.0f;		// clear of the health bar's line over the model's top
-
-	const Image *badge = TheMappedImageCollection->findImageByName( "SSGuard" );
-	if( badge == NULL )
-		return;
+	const UnsignedInt EDGE_COLOR = 0xDD101418;
+	const UnsignedInt FACE_COLOR = 0xDDC8D2DC;		// the command bar's steel
 
 	const Real scale = orderStepScale();
-	const Int height = REAL_TO_INT( MARKER_HEIGHT * scale );
-	const Int width = height * badge->getImageWidth() / max( badge->getImageHeight(), 1 );
+	const Int height = max( REAL_TO_INT( MARKER_HEIGHT * scale ), 6 );
+	const Int width = height * 4 / 5;
 	const Int lift = REAL_TO_INT( MARKER_LIFT * scale );
 
 	// ponytail: walks every object each frame, like drawBuildPlanNumbers; share one walk if it shows
@@ -1429,7 +1446,8 @@ void W3DInGameUI::drawGuardMarkers( void )
 
 		const Int x = spot.x - width / 2;
 		const Int y = spot.y - lift - height;
-		TheDisplay->drawImage( badge, x, y, x + width, y + height, 0xCCFFFFFF );
+		drawShieldShape( x, y, width, height, EDGE_COLOR );
+		drawShieldShape( x + 1, y + 1, width - 2, height - 3, FACE_COLOR );
 	}
 
 }  // end drawGuardMarkers
