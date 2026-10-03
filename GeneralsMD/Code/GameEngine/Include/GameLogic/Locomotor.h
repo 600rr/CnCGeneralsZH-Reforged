@@ -392,6 +392,9 @@ protected:
 	void moveTowardsPositionHover(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed, const Coord3D *faceTarget);
 	void moveTowardsPositionHelicopter(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed, const Coord3D *faceTarget);
 	void brakeHelicopter(Object* obj, PhysicsBehavior *physics);
+	PhysicsTurningType turnHelicopter(Object* obj, const Coord3D *toward);
+	void steerHelicopter(Object* obj, PhysicsBehavior *physics, Real wantX, Real wantY);
+	Real getHelicopterStopDecel(BodyDamageType condition) const;
 	void moveTowardsPositionThrust(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed);
 	void moveTowardsPositionWings(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed);
 
@@ -478,6 +481,9 @@ private:
 	Real				m_angleOffset;
 	Real				m_offsetIncrement;
 	UnsignedInt m_donutTimer;				///< Frame time to keep units from doing the donut. jba.
+	Real				m_helicopterYawRate;	///< radians a frame a helicopter's nose is swinging, eased up and down
+	Real				m_helicopterAccelX;		///< the 2D acceleration a helicopter is pulling, eased towards what it wants
+	Real				m_helicopterAccelY;
 
 
 };

@@ -223,6 +223,9 @@ DrawableLocoInfo::DrawableLocoInfo()
 
   m_yawModulator = 0.0f;
   m_pitchModulator = 0.0f;
+	m_leanPitch[0] = m_leanPitch[1] = 0.0f;
+	m_leanRoll[0] = m_leanRoll[1] = 0.0f;
+	m_leanFrame = 0;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1751,6 +1754,8 @@ void Drawable::calcPhysicsXformHoverOrWings( const Locomotor *locomotor, Physics
 	{
 		const Real LEAN_AT_FULL_ACCEL = 0.2f;	// radians, at the locomotor's own Acceleration
 		const Real LEAN_AT_FULL_SPEED = 0.12f;	// radians, held at the locomotor's own Speed
+		const Real SOFT_LEAN = 0.27f;					// the lean flattens out towards this, about 15 degrees
+		const Real LEAN_EASE_FRAMES = 5.0f;		// each of the two smoothing stages, in logic frames
 		const Real MAX_LEAN = 0.4f;
 		if (accelPitchLimit == 0.0f)
 			accelPitchLimit = MAX_LEAN;
@@ -1770,9 +1775,24 @@ void Drawable::calcPhysicsXformHoverOrWings( const Locomotor *locomotor, Physics
 			Real forwardAccel = dir->x * accel->x + dir->y * accel->y;
 			Real lateralAccel = -dir->y * accel->x + dir->x * accel->y;
 
-			pitchTarget = forwardAccel * accelScale + forwardVel * speedScale;
-			rollTarget = lateralAccel * accelScale + lateralVel * speedScale;
+			pitchTarget = SOFT_LEAN * tanh((forwardAccel * accelScale + forwardVel * speedScale) / SOFT_LEAN);
+			rollTarget = SOFT_LEAN * tanh((lateralAccel * accelScale + lateralVel * speedScale) / SOFT_LEAN);
 		}
+
+		/* The acceleration jumps from one logic frame to the next, and the spring below runs once a
+			 drawn frame, which at 120 frames a second is fast enough to copy every jump. Two smoothing
+			 stages stepped once a logic frame ease the lean in and out over about half a second. */
+		UnsignedInt now = TheGameLogic->getFrame();
+		if (now != m_locoInfo->m_leanFrame)
+		{
+			m_locoInfo->m_leanFrame = now;
+			m_locoInfo->m_leanPitch[0] += (pitchTarget - m_locoInfo->m_leanPitch[0]) / LEAN_EASE_FRAMES;
+			m_locoInfo->m_leanPitch[1] += (m_locoInfo->m_leanPitch[0] - m_locoInfo->m_leanPitch[1]) / LEAN_EASE_FRAMES;
+			m_locoInfo->m_leanRoll[0] += (rollTarget - m_locoInfo->m_leanRoll[0]) / LEAN_EASE_FRAMES;
+			m_locoInfo->m_leanRoll[1] += (m_locoInfo->m_leanRoll[0] - m_locoInfo->m_leanRoll[1]) / LEAN_EASE_FRAMES;
+		}
+		pitchTarget = m_locoInfo->m_leanPitch[1];
+		rollTarget = m_locoInfo->m_leanRoll[1];
 	}
 
 	// process chassis acceleration dynamics - damp back towards zero, or a helicopter's lean

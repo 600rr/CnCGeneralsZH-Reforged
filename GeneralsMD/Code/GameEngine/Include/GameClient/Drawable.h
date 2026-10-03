@@ -177,6 +177,9 @@ public:
 	Real m_wobble;							///< for wobbling
   Real m_yawModulator;        ///< for the swimmy soft hover of a helicopter
   Real m_pitchModulator;        ///< for the swimmy soft hover of a helicopter
+	Real m_leanPitch[2];				///< a helicopter's pitch target, smoothed through two stages once a logic frame
+	Real m_leanRoll[2];					///< the same for roll
+	UnsignedInt m_leanFrame;		///< the logic frame the lean targets were last stepped on
 	TWheelInfo m_wheelInfo;			///< Wheel offset & angle info for a wheeled type locomotor.
 
 	DrawableLocoInfo();

@@ -767,6 +767,9 @@ Locomotor::Locomotor(const LocomotorTemplate* tmpl)
 	m_offsetIncrement = (PI/40) * (GameLogicRandomValueReal(0.8f, 1.2f)/m_template->m_wanderLengthFactor);
 	setFlag(OFFSET_INCREASING, GameLogicRandomValue(0,1));
 	m_donutTimer = TheGameLogic->getFrame()+DONUT_TIME_DELAY_SECONDS*LOGICFRAMES_PER_SECOND;
+	m_helicopterYawRate = 0.0f;
+	m_helicopterAccelX = 0.0f;
+	m_helicopterAccelY = 0.0f;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -796,6 +799,9 @@ Locomotor::Locomotor(const Locomotor& that)
 	m_sineDescentDistance = that.m_sineDescentDistance;
 	m_angleOffset = that.m_angleOffset;
 	m_offsetIncrement = that.m_offsetIncrement;
+	m_helicopterYawRate = that.m_helicopterYawRate;
+	m_helicopterAccelX = that.m_helicopterAccelX;
+	m_helicopterAccelY = that.m_helicopterAccelY;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -818,6 +824,9 @@ Locomotor& Locomotor::operator=(const Locomotor& that)
 		m_preferredHeight = that.m_preferredHeight;
 		m_preferredHeightDamping = that.m_preferredHeightDamping;
 		m_sineDescentDistance = that.m_sineDescentDistance;
+		m_helicopterYawRate = that.m_helicopterYawRate;
+		m_helicopterAccelX = that.m_helicopterAccelX;
+		m_helicopterAccelY = that.m_helicopterAccelY;
 	}
 	return *this;
 }
@@ -839,12 +848,13 @@ void Locomotor::crc( Xfer *xfer )
 /** Xfer method
 	* Version Info:
 	* 1: Initial version
-	* 3: m_sineDescentDistance */
+	* 3: m_sineDescentDistance
+	* 4: m_helicopterYawRate, m_helicopterAccelX, m_helicopterAccelY */
 // ------------------------------------------------------------------------------------------------
 void Locomotor::xfer( Xfer *xfer )
 {
 	// version
-	const XferVersion currentVersion = 3;
+	const XferVersion currentVersion = 4;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -871,6 +881,13 @@ void Locomotor::xfer( Xfer *xfer )
 
 	if (version >= 3)
 		xfer->xferReal(&m_sineDescentDistance);
+
+	if (version >= 4)
+	{
+		xfer->xferReal(&m_helicopterYawRate);
+		xfer->xferReal(&m_helicopterAccelX);
+		xfer->xferReal(&m_helicopterAccelY);
+	}
 
 }  // end xfer
 
@@ -1019,7 +1036,10 @@ void Locomotor::locoUpdate_moveTowardsAngle(Object* obj, Real goalAngle)
 		physics->setTurning(rotating);
 		// a helicopter turning in place has no sideways friction to stop a slide it came in with
 		if (isHelicopter(obj))
+		{
 			brakeHelicopter(obj, physics);
+			m_helicopterYawRate = 0.0f;	// this turn is rotateTowardsPosition's, which parking needs to stop dead on the heading
+		}
 		handleBehaviorZ(obj, physics, *obj->getPosition());
 	}
 
@@ -1051,7 +1071,15 @@ void Locomotor::setPhysicsOptions(Object* obj)
 	physics->setExtraFriction(m_template->m_extra2DFriction + extraExtraFriction);
 	physics->setAllowAirborneFriction(getApply2DFrictionWhenAirborne());	// you'd think we wouldn't want friction in the air, but it's needed for realistic behavior.
 	physics->setStickToGround(getStickToGround()); // walking guys aren't allowed to catch huge (or even small) air.
-	physics->setMotiveSteersSideways(isHelicopter(obj));
+	Bool helicopter = isHelicopter(obj);
+	physics->setMotiveSteersSideways(helicopter);
+	if (!helicopter)
+	{
+		// landed, taxiing or dying: whatever it was pulling or swinging when it last flew is over
+		m_helicopterYawRate = 0.0f;
+		m_helicopterAccelX = 0.0f;
+		m_helicopterAccelY = 0.0f;
+	}
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2045,16 +2073,35 @@ void Locomotor::moveTowardsPositionHover(Object* obj, PhysicsBehavior *physics, 
 
 //-------------------------------------------------------------------------------------------------
 /*
-	A helicopter flies the velocity it wants rather than the way it faces. Every frame it pushes its
-	2D velocity towards the goal at the speed it can still stop from, by at most its Acceleration,
-	or its Braking while it is shedding speed in the direction it is going. The nose is a separate
+	A helicopter flies the velocity it wants rather than the way it faces. It wants the goal's
+	direction at the speed it can still stop from, and steerHelicopter eases its 2D velocity there.
+	The planned stop is gentler than Braking (getHelicopterStopDecel), starts early enough for the
+	eased braking to build up, and fades out over the last HELICOPTER_STOP_EASE_FRAMES, so the
+	helicopter flares to a halt on the goal instead of slamming into one. The nose is a separate
 	choice: on the target when there is one, turned into the flight while the goal is more than
-	LONG_FLIGHT_SECONDS out at full speed, and otherwise left where it is, so a short hop behind or
-	beside the helicopter is flown backwards or sideways and a long one turns as it goes.
+	LONG_FLIGHT_SECONDS out at full speed and LONG_FLIGHT_MIN_DIST away, and otherwise left where it
+	is, so a short hop behind or beside the helicopter is flown backwards or sideways and a long one
+	turns as it goes.
 */
+static const Real HELICOPTER_STOP_EASE_FRAMES = 6.0f;	// the planned braking fades out over about this many frames
+static const Real HELICOPTER_YAW_EASE_FRAMES = 10.0f;	// frames for the nose to wind up to TurnRate, or back down from it
+static const Real HELICOPTER_ACCEL_EASE_FRAMES = 5.0f;	// frames for the pull to build from nothing to full Acceleration
+static const Real HELICOPTER_VELOCITY_FRAMES = 4.0f;	// a velocity error is asked back over about this many frames
+// the stop is planned this many frames of travel early, for the braking to build up in
+static const Real HELICOPTER_STOP_LEAD_FRAMES = HELICOPTER_ACCEL_EASE_FRAMES * 0.5f + HELICOPTER_VELOCITY_FRAMES;
+
+Real Locomotor::getHelicopterStopDecel(BodyDamageType condition) const
+{
+	Real decel = 2.0f * getMaxAcceleration(condition);
+	if (decel > getBraking())
+		decel = getBraking();
+	return decel;
+}
+
 void Locomotor::moveTowardsPositionHelicopter(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed, const Coord3D *faceTarget)
 {
 	const Real LONG_FLIGHT_SECONDS = 3.0f;
+	const Real LONG_FLIGHT_MIN_DIST = 400.0f;	// so a slow Helix still slides a short hop instead of turning for it
 	const Real TOO_CLOSE_TO_AIM = 1.0f;	// right over the target the bearing to it is noise
 
 	BodyDamageType bdt = obj->getBodyModule()->getDamageState();
@@ -2063,22 +2110,35 @@ void Locomotor::moveTowardsPositionHelicopter(Object* obj, PhysicsBehavior *phys
 		desiredSpeed = maxSpeed;
 
 	const Coord3D *pos = obj->getPosition();
-	PhysicsTurningType rotating = TURN_NONE;
+	const Coord3D *noseToward = NULL;
 	if (faceTarget)
 	{
 		if (fabs(faceTarget->x - pos->x) > TOO_CLOSE_TO_AIM || fabs(faceTarget->y - pos->y) > TOO_CLOSE_TO_AIM)
-			rotating = rotateTowardsPosition(obj, *faceTarget);
+			noseToward = faceTarget;
 	}
-	else if (onPathDistToGoal > maxSpeed * LOGICFRAMES_PER_SECOND * LONG_FLIGHT_SECONDS)
+	else if (onPathDistToGoal > maxSpeed * LOGICFRAMES_PER_SECOND * LONG_FLIGHT_SECONDS
+					 && onPathDistToGoal > LONG_FLIGHT_MIN_DIST)
 	{
-		rotating = rotateTowardsPosition(obj, goalPos);
+		noseToward = &goalPos;
 	}
-	physics->setTurning(rotating);
+	physics->setTurning(turnHelicopter(obj, noseToward));
 
 	Real goalSpeed = desiredSpeed;
 	if (!getFlag(NO_SLOW_DOWN_AS_APPROACHING_DEST))
 	{
-		Real stopSpeed = sqrt(2.0f * getBraking() * onPathDistToGoal);
+		/* The fastest speed it can still stop from in the distance left, slowing at decel. The
+			 plain sqrt(2*decel*dist) holds full braking to the last frame and then stops dead; with
+			 the ease speed taken off, the braking fades out at the end. The distance is counted short
+			 by the travel of the lead frames, the time the eased braking takes to build up, or the
+			 helicopter overshoots a short hop. */
+		const Coord3D *vel = physics->getVelocity();
+		Real speed = sqrt(sqr(vel->x) + sqr(vel->y));
+		Real distLeft = onPathDistToGoal - speed * HELICOPTER_STOP_LEAD_FRAMES;
+		if (distLeft < 0.0f)
+			distLeft = 0.0f;
+		Real decel = getHelicopterStopDecel(bdt);
+		Real ease = decel * HELICOPTER_STOP_EASE_FRAMES;
+		Real stopSpeed = sqrt(2.0f * decel * distLeft + ease * ease) - ease;
 		if (goalSpeed > stopSpeed)
 			goalSpeed = stopSpeed;
 	}
@@ -2094,47 +2154,100 @@ void Locomotor::moveTowardsPositionHelicopter(Object* obj, PhysicsBehavior *phys
 		wantY = dy * goalSpeed / dist;
 	}
 
-	const Coord3D *vel = physics->getVelocity();
-	Real ax = wantX - vel->x;
-	Real ay = wantY - vel->y;
-	Real need = sqrt(ax*ax + ay*ay);
-	if (need == 0.0f)
-		return;
+	steerHelicopter(obj, physics, wantX, wantY);
+}
 
-	Real limit = (ax * vel->x + ay * vel->y < 0.0f) ? getBraking() : getMaxAcceleration(bdt);
-	if (need > limit)
+//-------------------------------------------------------------------------------------------------
+/**
+	Ease a helicopter's 2D velocity towards (wantX, wantY). It asks for the velocity error back over
+	HELICOPTER_VELOCITY_FRAMES, no harder than its Acceleration, or its Braking when that slows the way
+	it is going; and the pull it actually applies moves towards that by at most an
+	HELICOPTER_ACCEL_EASE_FRAMES share of its Acceleration a frame, so a start, a stop or a change
+	of direction builds up and dies away instead of jumping.
+*/
+void Locomotor::steerHelicopter(Object* obj, PhysicsBehavior *physics, Real wantX, Real wantY)
+{
+	BodyDamageType bdt = obj->getBodyModule()->getDamageState();
+	Real maxAccel = getMaxAcceleration(bdt);
+	const Coord3D *vel = physics->getVelocity();
+
+	Real ax = (wantX - vel->x) / HELICOPTER_VELOCITY_FRAMES;
+	Real ay = (wantY - vel->y) / HELICOPTER_VELOCITY_FRAMES;
+	Real ask = sqrt(ax*ax + ay*ay);
+	Real limit = (ax * vel->x + ay * vel->y < 0.0f) ? getBraking() : maxAccel;
+	if (ask > limit)
 	{
-		ax *= limit / need;
-		ay *= limit / need;
+		ax *= limit / ask;
+		ay *= limit / ask;
 	}
+
+	Real changeX = ax - m_helicopterAccelX;
+	Real changeY = ay - m_helicopterAccelY;
+	Real change = sqrt(changeX*changeX + changeY*changeY);
+	Real jerk = maxAccel / HELICOPTER_ACCEL_EASE_FRAMES;
+	if (change > jerk)
+	{
+		changeX *= jerk / change;
+		changeY *= jerk / change;
+	}
+	m_helicopterAccelX += changeX;
+	m_helicopterAccelY += changeY;
+
+	if (m_helicopterAccelX == 0.0f && m_helicopterAccelY == 0.0f)
+		return;
 
 	Real mass = physics->getMass();
 	Coord3D force;
-	force.x = mass * ax;
-	force.y = mass * ay;
+	force.x = mass * m_helicopterAccelX;
+	force.y = mass * m_helicopterAccelY;
 	force.z = 0.0f;
 	physics->applyMotiveForce(&force);
 }
 
 //-------------------------------------------------------------------------------------------------
-/// stop a helicopter's 2D velocity whichever way it points, at its Braking
+/// bring a helicopter's 2D velocity to rest whichever way it points, eased like any other change
 void Locomotor::brakeHelicopter(Object* obj, PhysicsBehavior *physics)
 {
-	const Coord3D *vel = physics->getVelocity();
-	Real speed = sqrt(sqr(vel->x) + sqr(vel->y));
-	if (speed == 0.0f)
-		return;
+	steerHelicopter(obj, physics, 0.0f, 0.0f);
+}
 
-	Real cut = getBraking();
-	if (cut > speed)
-		cut = speed;
+//-------------------------------------------------------------------------------------------------
+/**
+	Swing a helicopter's nose towards a point, or let the swing die away when toward is null. The
+	turn winds up to TurnRate over HELICOPTER_YAW_EASE_FRAMES and winds down again so it stops on the
+	heading, where rotateTowardsPosition jumps straight to full rate and stops dead.
+*/
+PhysicsTurningType Locomotor::turnHelicopter(Object* obj, const Coord3D *toward)
+{
+	Real maxRate = getMaxTurnRate(obj->getBodyModule()->getDamageState());
+	Real yawAccel = maxRate / HELICOPTER_YAW_EASE_FRAMES;
+	Real angle = obj->getOrientation();
 
-	Real scale = -physics->getMass() * cut / speed;
-	Coord3D force;
-	force.x = scale * vel->x;
-	force.y = scale * vel->y;
-	force.z = 0.0f;
-	physics->applyMotiveForce(&force);
+	Real wantRate = 0.0f;
+	if (toward)
+	{
+		const Coord3D *pos = obj->getPosition();
+		Real error = stdAngleDiff(ATan2(toward->y - pos->y, toward->x - pos->x), angle);
+		// as fast as it can go and still wind down onto the heading, and never past it in one frame
+		Real rate = sqrt(2.0f * yawAccel * fabs(error));
+		if (rate > maxRate)
+			rate = maxRate;
+		if (rate > fabs(error))
+			rate = fabs(error);
+		wantRate = (error < 0.0f) ? -rate : rate;
+	}
+
+	Real change = wantRate - m_helicopterYawRate;
+	if (change > yawAccel)
+		change = yawAccel;
+	else if (change < -yawAccel)
+		change = -yawAccel;
+	m_helicopterYawRate += change;
+
+	if (m_helicopterYawRate == 0.0f)
+		return TURN_NONE;
+	obj->setOrientation(normalizeAngle(angle + m_helicopterYawRate));
+	return (m_helicopterYawRate > 0.0f) ? TURN_POSITIVE : TURN_NEGATIVE;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2839,6 +2952,7 @@ void Locomotor::maintainCurrentPositionHover(Object* obj, PhysicsBehavior *physi
 	physics->setTurning(TURN_NONE);
 	if (isHelicopter(obj))
 	{
+		physics->setTurning(turnHelicopter(obj, NULL));	// a swing still going winds down rather than stopping dead
 		if (physics->isMotive())
 			brakeHelicopter(obj, physics);
 		return;
