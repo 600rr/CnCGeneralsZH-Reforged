@@ -205,3 +205,35 @@ TEST(ffshadercompile_the_tree_shadow_program_compiles)
 	CHECK(compiles(compile, hlsl, D3D9_PROFILE));
 	CHECK(compiles(compile, eleven, D3D11_PROFILE));
 }
+
+// A program that takes the sun's shadow takes the smoke's with it on Direct3D 11: the smoke's map at
+// t6 and the field after SkyUp.  The SDL3 GPU text is made from the same generator and must stay
+// without both, because that backend binds no map there and uploads no such field.
+TEST(ffshadercompile_a_shadow_receiving_program_reads_the_smoke_on_d3d11_only)
+{
+	CombinerDescription description;
+	memset(&description, 0, sizeof(description));
+	description.StageCount = 1;
+	description.Stages[0] = one_stage(D3DTOP_MODULATE, D3DTA_TEXTURE, D3DTA_DIFFUSE,
+		D3DTOP_MODULATE, D3DTA_TEXTURE, D3DTA_DIFFUSE, 0, true);
+	description.ShadowReceiving = true;
+	description.PixelPipeline.FogEnabled = true;
+
+	std::string eleven;
+	CHECK(CombinerShader_Generate(description, COMBINER_SHADER_TARGET_D3D11, eleven));
+	CHECK(eleven.find("register(t6)") != std::string::npos);
+	CHECK(eleven.find("VolumeParameters") > eleven.find("SkyUp"));
+	CHECK(eleven.find("light_reaching(input.Position)") != std::string::npos);
+
+	std::string sdl;
+	CHECK(CombinerShader_Generate(description, COMBINER_SHADER_TARGET_SDL3_GPU, sdl));
+	CHECK(sdl.find("SmokeMap") == std::string::npos);
+	CHECK(sdl.find("VolumeParameters") == std::string::npos);
+
+	D3DCompileFunction compile = load_compiler();
+	if (compile == NULL) {
+		printf("  d3dcompiler_47.dll not present, skipping the compile\n");
+		return;
+	}
+	CHECK(compiles(compile, eleven, D3D11_PROFILE));
+}

@@ -284,15 +284,26 @@ static void append_normal_mapped_lighting(std::string & hlsl, unsigned coordinat
 	hlsl += line;
 }
 
+static bool generate_combiners(const CombinerDescription & description,
+	CombinerShaderTarget target, std::string & hlsl, bool volumetric);
+
 bool CombinerShader_Generate(const CombinerDescription & description, CombinerShaderTarget target,
 	std::string & hlsl)
 {
 	// The SDL3 GPU program is the D3D11 one with its bindings rewritten, so everything below only
-	// ever sees the two profiles it was written for.
+	// ever sees the two profiles it was written for.  It goes without the smoke: its backend binds
+	// nothing at t6 and uploads no field past SkyUp (SdlEnginePixelConstants).
 	if (target == COMBINER_SHADER_TARGET_SDL3_GPU) {
-		return CombinerShader_Generate(description, COMBINER_SHADER_TARGET_D3D11, hlsl)
+		return generate_combiners(description, COMBINER_SHADER_TARGET_D3D11, hlsl, false)
 			&& SDL3_Shader_Retarget(hlsl, false);
 	}
+	return generate_combiners(description, target, hlsl, target == COMBINER_SHADER_TARGET_D3D11);
+}
+
+static bool generate_combiners(const CombinerDescription & description,
+	CombinerShaderTarget target, std::string & hlsl, bool volumetric)
+{
+	volumetric = volumetric && description.ShadowReceiving;
 	if (description.StageCount == 0 || description.StageCount > MAXIMUM_COMBINER_STAGES) {
 		return false;
 	}
@@ -423,12 +434,18 @@ bool CombinerShader_Generate(const CombinerDescription & description, CombinerSh
 				"    float4 Sky;\n"
 				"    float4 SkyUp;\n";
 		}
+		if (volumetric) {
+			hlsl += VOLUMETRIC_CONSTANTS;
+		}
 		hlsl += "};\n";
 		if (description.NormalMapped) {
 			hlsl += "Texture2D NormalMap : register(t4);\n";
 		}
 		if (description.ShadowReceiving) {
 			hlsl += SHADOW_SAMPLING;
+		}
+		if (volumetric) {
+			hlsl += VOLUMETRIC_SAMPLING;
 		}
 	}
 	else {
@@ -494,7 +511,7 @@ bool CombinerShader_Generate(const CombinerDescription & description, CombinerSh
 
 	// Before the fog: a shadow is a thing in the world and the fog is between the world and the eye.
 	if (description.ShadowReceiving) {
-		hlsl += SHADOW_APPLY;
+		hlsl += volumetric ? VOLUMETRIC_SHADOW_APPLY : SHADOW_APPLY;
 	}
 
 	if (target == COMBINER_SHADER_TARGET_D3D11

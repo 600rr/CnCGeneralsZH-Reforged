@@ -185,6 +185,29 @@ public:
 	bool Shadow_Map_Bound() const { return ShadowMapBound; }
 	ID3D11ShaderResourceView * Shadow_Map() const { return ShadowMapTexture; }
 
+	// The smoke's own map over the same sun, filled once a frame after End_Shadow_Map from the sun
+	// it held.  A caster is five floats: its centre in world units, its radius and the optical
+	// depth through its middle.  Strength is how dark the thickest smoke leaves what is behind it;
+	// zero casters or zero strength is a frame with no smoke in the light, and so is a frame that
+	// never calls this.  True means the map holds every caster handed over that stands in the sun's
+	// box; false that it holds none of them (no blendable, filterable four channel 32-bit float
+	// target, or a buffer the device refused), which the caller reads as the smoke not being in the
+	// sun's light and keeps its older shade.  ffshader.h, VOLUMETRIC_SAMPLING, says what the map holds.
+	bool Fill_Smoke_Map(const float * casters, unsigned count, float strength);
+	ID3D11ShaderResourceView * Smoke_Map() const { return SmokeMapFilled ? SmokeMapTexture : NULL; }
+
+	// The scene camera's view, which a camera space draw's pixels go back to the world through: the
+	// sorted particles are written in camera space and drawn with an identity world and view
+	// (PointGroupClass::Insert_Sorted_Billboards), so the view the backend holds for them says
+	// nothing about where they are.  Set by the shadow pass every frame it fills the map, after the
+	// frame's camera is back; until the first one, such a draw uses the view it was drawn with.
+	void Set_Scene_View(const float view[16]);
+
+	// How a smoke particle shades itself, apart from what the smoke does to the ground: how dark a
+	// particle on its plume's far side goes, and the power the share of the plume in front of it is
+	// raised to, which keeps the sun side lit (VOLUMETRIC_SAMPLING, smoke_reaching).
+	void Set_Smoke_Self_Shadow(float gain, float curve);
+
 	// What is in the map, read back through a staging copy: how much of it was drawn into and how
 	// near the nearest thing is.  A caster pass that drew nothing leaves a map that is all one
 	// value, and no draw count tells that apart from a pass that drew the world.
@@ -311,6 +334,10 @@ private:
 		// share of the zenith colour in its own.
 		float Sky[4];
 		float SkyUp[4];
+		// The smoke in the sun's light (VOLUMETRIC_SAMPLING): how dark the thickest smoke leaves
+		// what is behind it, zero on a frame without; the same for a particle shading itself; one
+		// for a draw in camera space; and the power on the self-shade.
+		float VolumeParameters[4];
 	};
 	// A model under directional lights, drawn by generated programs.
 	bool Normal_Mapped() const;
@@ -399,6 +426,36 @@ private:
 	float ShadowFromClipView[16];
 	float ShadowFromClipProjection[16];
 	bool ShadowFromClipValid;
+
+	// Set_Scene_View's matrix, and whether it has been set.
+	float SceneView[16];
+	bool SceneViewKnown;
+	bool Camera_Space_Draw() const;
+	// A stage samples the target the draw is going into: the heat haze, which bends a picture that
+	// already took its shadows, and would take them a second time.
+	bool Samples_Current_Target() const;
+
+	// The smoke's map (Fill_Smoke_Map), the program that splats the casters into it and what it
+	// draws with.  Made on the first fill and kept; refused for good if the device cannot.
+	ID3D11Texture2D * SmokeMapSurface;
+	ID3D11RenderTargetView * SmokeMapTarget;
+	ID3D11ShaderResourceView * SmokeMapTexture;
+	ID3D11SamplerState * SmokeMapSampler;
+	ID3D11VertexShader * SmokeSplatVertexShader;
+	ID3D11PixelShader * SmokeSplatPixelShader;
+	ID3D11InputLayout * SmokeSplatLayout;
+	ID3D11BlendState * SmokeSplatBlend;
+	ID3D11RasterizerState * SmokeSplatRasterizer;
+	ID3D11Buffer * SmokeSplatInstances;
+	unsigned SmokeSplatCapacity;
+	std::vector<float> SmokeSplats;
+	bool SmokeMapRefused;
+	bool SmokeMapFilled;
+	float SmokeStrength;
+	float SmokeSelfGain;
+	float SmokeSelfCurve;
+	bool Make_Smoke_Map();
+	void Release_Smoke_Map();
 
 	float MaterialAmbient[4];
 	float MaterialDiffuse[4];
@@ -559,9 +616,11 @@ private:
 	ID3D11Texture2D * TargetCopy;
 	ID3D11ShaderResourceView * TargetCopyView;
 	ID3D11ShaderResourceView * Readable_Texture(unsigned stage, ID3D11ShaderResourceView * texture);
-	// Per stage, the last view asked about and whether it views the current target.
-	ID3D11ShaderResourceView * TargetCheckedViews[DX11_BACKEND_TEXTURE_STAGES];
-	bool TargetCheckedIsTarget[DX11_BACKEND_TEXTURE_STAGES];
+	// Per stage, the last view asked about and whether it views the current target.  Mutable because
+	// Shadow_Receiving asks the same question while the pipeline is described.
+	bool Views_Current_Target(unsigned stage, ID3D11ShaderResourceView * texture) const;
+	mutable ID3D11ShaderResourceView * TargetCheckedViews[DX11_BACKEND_TEXTURE_STAGES];
+	mutable bool TargetCheckedIsTarget[DX11_BACKEND_TEXTURE_STAGES];
 
 	// Keyed by the description itself and ordered by its bytes, which is safe for the ResolveMemo's
 	// reason: every Build_*_Description memsets first.  They were keyed by the bytes copied into a

@@ -72,6 +72,9 @@
 #include "GameClient/View.h"
 #include "Platform/RenderTypes.h"
 #include "Lib/Clock.h"		// Clock_Ticks: QueryPerformanceCounter on Windows, a monotonic clock elsewhere
+#include "GameClient/ParticleSys.h"
+#include <algorithm>
+#include <vector>
 
 #ifdef _INTERNAL
 // for occasional debugging...
@@ -134,6 +137,28 @@ const Real cosAngleToCare = cos ((0.2 * PI) / 180.0);	//1.5 degree difference
 #define SHADOW_MAP_NARROWEST_TEXELS 0.9f
 #define SHADOW_MAP_PENUMBRA_PER_UNIT 0.01f
 #define SHADOW_MAP_SKY_FILL 0.12f
+// The smoke in the sun's light.  The strength is how dark the thickest cloud leaves the ground and
+// the smoke behind it, under the solid casters' 0.45 because the sky still lights the ground under a
+// cloud and the smoke itself scatters some of the sun on.  How thick each particle is to the sun is
+// particleSunMapOpticalDepth's.  The self-shade is a particle's own: how dark one on its plume's far
+// side goes, and the power that keeps the sun side lit (ffshader.h, smoke_reaching).  The ground
+// figure held up on Golden Oasis on 2026-10-03.  The self-shade's 0.8 and 16 are the 2026-10-04
+// re-sweep's, with the shade measured from the plume's front: white smoke's sun side 6.2% under the
+// unshaded plume and its far side 0.85 of the sun side, soot 2.4% and 0.87.  At 8 white lost 10.8%
+// on its sun side; at 32 soot went flat.
+// -smokegroundshadow, -smokeselfshadow, -smokeselfcurve and -smokedensity overrule them for a run.
+#define SMOKE_SHADOW_STRENGTH 0.4f
+#define SMOKE_SELF_SHADOW_GAIN 0.8f
+#define SMOKE_SELF_SHADOW_CURVE 16.0f
+
+// W3DParticleSys.cpp: the fire light values the last particle pass used.
+extern void W3DSmokeFireTuningInForce( Real *gain, Real *radius, Real *height, Real *cap, Real *fullWeight );
+
+/** A tuning switch's value, or the build's own figure when it was not given (below zero). */
+static inline Real smokeTuning( Real given, Real builtIn )
+{
+	return given >= 0.0f ? given : builtIn;
+}
 
 // Whether the sun's map took this frame.  The volumes read it to know whether to stand down, and it
 // is false on a machine with no Direct3D 11 device, which is what keeps that machine's shadows.
@@ -3829,6 +3854,150 @@ DECLARE_PERF_TIMER(stencilShadows)
 DECLARE_PERF_TIMER(shadowVolumeUpdate)
 DECLARE_PERF_TIMER(shadowVolumeSubmit)
 
+/** Nothing of this frame's smoke is in the map: every system keeps its blob. */
+static void forgetSmokeInSunMap( void )
+{
+	if (TheParticleSystemManager == NULL)
+		return;
+	ParticleSystemManager::ParticleSystemList &systems = TheParticleSystemManager->getAllParticleSystems();
+	for (ParticleSystemManager::ParticleSystemListIt it = systems.begin(); it != systems.end(); ++it)
+		if (*it)
+			(*it)->setInSunMap( FALSE );
+}
+
+/** One particle on its way into the smoke map, with the system it came from and how far it is from
+		what the camera looks at, which decides who goes in when there are more than the map takes. */
+struct SmokeCaster
+{
+	Real x, y, z, radius, opticalDepth;
+	Real distanceSqr;
+	ParticleSystem *system;
+	bool operator<( const SmokeCaster &other ) const { return distanceSqr < other.distanceSqr; }
+};
+
+/** The smoke into the sun's light: every alpha-blended billboard particle as a soft ball, its optical
+		depth the one its own alpha implies (particleSunMapOpticalDepth), handed to the backend's smoke
+		map.  The systems are read as the last client update left them, because the pass runs before
+		the frame's particles are drawn.  Fire is additive and casts nothing; a ground-aligned system is
+		a decal already.  Only what stands in the sun's box counts, and past the map's limit the
+		particles nearest the camera's focus win, so a new fire on screen is never starved by old smoke
+		at the edge.  Every system with a particle in the map is marked, and those lose their blob;
+		with the option off, or the map refused, none is. */
+static void fillSmokeMap( const Matrix3D &sunTransform, const Vector3 &focus )
+{
+	static std::vector<SmokeCaster> found;	// kept: a burning base is thousands of particles every frame
+	static std::vector<Real> packed;
+	static Int systemsLastReport = -1;
+	static UnsignedInt nextReportFrame = 0;
+	const size_t mostCasters = 16384;		// the backend's own SMOKE_MOST_CASTERS
+
+	forgetSmokeInSunMap();
+	found.clear();
+	packed.clear();
+
+	const Real density = smokeTuning( TheGlobalData->m_smokeShadowDensity, 1.0f );
+	if (TheGlobalData->m_volumetricSmokeShadows && TheParticleSystemManager != NULL && density > 0.0f)
+	{
+		ParticleSystemManager::ParticleSystemList &systems = TheParticleSystemManager->getAllParticleSystems();
+		for (ParticleSystemManager::ParticleSystemListIt it = systems.begin(); it != systems.end(); ++it)
+		{
+			ParticleSystem *sys = *it;
+			if (sys == NULL || sys->getShaderType() != ParticleSystemInfo::ALPHA || !sys->shouldBillboard()
+					|| sys->isUsingDrawables() || sys->isUsingStreak() || sys->isUsingSmudge())
+				continue;
+			// the heat haze's texture names start with SMUD, as W3DParticleSystemManager::doParticles tests
+			if (*((UnsignedInt *)sys->getParticleTypeName().str()) == 0x44554D53)
+				continue;
+
+			const UnsignedInt layers = sys->getVolumeParticleDepth();
+			for (Particle *p = sys->getFirstParticle(); p; p = p->m_systemNext)
+			{
+				const Real opticalDepth = particleSunMapOpticalDepth( p->getAlpha(), layers ) * density;
+				if (opticalDepth <= 0.0f)
+					continue;
+				const Coord3D *pos = p->getPosition();
+				const Real radius = p->getSize() * 0.5f;		// the billboard's size is its full width
+				if (radius <= 0.0f)
+					continue;
+
+				// the box the depth map covers, in the sun's own frame: it looks down its -Z
+				Vector3 inSun;
+				Matrix3D::Inverse_Transform_Vector( sunTransform, Vector3( pos->x, pos->y, pos->z ), &inSun );
+				const Real reach = SHADOW_MAP_HALF_WIDTH + radius;
+				if (inSun.X < -reach || inSun.X > reach || inSun.Y < -reach || inSun.Y > reach
+						|| -inSun.Z < SHADOW_MAP_NEAR_CLIP - radius || -inSun.Z > SHADOW_MAP_FAR_CLIP + radius)
+					continue;
+
+				SmokeCaster caster;
+				caster.x = pos->x;
+				caster.y = pos->y;
+				caster.z = pos->z;
+				caster.radius = radius;
+				caster.opticalDepth = opticalDepth;
+				const Real dx = pos->x - focus.X;
+				const Real dy = pos->y - focus.Y;
+				caster.distanceSqr = dx * dx + dy * dy;
+				caster.system = sys;
+				found.push_back( caster );
+			}
+		}
+	}
+
+	const size_t inBox = found.size();
+	if (found.size() > mostCasters)
+	{
+		std::nth_element( found.begin(), found.begin() + mostCasters, found.end() );
+		found.resize( mostCasters );
+	}
+
+	packed.reserve( found.size() * 5 );
+	for (size_t i = 0; i < found.size(); ++i)
+	{
+		packed.push_back( found[ i ].x );
+		packed.push_back( found[ i ].y );
+		packed.push_back( found[ i ].z );
+		packed.push_back( found[ i ].radius );
+		packed.push_back( found[ i ].opticalDepth );
+	}
+
+	Direct3D11_Set_Smoke_Self_Shadow( smokeTuning( TheGlobalData->m_smokeSelfShadowGain, SMOKE_SELF_SHADOW_GAIN ),
+		smokeTuning( TheGlobalData->m_smokeSelfShadowCurve, SMOKE_SELF_SHADOW_CURVE ) );
+	const Bool held = Direct3D11_Fill_Smoke_Map( packed.empty() ? NULL : &packed[ 0 ],
+		(unsigned)found.size(), smokeTuning( TheGlobalData->m_smokeGroundShadow, SMOKE_SHADOW_STRENGTH ) );
+	if (!held)
+		return;
+
+	Int systemsHeld = 0;
+	for (size_t i = 0; i < found.size(); ++i)
+	{
+		if (!found[ i ].system->isInSunMap())
+		{
+			found[ i ].system->setInSunMap( TRUE );
+			++systemsHeld;
+		}
+	}
+
+	// A run's log says whether the smoke was in the map at all: the first frame it held any, and
+	// every ten seconds while it does.
+	const UnsignedInt frame = TheGameLogic ? TheGameLogic->getFrame() : 0;
+	if (!found.empty() && (systemsLastReport < 0 || frame >= nextReportFrame))
+	{
+		nextReportFrame = frame + 10 * LOGICFRAMES_PER_SECOND;
+		systemsLastReport = systemsHeld;
+		Real fireGain, fireRadius, fireHeight, fireCap, fireFull;
+		W3DSmokeFireTuningInForce( &fireGain, &fireRadius, &fireHeight, &fireCap, &fireFull );
+		DEBUG_LOG(("SMOKEMAP: frame %u, %d casters from %d systems in the sun's map, %d more past its limit;"
+			" ground %.2f self %.2f curve %.2f density %.2f; fire light %s gain %.2f radius %.0f height %.0f"
+			" cap %.2f full %.0f\n",
+			frame, (Int)found.size(), systemsHeld, (Int)( inBox - found.size() ),
+			smokeTuning( TheGlobalData->m_smokeGroundShadow, SMOKE_SHADOW_STRENGTH ),
+			smokeTuning( TheGlobalData->m_smokeSelfShadowGain, SMOKE_SELF_SHADOW_GAIN ),
+			smokeTuning( TheGlobalData->m_smokeSelfShadowCurve, SMOKE_SELF_SHADOW_CURVE ), density,
+			TheGlobalData->m_smokeFireLighting ? "on" : "off", fireGain, fireRadius, fireHeight, fireCap,
+			fireFull));
+	}
+}
+
 /** The sun's depth pass.  The casters are the ones that cast a volume today, drawn again from the
 		sun into a depth buffer nothing samples yet, so this phase can be proved on its own: with it
 		off the frame is what it was, and with it on the map has the world in it and the frame is
@@ -3839,11 +4008,15 @@ void W3DVolumetricShadowManager::renderShadowMap( CameraClass &sceneCamera )
 {
 	theShadowMapHoldsTheFrame = FALSE;
 
-	if (!TheGlobalData->m_shadowMap || m_shadowList == NULL || TheTacticalView == NULL)
+	if (!TheGlobalData->m_shadowMap || m_shadowList == NULL || TheTacticalView == NULL
+		|| !Direct3D11_Begin_Shadow_Map( SHADOW_MAP_TEXELS ))
+	{
+		//no Direct3D 11 device, or it refused the surface: the volumes keep the frame, no smoke is
+		//read out of a map the last frame filled, and every cloud keeps its blob
+		Direct3D11_Fill_Smoke_Map( NULL, 0, 0.0f );
+		forgetSmokeInSunMap();
 		return;
-
-	if (!Direct3D11_Begin_Shadow_Map( SHADOW_MAP_TEXELS ))
-		return;		//no Direct3D 11 device, or it refused the surface: the volumes keep the frame
+	}
 
 #ifdef DEBUG_LOGGING
 	// The scene timer includes this pass and cannot say so.
@@ -3963,10 +4136,24 @@ void W3DVolumetricShadowManager::renderShadowMap( CameraClass &sceneCamera )
 
 	Direct3D11_End_Shadow_Map();
 
+	// The smoke goes into a map of its own through the sun the casters were just drawn with.
+	fillSmokeMap( transform, focus );
+
 	// The frame's own camera, put back: the view, the projection and the viewport all went with the
 	// sun.  Without this everything drawn after the pass is drawn from the sun's seat, which is the
 	// whole picture rather than a corner of it.
 	sceneCamera.Apply();
+
+	/* And its view said to the backend outright.  The sorted particles are written in this camera's
+		 space and drawn with an identity view, and their pixels go back to the world through this
+		 matrix; a guess at it from whatever perspective draw came last picked up the camera-relative
+		 view the aligned spheres draw with.  In the layout DX8Wrapper hands the device. */
+	{
+		Matrix4x4 view;
+		DX8Wrapper::Get_Transform( D3DTS_VIEW, view );
+		const Matrix4x4 deviceView = view.Transpose();
+		Direct3D11_Set_Scene_View( (const float *)&deviceView );
+	}
 
 	/* And what turns the map into a shadow.  The matrix that takes a pixel from the frame's clip
 		 space into the sun's is built in the backend, out of the sun's own view and projection as it

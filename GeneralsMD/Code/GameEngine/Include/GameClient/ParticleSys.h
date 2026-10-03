@@ -337,6 +337,14 @@ extern Bool particleShadowBlobResolve( const ParticleShadowBlob *blob, Real *cen
 																			 Real *sizeX, Real *sizeY, Int *opacity );
 
 /**
+ * The optical depth through the middle of one particle in the sun's smoke map: the one its own
+ * alpha implies, the one the eye sees through it, times how many layers it is drawn.  A plain
+ * billboard is one layer whatever getVolumeParticleDepth says (it answers 0 for anything that is
+ * not a volume particle).  Zero for a particle too faint to cast.
+ */
+extern Real particleSunMapOpticalDepth( Real alpha, UnsignedInt layers );
+
+/**
  * What "-smoke <thickness>" does to one smoke system.  A single number on the command line is
  * spent across three separate properties, because spending all of it on any one of them looks
  * wrong: all on lifetime gives a thin haze that never leaves, all on alpha gives a solid grey
@@ -721,6 +729,12 @@ public:
 						 ? MAX_VOLUME_PARTICLE_DEPTH : m_volumeParticleDepth;
 	}
 
+	/// The renderer put at least one of this system's particles into the sun's smoke map on its
+	/// last frame, so the cloud shades the ground already and its blob would shade it twice.
+	/// Written by the shadow pass every frame it runs, read by shouldCastGroundShadow.
+	void setInSunMap( Bool inSunMap ) { m_inSunMap = inSunMap; }
+	Bool isInSunMap( void ) const { return m_inSunMap; }
+
 	Bool shouldBillboard( void ) { return !m_isGroundAligned; }
 
 	ParticleShaderType getShaderType( void ) { return m_shaderType; }
@@ -807,6 +821,7 @@ protected:
 	ParticleShadowBlob	m_pendingShadowBlob;				///< the survivors' footprint, gathered by updateParticlesMark
 	Bool								m_pendingCastsGroundShadow;	///< decided by updateEmission, where update() always decided it
 	UnsignedInt					m_pendingDeaths;						///< particles updateParticlesMark marked; the reap stops once it has removed them
+	Bool								m_inSunMap;									///< setInSunMap: client-only, never xfered
 
 protected:
 	Particle *				m_systemParticlesHead;

@@ -37,6 +37,8 @@
 #include "W3DDevice/GameClient/HeightMap.h"
 #include "W3DDevice/GameClient/W3DSmudge.h"
 #include "W3DDevice/GameClient/W3DSnow.h"
+#include "W3DDevice/GameClient/W3DScene.h"
+#include "W3DDevice/GameClient/W3DDynamicLight.h"
 #include "WW3D2/camera.h"
 #include "WW3D2/dx8wrapper.h"
 #include "Common/JobSystem.h"
@@ -77,6 +79,315 @@ static Bool particlePresetShader( ParticleSystemInfo::ParticleShaderType type, S
 	return FALSE;
 }
 
+//-------------------------------------------------------------------------------------------------
+// Fire lights the smoke around it.  Each frame the additive systems (flames, explosions, muzzle
+// flashes) are reduced to one light apiece at their brightness-weighted centre, the scene's enabled
+// light pulses join them, and every alpha-blended particle near one of those is lit by it.  A fire's
+// light is the colour of fire, not of its particles: an additive flame's vertex colour is near white
+// and the orange is in its texture, so the hue taken from the vertices made the light grey.  It is
+// strongest just over the flames and falls away with height above them and sideways from them, so a
+// plume is lit at its base and goes grey as it rises; it flickers with the flames because the
+// flames' own particles are what measure it.  The light a particle takes is reflected by its own
+// colour and, past white, keeps its hue rather than clipping, so white smoke turns orange and soot
+// dark orange.  All of it is client-side colour on the CPU, so both devices draw it.  It goes in
+// before the shade, being vertex colour, so a plume's own shade dims it too (the shaders have no
+// channel to carry it past the shade); a thin particle takes less of it, which keeps the plume's thin
+// edge, unshaded, from glowing brighter than its shaded core.
+//-------------------------------------------------------------------------------------------------
+
+static const Int	SMOKE_LIGHTS_MAX							= 32;			///< lights gathered a frame, the strongest kept
+static const Int	SMOKE_LIGHTS_PER_SYSTEM				= 4;			///< lights one smoke system evaluates per particle
+static const Real	FIRE_LIGHT_FULL_WEIGHT				= 120.0f;	///< sum of brightness x size at which a fire is full strength
+static const Real	FIRE_LIGHT_MIN_WEIGHT					= 4.0f;		///< below this an additive system lights nothing
+static const Real	FIRE_LIGHT_RADIUS							= 35.0f;	///< sideways reach of a fire's light beyond its own spread
+static const Real	FIRE_LIGHT_SPREAD_SCALE				= 2.0f;		///< times the flames' RMS spread, added to the reach
+static const Real	FIRE_LIGHT_MAX_RADIUS					= 140.0f;
+static const Real	FIRE_LIGHT_HEIGHT							= 90.0f;	///< height over the flames at which their light is gone
+static const Real	FIRE_LIGHT_BELOW_SHARE				= 0.25f;	///< share of the sideways reach the light goes below them
+static const Real	FIRE_LIGHT_GAIN								= 0.7f;		///< light a full-strength fire puts on the smoke over it
+static const Real	PULSE_LIGHT_GAIN							= 0.4f;		///< same for an FX light pulse, whose colour is already full
+static const Real	SMOKE_LIGHT_MAX_GLOW					= 0.9f;		///< most light any particle takes, brightest channel
+static const Real	SMOKE_LIGHT_SOOT_SHARE				= 0.35f;	///< share of the light even black smoke gives back
+static const Real	SMOKE_LIGHT_THIN_ALPHA				= 0.25f;	///< a particle thinner than this takes its share of the light
+static const Real	FIRE_LIGHT_RED = 1.0f, FIRE_LIGHT_GREEN = 0.55f, FIRE_LIGHT_BLUE = 0.24f;	///< 255,140,60
+
+/** The figures above that -smokefiregain, -smokefireradius, -smokefireheight, -smokefirecap and
+	* -smokefirefull overrule for a run, taken once a frame before the jobs start and only read by
+	* them.  The gain scales the pulses' light too, and the radius the cap on a big fire's reach.  The
+	* full weight is the one a fire's size is judged against, and a small fire well under it lights at
+	* that fraction of the gain. */
+struct SmokeFireTuning
+{
+	Real gain, pulseGain, radius, maxRadius, height, cap, fullWeight;
+};
+static SmokeFireTuning theSmokeFire = { FIRE_LIGHT_GAIN, PULSE_LIGHT_GAIN, FIRE_LIGHT_RADIUS,
+	FIRE_LIGHT_MAX_RADIUS, FIRE_LIGHT_HEIGHT, SMOKE_LIGHT_MAX_GLOW, FIRE_LIGHT_FULL_WEIGHT };
+
+static void refreshSmokeFireTuning( void )
+{
+	const Real gain = TheGlobalData->m_smokeFireGain >= 0.0f ? TheGlobalData->m_smokeFireGain : FIRE_LIGHT_GAIN;
+	const Real radius = TheGlobalData->m_smokeFireRadius >= 0.0f ? TheGlobalData->m_smokeFireRadius : FIRE_LIGHT_RADIUS;
+	theSmokeFire.gain = gain;
+	theSmokeFire.pulseGain = PULSE_LIGHT_GAIN * gain / FIRE_LIGHT_GAIN;
+	theSmokeFire.radius = radius;
+	theSmokeFire.maxRadius = FIRE_LIGHT_MAX_RADIUS * radius / FIRE_LIGHT_RADIUS;
+	theSmokeFire.height = TheGlobalData->m_smokeFireHeight >= 1.0f ? TheGlobalData->m_smokeFireHeight : FIRE_LIGHT_HEIGHT;
+	theSmokeFire.cap = TheGlobalData->m_smokeFireCap >= 0.0f ? TheGlobalData->m_smokeFireCap : SMOKE_LIGHT_MAX_GLOW;
+	theSmokeFire.fullWeight = TheGlobalData->m_smokeFireFullWeight >= 1.0f
+		? TheGlobalData->m_smokeFireFullWeight : FIRE_LIGHT_FULL_WEIGHT;
+}
+
+/** The fire light values in force this frame, for the SMOKEMAP line in the log. */
+void W3DSmokeFireTuningInForce( Real *gain, Real *radius, Real *height, Real *cap, Real *fullWeight )
+{
+	*gain = theSmokeFire.gain;
+	*radius = theSmokeFire.radius;
+	*height = theSmokeFire.height;
+	*cap = theSmokeFire.cap;
+	*fullWeight = theSmokeFire.fullWeight;
+}
+
+/** A light as the smoke sees it: its colour is already scaled by its strength and gain.  A fire's
+	* reaches its radius sideways, its height upwards and a share of the radius downwards; a pulse's
+	* (invHeight zero) is a ball.  reachSq is the ball that holds either, for picking. */
+struct SmokeLight
+{
+	Real x, y, z;
+	Real radiusSq, invRadiusSq;
+	Real invHeight, invBelow;
+	Real reachSq;
+	Real r, g, b;
+	Real strength;	///< orders the list, strongest first
+};
+
+/** Keeps the list at SMOKE_LIGHTS_MAX by dropping the weakest. */
+static void addSmokeLight( SmokeLight *lights, Int &count, const SmokeLight &light )
+{
+	Int slot = count;
+	if (count == SMOKE_LIGHTS_MAX)
+	{
+		slot = 0;
+		for (Int i = 1; i < count; ++i)
+			if (lights[ i ].strength < lights[ slot ].strength)
+				slot = i;
+		if (lights[ slot ].strength >= light.strength)
+			return;
+	}
+	else
+		++count;
+	lights[ slot ] = light;
+}
+
+/** One additive system as a point light, if it is bright enough and near enough the view box. */
+static void gatherFireLight( ParticleSystem *sys, SmokeLight *lights, Int &count,
+	const AABoxClass &view )
+{
+	Real w = 0.0f, x = 0.0f, y = 0.0f, z = 0.0f, sq = 0.0f;
+	for (Particle *p = sys->getFirstParticle(); p; p = p->m_systemNext)
+	{
+		const RGBColor *c = p->getColor();
+		const Real pw = (c->red + c->green + c->blue) * (1.0f / 3.0f) * p->getSize();
+		if (pw <= 0.0f)
+			continue;
+		const Coord3D *pos = p->getPosition();
+		w += pw;
+		x += pw * pos->x;
+		y += pw * pos->y;
+		z += pw * pos->z;
+		sq += pw * (pos->x * pos->x + pos->y * pos->y + pos->z * pos->z);
+	}
+	if (w < FIRE_LIGHT_MIN_WEIGHT)
+		return;
+
+	SmokeLight light;
+	const Real inv = 1.0f / w;
+	light.x = x * inv;
+	light.y = y * inv;
+	light.z = z * inv;
+	const Real variance = sq * inv - (light.x * light.x + light.y * light.y + light.z * light.z);
+	Real radius = theSmokeFire.radius + FIRE_LIGHT_SPREAD_SCALE * (variance > 0.0f ? sqrtf( variance ) : 0.0f);
+	if (radius > theSmokeFire.maxRadius)
+		radius = theSmokeFire.maxRadius;
+
+	const Real height = theSmokeFire.height;
+	const Real reach = radius > height ? radius : height;
+	if (WWMath::Fabs( light.x - view.Center.X ) > view.Extent.X + reach
+			|| WWMath::Fabs( light.y - view.Center.Y ) > view.Extent.Y + reach
+			|| WWMath::Fabs( light.z - view.Center.Z ) > view.Extent.Z + reach)
+		return;
+
+	// fire's own colour, and the strength from how much of the flames there is
+	light.strength = w < theSmokeFire.fullWeight ? w / theSmokeFire.fullWeight : 1.0f;
+	const Real scale = light.strength * theSmokeFire.gain;
+	light.r = FIRE_LIGHT_RED * scale;
+	light.g = FIRE_LIGHT_GREEN * scale;
+	light.b = FIRE_LIGHT_BLUE * scale;
+	light.radiusSq = radius * radius;
+	light.invRadiusSq = 1.0f / light.radiusSq;
+	light.invHeight = 1.0f / height;
+	light.invBelow = 1.0f / (radius * FIRE_LIGHT_BELOW_SHARE);
+	light.reachSq = reach * reach;
+	addSmokeLight( lights, count, light );
+}
+
+/** The scene's enabled light pulses, which FX lists put on explosions. */
+static void gatherPulseLights( SmokeLight *lights, Int &count, const AABoxClass &view )
+{
+	if (W3DDisplay::m_3DScene == NULL)
+		return;
+
+	RefRenderObjListIterator it( W3DDisplay::m_3DScene->getDynamicLights() );
+	for (it.First(); !it.Is_Done(); it.Next())
+	{
+		W3DDynamicLight *pulse = (W3DDynamicLight *)it.Peek_Obj();
+		if (!pulse->isEnabled() || pulse->Get_Type() != LightClass::POINT)
+			continue;
+
+		Real nearRange, farRange;
+		pulse->Get_Far_Attenuation_Range( nearRange, farRange );
+		if (farRange < 1.0f)
+			continue;
+
+		const Vector3 pos = pulse->Get_Position();
+		if (WWMath::Fabs( pos.X - view.Center.X ) > view.Extent.X + farRange
+				|| WWMath::Fabs( pos.Y - view.Center.Y ) > view.Extent.Y + farRange
+				|| WWMath::Fabs( pos.Z - view.Center.Z ) > view.Extent.Z + farRange)
+			continue;
+
+		Vector3 diffuse;
+		pulse->Get_Diffuse( &diffuse );
+		SmokeLight light;
+		light.x = pos.X;
+		light.y = pos.Y;
+		light.z = pos.Z;
+		light.radiusSq = farRange * farRange;
+		light.invRadiusSq = 1.0f / light.radiusSq;
+		light.invHeight = 0.0f;		// a ball
+		light.invBelow = 0.0f;
+		light.reachSq = light.radiusSq;
+		light.r = diffuse.X * theSmokeFire.pulseGain;
+		light.g = diffuse.Y * theSmokeFire.pulseGain;
+		light.b = diffuse.Z * theSmokeFire.pulseGain;
+		light.strength = WWMath::Max( diffuse.X, WWMath::Max( diffuse.Y, diffuse.Z ) );
+		if (light.strength > 0.0f)
+			addSmokeLight( lights, count, light );
+	}
+}
+
+/** Fills lights[] with this frame's lights, strongest first, and returns how many. */
+static Int gatherSmokeLights( SmokeLight *lights, const AABoxClass &view )
+{
+	Int count = 0;
+	ParticleSystemManager::ParticleSystemList &systems = TheParticleSystemManager->getAllParticleSystems();
+	for (ParticleSystemManager::ParticleSystemListIt it = systems.begin(); it != systems.end(); ++it)
+	{
+		ParticleSystem *sys = *it;
+		if (sys && !sys->isUsingDrawables() && sys->getShaderType() == ParticleSystemInfo::ADDITIVE
+				&& sys->getParticleCount() > 0)
+			gatherFireLight( sys, lights, count, view );
+	}
+	gatherPulseLights( lights, count, view );
+
+	for (Int i = 1; i < count; ++i)
+	{
+		const SmokeLight light = lights[ i ];
+		Int j = i;
+		for (; j > 0 && lights[ j - 1 ].strength < light.strength; --j)
+			lights[ j ] = lights[ j - 1 ];
+		lights[ j ] = light;
+	}
+	return count;
+}
+
+/** The strongest lights that reach an alpha system's particles, at most SMOKE_LIGHTS_PER_SYSTEM.
+	* Any other system gets none. */
+static Int pickSmokeLights( ParticleSystem *sys, const SmokeLight *lights, Int count, SmokeLight *picked )
+{
+	if (count == 0 || sys->getShaderType() != ParticleSystemInfo::ALPHA)
+		return 0;
+
+	Particle *p = sys->getFirstParticle();
+	if (p == NULL)
+		return 0;
+	Real minX = p->getPosition()->x, maxX = minX;
+	Real minY = p->getPosition()->y, maxY = minY;
+	Real minZ = p->getPosition()->z, maxZ = minZ;
+	for (p = p->m_systemNext; p; p = p->m_systemNext)
+	{
+		const Coord3D *pos = p->getPosition();
+		minX = WWMath::Min( minX, pos->x );	maxX = WWMath::Max( maxX, pos->x );
+		minY = WWMath::Min( minY, pos->y );	maxY = WWMath::Max( maxY, pos->y );
+		minZ = WWMath::Min( minZ, pos->z );	maxZ = WWMath::Max( maxZ, pos->z );
+	}
+
+	Int n = 0;
+	for (Int i = 0; i < count && n < SMOKE_LIGHTS_PER_SYSTEM; ++i)
+	{
+		const SmokeLight &l = lights[ i ];
+		const Real dx = l.x < minX ? minX - l.x : (l.x > maxX ? l.x - maxX : 0.0f);
+		const Real dy = l.y < minY ? minY - l.y : (l.y > maxY ? l.y - maxY : 0.0f);
+		const Real dz = l.z < minZ ? minZ - l.z : (l.z > maxZ ? l.z - maxZ : 0.0f);
+		if (dx * dx + dy * dy + dz * dz < l.reachSq)
+			picked[ n++ ] = l;
+	}
+	return n;
+}
+
+/** A smoke particle's colour lit by the picked lights.  A fire's light falls as (1 - h^2/R^2)^2
+	* sideways and (1 - dz/H)^2 above the flames, much faster below them; a pulse's as (1 - d^2/R^2)^2
+	* all round.  The sum is held to SMOKE_LIGHT_MAX_GLOW in its brightest channel, scaled down by how
+	* thin the particle is, and reflected by the particle's own colour (lifted by the soot share, so
+	* black smoke still shows the fire); a result past white is scaled back whole, which keeps its
+	* hue. */
+static inline void lightSmoke( const Coord3D *pos, Real alpha, const SmokeLight *lights, Int count,
+	Real &red, Real &green, Real &blue )
+{
+	Real r = 0.0f, g = 0.0f, b = 0.0f;
+	for (Int i = 0; i < count; ++i)
+	{
+		const SmokeLight &l = lights[ i ];
+		const Real dx = pos->x - l.x, dy = pos->y - l.y, dz = pos->z - l.z;
+		Real f;
+		if (l.invHeight > 0.0f)
+		{
+			const Real side = 1.0f - (dx * dx + dy * dy) * l.invRadiusSq;
+			const Real up = (dz >= 0.0f) ? 1.0f - dz * l.invHeight : 1.0f + dz * l.invBelow;
+			if (side <= 0.0f || up <= 0.0f)
+				continue;
+			f = side * side * up * up;
+		}
+		else
+		{
+			const Real t = 1.0f - (dx * dx + dy * dy + dz * dz) * l.invRadiusSq;
+			if (t <= 0.0f)
+				continue;
+			f = t * t;
+		}
+		r += f * l.r;
+		g += f * l.g;
+		b += f * l.b;
+	}
+
+	Real peak = WWMath::Max( r, WWMath::Max( g, b ) );
+	if (peak <= 0.0f)
+		return;
+	Real scale = (peak > theSmokeFire.cap) ? theSmokeFire.cap / peak : 1.0f;
+	if (alpha < SMOKE_LIGHT_THIN_ALPHA)
+		scale *= alpha / SMOKE_LIGHT_THIN_ALPHA;
+
+	const Real soot = SMOKE_LIGHT_SOOT_SHARE;
+	red += r * scale * (soot + (1.0f - soot) * red);
+	green += g * scale * (soot + (1.0f - soot) * green);
+	blue += b * scale * (soot + (1.0f - soot) * blue);
+	peak = WWMath::Max( red, WWMath::Max( green, blue ) );
+	if (peak > 1.0f)
+	{
+		red /= peak;
+		green /= peak;
+		blue /= peak;
+	}
+}
+
 /** What every job of one frame's billboard fill reads. */
 struct BillboardFillJob
 {
@@ -84,6 +395,8 @@ struct BillboardFillJob
 	Matrix4x4																	view;
 	Real																			centerX, centerY, centerZ;
 	Real																			extentX, extentY, extentZ;
+	SmokeLight																lights[ SMOKE_LIGHTS_MAX ];	///< this frame's, strongest first
+	Int																				lightCount;
 };
 
 /// systems a pool thread claims at once; a system is a few hundred particles, so one claim a system
@@ -100,6 +413,8 @@ static void fillBillboards( Int index, void *context )
 	W3DParticleSystemManager::BillboardFill &fill = job->fills[ index ];
 	VertexFormatXYZNDUV2 *quad = fill.range.Vertices;
 	Int drawn = 0;
+	SmokeLight lights[ SMOKE_LIGHTS_PER_SYSTEM ];
+	const Int lightCount = pickSmokeLights( fill.system, job->lights, job->lightCount, lights );
 
 	for (Particle *p = fill.system->getFirstParticle(); p; p = p->m_systemNext)
 	{
@@ -117,8 +432,10 @@ static void fillBillboards( Int index, void *context )
 			continue;
 
 		const RGBColor *color = p->getColor();
-		const unsigned packed = DX8Wrapper::Convert_Color_Clamp(
-			Vector4( color->red, color->green, color->blue, p->getAlpha() ) );
+		Real red = color->red, green = color->green, blue = color->blue;
+		if (lightCount > 0)
+			lightSmoke( pos, p->getAlpha(), lights, lightCount, red, green, blue );
+		const unsigned packed = DX8Wrapper::Convert_Color_Clamp( Vector4( red, green, blue, p->getAlpha() ) );
 		// The orientation table's index wraps, as it did on Windows (Platform/MsvcFloatCasts.h).
 		const uint8 orientation = floatToByteAsMsvc( p->getAngle() * 255.0f / (2.0f * PI) );
 		PointGroupClass::Write_Billboard( quad, job->view, Vector3( pos->x, pos->y, pos->z ), psize,
@@ -287,6 +604,8 @@ void W3DParticleSystemManager::doParticles(RenderInfoClass &rinfo)
 	fillJob.extentX = beX;
 	fillJob.extentY = beY;
 	fillJob.extentZ = beZ;
+	refreshSmokeFireTuning();
+	fillJob.lightCount = TheGlobalData->m_smokeFireLighting ? gatherSmokeLights( fillJob.lights, bbox ) : 0;
 	JobSystem::parallel_for( (Int)m_billboardFills.size(), BILLBOARD_FILLS_PER_CLAIM, fillBillboards, &fillJob );
 	size_t nextFill = 0;
 	for( ParticleSystemManager::ParticleSystemListIt it = particleSysList.begin(); it != particleSysList.end(); ++it)
@@ -363,6 +682,8 @@ void W3DParticleSystemManager::doParticles(RenderInfoClass &rinfo)
 		// the same answer for every particle of the system, so asked once rather than once a particle
 		const UnsignedInt fieldParticleIncrement =
 			( sys->getPriority() == AREA_EFFECT && sys->m_isGroundAligned != FALSE ) ? 1 : 0;
+		SmokeLight lights[ SMOKE_LIGHTS_PER_SYSTEM ];
+		const Int lightCount = pickSmokeLights( sys, fillJob.lights, fillJob.lightCount, lights );
 
 
 
@@ -399,6 +720,8 @@ void W3DParticleSystemManager::doParticles(RenderInfoClass &rinfo)
 			RGBAArray[count].Y = color->green;
 			RGBAArray[count].Z = color->blue;
 			RGBAArray[count].W = p->getAlpha();
+			if (lightCount > 0)
+				lightSmoke( pos, RGBAArray[count].W, lights, lightCount, RGBAArray[count].X, RGBAArray[count].Y, RGBAArray[count].Z );
 		
 			angleArray[count] = floatToByteAsMsvc( p->getAngle() * 255.0f / (2.0f * PI) );
 			

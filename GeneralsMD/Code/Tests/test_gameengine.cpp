@@ -2106,6 +2106,20 @@ static void blobFeed(ParticleShadowBlob *blob, Int count, Real size, Real alpha)
 		particleShadowBlobAdd(blob, (Real)i, 0.0f, size, alpha);
 }
 
+// A plain billboard system answers 0 to getVolumeParticleDepth, and the first cut of the smoke map
+// multiplied by that: every ordinary smoke particle went in with no thickness at all, the backend
+// dropped it, and its cloud lost the blob as well.  One layer, whatever the depth says.
+TEST(sun_map_takes_a_plain_particle_as_one_layer)
+{
+	const Real plain = particleSunMapOpticalDepth(0.5f, 0);
+	CHECK_NEAR(plain, 0.6931f, 0.001f);
+	CHECK_NEAR(particleSunMapOpticalDepth(0.5f, 1), plain, 0.0001f);
+	CHECK_NEAR(particleSunMapOpticalDepth(0.5f, 4), plain * 4.0f, 0.001f);
+	// too faint to cast, and a fully opaque one held short of infinity
+	CHECK_EQ(particleSunMapOpticalDepth(0.01f, 0), 0.0f);
+	CHECK(particleSunMapOpticalDepth(1.0f, 0) < 3.1f);
+}
+
 TEST(blob_reset_leaves_nothing_to_resolve)
 {
 	ParticleShadowBlob blob;
