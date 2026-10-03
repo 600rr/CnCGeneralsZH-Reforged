@@ -82,7 +82,6 @@ static UnsignedInt particleTimerFrames( Real value )
 
 // the singleton
 ParticleSystemManager *TheParticleSystemManager = NULL;
-Bool TheSmokeInSunMap = FALSE;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -361,6 +360,21 @@ Particle::~Particle()
 	TheParticleSystemManager->removeParticle(this);
 
 	//DEBUG_ASSERTLOG(!(totalParticleCount % 100 == 0), ( "TotalParticleCount = %d\n", m_totalParticleCount ));
+}
+
+// ------------------------------------------------------------------------------------------------
+/** See ParticleSys.h.  The density scales the optical depth the alpha implies and is untuned; a
+ * particle fainter than the thinnest casts nothing. */
+// ------------------------------------------------------------------------------------------------
+Real particleSunMapOpticalDepth( Real alpha, UnsignedInt layers )
+{
+	const Real SUN_MAP_DENSITY = 1.0f;
+	const Real SUN_MAP_THINNEST = 0.02f;
+	if (alpha < SUN_MAP_THINNEST)
+		return 0.0f;
+	if (alpha > 0.95f)
+		alpha = 0.95f;
+	return -(Real)log( 1.0f - alpha ) * (Real)( layers > 1 ? layers : 1 ) * SUN_MAP_DENSITY;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1421,6 +1435,7 @@ ParticleSystem::ParticleSystem( const ParticleSystemTemplate *sysTemplate,
 	m_personalityStore = 0;
 	m_controlParticle = NULL;
 	m_groundShadow = NULL;
+	m_inSunMap = FALSE;
 
 	// A system built without an id yet - the load path does that, so it can restore the saved id
 	// first - registers itself once it has one, rather than here where the manager would file it
@@ -2514,7 +2529,7 @@ Bool ParticleSystem::shouldCastGroundShadow( void ) const
 		return FALSE;
 
 	// the sun's map holds this cloud already and shades the ground under it through its own density
-	if (m_shaderType == ALPHA && TheSmokeInSunMap)
+	if (m_inSunMap)
 		return FALSE;
 
 	if (m_isGroundAligned)

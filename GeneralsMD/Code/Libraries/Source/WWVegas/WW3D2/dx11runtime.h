@@ -147,6 +147,11 @@ void Direct3D11_Clear_Shadow_Parameters();
 // caller keeps its older shade under the clouds.
 bool Direct3D11_Fill_Smoke_Map(const float * casters, unsigned count, float strength);
 
+// The scene camera's view, in the device's layout, set by the shadow pass once the frame's camera is
+// back.  A draw made in camera space (identity view, perspective projection: the sorted particles)
+// looks its shadow up through it.
+void Direct3D11_Set_Scene_View(const float view[16]);
+
 // The CPU has just written this surface.  The next bind of its texture fills the Direct3D 11 copy
 // again.  A no-op when the backend is not running.
 void Direct3D11_Mark_Surface_Dirty(struct IDirect3DSurface9 * surface);

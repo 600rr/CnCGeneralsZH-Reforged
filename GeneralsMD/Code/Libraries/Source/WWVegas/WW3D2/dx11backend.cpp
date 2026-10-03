@@ -305,6 +305,7 @@ DX11BackendClass::DX11BackendClass()
 	set_identity(View);
 	set_identity(Projection);
 	set_identity(SceneView);
+	SceneViewKnown = false;
 	SmokeMapSurface = NULL;
 	SmokeMapTarget = NULL;
 	SmokeMapTexture = NULL;
@@ -842,13 +843,13 @@ bool DX11BackendClass::Fill_Smoke_Map(const float * casters, unsigned count, flo
 		if (FAILED(device->CreateBuffer(&buffer, NULL, &SmokeSplatInstances))) {
 			Note_Refusal("the device refused the smoke casters' buffer");
 			SmokeSplatInstances = NULL;
-			return true;
+			return false;
 		}
 		SmokeSplatCapacity = capacity;
 	}
 	D3D11_MAPPED_SUBRESOURCE mapped;
 	if (FAILED(context->Map(SmokeSplatInstances, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
-		return true;
+		return false;
 	}
 	memcpy(mapped.pData, &SmokeSplats[0], splats * SMOKE_SPLAT_FLOATS * sizeof(float));
 	context->Unmap(SmokeSplatInstances, 0);
@@ -897,6 +898,44 @@ bool DX11BackendClass::Camera_Space_Draw() const
 	// A perspective projection's third column ends in one; an orthographic one, the interface's and
 	// the sun's own, ends in nought.
 	return Projection[11] != 0.0f && memcmp(View, IDENTITY, sizeof(IDENTITY)) == 0;
+}
+
+void DX11BackendClass::Set_Scene_View(const float view[16])
+{
+	if (!SceneViewKnown || memcmp(SceneView, view, sizeof(SceneView)) != 0) {
+		memcpy(SceneView, view, sizeof(SceneView));
+		SceneViewKnown = true;
+		ConstantsChanged = true;
+	}
+}
+
+bool DX11BackendClass::Views_Current_Target(unsigned stage, ID3D11ShaderResourceView * texture) const
+{
+	if (texture == NULL || CurrentTarget == NULL) {
+		return false;
+	}
+	// The whole scene is drawn into a target when the screen filters are on, and asking every
+	// texture of every draw which resource it views went through the runtime twice a stage: 4% of
+	// the fireball frame. The answer only changes with the view or the target, and a new target
+	// calls Forget_Bindings, which clears these.
+	if (texture != TargetCheckedViews[stage]) {
+		ID3D11Resource * resource = NULL;
+		texture->GetResource(&resource);
+		resource->Release();
+		TargetCheckedViews[stage] = texture;
+		TargetCheckedIsTarget[stage] = resource == CurrentTargetResource;
+	}
+	return TargetCheckedIsTarget[stage];
+}
+
+bool DX11BackendClass::Samples_Current_Target() const
+{
+	for (unsigned stage = 0; stage < DX11_BACKEND_TEXTURE_STAGES; ++stage) {
+		if (Views_Current_Target(stage, Textures[stage])) {
+			return true;
+		}
+	}
+	return false;
 }
 
 /** The inverse of a four by four, by cofactors.  Nothing else in the backend needed one: every
@@ -1042,6 +1081,16 @@ void DX11BackendClass::Set_Texture(unsigned stage, ID3D11ShaderResourceView * te
 	if (stage < DX11_BACKEND_TEXTURE_STAGES) {
 		if ((Textures[stage] == NULL) != (texture == NULL)) {
 			PipelineChanged = true;
+		}
+		// Sampling the current target takes a draw off the shadow receivers (Shadow_Receiving), so a
+		// change into or out of that is a change of pipeline.  The old view's answer is in the cache
+		// when it was drawn with; when it is not, it is taken as yes.
+		else if (texture != Textures[stage] && CurrentTarget != NULL) {
+			const bool was_target = (TargetCheckedViews[stage] == Textures[stage])
+				? TargetCheckedIsTarget[stage] : true;
+			if (was_target || Views_Current_Target(stage, texture)) {
+				PipelineChanged = true;
+			}
 		}
 		Textures[stage] = texture;
 	}
@@ -1612,6 +1661,9 @@ bool DX11BackendClass::Shadow_Receiving() const
 	if ((VertexFormat & D3DFVF_XYZRHW) != 0) {
 		return false;		// already in screen space: the interface, the filters, the darkening quad
 	}
+	if (Samples_Current_Target()) {
+		return false;		// the heat haze: a copy of a picture that took its shadows already
+	}
 	if (RenderStates.Get_Render_State(D3DRS_ALPHABLENDENABLE) != FALSE) {
 		const DWORD source = RenderStates.Get_Render_State(D3DRS_SRCBLEND);
 		const DWORD destination = RenderStates.Get_Render_State(D3DRS_DESTBLEND);
@@ -2035,12 +2087,9 @@ void DX11BackendClass::Upload_Constants()
 	}
 
 	// A camera space draw's pixels go back to the world through the scene camera's view, not through
-	// the identity it was drawn with; see SceneView in the header.
+	// the identity it was drawn with; see Set_Scene_View in the header.
 	const bool camera_space = Camera_Space_Draw();
-	if (!camera_space && Projection[11] != 0.0f) {
-		memcpy(SceneView, View, sizeof(View));
-	}
-	const float * const world_to_camera = camera_space ? SceneView : View;
+	const float * const world_to_camera = (camera_space && SceneViewKnown) ? SceneView : View;
 
 	if (ShadowReceiving) {
 		if (!ShadowFromClipValid
@@ -2248,6 +2297,9 @@ void DX11BackendClass::Forget_Bindings()
 	memset(&Bound, 0, sizeof(Bound));
 	memset(TargetCheckedViews, 0, sizeof(TargetCheckedViews));
 	memset(TargetCheckedIsTarget, 0, sizeof(TargetCheckedIsTarget));
+	// Whether a draw samples its own target is part of its pipeline (Shadow_Receiving), and every
+	// target change comes through here.
+	PipelineChanged = true;
 }
 
 void DX11BackendClass::Bind_State_Objects()
@@ -2378,22 +2430,7 @@ void DX11BackendClass::Bind_Pipeline(const Pipeline & pipeline, ID3D11Buffer * v
 ID3D11ShaderResourceView * DX11BackendClass::Readable_Texture(unsigned stage,
 	ID3D11ShaderResourceView * texture)
 {
-	if (texture == NULL || CurrentTarget == NULL) {
-		return texture;
-	}
-
-	// The whole scene is drawn into a target when the screen filters are on, and asking every
-	// texture of every draw which resource it views went through the runtime twice a stage: 4% of
-	// the fireball frame. The answer only changes with the view or the target, and a new target
-	// calls Forget_Bindings, which clears these.
-	if (texture != TargetCheckedViews[stage]) {
-		ID3D11Resource * resource = NULL;
-		texture->GetResource(&resource);
-		resource->Release();
-		TargetCheckedViews[stage] = texture;
-		TargetCheckedIsTarget[stage] = resource == CurrentTargetResource;
-	}
-	if (!TargetCheckedIsTarget[stage]) {
+	if (!Views_Current_Target(stage, texture)) {
 		return texture;
 	}
 	ID3D11Resource * resource = CurrentTargetResource;

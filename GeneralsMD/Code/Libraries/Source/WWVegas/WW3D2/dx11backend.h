@@ -189,11 +189,19 @@ public:
 	// it held.  A caster is five floats: its centre in world units, its radius and the optical
 	// depth through its middle.  Strength is how dark the thickest smoke leaves what is behind it;
 	// zero casters or zero strength is a frame with no smoke in the light, and so is a frame that
-	// never calls this.  False when the device cannot hold the map at all (no blendable, filterable
-	// four channel 32-bit float target), which the caller reads as the smoke not being in the sun's
-	// light and keeps its older shade.  ffshader.h, VOLUMETRIC_SAMPLING, says what the map holds.
+	// never calls this.  True means the map holds every caster handed over that stands in the sun's
+	// box; false that it holds none of them (no blendable, filterable four channel 32-bit float
+	// target, or a buffer the device refused), which the caller reads as the smoke not being in the
+	// sun's light and keeps its older shade.  ffshader.h, VOLUMETRIC_SAMPLING, says what the map holds.
 	bool Fill_Smoke_Map(const float * casters, unsigned count, float strength);
 	ID3D11ShaderResourceView * Smoke_Map() const { return SmokeMapFilled ? SmokeMapTexture : NULL; }
+
+	// The scene camera's view, which a camera space draw's pixels go back to the world through: the
+	// sorted particles are written in camera space and drawn with an identity world and view
+	// (PointGroupClass::Insert_Sorted_Billboards), so the view the backend holds for them says
+	// nothing about where they are.  Set by the shadow pass every frame it fills the map, after the
+	// frame's camera is back; until the first one, such a draw uses the view it was drawn with.
+	void Set_Scene_View(const float view[16]);
 
 	// What is in the map, read back through a staging copy: how much of it was drawn into and how
 	// near the nearest thing is.  A caster pass that drew nothing leaves a map that is all one
@@ -413,13 +421,13 @@ private:
 	float ShadowFromClipProjection[16];
 	bool ShadowFromClipValid;
 
-	// The sorted particles are written in camera space and drawn with an identity world and view
-	// (PointGroupClass::Insert_Sorted_Billboards), so the view the backend holds for them says
-	// nothing about where they are, and a shadow looked up through it lands somewhere else in the
-	// world.  This is the last view a perspective draw held that was not the identity, which is the
-	// scene camera's: the matrix a camera space draw's pixels go back to the world through.
+	// Set_Scene_View's matrix, and whether it has been set.
 	float SceneView[16];
+	bool SceneViewKnown;
 	bool Camera_Space_Draw() const;
+	// A stage samples the target the draw is going into: the heat haze, which bends a picture that
+	// already took its shadows, and would take them a second time.
+	bool Samples_Current_Target() const;
 
 	// The smoke's map (Fill_Smoke_Map), the program that splats the casters into it and what it
 	// draws with.  Made on the first fill and kept; refused for good if the device cannot.
@@ -600,9 +608,11 @@ private:
 	ID3D11Texture2D * TargetCopy;
 	ID3D11ShaderResourceView * TargetCopyView;
 	ID3D11ShaderResourceView * Readable_Texture(unsigned stage, ID3D11ShaderResourceView * texture);
-	// Per stage, the last view asked about and whether it views the current target.
-	ID3D11ShaderResourceView * TargetCheckedViews[DX11_BACKEND_TEXTURE_STAGES];
-	bool TargetCheckedIsTarget[DX11_BACKEND_TEXTURE_STAGES];
+	// Per stage, the last view asked about and whether it views the current target.  Mutable because
+	// Shadow_Receiving asks the same question while the pipeline is described.
+	bool Views_Current_Target(unsigned stage, ID3D11ShaderResourceView * texture) const;
+	mutable ID3D11ShaderResourceView * TargetCheckedViews[DX11_BACKEND_TEXTURE_STAGES];
+	mutable bool TargetCheckedIsTarget[DX11_BACKEND_TEXTURE_STAGES];
 
 	// Keyed by the description itself and ordered by its bytes, which is safe for the ResolveMemo's
 	// reason: every Build_*_Description memsets first.  They were keyed by the bytes copied into a

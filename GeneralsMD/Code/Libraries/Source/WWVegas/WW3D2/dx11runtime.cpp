@@ -327,6 +327,13 @@ bool Direct3D11_Fill_Smoke_Map(const float * casters, unsigned count, float stre
 	return Active ? Backend.Fill_Smoke_Map(casters, count, strength) : false;
 }
 
+void Direct3D11_Set_Scene_View(const float view[16])
+{
+	if (Active) {
+		Backend.Set_Scene_View(view);
+	}
+}
+
 void Direct3D11_Clear_Shadow_Parameters()
 {
 	if (Active) {
