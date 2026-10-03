@@ -57,6 +57,30 @@
 static const Real DONUT_TIME_DELAY_SECONDS=2.5f;
 static const Real DONUT_DISTANCE=4.0*PATHFIND_CELL_SIZE_F;
 
+// Ground vehicles (Locomotor::isGroundVehicle). Speeds are per frame, as everywhere in this file.
+static const Real VEHICLE_ACCEL_EASE_FRAMES = 6.0f;		// frames for the pull along the nose to build up to full Acceleration
+static const Real VEHICLE_BRAKE_EASE_FRAMES = 3.0f;		// and to full braking, which a driver stamps on harder
+static const Real VEHICLE_VELOCITY_FRAMES = 4.0f;			// a speed error is asked back over about this many frames
+static const Real VEHICLE_STOP_EASE_FRAMES = 4.0f;		// a planned stop fades out over about this many frames
+// a planned stop or bend is counted short by this many frames of travel, for the braking to build up in
+static const Real VEHICLE_STOP_LEAD_FRAMES = VEHICLE_BRAKE_EASE_FRAMES + VEHICLE_VELOCITY_FRAMES;
+static const Real VEHICLE_PLAN_DECEL_SHARE = 0.85f;		// a planned stop or bend brakes this much less hard than the vehicle can
+static const Real VEHICLE_TRAFFIC_BRAKE = 2.0f;				// times its braking a vehicle may stamp on for traffic: slowed below its speed by the crowd, a bump or the group
+static const Real VEHICLE_STOP_SECONDS = 0.8f;				// no vehicle takes longer than this to stop from top speed, whatever its Braking
+static const Real VEHICLE_YAW_EASE_FRAMES = 6.0f;			// frames for a turn to wind up to TurnRate, or back down from it
+static const Real VEHICLE_STILL_SHARE = 0.1f;					// below this share of top speed a vehicle may choose to go forward or back
+static const Real VEHICLE_REVERSE_SHARE = 0.45f;			// share of top speed a vehicle backs up at
+static const Real VEHICLE_REVERSE_BODY_LENGTHS = 3.0f;	// a goal behind and closer than this along the route is backed up to
+static const Real VEHICLE_REVERSE_COS = -0.34f;				// cos 110 degrees: behind, for that
+static const Real VEHICLE_BEND_COS = 0.985f;					// cos 10 degrees: a gentler bend is driven at full speed
+static const Real VEHICLE_MIN_SLIDE = 0.08f;					// the slide onto the goal in the last cell moves at least this far a frame
+static const Real TREAD_TURN_SPEED_FLOOR = 0.25f;			// share of top speed a tank keeps through a right-angle turn
+static const Real TREAD_PIVOT_SHARE = 0.5f;						// share of TurnRate a tank pivots on the spot at
+static const Real TREAD_PIVOT_COS = -0.17f;						// cos 100 degrees: further round than this a tank stops and pivots
+static const Real VEHICLE_CORNER_GRIP = 0.5f;					// share of its braking a car can pull sideways on its tightest arc
+static const Real WHEEL_MIN_RADIUS_BODY_LENGTHS = 1.5f;	// a car turns no tighter than this, unless that arc cannot reach the goal
+static const Real WHEEL_TIGHT_RADIUS_BODY_LENGTHS = 0.3f;	// and then crawls round this, at its turn speed
+
 
 #define MAX_BRAKING_FACTOR 5.0f
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -767,9 +791,11 @@ Locomotor::Locomotor(const LocomotorTemplate* tmpl)
 	m_offsetIncrement = (PI/40) * (GameLogicRandomValueReal(0.8f, 1.2f)/m_template->m_wanderLengthFactor);
 	setFlag(OFFSET_INCREASING, GameLogicRandomValue(0,1));
 	m_donutTimer = TheGameLogic->getFrame()+DONUT_TIME_DELAY_SECONDS*LOGICFRAMES_PER_SECOND;
-	m_helicopterYawRate = 0.0f;
-	m_helicopterAccelX = 0.0f;
-	m_helicopterAccelY = 0.0f;
+	m_yawRate = 0.0f;
+	m_driveAccelX = 0.0f;
+	m_driveAccelY = 0.0f;
+	m_driveSpeed = 0.0f;
+	m_driveFrame = 0;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -799,9 +825,11 @@ Locomotor::Locomotor(const Locomotor& that)
 	m_sineDescentDistance = that.m_sineDescentDistance;
 	m_angleOffset = that.m_angleOffset;
 	m_offsetIncrement = that.m_offsetIncrement;
-	m_helicopterYawRate = that.m_helicopterYawRate;
-	m_helicopterAccelX = that.m_helicopterAccelX;
-	m_helicopterAccelY = that.m_helicopterAccelY;
+	m_yawRate = that.m_yawRate;
+	m_driveAccelX = that.m_driveAccelX;
+	m_driveAccelY = that.m_driveAccelY;
+	m_driveSpeed = that.m_driveSpeed;
+	m_driveFrame = that.m_driveFrame;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -824,9 +852,11 @@ Locomotor& Locomotor::operator=(const Locomotor& that)
 		m_preferredHeight = that.m_preferredHeight;
 		m_preferredHeightDamping = that.m_preferredHeightDamping;
 		m_sineDescentDistance = that.m_sineDescentDistance;
-		m_helicopterYawRate = that.m_helicopterYawRate;
-		m_helicopterAccelX = that.m_helicopterAccelX;
-		m_helicopterAccelY = that.m_helicopterAccelY;
+		m_yawRate = that.m_yawRate;
+		m_driveAccelX = that.m_driveAccelX;
+		m_driveAccelY = that.m_driveAccelY;
+		m_driveSpeed = that.m_driveSpeed;
+		m_driveFrame = that.m_driveFrame;
 	}
 	return *this;
 }
@@ -849,12 +879,13 @@ void Locomotor::crc( Xfer *xfer )
 	* Version Info:
 	* 1: Initial version
 	* 3: m_sineDescentDistance
-	* 4: m_helicopterYawRate, m_helicopterAccelX, m_helicopterAccelY */
+	* 4: m_yawRate, m_driveAccelX, m_driveAccelY
+	* 5: m_driveSpeed, m_driveFrame */
 // ------------------------------------------------------------------------------------------------
 void Locomotor::xfer( Xfer *xfer )
 {
 	// version
-	const XferVersion currentVersion = 4;
+	const XferVersion currentVersion = 5;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -884,9 +915,15 @@ void Locomotor::xfer( Xfer *xfer )
 
 	if (version >= 4)
 	{
-		xfer->xferReal(&m_helicopterYawRate);
-		xfer->xferReal(&m_helicopterAccelX);
-		xfer->xferReal(&m_helicopterAccelY);
+		xfer->xferReal(&m_yawRate);
+		xfer->xferReal(&m_driveAccelX);
+		xfer->xferReal(&m_driveAccelY);
+	}
+
+	if (version >= 5)
+	{
+		xfer->xferReal(&m_driveSpeed);
+		xfer->xferUnsignedInt(&m_driveFrame);
 	}
 
 }  // end xfer
@@ -1038,7 +1075,7 @@ void Locomotor::locoUpdate_moveTowardsAngle(Object* obj, Real goalAngle)
 		if (isHelicopter(obj))
 		{
 			brakeHelicopter(obj, physics);
-			m_helicopterYawRate = 0.0f;	// this turn is rotateTowardsPosition's, which parking needs to stop dead on the heading
+			m_yawRate = 0.0f;	// this turn is rotateTowardsPosition's, which parking needs to stop dead on the heading
 		}
 		handleBehaviorZ(obj, physics, *obj->getPosition());
 	}
@@ -1073,12 +1110,12 @@ void Locomotor::setPhysicsOptions(Object* obj)
 	physics->setStickToGround(getStickToGround()); // walking guys aren't allowed to catch huge (or even small) air.
 	Bool helicopter = isHelicopter(obj);
 	physics->setMotiveSteersSideways(helicopter);
-	if (!helicopter)
+	if (!helicopter && !isGroundVehicle(obj))
 	{
-		// landed, taxiing or dying: whatever it was pulling or swinging when it last flew is over
-		m_helicopterYawRate = 0.0f;
-		m_helicopterAccelX = 0.0f;
-		m_helicopterAccelY = 0.0f;
+		// landed, taxiing or dying: whatever it was pulling or swinging when it last flew or drove is over
+		m_yawRate = 0.0f;
+		m_driveAccelX = 0.0f;
+		m_driveAccelY = 0.0f;
 	}
 }
 
@@ -1092,9 +1129,18 @@ Bool Locomotor::isHelicopter(const Object* obj) const
 }
 
 //-------------------------------------------------------------------------------------------------
+Bool Locomotor::isGroundVehicle(const Object* obj) const
+{
+	LocomotorAppearance appearance = m_template->m_appearance;
+	return (appearance == LOCO_TREADS || appearance == LOCO_WHEELS_FOUR || appearance == LOCO_MOTORCYCLE)
+		&& !obj->isKindOf(KINDOF_AIRCRAFT)	// a jet or a landed helicopter taxiing keeps EA's drive
+		&& !getFlag(ULTRA_ACCURATE);				// and so does a dozer or a POW truck lining up on its spot
+}
+
+//-------------------------------------------------------------------------------------------------
 void Locomotor::locoUpdate_moveTowardsPosition(Object* obj, const Coord3D& goalPos,
 																							 Real onPathDistToGoal, Real desiredSpeed, Bool *blocked,
-																							 const Coord3D *faceTarget)
+																							 const Coord3D *faceTarget, Real bendDist, Real bendCos)
 {
 	setFlag(MAINTAIN_POS_IS_VALID, false);
 
@@ -1217,11 +1263,12 @@ void Locomotor::locoUpdate_moveTowardsPosition(Object* obj, const Coord3D& goalP
 	}
 
 	Bool wasBraking = obj->getStatusBits().test( OBJECT_STATUS_BRAKING );
+	Bool groundVehicle = isGroundVehicle(obj);
 
 	physics->setTurning(TURN_NONE);
 	if (getAllowMotiveForceWhileAirborne() || !treatAsAirborne)
 	{
-		switch (m_template->m_appearance) 
+		switch (m_template->m_appearance)
 		{
 			case LOCO_LEGS_TWO:
 					moveTowardsPositionLegs(obj, physics, goalPos, onPathDistToGoal, desiredSpeed);
@@ -1231,10 +1278,16 @@ void Locomotor::locoUpdate_moveTowardsPosition(Object* obj, const Coord3D& goalP
 					break;
 			case LOCO_WHEELS_FOUR:
 			case LOCO_MOTORCYCLE:
-					moveTowardsPositionWheels( obj, physics, goalPos, onPathDistToGoal, desiredSpeed );
+					if (groundVehicle)
+						moveTowardsPositionVehicle(obj, physics, goalPos, onPathDistToGoal, desiredSpeed, bendDist, bendCos);
+					else
+						moveTowardsPositionWheels( obj, physics, goalPos, onPathDistToGoal, desiredSpeed );
 					break;
 			case LOCO_TREADS:
-					moveTowardsPositionTreads(obj, physics, goalPos, onPathDistToGoal, desiredSpeed);
+					if (groundVehicle)
+						moveTowardsPositionVehicle(obj, physics, goalPos, onPathDistToGoal, desiredSpeed, bendDist, bendCos);
+					else
+						moveTowardsPositionTreads(obj, physics, goalPos, onPathDistToGoal, desiredSpeed);
 					break;
 			case LOCO_HOVER:
 					moveTowardsPositionHover(obj, physics, goalPos, onPathDistToGoal, desiredSpeed, faceTarget);
@@ -1255,8 +1308,13 @@ void Locomotor::locoUpdate_moveTowardsPosition(Object* obj, const Coord3D& goalP
 	handleBehaviorZ(obj, physics, goalPos);
 	// Objects that are braking don't follow the normal physics, so they end up at their destination exactly.
 	obj->setStatus( MAKE_OBJECT_STATUS_MASK( OBJECT_STATUS_BRAKING ), getFlag(IS_BRAKING) );
+	/* A vehicle slides onto its goal on the frames physics leaves its position alone, which is this
+		 frame's flag. Last frame's put the slide one frame late: the frame braking began moved nothing,
+		 and the first frame of the next order both slid and drove, up to twice top speed. */
+	if (groundVehicle)
+		wasBraking = getFlag(IS_BRAKING);
 
-	if (wasBraking) 
+	if (wasBraking)
 	{
 	#define MIN_VEL (PATHFIND_CELL_SIZE_F/(LOGICFRAMES_PER_SECOND))
 
@@ -1298,8 +1356,10 @@ void Locomotor::locoUpdate_moveTowardsPosition(Object* obj, const Coord3D& goalP
 				// a helicopter's speed need not lie along its nose
 				const Coord3D *v = physics->getVelocity();
 				Real vel = isHelicopter(obj) ? sqrt(sqr(v->x) + sqr(v->y)) : fabs(physics->getForwardSpeed2D());
-				if (vel < MIN_VEL) 
-					vel = MIN_VEL;
+				// a vehicle's planned stop has already slowed it; a third of a cell a frame would put the speed back
+				Real minVel = groundVehicle ? VEHICLE_MIN_SLIDE : MIN_VEL;
+				if (vel < minVel)
+					vel = minVel;
 				if (vel > dist)
 					vel = dist;	// do not overcompensate!
 				dist = 1.0f / dist;
@@ -1677,6 +1737,329 @@ void Locomotor::moveTowardsPositionWheels(Object* obj, PhysicsBehavior *physics,
 	}
 
 }
+//-------------------------------------------------------------------------------------------------
+/// the hardest a vehicle brakes: its Braking, or whatever stops it from top speed in VEHICLE_STOP_SECONDS
+Real Locomotor::getVehicleStopDecel(BodyDamageType condition) const
+{
+	Real decel = getMaxSpeedForCondition(condition) / (VEHICLE_STOP_SECONDS * LOGICFRAMES_PER_SECOND);
+	if (decel < getBraking())
+		decel = getBraking();
+	return decel;
+}
+
+//-------------------------------------------------------------------------------------------------
+/**
+	Ease a vehicle's speed along its nose towards wantSpeed, negative for backing up. It asks for the
+	error back over VEHICLE_VELOCITY_FRAMES, no harder than accel, or decel while that sheds speed;
+	the pull it applies moves towards that by a share of the limit a frame, so a start, a stop or a
+	change of mind builds up instead of jumping; and it never rolls through a stop into the other
+	direction unless that is the way it wants to go.
+*/
+void Locomotor::driveVehicle(Object* obj, PhysicsBehavior *physics, Real wantSpeed, Real accel, Real decel)
+{
+	Real speed = physics->getForwardSpeed2D();
+	/* A collision shoves a unit between two frames, and EA's locomotor took the shove straight back out
+		 on the next one by setting the speed it wanted outright. Eased back instead, it threw a Crusader
+		 rubbing past another one back at half its top speed, over and over, while the column behind it
+		 stood. Whatever the speed along the nose gained since the last frame's drive that the drive did
+		 not put there is taken back out at once. */
+	UnsignedInt now = TheGameLogic->getFrame();
+	Real shove = 0.0f;
+	if (m_driveFrame + 1 == now)
+	{
+		shove = speed - m_driveSpeed;
+		speed = m_driveSpeed;
+	}
+	Real ask = (wantSpeed - speed) / VEHICLE_VELOCITY_FRAMES;
+	Bool slowing = (speed > 0.0f && ask < 0.0f) || (speed < 0.0f && ask > 0.0f);
+	Real limit = slowing ? decel : accel;
+	if (ask > limit)
+		ask = limit;
+	else if (ask < -limit)
+		ask = -limit;
+
+	Real jerk = slowing ? decel / VEHICLE_BRAKE_EASE_FRAMES : accel / VEHICLE_ACCEL_EASE_FRAMES;
+	Real change = ask - m_driveAccelX;
+	if (change > jerk)
+		change = jerk;
+	else if (change < -jerk)
+		change = -jerk;
+	m_driveAccelX += change;
+
+	Real next = speed + m_driveAccelX;
+	if ((speed >= 0.0f && wantSpeed >= 0.0f && next < 0.0f) || (speed <= 0.0f && wantSpeed <= 0.0f && next > 0.0f))
+		m_driveAccelX = -speed;
+	m_driveSpeed = speed + m_driveAccelX;
+	m_driveFrame = now;
+
+	if (m_driveAccelX == shove)
+		return;
+	const Coord3D *dir = obj->getUnitDirectionVector2D();
+	Real pull = physics->getMass() * (m_driveAccelX - shove);
+	Coord3D force;
+	force.x = pull * dir->x;
+	force.y = pull * dir->y;
+	force.z = 0.0f;
+	physics->applyMotiveForce(&force);
+}
+
+//-------------------------------------------------------------------------------------------------
+/// turn a vehicle by yaw about its pivot, and carry its speed round with the nose
+void Locomotor::turnVehicle(Object* obj, PhysicsBehavior *physics, Real yaw)
+{
+	if (yaw == 0.0f)
+	{
+		physics->setTurning(TURN_NONE);
+		return;
+	}
+	/* Treads and tyres grip: the speed along the nose turns with it. Left alone, physics kept it on
+		 the old line and only the sideways friction wore it off, so a vehicle turning at speed skidded
+		 wide of where it was steering. A sideways push from a collision is not the vehicle's own speed
+		 and is left to the friction. */
+	Real forward = physics->getForwardSpeed2D();
+	Coord3D before = *obj->getUnitDirectionVector2D();
+	turnObjAroundLocoPivot(obj, yaw);
+	const Coord3D *after = obj->getUnitDirectionVector2D();
+	Real carry = physics->getMass() * forward;
+	Coord3D force;
+	force.x = carry * (after->x - before.x);
+	force.y = carry * (after->y - before.y);
+	force.z = 0.0f;
+	physics->applyMotiveForce(&force);
+	physics->setTurning(yaw > 0.0f ? TURN_POSITIVE : TURN_NEGATIVE);
+}
+
+//-------------------------------------------------------------------------------------------------
+/*
+	A tank, car or bike under its own power. EA's treads and wheels set the speed they wanted on the
+	next frame (Acceleration and Braking were 1000, a thirtieth of a second from rest to top speed),
+	cut it to 60% on every frame near a waypoint that was not dead ahead, pivoted a tank on the spot
+	at full TurnRate for anything past 45 degrees, and turned a car round in less than its own length.
+
+	Here the speed eases towards a target (driveVehicle) that is the lowest of:
+	- the speed asked for, and a share of it for backing up;
+	- a share for the turn the vehicle is in, full straight ahead and a floor at a right angle; a
+		tank further round than TREAD_PIVOT_COS stops and pivots;
+	- the speed at which the turn rate still bends the path onto the steering point;
+	- the speed it can still brake down from to the speed of the next bend in the route, and to a
+		stop at the end of it, both planned at a gentler rate than the vehicle can brake and counted
+		short by the time the braking takes to build up.
+	Speed it is asked to shed for traffic is braked harder than a planned stop (VEHICLE_TRAFFIC_BRAKE).
+	The nose turns at an eased rate: a tank at full TurnRate on the move and TREAD_PIVOT_SHARE of it
+	standing, a car at no more than its speed over WHEEL_MIN_RADIUS_BODY_LENGTHS, and when that arc
+	cannot reach the steering point (or would run onto ground it cannot drive, or the goal is close
+	behind), in a crawl at EA's turn speed round WHEEL_TIGHT_RADIUS_BODY_LENGTHS, so a car still gets
+	everywhere it used to. A goal behind and close is backed up to by anything with treads or
+	CanMoveBackwards; a car that can back up and has a goal behind and far does a three-point turn.
+	The last cell is still the slide onto the goal it always was.
+*/
+void Locomotor::moveTowardsPositionVehicle(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos,
+	Real onPathDistToGoal, Real desiredSpeed, Real bendDist, Real bendCos)
+{
+	BodyDamageType bdt = obj->getBodyModule()->getDamageState();
+	Real maxSpeed = getMaxSpeedForCondition(bdt);
+	if (desiredSpeed > maxSpeed)
+		desiredSpeed = maxSpeed;
+	Real turnRate = getMaxTurnRate(bdt);
+	Real accel = getMaxAcceleration(bdt);
+	Real decel = getVehicleStopDecel(bdt);
+	Real planDecel = decel * VEHICLE_PLAN_DECEL_SHARE;
+	Bool treads = (m_template->m_appearance == LOCO_TREADS);
+	Real bodyLength = 2.0f * obj->getGeometryInfo().getMajorRadius();
+	Real speed = physics->getForwardSpeed2D();
+	Real absSpeed = fabs(speed);
+
+	// EA's turn speed: a car's tight turn is driven at this
+	Real turnSpeed = m_template->m_minTurnSpeed;
+	if (turnSpeed < maxSpeed / 4.0f)
+		turnSpeed = maxSpeed / 4.0f;
+	if (turnSpeed > maxSpeed)
+		turnSpeed = maxSpeed;
+
+	// where the steering point is against the nose: the cosine ahead, the sine to the left
+	const Coord3D *pos = obj->getPosition();
+	const Coord3D *dir = obj->getUnitDirectionVector2D();
+	Real dx = goalPos.x - pos->x;
+	Real dy = goalPos.y - pos->y;
+	Real dist = sqrt(dx*dx + dy*dy);
+	Real goalCos = 1.0f;
+	Real goalSin = 0.0f;
+	if (dist > 0.1f)	// right on it the bearing is rounding noise
+	{
+		goalCos = (dx * dir->x + dy * dir->y) / dist;
+		goalSin = (dir->x * dy - dir->y * dx) / dist;
+	}
+
+	// forward or back is chosen standing, and given up once the goal is no longer behind
+	if (getFlag(MOVING_BACKWARDS) && goalCos > 0.0f)
+	{
+		setFlag(MOVING_BACKWARDS, false);
+		setFlag(DOING_THREE_POINT_TURN, false);
+	}
+	if (absSpeed < maxSpeed * VEHICLE_STILL_SHARE)
+	{
+		Bool behind = (treads || m_template->m_canMoveBackward) && goalCos < VEHICLE_REVERSE_COS;
+		Bool close = onPathDistToGoal < VEHICLE_REVERSE_BODY_LENGTHS * bodyLength;
+		setFlag(MOVING_BACKWARDS, behind && (close || !treads));
+		setFlag(DOING_THREE_POINT_TURN, behind && !close && !treads);
+	}
+	Bool backing = getFlag(MOVING_BACKWARDS);
+	Bool threePoint = backing && getFlag(DOING_THREE_POINT_TURN);
+	Bool tailLeads = backing && !threePoint;
+
+	// the same against whichever end leads, and the arc from here along that way through the goal
+	Real leadCos = tailLeads ? -goalCos : goalCos;
+	Real leadSin = tailLeads ? -goalSin : goalSin;
+	Real arcRadius = BIGNUM;
+	if (fabs(leadSin) > 0.01f)
+		arcRadius = dist / (2.0f * fabs(leadSin));
+	Real minRadius = WHEEL_MIN_RADIUS_BODY_LENGTHS * bodyLength;
+
+	Bool tight = FALSE;
+	if (!treads && !backing)
+	{
+		/* Turning as hard as it can, a car drives round a circle of minRadius beside it. A goal inside
+			 that circle cannot be reached that way at all, and one close behind only by a loop several
+			 times longer than the trip: both are left to EA's tight turn. */
+		Real side = (goalSin < 0.0f) ? -minRadius : minRadius;
+		Real cx = pos->x - dir->y * side;
+		Real cy = pos->y + dir->x * side;
+		tight = sqr(goalPos.x - cx) + sqr(goalPos.y - cy) < sqr(minRadius)
+			|| (goalCos < 0.0f && onPathDistToGoal < 2.0f * minRadius);
+		const Real FIFTEEN_DEGREES_COS = 0.966f;
+		const Real PROJECT_FRAMES = LOGICFRAMES_PER_SECOND / 2;
+		if (!tight && leadCos < FIFTEEN_DEGREES_COS && absSpeed > 0.0f)
+		{
+			// EA's check, on the wider arc: half a second of it must not run onto ground it cannot drive
+			Real reach = PROJECT_FRAMES * absSpeed;
+			Real chordAngle = obj->getOrientation() + ((leadSin < 0.0f) ? -0.5f : 0.5f) * reach / minRadius;
+			Coord3D nextPos = *pos;
+			nextPos.x += Cos(chordAngle) * reach;
+			nextPos.y += Sin(chordAngle) * reach;
+			Coord3D halfPos = *pos;
+			halfPos.x += Cos(chordAngle) * reach * 0.5f;
+			halfPos.y += Sin(chordAngle) * reach * 0.5f;
+			tight = !TheAI->pathfinder()->validMovementTerrain(obj->getLayer(), this, &halfPos)
+				|| !TheAI->pathfinder()->validMovementTerrain(obj->getLayer(), this, &nextPos);
+		}
+	}
+
+	// turn
+	Real maxYaw;
+	if (treads)
+	{
+		Real rolling = absSpeed / (0.5f * maxSpeed);
+		if (rolling > 1.0f)
+			rolling = 1.0f;
+		maxYaw = turnRate * (TREAD_PIVOT_SHARE + (1.0f - TREAD_PIVOT_SHARE) * rolling);
+	}
+	else if (tight)
+	{
+		/* EA turned a car at full TurnRate once it rolled at its turn speed, about its rear axle, which
+			 swung the middle of a Quad Cannon sideways at twice the speed it drove. This is a crawl round
+			 a few metres, about as tight as a pivot, and no faster at the middle than at the axle. */
+		maxYaw = absSpeed / (WHEEL_TIGHT_RADIUS_BODY_LENGTHS * bodyLength);
+		if (maxYaw > turnRate)
+			maxYaw = turnRate;
+	}
+	else
+	{
+		maxYaw = absSpeed / minRadius;
+		if (maxYaw > turnRate)
+			maxYaw = turnRate;
+	}
+	Real error = 0.0f;
+	if (dist > 0.1f)
+		error = threePoint ? ATan2(goalSin, goalCos) : ATan2(leadSin, leadCos);
+	turnVehicle(obj, physics, easeYaw(error, maxYaw, turnRate / VEHICLE_YAW_EASE_FRAMES));
+
+	// speed
+	/* A tank slows to a crawl for a right angle. A car takes its tightest arc as fast as its tyres
+		 hold it sideways, which this calls a share of its braking grip; slower, a Quad Cannon took
+		 ten seconds over a U-turn. */
+	Real floor = TREAD_TURN_SPEED_FLOOR;
+	if (!treads)
+	{
+		Real cornerSpeed = sqrt(VEHICLE_CORNER_GRIP * decel * minRadius);
+		floor = (cornerSpeed < maxSpeed) ? cornerSpeed / maxSpeed : 1.0f;
+	}
+	Real cap = desiredSpeed;
+	if (backing && cap > maxSpeed * VEHICLE_REVERSE_SHARE)
+		cap = maxSpeed * VEHICLE_REVERSE_SHARE;
+	if (tight)
+	{
+		if (cap > turnSpeed)
+			cap = turnSpeed;
+	}
+	else if (!threePoint)
+	{
+		cap *= floor + (1.0f - floor) * ((leadCos > 0.0f) ? leadCos : 0.0f);
+		if (treads && !backing && goalCos < TREAD_PIVOT_COS)
+			cap = 0.0f;
+		if (cap > turnRate * arcRadius)
+			cap = turnRate * arcRadius;
+	}
+	if (!backing && bendDist > 0.0f && bendCos < VEHICLE_BEND_COS)
+	{
+		Real bendSpeed = maxSpeed * (floor + (1.0f - floor) * ((bendCos > 0.0f) ? bendCos : 0.0f));
+		if (treads && bendCos < TREAD_PIVOT_COS)
+			bendSpeed = 0.0f;
+		Real left = bendDist - absSpeed * VEHICLE_STOP_LEAD_FRAMES;
+		if (left < 0.0f)
+			left = 0.0f;
+		Real bendCap = sqrt(bendSpeed * bendSpeed + 2.0f * planDecel * left);
+		if (cap > bendCap)
+			cap = bendCap;
+	}
+	if (!getFlag(NO_SLOW_DOWN_AS_APPROACHING_DEST))
+	{
+		// the fastest it can still stop from, with the braking fading out over the last few frames
+		Real left = onPathDistToGoal - absSpeed * VEHICLE_STOP_LEAD_FRAMES;
+		if (left < 0.0f)
+			left = 0.0f;
+		Real ease = planDecel * VEHICLE_STOP_EASE_FRAMES;
+		Real stopSpeed = sqrt(2.0f * planDecel * left + ease * ease) - ease;
+		if (cap > stopSpeed)
+			cap = stopSpeed;
+	}
+	/* A stop or a bend is seen coming and braked for gently. Traffic is not: the crowd's brake behind a
+		 slower unit, a bump limit or a slower group all arrive as a desired speed below the one it is
+		 doing, and are obeyed as hard as a driver would stamp on the pedal. */
+	Real brake = decel;
+	if (desiredSpeed < absSpeed)
+		brake *= VEHICLE_TRAFFIC_BRAKE;
+	driveVehicle(obj, physics, backing ? -cap : cap, accel, brake);
+
+	// the last cell is a slide onto the goal, and so is a car still circling it after a while
+	Bool slide = onPathDistToGoal < PATHFIND_CELL_SIZE_F;
+	if (!treads)
+	{
+		if (onPathDistToGoal > DONUT_DISTANCE)
+			m_donutTimer = TheGameLogic->getFrame() + DONUT_TIME_DELAY_SECONDS * LOGICFRAMES_PER_SECOND;
+		else if (m_donutTimer < TheGameLogic->getFrame())
+			slide = TRUE;
+	}
+	setFlag(IS_BRAKING, slide);
+}
+
+//-------------------------------------------------------------------------------------------------
+/// a vehicle with nowhere to go brakes to a stop and lets its turn wind down; TRUE while it still moves
+Bool Locomotor::maintainCurrentPositionVehicle(Object* obj, PhysicsBehavior *physics)
+{
+	setFlag(MOVING_BACKWARDS, false);
+	setFlag(DOING_THREE_POINT_TURN, false);
+	BodyDamageType bdt = obj->getBodyModule()->getDamageState();
+	Real turnRate = getMaxTurnRate(bdt);
+	turnVehicle(obj, physics, easeYaw(0.0f, 0.0f, turnRate / VEHICLE_YAW_EASE_FRAMES));
+	if (physics->getForwardSpeed2D() == 0.0f)
+	{
+		m_driveAccelX = 0.0f;
+		return m_yawRate != 0.0f;
+	}
+	driveVehicle(obj, physics, 0.0f, getMaxAcceleration(bdt), getVehicleStopDecel(bdt));
+	return TRUE;
+}
+
 //-------------------------------------------------------------------------------------------------
 Bool Locomotor::fixInvalidPosition(Object* obj, PhysicsBehavior *physics)
 {
@@ -2189,8 +2572,8 @@ void Locomotor::steerHelicopter(Object* obj, PhysicsBehavior *physics, Real want
 		ay *= limit / ask;
 	}
 
-	Real changeX = ax - m_helicopterAccelX;
-	Real changeY = ay - m_helicopterAccelY;
+	Real changeX = ax - m_driveAccelX;
+	Real changeY = ay - m_driveAccelY;
 	Real change = sqrt(changeX*changeX + changeY*changeY);
 	Real jerk = maxAccel / HELICOPTER_ACCEL_EASE_FRAMES;
 	if (change > jerk)
@@ -2198,16 +2581,16 @@ void Locomotor::steerHelicopter(Object* obj, PhysicsBehavior *physics, Real want
 		changeX *= jerk / change;
 		changeY *= jerk / change;
 	}
-	m_helicopterAccelX += changeX;
-	m_helicopterAccelY += changeY;
+	m_driveAccelX += changeX;
+	m_driveAccelY += changeY;
 
-	if (m_helicopterAccelX == 0.0f && m_helicopterAccelY == 0.0f)
+	if (m_driveAccelX == 0.0f && m_driveAccelY == 0.0f)
 		return;
 
 	Real mass = physics->getMass();
 	Coord3D force;
-	force.x = mass * m_helicopterAccelX;
-	force.y = mass * m_helicopterAccelY;
+	force.x = mass * m_driveAccelX;
+	force.y = mass * m_driveAccelY;
 	force.z = 0.0f;
 	physics->applyMotiveForce(&force);
 }
@@ -2233,31 +2616,41 @@ PhysicsTurningType Locomotor::turnHelicopter(Object* obj, const Coord3D *toward,
 	Real maxRate = turnRate * rateShare;
 	Real angle = obj->getOrientation();
 
-	Real wantRate = 0.0f;
+	Real error = 0.0f;
 	if (toward)
 	{
 		const Coord3D *pos = obj->getPosition();
-		Real error = stdAngleDiff(ATan2(toward->y - pos->y, toward->x - pos->x), angle);
-		// as fast as it can go and still wind down onto the heading, and never past it in one frame
-		Real rate = sqrt(2.0f * yawAccel * fabs(error));
-		if (rate > maxRate)
-			rate = maxRate;
-		if (rate > fabs(error))
-			rate = fabs(error);
-		wantRate = (error < 0.0f) ? -rate : rate;
+		error = stdAngleDiff(ATan2(toward->y - pos->y, toward->x - pos->x), angle);
 	}
 
-	Real change = wantRate - m_helicopterYawRate;
+	if (easeYaw(error, maxRate, yawAccel) == 0.0f)
+		return TURN_NONE;
+	obj->setOrientation(normalizeAngle(angle + m_yawRate));
+	return (m_yawRate > 0.0f) ? TURN_POSITIVE : TURN_NEGATIVE;
+}
+
+//-------------------------------------------------------------------------------------------------
+/**
+	Move m_yawRate towards the rate that closes a heading error of error radians, by at most yawAccel
+	a frame: as fast as maxRate allows and still wind down onto the heading, never past it in one
+	frame. Returns the new rate, which is the turn to make this frame.
+*/
+Real Locomotor::easeYaw(Real error, Real maxRate, Real yawAccel)
+{
+	Real rate = sqrt(2.0f * yawAccel * fabs(error));
+	if (rate > maxRate)
+		rate = maxRate;
+	if (rate > fabs(error))
+		rate = fabs(error);
+	Real wantRate = (error < 0.0f) ? -rate : rate;
+
+	Real change = wantRate - m_yawRate;
 	if (change > yawAccel)
 		change = yawAccel;
 	else if (change < -yawAccel)
 		change = -yawAccel;
-	m_helicopterYawRate += change;
-
-	if (m_helicopterYawRate == 0.0f)
-		return TURN_NONE;
-	obj->setOrientation(normalizeAngle(angle + m_helicopterYawRate));
-	return (m_helicopterYawRate > 0.0f) ? TURN_POSITIVE : TURN_NEGATIVE;
+	m_yawRate += change;
+	return m_yawRate;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2622,6 +3015,34 @@ PhysicsTurningType Locomotor::rotateObjAroundLocoPivot(Object* obj, const Coord3
 }
 
 //-------------------------------------------------------------------------------------------------
+/// turn by amount about the locomotor's pivot point, the way rotateObjAroundLocoPivot turns
+void Locomotor::turnObjAroundLocoPivot(Object* obj, Real amount)
+{
+	Real offset = getTurnPivotOffset();
+	if (getFlag(IS_BRAKING))
+		offset = 0.0f;	// sliding onto the goal: a turn about the rear axle would carry it off again
+	if (offset == 0.0f)
+	{
+		obj->setOrientation(normalizeAngle(obj->getOrientation() + amount));
+		return;
+	}
+
+	Real turnPointOffset = offset * obj->getGeometryInfo().getBoundingCircleRadius();
+	Coord3D turnPos = *obj->getPosition();
+	const Coord3D* dir = obj->getUnitDirectionVector2D();
+	turnPos.x += dir->x * turnPointOffset;
+	turnPos.y += dir->y * turnPointOffset;
+
+	Matrix3D mtx;
+	Matrix3D tmp(1);
+	tmp.Translate(turnPos.x, turnPos.y, 0);
+	tmp.In_Place_Pre_Rotate_Z(amount);
+	tmp.Translate(-turnPos.x, -turnPos.y, 0);
+	mtx.mul(tmp, *obj->getTransformMatrix());
+	obj->setTransformMatrix(&mtx);
+}
+
+//-------------------------------------------------------------------------------------------------
 /*
 	return true if we can maintain the position without being called every frame (eg, we are
 	resting on the ground), false if not (eg, we are hovering or circling)
@@ -2852,6 +3273,11 @@ Bool Locomotor::locoUpdate_maintainCurrentPosition(Object* obj)
 
 	m_donutTimer = TheGameLogic->getFrame()+DONUT_TIME_DELAY_SECONDS*LOGICFRAMES_PER_SECOND;
 	setFlag(IS_BRAKING, false);
+	/* The status goes with the flag. Left set, physics stopped moving a parked unit by its own speed,
+		 and its next order began with a slide towards the new goal on top of the drive. A missile sets
+		 it itself for its last dive and keeps it. */
+	if (!obj->isKindOf(KINDOF_PROJECTILE))
+		obj->clearStatus( MAKE_OBJECT_STATUS_MASK( OBJECT_STATUS_BRAKING ) );
 	PhysicsBehavior *physics = obj->getPhysics();
 	if (physics == NULL)
 	{
@@ -2880,10 +3306,20 @@ Bool Locomotor::locoUpdate_maintainCurrentPosition(Object* obj)
 			break;
 		case LOCO_WHEELS_FOUR:
 		case LOCO_MOTORCYCLE:
+			if (isGroundVehicle(obj))
+			{
+				requiresConstantCalling = maintainCurrentPositionVehicle(obj, physics);
+				break;
+			}
 			maintainCurrentPositionWheels(obj, physics);
 			requiresConstantCalling = FALSE;
 			break;
 		case LOCO_TREADS:
+			if (isGroundVehicle(obj))
+			{
+				requiresConstantCalling = maintainCurrentPositionVehicle(obj, physics);
+				break;
+			}
 			maintainCurrentPositionTreads(obj, physics);
 			requiresConstantCalling = FALSE;
 			break;

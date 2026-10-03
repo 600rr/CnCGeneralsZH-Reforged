@@ -367,6 +367,8 @@ m_cpopValid(FALSE)
 	m_cpopOut.distAlongPath=0;
 	m_cpopOut.layer = LAYER_GROUND;
 	m_cpopOut.posOnPath.zero();
+	m_cpopOut.bendDist = 0.0f;
+	m_cpopOut.bendCos = 1.0f;
 }
 
 Path::~Path( void )
@@ -394,7 +396,8 @@ void Path::crc( Xfer *xfer )
 void Path::xfer( Xfer *xfer )
 {
   // version
-  XferVersion currentVersion = 1;
+	// 2: the cached point on the path
+  XferVersion currentVersion = 2;
   XferVersion version = currentVersion;
   xfer->xferVersion( &version, currentVersion );
 
@@ -469,6 +472,35 @@ void Path::xfer( Xfer *xfer )
 	UnsignedInt obsolete2;
 	xfer->xferUnsignedInt(&obsolete2);
 	xfer->xferBool(&m_blockedByAlly);
+
+	/* computePointOnPath hands back the same answer for several frames, and a vehicle brakes for the
+		 next bend by it, so a game loaded without the cache drives its next frames from a fresh answer
+		 the uninterrupted game never saw. */
+	if (version >= 2)
+	{
+		xfer->xferBool(&m_cpopValid);
+		xfer->xferInt(&m_cpopCountdown);
+		xfer->xferCoord3D(&m_cpopIn);
+		xfer->xferReal(&m_cpopOut.distAlongPath);
+		xfer->xferCoord3D(&m_cpopOut.posOnPath);
+		xfer->xferUser(&m_cpopOut.layer, sizeof(m_cpopOut.layer));
+		xfer->xferReal(&m_cpopOut.bendDist);
+		xfer->xferReal(&m_cpopOut.bendCos);
+		Int recentID = m_cpopRecentStart ? m_cpopRecentStart->m_id : -1;
+		xfer->xferInt(&recentID);
+		if (xfer->getXferMode() == XFER_LOAD)
+		{
+			m_cpopRecentStart = NULL;
+			for (const PathNode *recent = m_path; recent && recentID > 0; recent = recent->getNext())
+			{
+				if (recent->m_id == recentID)
+				{
+					m_cpopRecentStart = recent;
+					break;
+				}
+			}
+		}
+	}
 
 
 #if defined _DEBUG || defined _INTERNAL
@@ -1001,6 +1033,8 @@ void Path::computePointOnPath(
 	out.layer = LAYER_GROUND;
 	out.posOnPath.zero();
 	out.distAlongPath = 0;
+	out.bendDist = 0.0f;
+	out.bendCos = 1.0f;
 
 	if (m_path == NULL)
 	{
@@ -1040,6 +1074,9 @@ void Path::computePointOnPath(
 		{
 			out = m_cpopOut;
 			out.distAlongPath -= (Real)sqrt(drivenSqr);
+			out.bendDist -= (Real)sqrt(drivenSqr);
+			if (out.bendDist < 0.0f)
+				out.bendDist = 0.0f;
 			m_cpopCountdown--;
 			return;
 		}
@@ -1177,6 +1214,23 @@ void Path::computePointOnPath(
 		// we know this is the closest segment, so don't allow farther back than the start node
 		if (alongPathDist < 0.0f)
 			alongPathDist = 0.0f;
+
+		/* The bend at the end of this segment, for a vehicle to brake into before it gets there
+			 rather than find out at the corner. The last node is no bend: the stop is planned anyway. */
+		const PathNode* afterNext = closeNext->getNextOptimized();
+		if (afterNext)
+		{
+			Real outX = afterNext->getPosition()->x - nextNodePos->x;
+			Real outY = afterNext->getPosition()->y - nextNodePos->y;
+			Real outLen = sqrt(outX*outX + outY*outY);
+			if (outLen > 0.001f)
+			{
+				out.bendCos = (segmentDirNorm.x * outX + segmentDirNorm.y * outY) / outLen;
+				out.bendDist = segmentLength - alongPathDist;
+				if (out.bendDist < 0.0f)
+					out.bendDist = 0.0f;
+			}
+		}
 
 		// compute distance of point from this path segment
 		Real toDistSqr = sqr(toPos.x) + sqr(toPos.y);

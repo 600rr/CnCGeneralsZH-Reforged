@@ -196,6 +196,10 @@ struct ClosestPointOnPathInfo
 	Real								distAlongPath;
 	Coord3D							posOnPath;
 	PathfindLayerEnum		layer;
+	/// how far along the route the next bend is, and the cosine of the angle it turns through;
+	/// 0 and 1 when the route runs straight to its end, which a vehicle brakes for anyway
+	Real								bendDist;
+	Real								bendCos;
 };
 
 /**

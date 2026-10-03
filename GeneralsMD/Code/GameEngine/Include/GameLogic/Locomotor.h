@@ -232,10 +232,12 @@ public:
 
 	/**
 		faceTarget, when not null, is where a helicopter keeps its nose while it flies to goalPos.
-		Every other locomotor ignores it.
+		Every other locomotor ignores it. bendDist and bendCos are the next bend in the route
+		(ClosestPointOnPathInfo), which a ground vehicle brakes into; the defaults mean none.
 	*/
 	void locoUpdate_moveTowardsPosition(Object* obj, const Coord3D& goalPos,
-		Real onPathDistToGoal, Real desiredSpeed, Bool *blocked, const Coord3D *faceTarget = NULL);
+		Real onPathDistToGoal, Real desiredSpeed, Bool *blocked, const Coord3D *faceTarget = NULL,
+		Real bendDist = 0.0f, Real bendCos = 1.0f);
 	void locoUpdate_moveTowardsAngle(Object* obj, Real angle);
 	/**
 		Kill any current (2D) velocity (but stay at current position, or as close as possible)
@@ -312,6 +314,14 @@ public:
 		is free to point elsewhere. Drones and parachutes hover too, but are not KINDOF_AIRCRAFT.
 	*/
 	Bool isHelicopter(const Object* obj) const;
+
+	/**
+		A tank, car or bike driving under its own power: treads, four wheels or a motorcycle, on an
+		object that is no aircraft taxiing, and not in an ULTRA_ACCURATE manoeuvre. Its speed eases
+		up and down, it brakes into bends and stops it can see coming, treads back up to a goal
+		close behind and wheels turn no tighter than their wheelbase allows.
+	*/
+	Bool isGroundVehicle(const Object* obj) const;
 
 	/// this is handy for doing things like forcing helicopters to crash realistically: cut their lift.
 	inline void setMaxLift(Real lift) { m_maxLift = lift; }
@@ -395,6 +405,12 @@ protected:
 	PhysicsTurningType turnHelicopter(Object* obj, const Coord3D *toward, Real rateShare = 1.0f);
 	void steerHelicopter(Object* obj, PhysicsBehavior *physics, Real wantX, Real wantY);
 	Real getHelicopterStopDecel(BodyDamageType condition) const;
+	Real easeYaw(Real error, Real maxRate, Real yawAccel);
+	void moveTowardsPositionVehicle(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed, Real bendDist, Real bendCos);
+	Bool maintainCurrentPositionVehicle(Object* obj, PhysicsBehavior *physics);
+	void driveVehicle(Object* obj, PhysicsBehavior *physics, Real wantSpeed, Real accel, Real decel);
+	void turnVehicle(Object* obj, PhysicsBehavior *physics, Real yaw);
+	Real getVehicleStopDecel(BodyDamageType condition) const;
 	void moveTowardsPositionThrust(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed);
 	void moveTowardsPositionWings(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed);
 
@@ -414,6 +430,7 @@ protected:
 	*/
 	Bool handleBehaviorZ(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos);
 	PhysicsTurningType rotateObjAroundLocoPivot(Object* obj, const Coord3D& goalPos, Real maxTurnRate, Real *relAngle = NULL);
+	void turnObjAroundLocoPivot(Object* obj, Real amount);
 
 	Real getSurfaceHtAtPt(Real x, Real y);
 	Real calcLiftToUseAtPt(Object* obj, PhysicsBehavior *physics, Real curZ, Real surfaceAtPt, Real preferredHeight);
@@ -481,9 +498,11 @@ private:
 	Real				m_angleOffset;
 	Real				m_offsetIncrement;
 	UnsignedInt m_donutTimer;				///< Frame time to keep units from doing the donut. jba.
-	Real				m_helicopterYawRate;	///< radians a frame a helicopter's nose is swinging, eased up and down
-	Real				m_helicopterAccelX;		///< the 2D acceleration a helicopter is pulling, eased towards what it wants
-	Real				m_helicopterAccelY;
+	Real				m_yawRate;		///< radians a frame a helicopter's or ground vehicle's nose is swinging, eased up and down
+	Real				m_driveAccelX;	///< the 2D acceleration a helicopter is pulling, eased towards what it wants;
+	Real				m_driveAccelY;	///< a ground vehicle uses X alone, for its pull along the nose
+	Real				m_driveSpeed;		///< the speed along the nose a ground vehicle's last drive left it at
+	UnsignedInt m_driveFrame;		///< and the frame that drive was on
 
 
 };

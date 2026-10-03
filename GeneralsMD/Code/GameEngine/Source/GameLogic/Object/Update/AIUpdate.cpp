@@ -149,7 +149,7 @@ void AIUpdate_resetMoveTrace( void )
 	theTracedObjectID = INVALID_ID;
 }
 
-static void AIUpdate_traceMove( const Object *obj, Bool blocked, Int blockedFrames,
+static void AIUpdate_traceMove( const Object *obj, const Coord3D& framePos, Bool blocked, Int blockedFrames,
 																Real desiredSpeed, Real maxSpeed, Real maxBlockedSpeed,
 																Real bumpSpeedLimit, Bool waitingForPath, Bool hasPath,
 																Bool stuck )
@@ -178,14 +178,19 @@ static void AIUpdate_traceMove( const Object *obj, Bool blocked, Int blockedFram
 		}
 	}
 
-	const Coord3D *pos = obj->getPosition();
+	/* The position is where the previous frame ended, physics included. Read after the locomotor, a
+		 frame that began a slide onto the goal showed that slide on top of the physics step before it. */
+	const Coord3D *pos = &framePos;
 	const PhysicsBehavior *physics = obj->getPhysics();
 	const Real actualSpeed = physics ? physics->getVelocityMagnitude() : 0.0f;
-	DEBUG_LOG(("MOVETRACE %d,%d,%.2f,%.2f,%.3f,%.3f,%.3f,%.3f,%.3f,%d,%d,%d,%d\n",
+	// the last two columns, heading in degrees and the signed speed along the nose, say whether it
+	// is pivoting, turning on the move or backing up
+	DEBUG_LOG(("MOVETRACE %d,%d,%.2f,%.2f,%.3f,%.3f,%.3f,%.3f,%.3f,%d,%d,%d,%d,%.1f,%.3f\n",
 		TheGameLogic->getFrame(), (Int)obj->getID(), pos->x, pos->y,
 		actualSpeed, desiredSpeed, maxSpeed, maxBlockedSpeed, bumpSpeedLimit,
 		blocked ? 1 : 0, blockedFrames, waitingForPath ? 1 : 0,
-		hasPath ? 1 : 0));
+		hasPath ? 1 : 0, obj->getOrientation() * 180.0f / PI,
+		physics ? physics->getForwardSpeed2D() : 0.0f));
 	if (stuck)
 	{
 		DEBUG_LOG(("MOVETRACE %d,%d,stuck\n", TheGameLogic->getFrame(), (Int)obj->getID()));
@@ -3940,6 +3945,7 @@ UpdateSleepTime AIUpdateInterface::doLocomotor( void )
 	stuckRescue();
 
 	const Bool traceWasBlocked = m_isBlocked;	// -tracemove: the flag is cleared on the next line
+	const Coord3D tracePos = *getObject()->getPosition();	// -tracemove: where the last whole frame left it
 	m_isBlocked = FALSE;
 
 	Bool blocked = m_blockedFrames > 0;
@@ -4038,6 +4044,8 @@ UpdateSleepTime AIUpdateInterface::doLocomotor( void )
 						}
 						Coord3D goalPos;
 						Real onPathDistToGoal;
+						Real bendDist = 0.0f;
+						Real bendCos = 1.0f;
 						if (!isDoingGroundMovement())
 						{
 							// airborne locomotor.  Get the goal and distance direct to the goal, don't consider obstacles.
@@ -4053,6 +4061,8 @@ UpdateSleepTime AIUpdateInterface::doLocomotor( void )
 							getPath()->computePointOnPath(getObject(), m_locomotorSet, *getObject()->getPosition(), info);
 							onPathDistToGoal = info.distAlongPath;
 							goalPos = info.posOnPath;
+							bendDist = info.bendDist;
+							bendCos = info.bendCos;
 							// layer is a possible bridge in the path.  Check & set the layer if applicable.
 							TheAI->pathfinder()->updateLayer(getObject(), info.layer);
 						}
@@ -4118,7 +4128,7 @@ UpdateSleepTime AIUpdateInterface::doLocomotor( void )
 						}
 
 						m_curLocomotor->locoUpdate_moveTowardsPosition(getObject(), goalPos,
-							onPathDistToGoal+getPathExtraDistance(), speed, &blocked, faceTarget);
+							onPathDistToGoal+getPathExtraDistance(), speed, &blocked, faceTarget, bendDist, bendCos);
 
 						m_doFinalPosition = FALSE;
 					}
@@ -4182,7 +4192,7 @@ UpdateSleepTime AIUpdateInterface::doLocomotor( void )
 			getObject()->clearStatus( MAKE_OBJECT_STATUS_MASK( OBJECT_STATUS_AIRBORNE_TARGET ) );
 
 		// before the ceiling is thrown away for the frame - it is the value the trace is about
-		AIUpdate_traceMove( getObject(), traceWasBlocked, m_blockedFrames,
+		AIUpdate_traceMove( getObject(), tracePos, traceWasBlocked, m_blockedFrames,
 			m_desiredSpeed,
 			m_curLocomotor->getMaxSpeedForCondition(getObject()->getBodyModule()->getDamageState()),
 			m_curMaxBlockedSpeed, m_bumpSpeedLimit, isWaitingForPath(), getPath() != NULL,
