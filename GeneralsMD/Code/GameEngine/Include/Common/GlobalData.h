@@ -211,6 +211,7 @@ public:
 	Real m_smokeFireRadius;					// "-smokefireradius"
 	Real m_smokeFireCap;						// "-smokefirecap"
 	Real m_smokeFireFullWeight;			// "-smokefirefull"
+	Real m_smokeFireHeight;					// "-smokefireheight"
 	Bool m_classicGraphics;				// "ClassicGraphics": the game's own art, tile, shadows and picture; read at startup
 	Bool m_shadowMap;							// "-shadowmap": draw the casters into the sun's depth buffer as well
 	Bool m_shadowMapReport;				// "-shadowmapreport": log what ended up in that buffer, once a second

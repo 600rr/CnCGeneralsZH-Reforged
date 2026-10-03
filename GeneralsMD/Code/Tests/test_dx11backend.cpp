@@ -738,7 +738,10 @@ TEST(dx11backend_the_smoke_map_holds_each_casters_three_sums)
 	CHECK_NEAR(middle[0], 2.0f, 0.05f);
 	CHECK_NEAR(middle[1] / middle[0], 0.6f, 0.0001f);
 	CHECK_NEAR(middle[2] / middle[0], 0.6f * 0.6f + 0.025f * 0.025f, 0.0001f);
+	// the front, nearest the sun: the one caster's depth, and the far plane where nothing stands
+	CHECK_NEAR(middle[3], 0.6f, 0.0001f);
 	CHECK_EQ(corner[0], 0.0f);
+	CHECK_EQ(corner[3], 1.0f);
 	device.Get_Context()->Unmap(staging, 0);
 
 	// Nothing handed over is a frame without smoke: the receivers stop reading the map.

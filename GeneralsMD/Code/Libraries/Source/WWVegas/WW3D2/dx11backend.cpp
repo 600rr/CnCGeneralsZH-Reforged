@@ -321,7 +321,7 @@ DX11BackendClass::DX11BackendClass()
 	SmokeMapFilled = false;
 	SmokeStrength = 0.0f;
 	SmokeSelfGain = 0.8f;
-	SmokeSelfCurve = 2.0f;
+	SmokeSelfCurve = 8.0f;
 	for (unsigned stage = 0; stage < DX11_BACKEND_TEXTURE_STAGES; ++stage) {
 		set_identity(TextureTransforms[stage]);
 	}
@@ -639,8 +639,11 @@ static const char SMOKE_SPLAT_VERTEX_PROGRAM[] =
 	"    return splat;\n"
 	"}\n";
 
-// The three sums VOLUMETRIC_SAMPLING reads back, added up by the blend.  The disc is thickest in its
-// middle and thins to nothing at its rim, which is the shape every smoke sprite in the game has.
+// The three sums VOLUMETRIC_SAMPLING reads back, added up by the blend, and in alpha the depth of
+// the particle nearest the sun, kept by a minimum blend: the plume's own front, which a particle
+// with nothing ahead of it is measured from.  The disc is thickest in its middle and thins to
+// nothing at its rim, which is the shape every smoke sprite in the game has; outside it the quad's
+// corners leave the front alone.
 static const char SMOKE_SPLAT_PIXEL_PROGRAM[] =
 	"struct Splat\n"
 	"{\n"
@@ -654,7 +657,8 @@ static const char SMOKE_SPLAT_PIXEL_PROGRAM[] =
 	"    float thickness = splat.Moment.x * rim * rim;\n"
 	"    float depth = splat.Moment.y;\n"
 	"    float spread = splat.Moment.z;\n"
-	"    return float4(thickness, thickness * depth, thickness * (depth * depth + spread * spread), 0.0);\n"
+	"    return float4(thickness, thickness * depth, thickness * (depth * depth + spread * spread),\n"
+	"        rim > 0.0 ? depth : 1.0);\n"
 	"}\n";
 
 void DX11BackendClass::Release_Smoke_Map()
@@ -725,7 +729,7 @@ bool DX11BackendClass::Make_Smoke_Map()
 	blend.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
 	blend.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
 	blend.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE;
-	blend.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+	blend.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_MIN;		// the front, nearest the sun
 	blend.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 
 	D3D11_RASTERIZER_DESC rasterizer;
@@ -864,7 +868,7 @@ bool DX11BackendClass::Fill_Smoke_Map(const float * casters, unsigned count, flo
 	const unsigned saved_width = ViewportWidth;
 	const unsigned saved_height = ViewportHeight;
 
-	const float empty[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	const float empty[4] = { 0.0f, 0.0f, 0.0f, 1.0f };		// no smoke, and its front at the far plane
 	context->OMSetRenderTargets(1, &SmokeMapTarget, NULL);
 	context->ClearRenderTargetView(SmokeMapTarget, empty);
 	Set_Viewport(0, 0, SMOKE_MAP_TEXELS, SMOKE_MAP_TEXELS);

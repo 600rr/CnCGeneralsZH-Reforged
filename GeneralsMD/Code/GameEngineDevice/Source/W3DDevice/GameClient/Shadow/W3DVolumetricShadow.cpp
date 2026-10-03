@@ -142,11 +142,16 @@ const Real cosAngleToCare = cos ((0.2 * PI) / 180.0);	//1.5 degree difference
 // cloud and the smoke itself scatters some of the sun on.  How thick each particle is to the sun is
 // particleSunMapOpticalDepth's.  The self-shade is a particle's own: how dark one on its plume's far
 // side goes, and the power that keeps the sun side lit (ffshader.h, smoke_reaching).  The ground
-// figure held up on Golden Oasis on 2026-10-03; the self-shade is a guess at twice what it was.
+// figure held up on Golden Oasis on 2026-10-03, and 0.8 and 8 are what the 2026-10-04 sweep picked
+// for the self-shade on soot (sun side 6% under the unshaded plume, far side 0.73 of it), before
+// the shade was measured from the plume's front rather than from a width ahead of its centre.
 // -smokegroundshadow, -smokeselfshadow, -smokeselfcurve and -smokedensity overrule them for a run.
 #define SMOKE_SHADOW_STRENGTH 0.4f
 #define SMOKE_SELF_SHADOW_GAIN 0.8f
-#define SMOKE_SELF_SHADOW_CURVE 2.0f
+#define SMOKE_SELF_SHADOW_CURVE 8.0f
+
+// W3DParticleSys.cpp: the fire light values the last particle pass used.
+extern void W3DSmokeFireTuningInForce( Real *gain, Real *radius, Real *height, Real *cap, Real *fullWeight );
 
 /** A tuning switch's value, or the build's own figure when it was not given (below zero). */
 static inline Real smokeTuning( Real given, Real builtIn )
@@ -3978,12 +3983,17 @@ static void fillSmokeMap( const Matrix3D &sunTransform, const Vector3 &focus )
 	{
 		nextReportFrame = frame + 10 * LOGICFRAMES_PER_SECOND;
 		systemsLastReport = systemsHeld;
+		Real fireGain, fireRadius, fireHeight, fireCap, fireFull;
+		W3DSmokeFireTuningInForce( &fireGain, &fireRadius, &fireHeight, &fireCap, &fireFull );
 		DEBUG_LOG(("SMOKEMAP: frame %u, %d casters from %d systems in the sun's map, %d more past its limit;"
-			" ground %.2f self %.2f curve %.2f density %.2f\n",
+			" ground %.2f self %.2f curve %.2f density %.2f; fire light %s gain %.2f radius %.0f height %.0f"
+			" cap %.2f full %.0f\n",
 			frame, (Int)found.size(), systemsHeld, (Int)( inBox - found.size() ),
 			smokeTuning( TheGlobalData->m_smokeGroundShadow, SMOKE_SHADOW_STRENGTH ),
 			smokeTuning( TheGlobalData->m_smokeSelfShadowGain, SMOKE_SELF_SHADOW_GAIN ),
-			smokeTuning( TheGlobalData->m_smokeSelfShadowCurve, SMOKE_SELF_SHADOW_CURVE ), density));
+			smokeTuning( TheGlobalData->m_smokeSelfShadowCurve, SMOKE_SELF_SHADOW_CURVE ), density,
+			TheGlobalData->m_smokeFireLighting ? "on" : "off", fireGain, fireRadius, fireHeight, fireCap,
+			fireFull));
 	}
 }
 

@@ -215,7 +215,8 @@ const unsigned NORMAL_MAPPED_LIGHTS = 4;
 //
 // The smoke has a map of its own over the same sun (DX11BackendClass::Fill_Smoke_Map).  Each texel
 // holds three sums over the particles the sun sees through it: their optical depth, that times
-// their depth, and that times their depth squared plus their own thickness squared.  Taken
+// their depth, and that times their depth squared plus their own thickness squared; its alpha holds
+// the depth of the one nearest the sun, which the particles' own shade is measured from.  Taken
 // together that is the smoke along the ray as one bell curve, with an amount, a centre and a
 // width, and how much of it lies between the sun and a pixel is the curve's integral up to the
 // pixel's depth.  A pixel under a plume gets all of it, a particle on the plume's near side gets
@@ -257,11 +258,16 @@ const unsigned NORMAL_MAPPED_LIGHTS = 4;
 	"    float behind = (sun.z - centre) / width;\n" \
 	"    float ahead;\n" \
 	"    if (particle) {\n" \
-	"        // A particle inside its own plume: none of the plume ahead of it at the near edge, a\n" \
-	"        // width in front of the centre, and all of it at the far edge, a width behind.  The\n" \
-	"        // bell curve's tails darkened the sun side too, which greyed the whole plume; raised to\n" \
-	"        // a power the share stays near nothing on the sun side and climbs at the back.\n" \
-	"        ahead = pow(saturate(behind * 0.5 + 0.5), VolumeParameters.w);\n" \
+	"        // A particle inside its own plume, measured from the plume's front: the particle\n" \
+	"        // nearest the sun in this texel (the map's alpha) has none of it ahead, and the share\n" \
+	"        // reaches all of it as far behind the centre as the front is ahead of it.  Raised to a\n" \
+	"        // power the sun side stays at nothing and the back darkens.  The bell curve's tails, and\n" \
+	"        // a ramp from a width in front of the centre, both darkened the sun side as well.  A\n" \
+	"        // front that bilinear filtering pulled back past the centre, at the plume's edge in the\n" \
+	"        // map, falls back to a width in front of it.\n" \
+	"        float front = (sums.w < centre) ? sums.w : centre - width;\n" \
+	"        float span = max(2.0 * (centre - front), 1e-6);\n" \
+	"        ahead = pow(saturate((sun.z - front) / span), VolumeParameters.w);\n" \
 	"    }\n" \
 	"    else {\n" \
 	"        // the bell curve's integral up to here, the logistic stand-in for the normal distribution\n" \

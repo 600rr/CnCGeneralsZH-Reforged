@@ -697,6 +697,7 @@ GlobalData::GlobalData()
 	m_smokeFireRadius = -1.0f;
 	m_smokeFireCap = -1.0f;
 	m_smokeFireFullWeight = -1.0f;
+	m_smokeFireHeight = -1.0f;
 	m_classicGraphics = FALSE;
 	m_shadowMap = TRUE;						//the sun's own shadows are what the game draws with now
 	m_shadowMapOnly = TRUE;				//and they replace the stencil volumes rather than joining them
