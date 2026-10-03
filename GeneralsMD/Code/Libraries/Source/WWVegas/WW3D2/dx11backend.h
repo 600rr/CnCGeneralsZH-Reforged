@@ -203,6 +203,11 @@ public:
 	// frame's camera is back; until the first one, such a draw uses the view it was drawn with.
 	void Set_Scene_View(const float view[16]);
 
+	// The draws that follow carry the glow of the fires near them in their normals and want it added
+	// after the shade (ffvertex.h and ffshader.h, SmokeGlow).  Only the sorting pool sets it, around
+	// the smoke billboards' runs.  An unlit draw with a normal takes it; any other ignores it.
+	void Set_Smoke_Glow(bool glow);
+
 	// What is in the map, read back through a staging copy: how much of it was drawn into and how
 	// near the nearest thing is.  A caster pass that drew nothing leaves a map that is all one
 	// value, and no draw count tells that apart from a pass that drew the world.
@@ -426,6 +431,8 @@ private:
 	float SceneView[16];
 	bool SceneViewKnown;
 	bool Camera_Space_Draw() const;
+	bool SmokeGlow;
+	bool Smoke_Glow() const;
 	// A stage samples the target the draw is going into: the heat haze, which bends a picture that
 	// already took its shadows, and would take them a second time.
 	bool Samples_Current_Target() const;

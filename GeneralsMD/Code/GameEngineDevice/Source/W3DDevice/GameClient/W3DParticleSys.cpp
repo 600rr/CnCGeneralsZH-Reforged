@@ -41,6 +41,7 @@
 #include "W3DDevice/GameClient/W3DDynamicLight.h"
 #include "WW3D2/camera.h"
 #include "WW3D2/dx8wrapper.h"
+#include "WW3D2/dx11runtime.h"
 #include "Common/JobSystem.h"
 
 #ifdef _INTERNAL
@@ -362,6 +363,10 @@ struct BillboardFillJob
 	Real																			extentX, extentY, extentZ;
 	SmokeLight																lights[ SMOKE_LIGHTS_MAX ];	///< this frame's, strongest first
 	Int																				lightCount;
+	/// Direct3D 11 is drawing the picture: the glow goes into the normals, and its pixel program adds
+	/// it after the sun's shadow and the smoke's own shade, which dimmed a fire seen through the far
+	/// side of a plume when it was in the colour.  Direct3D 9 shades nothing and keeps it baked.
+	Bool																			glowAfterShade;
 };
 
 /// systems a pool thread claims at once; a system is a few hundred particles, so one claim a system
@@ -398,13 +403,23 @@ static void fillBillboards( Int index, void *context )
 
 		const RGBColor *color = p->getColor();
 		Real red = color->red, green = color->green, blue = color->blue;
+		Vector3 glow( 0.0f, 0.0f, 0.0f );
 		if (lightCount > 0)
+		{
 			lightSmoke( pos, p->getAlpha(), lights, lightCount, red, green, blue );
+			if (job->glowAfterShade)
+			{
+				glow.Set( red - color->red, green - color->green, blue - color->blue );
+				red = color->red;
+				green = color->green;
+				blue = color->blue;
+			}
+		}
 		const unsigned packed = DX8Wrapper::Convert_Color_Clamp( Vector4( red, green, blue, p->getAlpha() ) );
 		// The orientation table's index wraps, as it did on Windows (Platform/MsvcFloatCasts.h).
 		const uint8 orientation = floatToByteAsMsvc( p->getAngle() * 255.0f / (2.0f * PI) );
 		PointGroupClass::Write_Billboard( quad, job->view, Vector3( pos->x, pos->y, pos->z ), psize,
-			orientation, packed );
+			orientation, packed, glow );
 		quad += 4;
 
 		if (++drawn == fill.capacity)
@@ -415,6 +430,7 @@ static void fillBillboards( Int index, void *context )
 	}
 
 	fill.drawn = drawn;
+	fill.glow = job->glowAfterShade && lightCount > 0;
 }
 
 W3DParticleSystemManager::W3DParticleSystemManager()
@@ -555,6 +571,7 @@ void W3DParticleSystemManager::doParticles(RenderInfoClass &rinfo)
 		fill.fieldIncrement = ( sys->getPriority() == AREA_EFFECT && sys->m_isGroundAligned != FALSE ) ? 1 : 0;
 		fill.drawn = 0;
 		fill.pastLimit = 0;
+		fill.glow = FALSE;
 		fill.texture = W3DDisplay::m_assetManager->Get_Texture( sys->getParticleTypeName().str() );
 		PointGroupClass::Reserve_Sorted_Billboards( fill.capacity, &fill.range );
 		m_billboardFills.push_back( fill );
@@ -570,6 +587,7 @@ void W3DParticleSystemManager::doParticles(RenderInfoClass &rinfo)
 	fillJob.extentY = beY;
 	fillJob.extentZ = beZ;
 	fillJob.lightCount = TheGlobalData->m_smokeFireLighting ? gatherSmokeLights( fillJob.lights, bbox ) : 0;
+	fillJob.glowAfterShade = Direct3D11_Present_Is_Enabled();
 	JobSystem::parallel_for( (Int)m_billboardFills.size(), BILLBOARD_FILLS_PER_CLAIM, fillBillboards, &fillJob );
 	size_t nextFill = 0;
 	for( ParticleSystemManager::ParticleSystemListIt it = particleSysList.begin(); it != particleSysList.end(); ++it)
@@ -622,7 +640,7 @@ void W3DParticleSystemManager::doParticles(RenderInfoClass &rinfo)
 		if (nextFill < m_billboardFills.size() && m_billboardFills[ nextFill ].system == sys)
 		{
 			BillboardFill &fill = m_billboardFills[ nextFill++ ];
-			PointGroupClass::Insert_Sorted_Billboards( &fill.range, fill.drawn, fill.texture, fill.shader );
+			PointGroupClass::Insert_Sorted_Billboards( &fill.range, fill.drawn, fill.texture, fill.shader, fill.glow != FALSE );
 			fill.texture->Release_Ref();	// the draw state took its own reference
 			m_fieldParticleCount += fill.fieldIncrement * fill.drawn;
 			m_onScreenParticleCount += fill.drawn;

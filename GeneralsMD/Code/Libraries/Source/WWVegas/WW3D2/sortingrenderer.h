@@ -52,11 +52,13 @@ public:
 		unsigned short vertex_count);
 
 	/// Quads laid out four vertices each, in order, from min_vertex_index; the pool sorts one entry
-	/// a quad and does not read the index buffer.
+	/// a quad and does not read the index buffer.  glow: the quads' normals hold a fire's glow, which
+	/// the Direct3D 11 backend adds after the shade (Direct3D11_Set_Smoke_Glow).
 	static void Insert_Quads(
 		unsigned short quad_count,
 		unsigned short min_vertex_index,
-		unsigned short vertex_count);
+		unsigned short vertex_count,
+		bool glow = false);
 
 	static void Insert_VolumeParticle(
 		const SphereClass& bounding_sphere,

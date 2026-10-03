@@ -104,6 +104,13 @@ struct CombinerDescription
 	// it ("Writing HLSL Shaders in Direct3D 9").  A normal mapped program adds its own highlight
 	// instead.  Initialised here for a caller that fills the rest field by field.
 	bool SpecularAdd = false;
+
+	// D3D11 only: the vertex half carries a fire's glow in the specular slot (VertexPipelineDescription::
+	// SmokeGlow), and it is added after the shadow and the smoke's own shade, scaled by the last
+	// stage's texel the way the stages scale the diffuse colour.  Baked into the vertex colour, the
+	// glow of a fire behind a plume went dark with the plume's far side.  Replaces SpecularAdd, whose
+	// slot it takes.  Initialised here for a caller that fills the rest field by field.
+	bool SmokeGlow = false;
 };
 
 // The normal mapped pixel program reads this many directional lights from its constants.  Slots

@@ -504,7 +504,7 @@ static bool generate_combiners(const CombinerDescription & description,
 	if (description.NormalMapped) {
 		hlsl += "    current.rgb = saturate(current.rgb + highlight);\n";
 	}
-	else if (description.SpecularAdd) {
+	else if (description.SpecularAdd && !description.SmokeGlow) {
 		// Before the fog and the alpha test, as D3D9 orders them; the alpha is the stages'.
 		hlsl += "    current.rgb = saturate(current.rgb + input.Specular.rgb);\n";
 	}
@@ -512,6 +512,11 @@ static bool generate_combiners(const CombinerDescription & description,
 	// Before the fog: a shadow is a thing in the world and the fog is between the world and the eye.
 	if (description.ShadowReceiving) {
 		hlsl += volumetric ? VOLUMETRIC_SHADOW_APPLY : SHADOW_APPLY;
+	}
+
+	// After the shade, so the light a fire throws on smoke is not dimmed by the smoke it lights.
+	if (description.SmokeGlow) {
+		hlsl += "    current.rgb = saturate(current.rgb + input.Specular.rgb * texel.rgb);\n";
 	}
 
 	if (target == COMBINER_SHADER_TARGET_D3D11
@@ -592,6 +597,9 @@ std::string CombinerShader_Key(const CombinerDescription & description)
 	}
 	if (description.SpecularAdd) {
 		key += ":SP";
+	}
+	if (description.SmokeGlow) {
+		key += ":G";
 	}
 	return key;
 }

@@ -80,6 +80,7 @@ public:
 		UnsignedInt															fieldIncrement;		///< 1 if every drawn particle counts against the field budget
 		Int																			drawn;						///< written by the job
 		UnsignedInt															pastLimit;				///< written by the job: on-screen particles past capacity
+		Bool																		glow;							///< written by the job: the fire's glow is in the normals, not the colour
 	};
 
 private:

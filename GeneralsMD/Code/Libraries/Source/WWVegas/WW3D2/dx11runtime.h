@@ -152,6 +152,10 @@ bool Direct3D11_Fill_Smoke_Map(const float * casters, unsigned count, float stre
 // looks its shadow up through it.
 void Direct3D11_Set_Scene_View(const float view[16]);
 
+// The draws that follow carry a fire's glow in their normals, to be added after the shade
+// (DX11BackendClass::Set_Smoke_Glow).  The sorting pool sets it around the smoke billboards' runs.
+void Direct3D11_Set_Smoke_Glow(bool glow);
+
 // The CPU has just written this surface.  The next bind of its texture fills the Direct3D 11 copy
 // again.  A no-op when the backend is not running.
 void Direct3D11_Mark_Surface_Dirty(struct IDirect3DSurface9 * surface);

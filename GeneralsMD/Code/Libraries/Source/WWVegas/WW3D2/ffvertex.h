@@ -145,6 +145,13 @@ struct VertexPipelineDescription
 	// not depend on the normal, which ffshader reads to light the pixel again.  An unlit one is the
 	// terrain, whose pixel half (engineshader) reads only the position.  Initialised here for a caller that fills the rest field by field.
 	bool NormalMapped = false;
+
+	// An unlit draw whose normal is not a normal: the sorted smoke billboards put the glow of the
+	// fires near them there, and the program hands it on in the specular colour, which an unlit draw
+	// with no second colour in its vertices otherwise leaves black.  The pixel half adds it after the
+	// shade (CombinerDescription::SmokeGlow).  Refused on a lit draw or a format with no normal.
+	// Initialised here for a caller that fills the rest field by field.
+	bool SmokeGlow = false;
 };
 
 // Which profile the generated text is for.  The two differ in the output semantic and in how the

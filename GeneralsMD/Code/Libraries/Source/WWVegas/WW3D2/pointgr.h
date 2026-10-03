@@ -234,17 +234,21 @@ public:
 
 	/// Bind a reserved range holding quads written by Write_Billboard and put it into the sorting
 	/// pool, with the state Render gives a billboarded QUADS group; then release the range.  The
-	/// shader has to be one Would_Sort_Billboards accepts.  Render thread only.
+	/// shader has to be one Would_Sort_Billboards accepts.  glow: the quads' normals hold the glow
+	/// Write_Billboard was given, for the Direct3D 11 backend to add after the shade.  Render thread
+	/// only.
 	static void				Insert_Sorted_Billboards(SortingBillboardRange *range, int quads,
-										TextureClass *texture, const ShaderClass &shader);
+										TextureClass *texture, const ShaderClass &shader, bool glow = false);
 
 	/// One billboard's four vertices: the transform, corner table and single-frame UVs Render uses
 	/// for a billboarded QUADS group with per-point sizes, orientations and colours, written the
 	/// same way so the vertices come out bit for bit the same.  color is packed already
-	/// (DX8Wrapper::Convert_Color_Clamp).  Touches nothing but its arguments and the static tables,
-	/// so any thread may call it.
+	/// (DX8Wrapper::Convert_Color_Clamp).  glow goes in the normal, which an unlit billboard does not
+	/// otherwise read.  Touches nothing but its arguments and the static tables, so any thread may
+	/// call it.
 	static inline void		Write_Billboard(VertexFormatXYZNDUV2 *quad, const Matrix4x4 &view,
-										const Vector3 &world, float size, unsigned char orientation, unsigned color)
+										const Vector3 &world, float size, unsigned char orientation, unsigned color,
+										const Vector3 &glow)
 	{
 		const Vector4 result=view*world;
 		const Vector3 point(result.X,result.Y,result.Z);
@@ -256,6 +260,9 @@ public:
 			quad[k].x=location.X;
 			quad[k].y=location.Y;
 			quad[k].z=location.Z;
+			quad[k].nx=glow.X;
+			quad[k].ny=glow.Y;
+			quad[k].nz=glow.Z;
 			quad[k].diffuse=color;
 			quad[k].u1=uv[k].X;
 			quad[k].v1=uv[k].Y;
