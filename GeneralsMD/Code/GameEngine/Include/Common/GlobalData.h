@@ -103,8 +103,9 @@ enum TextLanguageType
 {
 	TEXT_LANGUAGE_ENGLISH	= 0,
 	TEXT_LANGUAGE_TURKISH	= 1,
+	TEXT_LANGUAGE_GERMAN	= 2,
 
-	TEXT_LANGUAGE_COUNT		= 2,
+	TEXT_LANGUAGE_COUNT		= 3,
 };
 
 //-------------------------------------------------------------------------------------------------

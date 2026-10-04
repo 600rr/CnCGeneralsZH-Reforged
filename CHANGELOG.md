@@ -3,7 +3,7 @@
 EA opened the source of Generals and Zero Hour, the game that is still on sale and still runs on
 Steam. This build is that source with the bugs the game shipped with fixed and everything below added.
 
-**125 changes. ~580 engine source files ported. 14 automated test suites. Around 60 original bugs
+**126 changes. ~580 engine source files ported. 14 automated test suites. Around 60 original bugs
 found and fixed â€” EA's own, not port damage.**
 
 ---
@@ -1101,6 +1101,13 @@ The whole HUD is on the hardware. Four colours carry it, and they mean the same 
 - Percentages are written the Turkish way, "yüzde 25", and every number the game fills into a sentence lands where it should. A check runs over the whole file on every build and refuses a line whose blanks do not match the English, the mistake that turns a translated tooltip into a crash.
 - Voices and videos stay as your install has them. Your language is your own screen's business: two players in one match can read it in two languages.
 - A line the translation does not carry falls back to English instead of showing a key name, so a string added later never leaves a hole.
+
+## Now in German too
+
+- Options, Gameplay, Language has a third entry, Deutsch. The next launch speaks German everywhere the Turkish version does, from the main menu to the credits: 3,848 lines. Map names, people's names and the unit codenames stay as English players know them, Crusader, Overlord and Scud Storm among them.
+- One name per thing. A Tech-Gebäude is a Tech-Gebäude in the tooltip, the hint and the academy advice, every radio message from headquarters opens with EINGEHENDE FUNKMELDUNG, and the fog over unexplored ground is Kriegsnebel wherever the game mentions it.
+- You are a General and the game says du to you. Percentages read "25 Prozent", and the same check that guards the Turkish file refuses any German line whose blanks would not match the English.
+- The one-key shortcuts work in German. No two buttons on a command bar share a letter, so Bewachen, Stopp and Sammelpunkt each answer their own key on every unit and building that carries them. One exception is left, on the Boss general's upgraded barracks, where Colonel Burton and Neutronenminen both want N.
 
 ## It fits your monitor
 

@@ -1732,6 +1732,9 @@ add_custom_command(TARGET generals POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory
           ${CMAKE_CURRENT_SOURCE_DIR}/Data/Turkish
           ${CMAKE_CURRENT_SOURCE_DIR}/../Run/Data/Turkish
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+          ${CMAKE_CURRENT_SOURCE_DIR}/Data/German
+          ${CMAKE_CURRENT_SOURCE_DIR}/../Run/Data/German
   # The startup splash.  WinMain loads it from a loose file next to the exe, so
   # the fork's own artwork is a tracked master here rather than a hand-made file
   # in gitignored Run/.
@@ -2655,7 +2658,8 @@ if(Python3_Interpreter_FOUND)
 
   # A translation is a .str of thousands of lines, and one printf directive lost or reordered in any
   # of them reads the wrong argument the moment that line is formatted.  The check parses the tracked
-  # Turkish master the way GameText.cpp does, and against Run/EnglishZH.big when it is there.
+  # Turkish and German masters the way GameText.cpp does, and against Run/EnglishZH.big when it is
+  # there.
   add_test(NAME gametext_selfcheck
            COMMAND ${Python3_EXECUTABLE}
                    ${CMAKE_CURRENT_SOURCE_DIR}/Tools/gametext.py selfcheck)

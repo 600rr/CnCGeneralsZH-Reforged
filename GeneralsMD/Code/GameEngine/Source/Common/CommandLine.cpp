@@ -1644,13 +1644,13 @@ Int parseDirect3D9(char *args[], int num)
 	return 1;
 }
 
-/* -language <english|turkish>: the language the game's words are in for this run, over whatever
+/* -language <english|turkish|german>: the language the game's words are in for this run, over whatever
 	 * the Options menu saved.  The string table is built once, while the game starts and after this
 	 * line is read, so this is how the launcher lets a player pick a language before the first menu.
 	 * The names follow TextLanguageType.  A name this build does not know leaves the saved one. */
 Int parseTextLanguage(char *args[], int num)
 {
-	static const char *const TheTextLanguageNames[ TEXT_LANGUAGE_COUNT ] = { "english", "turkish" };
+	static const char *const TheTextLanguageNames[ TEXT_LANGUAGE_COUNT ] = { "english", "turkish", "german" };
 
 	if (TheWritableGlobalData && num > 1)
 	{
