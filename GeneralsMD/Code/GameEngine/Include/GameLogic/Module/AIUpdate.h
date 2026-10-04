@@ -921,6 +921,8 @@ private:
 	Int					m_noProgress;								///< consecutive frames wanting to move, not moving, not turning either.
 	Int					m_headOnFrames;							///< consecutive frames held up by somebody driving straight at us.
 	Bool				m_headOnSeen;								///< a collision this frame was with somebody driving straight at us.
+	Coord2D			m_sideStep;									///< a soldier's way out of the vehicles he touched since the last move, summed.
+	Bool				m_sideStepSeen;							///< and whether he touched any.
 	Coord3D			m_lastProgressPos;					///< where we were last frame, which is how the above is counted.
 	Real				m_lastProgressAngle;				///< and which way we were pointing, because coming about is progress too.
 	/* Dithering: driving a long way and getting nowhere, which the frame by frame test above cannot

@@ -342,6 +342,8 @@ AIUpdateInterface::AIUpdateInterface( Thing *thing, const ModuleData* moduleData
 	m_noProgress = 0;
 	m_headOnFrames = 0;
 	m_headOnSeen = FALSE;
+	m_sideStep.x = m_sideStep.y = 0.0f;
+	m_sideStepSeen = FALSE;
 	m_lastProgressPos.zero();
 	m_lastProgressAngle = 0.0f;
 	m_ditherFrom.zero();
@@ -1807,6 +1809,27 @@ Bool AIUpdateInterface::processCollision(PhysicsBehavior *physics, Object *other
 	if (!aiOther->isDoingGroundMovement()) return FALSE;
 	if (selfMoving) 
 	{
+		/* A soldier walks round a vehicle rather than waiting at its side. The blocked-speed rule stops
+			 him dead in front of any tank facing his way or standing still, and a tank queueing in a
+			 street is both: on Alpine Assault a Ranger stood 135 frames against the flank of a Crusader
+			 that was itself queued behind another. Here he only notes which way is out, and doLocomotor
+			 takes the part of his step that points into the hull away and adds a half step out from it.
+			 Asking blockedBy first made it flicker: turned along the hull, the hull is off his nose and no
+			 longer blocks him, so he turned back, and stood turning on the spot. */
+		if (getObject()->isKindOf(KINDOF_INFANTRY) && other->isKindOf(KINDOF_VEHICLE)
+			&& getStateMachine()->getCurrentStateID() != AI_PANIC)
+		{
+			Real ax = getObject()->getPosition()->x - other->getPosition()->x;
+			Real ay = getObject()->getPosition()->y - other->getPosition()->y;
+			const Real len = sqrtf(ax*ax + ay*ay);
+			if (len > 0.01f)
+			{
+				m_sideStep.x += ax / len;
+				m_sideStep.y += ay / len;
+				m_sideStepSeen = TRUE;
+				return FALSE;
+			}
+		}
 		Bool blocked = blockedBy(other);
 		if (blocked) 
 		{
@@ -1825,6 +1848,19 @@ Bool AIUpdateInterface::processCollision(PhysicsBehavior *physics, Object *other
 			}
 
 			Real maxSpeed = calculateMaxBlockedSpeed(other);
+			/* A vehicle held up by a soldier on the march creeps at a third of its speed rather than stopping
+				 or telling him to step aside. He is already walking round the hull (the top of this function),
+				 and a soldier told to step aside lost his route and stood a second before the repath guard let
+				 him ask for another: 13 of the 28 Ranger stops in infconvoy.txt. One who has stopped getting
+				 anywhere is wedged, and is still told. */
+			const Bool marchingSoldier = getObject()->isKindOf(KINDOF_VEHICLE) && other->isKindOf(KINDOF_INFANTRY)
+				&& otherMoving && aiOther->m_noProgress < STUCK_PRESS_FRAMES;
+			if (marchingSoldier && getCurLocomotor())
+			{
+				const Real crawl = getCurLocomotor()->getMaxSpeedForCondition(getObject()->getBodyModule()->getDamageState()) * 0.33f;
+				if (maxSpeed < crawl)
+					maxSpeed = crawl;
+			}
 			// -tracemove <id>: who is in the way, which way he faces against us, and where he sits off our nose,
 			// so a jam can be walked back to the pair at its front one unit at a time
 			if (TheGlobalData->m_traceMoveID > 0 && getObject()->getID() == (ObjectID)TheGlobalData->m_traceMoveID)
@@ -1854,6 +1890,8 @@ Bool AIUpdateInterface::processCollision(PhysicsBehavior *physics, Object *other
 					{
 						return FALSE;
 					}
+					if (marchingSoldier)
+						return FALSE;	// he is walking round us
 					aiOther->aiMoveAwayFromUnit(getObject(), CMD_FROM_AI);
 					return FALSE;
 				}
@@ -3947,6 +3985,10 @@ UpdateSleepTime AIUpdateInterface::doLocomotor( void )
 	const Bool traceWasBlocked = m_isBlocked;	// -tracemove: the flag is cleared on the next line
 	const Coord3D tracePos = *getObject()->getPosition();	// -tracemove: where the last whole frame left it
 	m_isBlocked = FALSE;
+	const Bool sideStep = m_sideStepSeen;
+	const Coord2D sideAway = m_sideStep;
+	m_sideStepSeen = FALSE;
+	m_sideStep.x = m_sideStep.y = 0.0f;
 
 	Bool blocked = m_blockedFrames > 0;
 	Bool requiresConstantCalling = TRUE;	// assume the worst.
@@ -4125,6 +4167,43 @@ UpdateSleepTime AIUpdateInterface::doLocomotor( void )
 								 in the way.  Ground movement only - an aircraft has no road and no traffic. */
 							if (isDoingGroundMovement())
 								crowdSteer(goalPos, speed);
+						}
+
+						// a soldier touching a vehicle (processCollision): walk along its side, never into it
+						if (sideStep)
+						{
+							const Real len = sqrtf(sideAway.x*sideAway.x + sideAway.y*sideAway.y);
+							const Coord3D *here = getObject()->getPosition();
+							Real gx = goalPos.x - here->x;
+							Real gy = goalPos.y - here->y;
+							const Real dist = sqrtf(gx*gx + gy*gy);
+							if (len > 0.01f && dist > 0.01f)
+							{
+								const Real nx = sideAway.x / len;
+								const Real ny = sideAway.y / len;
+								const Real into = gx*nx + gy*ny;
+								if (into < 0.0f)
+								{
+									gx -= into*nx;
+									gy -= into*ny;
+									Real t = sqrtf(gx*gx + gy*gy);
+									if (t < 0.1f*dist)
+									{
+										// dead against the hull: pick a side by ID, the same one every frame
+										const Real side = (getObject()->getID() & 1) ? 1.0f : -1.0f;
+										gx = -ny*side;
+										gy = nx*side;
+										t = 1.0f;
+									}
+									goalPos.x = here->x + gx*dist/t;
+									goalPos.y = here->y + gy*dist/t;
+								}
+								/* and half a step out from it, so a tank coming past moves him over rather than
+									 driving through him: with the slide alone a soldier and a tank going the same way
+									 overlapped 31% more often than before in squad30.txt, with this 22% less */
+								goalPos.x += nx*dist*0.5f;
+								goalPos.y += ny*dist*0.5f;
+							}
 						}
 
 						m_curLocomotor->locoUpdate_moveTowardsPosition(getObject(), goalPos,
