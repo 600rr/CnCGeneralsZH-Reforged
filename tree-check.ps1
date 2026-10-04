@@ -20,7 +20,7 @@
 # the run-to-run shimmer does not.  Re-measure and move them if the reference machine changes.
 #
 # Exit code is the number of views over the limit.
-param([double]$Limit = 0, [string[]]$Extra = @(), [string[]]$NewEnv = @())
+param([double]$Limit = 0, [string[]]$Extra = @(), [string[]]$NewEnv = @(), [string]$Base = 'generals_base.exe')
 $env:ZH_UNATTENDED = "1"	# every game this starts is unattended: no box may wait on a person (EarlyCommandLine.h)
 
 Add-Type -AssemblyName System.Drawing
@@ -36,10 +36,10 @@ if (-not (Test-Path $tmp)) { $null = New-Item -ItemType Directory $tmp }
 # -turbo cuts a view from about 90 seconds to about 25, but the cloud shadows scroll on the wall
 # clock, so a turbo shot and a paced one of the same frame differ on 7% of the pixels.  Both builds
 # have to run the same way: turbo when the reference build knows the switch, paced when it does not.
-$baseExe = Join-Path $run 'generals_base.exe'
+$baseExe = Join-Path $run $Base
 $pace = @()
 if (Select-String -Path $baseExe -Pattern '-turbo' -SimpleMatch -Quiet) { $pace = @('-turbo') }
-else { "generals_base.exe predates -turbo: both builds run paced, about 90 seconds a view" }
+else { "$Base predates -turbo: both builds run paced, about 90 seconds a view" }
 
 $cases = @(
   @{map='Flash Effect';       x='1200'; y='945';  f=400;  lim=1.6},   # noise 0.77
@@ -113,7 +113,7 @@ function DiffPct($a, $b) {
 $fail = 0
 foreach ($c in $cases) {
   $tag = ($c.map -replace '[^A-Za-z]','') + "_$($c.x)_$($c.f)"
-  $a = Shoot 'generals_base.exe' $c "base_$tag"
+  $a = Shoot $Base $c "base_$tag"
   $b = Shoot 'generals.exe'      $c "new_$tag"
   $d = DiffPct $a $b
   $lim = if ($Limit -gt 0) { $Limit } else { $c.lim }

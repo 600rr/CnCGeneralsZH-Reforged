@@ -134,6 +134,29 @@ static bool is_sixteen_bit_colour(D3DFORMAT format)
 	return format == D3DFMT_A1R5G5B5 || format == D3DFMT_R5G6B5 || format == D3DFMT_A4R4G4B4;
 }
 
+// Each channel width widened to eight bits as value * 255 / maximum, worked out once rather than a
+// divide per channel per pixel.
+struct ChannelScale
+{
+	unsigned char Four[16];
+	unsigned char Five[32];
+	unsigned char Six[64];
+
+	ChannelScale()
+	{
+		for (unsigned value = 0; value < 16; ++value) {
+			Four[value] = (unsigned char)(value * 255 / 15);
+		}
+		for (unsigned value = 0; value < 32; ++value) {
+			Five[value] = (unsigned char)(value * 255 / 31);
+		}
+		for (unsigned value = 0; value < 64; ++value) {
+			Six[value] = (unsigned char)(value * 255 / 63);
+		}
+	}
+};
+static const ChannelScale Scale;
+
 static void expand_sixteen_bit(unsigned char * destination, unsigned destination_pitch,
 	const unsigned char * source, unsigned source_pitch, unsigned width, unsigned height,
 	D3DFORMAT format)
@@ -141,32 +164,34 @@ static void expand_sixteen_bit(unsigned char * destination, unsigned destination
 	for (unsigned row = 0; row < height; ++row) {
 		const unsigned short * in = (const unsigned short *)(source + row * source_pitch);
 		unsigned char * out = destination + row * destination_pitch;
-		for (unsigned column = 0; column < width; ++column) {
-			const unsigned short pixel = in[column];
-			unsigned blue = 0, green = 0, red = 0, alpha = 0xff;
-			switch (format) {
-			case D3DFMT_A1R5G5B5:
-				blue  = ((pixel      ) & 0x1f) * 255 / 31;
-				green = ((pixel >>  5) & 0x1f) * 255 / 31;
-				red   = ((pixel >> 10) & 0x1f) * 255 / 31;
-				alpha = ((pixel >> 15) & 0x01) * 255;
-				break;
-			case D3DFMT_R5G6B5:
-				blue  = ((pixel      ) & 0x1f) * 255 / 31;
-				green = ((pixel >>  5) & 0x3f) * 255 / 63;
-				red   = ((pixel >> 11) & 0x1f) * 255 / 31;
-				break;
-			default:	// D3DFMT_A4R4G4B4
-				blue  = ((pixel      ) & 0x0f) * 255 / 15;
-				green = ((pixel >>  4) & 0x0f) * 255 / 15;
-				red   = ((pixel >>  8) & 0x0f) * 255 / 15;
-				alpha = ((pixel >> 12) & 0x0f) * 255 / 15;
-				break;
+		switch (format) {
+		case D3DFMT_A1R5G5B5:
+			for (unsigned column = 0; column < width; ++column, out += 4) {
+				const unsigned pixel = in[column];
+				out[0] = Scale.Five[pixel & 0x1f];
+				out[1] = Scale.Five[(pixel >> 5) & 0x1f];
+				out[2] = Scale.Five[(pixel >> 10) & 0x1f];
+				out[3] = (unsigned char)((pixel >> 15) * 255);
 			}
-			out[column * 4 + 0] = (unsigned char)blue;
-			out[column * 4 + 1] = (unsigned char)green;
-			out[column * 4 + 2] = (unsigned char)red;
-			out[column * 4 + 3] = (unsigned char)alpha;
+			break;
+		case D3DFMT_R5G6B5:
+			for (unsigned column = 0; column < width; ++column, out += 4) {
+				const unsigned pixel = in[column];
+				out[0] = Scale.Five[pixel & 0x1f];
+				out[1] = Scale.Six[(pixel >> 5) & 0x3f];
+				out[2] = Scale.Five[pixel >> 11];
+				out[3] = 0xff;
+			}
+			break;
+		default:	// D3DFMT_A4R4G4B4
+			for (unsigned column = 0; column < width; ++column, out += 4) {
+				const unsigned pixel = in[column];
+				out[0] = Scale.Four[pixel & 0x0f];
+				out[1] = Scale.Four[(pixel >> 4) & 0x0f];
+				out[2] = Scale.Four[(pixel >> 8) & 0x0f];
+				out[3] = Scale.Four[pixel >> 12];
+			}
+			break;
 		}
 	}
 }

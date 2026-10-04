@@ -144,9 +144,23 @@ static void addSmokeLight( SmokeLight *lights, Int &count, const SmokeLight &lig
 	lights[ slot ] = light;
 }
 
-/** One additive system as a point light, if it is bright enough and near enough the view box. */
-static void gatherFireLight( ParticleSystem *sys, SmokeLight *lights, Int &count,
-	const AABoxClass &view )
+/** An additive system's light before the view box has had its say.  It depends on the particles
+	* alone, and they only move when ParticleSystemManager::update runs, once a logic frame, so the
+	* walk over them is kept for every pass drawn until the next one. */
+struct FireLight
+{
+	SmokeLight	light;
+	Real				reach;	///< the light's reach in any one axis, for the view box test
+};
+
+static std::vector<FireLight>	s_fireLights;					///< in system list order, as the walk found them
+static Bool										s_fireLightsValid = FALSE;
+static UnsignedInt						s_fireLightsFrame;			///< the particle update they were taken after
+static UnsignedInt						s_fireLightsParticles;
+static UnsignedInt						s_fireLightsSystems;
+
+/** One additive system as a point light, if it is bright enough. */
+static void gatherFireLight( ParticleSystem *sys )
 {
 	Real w = 0.0f, x = 0.0f, y = 0.0f, z = 0.0f, sq = 0.0f;
 	for (Particle *p = sys->getFirstParticle(); p; p = p->m_systemNext)
@@ -165,7 +179,8 @@ static void gatherFireLight( ParticleSystem *sys, SmokeLight *lights, Int &count
 	if (w < FIRE_LIGHT_MIN_WEIGHT)
 		return;
 
-	SmokeLight light;
+	FireLight fire;
+	SmokeLight &light = fire.light;
 	const Real inv = 1.0f / w;
 	light.x = x * inv;
 	light.y = y * inv;
@@ -177,10 +192,7 @@ static void gatherFireLight( ParticleSystem *sys, SmokeLight *lights, Int &count
 
 	const Real height = FIRE_LIGHT_HEIGHT;
 	const Real reach = radius > height ? radius : height;
-	if (WWMath::Fabs( light.x - view.Center.X ) > view.Extent.X + reach
-			|| WWMath::Fabs( light.y - view.Center.Y ) > view.Extent.Y + reach
-			|| WWMath::Fabs( light.z - view.Center.Z ) > view.Extent.Z + reach)
-		return;
+	fire.reach = reach;
 
 	// fire's own colour, and the strength from how much of the flames there is
 	light.strength = w < FIRE_LIGHT_FULL_WEIGHT ? w / FIRE_LIGHT_FULL_WEIGHT : 1.0f;
@@ -193,7 +205,7 @@ static void gatherFireLight( ParticleSystem *sys, SmokeLight *lights, Int &count
 	light.invHeight = 1.0f / height;
 	light.invBelow = 1.0f / (radius * FIRE_LIGHT_BELOW_SHARE);
 	light.reachSq = reach * reach;
-	addSmokeLight( lights, count, light );
+	s_fireLights.push_back( fire );
 }
 
 /** The scene's enabled light pulses, which FX lists put on explosions. */
@@ -240,17 +252,20 @@ static void gatherPulseLights( SmokeLight *lights, Int &count, const AABoxClass 
 	}
 }
 
-/** Fills lights[] with this frame's lights, strongest first, and returns how many. */
+/** Fills lights[] with this frame's lights, strongest first, and returns how many.  The fires are
+	* offered in the order the systems walk found them, so the weakest-out list keeps the same ones. */
 static Int gatherSmokeLights( SmokeLight *lights, const AABoxClass &view )
 {
 	Int count = 0;
-	ParticleSystemManager::ParticleSystemList &systems = TheParticleSystemManager->getAllParticleSystems();
-	for (ParticleSystemManager::ParticleSystemListIt it = systems.begin(); it != systems.end(); ++it)
+	for (size_t i = 0; i < s_fireLights.size(); ++i)
 	{
-		ParticleSystem *sys = *it;
-		if (sys && !sys->isUsingDrawables() && sys->getShaderType() == ParticleSystemInfo::ADDITIVE
-				&& sys->getParticleCount() > 0)
-			gatherFireLight( sys, lights, count, view );
+		const FireLight &fire = s_fireLights[ i ];
+		const SmokeLight &light = fire.light;
+		if (WWMath::Fabs( light.x - view.Center.X ) > view.Extent.X + fire.reach
+				|| WWMath::Fabs( light.y - view.Center.Y ) > view.Extent.Y + fire.reach
+				|| WWMath::Fabs( light.z - view.Center.Z ) > view.Extent.Z + fire.reach)
+			continue;
+		addSmokeLight( lights, count, light );
 	}
 	gatherPulseLights( lights, count, view );
 
@@ -472,6 +487,14 @@ W3DParticleSystemManager::~W3DParticleSystemManager()
 	REF_PTR_RELEASE(m_angleBuffer);
 }
 
+/** A reset can be followed by an update on the same logic frame, so the fires' frame alone would
+	* not tell the lights taken before it from the ones after. */
+void W3DParticleSystemManager::reset()
+{
+	ParticleSystemManager::reset();
+	s_fireLightsValid = FALSE;
+}
+
 /**
  * Hack because DoParticles is called from Flush(), which is called
  * multiple times per frame.  We only want to render once.
@@ -586,7 +609,29 @@ void W3DParticleSystemManager::doParticles(RenderInfoClass &rinfo)
 	fillJob.extentX = beX;
 	fillJob.extentY = beY;
 	fillJob.extentZ = beZ;
-	fillJob.lightCount = TheGlobalData->m_smokeFireLighting ? gatherSmokeLights( fillJob.lights, bbox ) : 0;
+	fillJob.lightCount = 0;
+	if (TheGlobalData->m_smokeFireLighting)
+	{
+		// Between two particle updates nothing moves a particle; a system made in between has none
+		// yet, and the counts catch a load or anything else that adds or takes some away.
+		if (!s_fireLightsValid || s_fireLightsFrame != m_lastLogicFrameUpdate
+				|| s_fireLightsParticles != m_particleCount || s_fireLightsSystems != m_particleSystemCount)
+		{
+			s_fireLights.clear();
+			for( ParticleSystemManager::ParticleSystemListIt it = particleSysList.begin(); it != particleSysList.end(); ++it)
+			{
+				ParticleSystem *sys = *it;
+				if (sys && !sys->isUsingDrawables() && sys->getShaderType() == ParticleSystemInfo::ADDITIVE
+						&& sys->getParticleCount() > 0)
+					gatherFireLight( sys );
+			}
+			s_fireLightsValid = TRUE;
+			s_fireLightsFrame = m_lastLogicFrameUpdate;
+			s_fireLightsParticles = m_particleCount;
+			s_fireLightsSystems = m_particleSystemCount;
+		}
+		fillJob.lightCount = gatherSmokeLights( fillJob.lights, bbox );
+	}
 	fillJob.glowAfterShade = Direct3D11_Present_Is_Enabled();
 	JobSystem::parallel_for( (Int)m_billboardFills.size(), BILLBOARD_FILLS_PER_CLAIM, fillBillboards, &fillJob );
 	size_t nextFill = 0;

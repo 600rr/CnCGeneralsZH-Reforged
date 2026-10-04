@@ -1268,6 +1268,14 @@ void DX11BackendClass::Set_Transform(D3DTRANSFORMSTATETYPE state, const float ma
 void DX11BackendClass::Set_Material(const float ambient[4], const float diffuse[4],
 	const float specular[4], const float emissive[4], float power)
 {
+	// The wrapper reapplies the material on every mesh whether or not it changed.
+	if (memcmp(MaterialAmbient, ambient, sizeof(MaterialAmbient)) == 0
+		&& memcmp(MaterialDiffuse, diffuse, sizeof(MaterialDiffuse)) == 0
+		&& memcmp(MaterialSpecular, specular, sizeof(MaterialSpecular)) == 0
+		&& memcmp(MaterialEmissive, emissive, sizeof(MaterialEmissive)) == 0
+		&& memcmp(&MaterialPower, &power, sizeof(MaterialPower)) == 0) {
+		return;
+	}
 	memcpy(MaterialAmbient, ambient, sizeof(MaterialAmbient));
 	memcpy(MaterialDiffuse, diffuse, sizeof(MaterialDiffuse));
 	memcpy(MaterialSpecular, specular, sizeof(MaterialSpecular));
@@ -1284,7 +1292,20 @@ void DX11BackendClass::Set_Light(unsigned index, DWORD type, const float positio
 		return;
 	}
 
+	// Set_Light_Environment marks all four lights on every object it lights, so most of these
+	// arrive unchanged.  Only whether a light is on and its type reach the pipeline description.
 	Light & light = Lights[index];
+	const bool pipeline_changed = !light.Enabled || light.Type != type;
+	if (!pipeline_changed
+		&& memcmp(light.Position, position, sizeof(light.Position)) == 0
+		&& memcmp(light.Direction, direction, sizeof(light.Direction)) == 0
+		&& memcmp(light.Diffuse, diffuse, sizeof(light.Diffuse)) == 0
+		&& memcmp(light.Specular, specular, sizeof(light.Specular)) == 0
+		&& memcmp(light.Attenuation, attenuation, sizeof(light.Attenuation)) == 0
+		&& memcmp(light.Spot, spot, sizeof(light.Spot)) == 0
+		&& memcmp(light.Ambient, ambient, sizeof(light.Ambient)) == 0) {
+		return;
+	}
 	light.Enabled = true;
 	light.Type = type;
 	memcpy(light.Position, position, sizeof(light.Position));
@@ -1295,7 +1316,9 @@ void DX11BackendClass::Set_Light(unsigned index, DWORD type, const float positio
 	memcpy(light.Spot, spot, sizeof(light.Spot));
 	memcpy(light.Ambient, ambient, sizeof(light.Ambient));
 	ConstantsChanged = true;
-	PipelineChanged = true;
+	if (pipeline_changed) {
+		PipelineChanged = true;
+	}
 }
 
 void DX11BackendClass::Disable_Light(unsigned index)

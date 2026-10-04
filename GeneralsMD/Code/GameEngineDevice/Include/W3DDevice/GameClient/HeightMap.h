@@ -111,8 +111,36 @@ protected:
 	Int	m_numBlockColumnsInLastVB;///<a VB tile may be partially filled, this indicates how many 2x2 vertex blocks are filled.
 	Int	m_numBlockRowsInLastVB;///<a VB tile may be partially filled, this indicates how many 2x2 vertex blocks are filled.
 
+	/** What doTheDynamicLight reads from one light, taken once per relight instead of once per
+		vertex.  The relight reads these, the heights and m_vertexBufferBackup, and never the vertex
+		buffer it writes, so a pass whose inputs match the last relight's would write the same bytes
+		again.  Lights change on logic frames and the terrain draws more often than that. */
+	struct DynamicLightInputs
+	{
+		Int type;
+		Int enabled;
+		Vector3 position;
+		Vector3 spotDirection;
+		Vector3 diffuse;
+		Vector3 ambient;
+		double midRange;	///< double, the way Get_Far_Attenuation_Range hands it to the falloff
+		double range;
+		Int bounds[8];	///< m_minX, m_minY, m_maxX, m_maxY, then the four m_prev bounds
+	};
+	struct DynamicLightPass
+	{
+		WorldHeightMap *map;
+		Int drawOrgX;
+		Int drawOrgY;
+		Int originX;
+		Int originY;
+		Int numLights;
+		DynamicLightInputs lights[MAX_ENABLED_DYNAMIC_LIGHTS];
+	};
+	DynamicLightPass m_lastRelight;	///< compared with memcmp, so only ever written by memset and memcpy
+	Bool m_lastRelightValid;	///< false once anything has rewritten the vertex buffers since that relight
 
-	UnsignedInt doTheDynamicLight(VERTEX_FORMAT *vb, VERTEX_FORMAT *vbMirror, Vector3*light, Vector3*normal, W3DDynamicLight *pLights[], Int numLights);
+	UnsignedInt doTheDynamicLight(VERTEX_FORMAT *vb, VERTEX_FORMAT *vbMirror, Vector3*light, Vector3*normal, const DynamicLightInputs lights[], Int numLights);
 	//
 	// Gets the index that corresponds to the data.  For example, if the columns are shifted by 3,
 	// index 3 is actually the first row of polygons, or 0.  Yes it is confusing, but it makes

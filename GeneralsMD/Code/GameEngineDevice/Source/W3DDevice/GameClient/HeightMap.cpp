@@ -177,7 +177,7 @@ Int HeightMapRenderObjClass::freeMapResources(void)
 //=============================================================================
 /** Calculates the diffuse lighting as affected by dynamic lighting. */
 //=============================================================================
-UnsignedInt HeightMapRenderObjClass::doTheDynamicLight(VERTEX_FORMAT *vb, VERTEX_FORMAT *vbMirror, Vector3*light, Vector3*normal,  W3DDynamicLight *pLights[], Int numLights)
+UnsignedInt HeightMapRenderObjClass::doTheDynamicLight(VERTEX_FORMAT *vb, VERTEX_FORMAT *vbMirror, Vector3*light, Vector3*normal,  const DynamicLightInputs lights[], Int numLights)
 {
 #ifdef USE_NORMALS
 	return;
@@ -197,19 +197,17 @@ UnsignedInt HeightMapRenderObjClass::doTheDynamicLight(VERTEX_FORMAT *vb, VERTEX
 	Int alpha = (diffuse>>24)&0x00FF;
 	Int k;
 	for (k=0; k<numLights; k++) {
-		W3DDynamicLight *pLight = pLights[k];
-		if (!pLight->isEnabled()) {
+		const DynamicLightInputs &dl = lights[k];
+		if (!dl.enabled) {
 			continue; // he is turned off.
 		}
 		Vector3 lightDirection(vbMirror->x, vbMirror->y, vbMirror->z);
 		Real factor = 1.0f;
-		switch(pLight->Get_Type()) {	  
+		switch(dl.type) {
 		case LightClass::POINT:
 		case LightClass::SPOT: {
-				Vector3 lightLoc = pLight->Get_Position();
-				lightDirection -= lightLoc;
-				double range, midRange;
-				pLight->Get_Far_Attenuation_Range(midRange, range);
+				lightDirection -= dl.position;
+				double range = dl.range, midRange = dl.midRange;
 				Real dist = lightDirection.Length();
 				if (dist >= range) continue;
 				if (midRange < 0.1) continue;
@@ -221,7 +219,7 @@ UnsignedInt HeightMapRenderObjClass::doTheDynamicLight(VERTEX_FORMAT *vb, VERTEX
 			} 
 			break;
 		case LightClass::DIRECTIONAL:
-			pLight->Get_Spot_Direction(lightDirection);
+			lightDirection = dl.spotDirection;
 			factor = 1.0;
 			break;
 		};
@@ -232,10 +230,8 @@ UnsignedInt HeightMapRenderObjClass::doTheDynamicLight(VERTEX_FORMAT *vb, VERTEX
 		Vector3 lightRay(-lightDirection.X, -lightDirection.Y, -lightDirection.Z);
 		Real shade = Vector3::Dot_Product(lightRay, *normal); 
 		shade *= factor;
-		Vector3 diffuse;
-		pLight->Get_Diffuse(&diffuse);
-		Vector3 ambient;
-		pLight->Get_Ambient(&ambient);
+		const Vector3 &diffuse = dl.diffuse;
+		const Vector3 &ambient = dl.ambient;
 		if (shade > 1.0) shade = 1.0;
 		if(shade < 0.0f) shade = 0.0f;
 		shadeR += shade*diffuse.X;
@@ -288,6 +284,7 @@ Int HeightMapRenderObjClass::updateVB(DX8VertexBufferClass	*pVB, char *data, Int
 	}
 
 	REF_PTR_SET(m_map, pMap);	//update our heightmap pointer in case it changed since last call.
+	m_lastRelightValid = false;	// the tile's diffuse goes back to static lighting, so the dynamic lights must be redone
 	if (m_vertexBufferTiles && pMap)
 	{
 #ifdef _DEBUG
@@ -560,6 +557,7 @@ Int HeightMapRenderObjClass::updateVBForLight(DX8VertexBufferClass	*pVB, char *d
 		VERTEX_FORMAT *vBase = (VERTEX_FORMAT*)lockVtxBuffer.Get_Vertex_Array();
 		// a failed lock - a device that has gone away - hands back nothing to light
 		if (vBase == NULL) {
+			m_lastRelightValid = false;	// nothing written, so the next pass tries again
 			return 0;
 		}
 		VERTEX_FORMAT *vb;
@@ -645,7 +643,7 @@ Int HeightMapRenderObjClass::updateVBForLight(DX8VertexBufferClass	*pVB, char *d
 				Vector3::Normalized_Cross_Product(l2r, n2f, &normalAtTexel);
 #endif
 
-				doTheDynamicLight(vb, vbMirror, &lightRay, &normalAtTexel, pLights, numLights);
+				doTheDynamicLight(vb, vbMirror, &lightRay, &normalAtTexel, m_lastRelight.lights, numLights);
 				vb++;	vbMirror++;
 
 				//top-right sample
@@ -658,7 +656,7 @@ Int HeightMapRenderObjClass::updateVBForLight(DX8VertexBufferClass	*pVB, char *d
 				Vector3::Normalized_Cross_Product(l2r, n2f, &normalAtTexel);
 #endif
 
-				doTheDynamicLight(vb, vbMirror, &lightRay, &normalAtTexel, pLights, numLights);
+				doTheDynamicLight(vb, vbMirror, &lightRay, &normalAtTexel, m_lastRelight.lights, numLights);
 				vb++;	vbMirror++;
 
 				//bottom-right sample
@@ -671,7 +669,7 @@ Int HeightMapRenderObjClass::updateVBForLight(DX8VertexBufferClass	*pVB, char *d
 				Vector3::Normalized_Cross_Product(l2r, n2f, &normalAtTexel);
 #endif
 
-				doTheDynamicLight(vb, vbMirror, &lightRay, &normalAtTexel, pLights, numLights);
+				doTheDynamicLight(vb, vbMirror, &lightRay, &normalAtTexel, m_lastRelight.lights, numLights);
 				vb++;	vbMirror++;
 
 				//bottom-left sample
@@ -684,7 +682,7 @@ Int HeightMapRenderObjClass::updateVBForLight(DX8VertexBufferClass	*pVB, char *d
 				Vector3::Normalized_Cross_Product(l2r, n2f, &normalAtTexel);
 #endif
 
-				doTheDynamicLight(vb, vbMirror, &lightRay, &normalAtTexel, pLights, numLights);
+				doTheDynamicLight(vb, vbMirror, &lightRay, &normalAtTexel, m_lastRelight.lights, numLights);
 				vb++;	vbMirror++;
 			}
 		}
@@ -711,6 +709,7 @@ Int HeightMapRenderObjClass::updateVBForLightOptimized(DX8VertexBufferClass	*pVB
 		VERTEX_FORMAT *vBase = (VERTEX_FORMAT*)lockVtxBuffer.Get_Vertex_Array();
 		// a failed lock - a device that has gone away - hands back nothing to light
 		if (vBase == NULL) {
+			m_lastRelightValid = false;	// nothing written, so the next pass tries again
 			return 0;
 		}
 		VERTEX_FORMAT *vb;
@@ -829,7 +828,7 @@ Int HeightMapRenderObjClass::updateVBForLightOptimized(DX8VertexBufferClass	*pVB
 					l2r.Set(2*MAP_XY_FACTOR,0,MAP_HEIGHT_SCALE*(m_map->getDisplayHeight(getXWithOrigin(i)+1, getYWithOrigin(j)) - m_map->getDisplayHeight(un0, getYWithOrigin(j))));
 					n2f.Set(0,2*MAP_XY_FACTOR,MAP_HEIGHT_SCALE*(m_map->getDisplayHeight(getXWithOrigin(i), (getYWithOrigin(j)+1)) - m_map->getDisplayHeight(getXWithOrigin(i), vn0)));
 					Vector3::Normalized_Cross_Product(l2r, n2f, &normalAtTexel);
-					doTheDynamicLight(vb, vbMirror, &lightRay, &normalAtTexel, pLights, numLights);
+					doTheDynamicLight(vb, vbMirror, &lightRay, &normalAtTexel, m_lastRelight.lights, numLights);
 				} 
 				vb++;	vbMirror++;
 
@@ -838,7 +837,7 @@ Int HeightMapRenderObjClass::updateVBForLightOptimized(DX8VertexBufferClass	*pVB
 					l2r.Set(2*MAP_XY_FACTOR,0,MAP_HEIGHT_SCALE*(m_map->getDisplayHeight(up1 , getYWithOrigin(j) ) - m_map->getDisplayHeight(getXWithOrigin(i) , getYWithOrigin(j) )));
 					n2f.Set(0,2*MAP_XY_FACTOR,MAP_HEIGHT_SCALE*(m_map->getDisplayHeight(getXWithOrigin(i)+1 , (getYWithOrigin(j)+1) ) - m_map->getDisplayHeight(getXWithOrigin(i)+1 , vn0 )));
 					Vector3::Normalized_Cross_Product(l2r, n2f, &normalAtTexel);
-					light_copy = doTheDynamicLight(vb, vbMirror, &lightRay, &normalAtTexel, pLights, numLights);
+					light_copy = doTheDynamicLight(vb, vbMirror, &lightRay, &normalAtTexel, m_lastRelight.lights, numLights);
 				
 					if (i < x1-1) {
 						// copy light to (right,0)
@@ -851,7 +850,7 @@ Int HeightMapRenderObjClass::updateVBForLightOptimized(DX8VertexBufferClass	*pVB
 				l2r.Set(2*MAP_XY_FACTOR,0,MAP_HEIGHT_SCALE*(m_map->getDisplayHeight(up1 , (getYWithOrigin(j)+1) ) - m_map->getDisplayHeight(getXWithOrigin(i) , (getYWithOrigin(j)+1) )));
 				n2f.Set(0,2*MAP_XY_FACTOR,MAP_HEIGHT_SCALE*(m_map->getDisplayHeight(getXWithOrigin(i)+1 , vp1 ) - m_map->getDisplayHeight(getXWithOrigin(i)+1 , getYWithOrigin(j) )));
 				Vector3::Normalized_Cross_Product(l2r, n2f, &normalAtTexel);
-				light_copy = doTheDynamicLight(vb, vbMirror, &lightRay, &normalAtTexel, pLights, numLights);
+				light_copy = doTheDynamicLight(vb, vbMirror, &lightRay, &normalAtTexel, m_lastRelight.lights, numLights);
 				
 				if (i < x1-1) {
 					// copy light to (right,3)
@@ -875,7 +874,7 @@ Int HeightMapRenderObjClass::updateVBForLightOptimized(DX8VertexBufferClass	*pVB
 					l2r.Set(2*MAP_XY_FACTOR,0,MAP_HEIGHT_SCALE*(m_map->getDisplayHeight(getXWithOrigin(i)+1 , (getYWithOrigin(j)+1) ) - m_map->getDisplayHeight(un0 , (getYWithOrigin(j)+1) )));
 					n2f.Set(0,2*MAP_XY_FACTOR,MAP_HEIGHT_SCALE*(m_map->getDisplayHeight(getXWithOrigin(i) , vp1 ) - m_map->getDisplayHeight(getXWithOrigin(i) , getYWithOrigin(j) )));
 					Vector3::Normalized_Cross_Product(l2r, n2f, &normalAtTexel);
-					light_copy = doTheDynamicLight(vb, vbMirror, &lightRay, &normalAtTexel, pLights, numLights);
+					light_copy = doTheDynamicLight(vb, vbMirror, &lightRay, &normalAtTexel, m_lastRelight.lights, numLights);
 
 					if (j < y1-1) {
 						// copy light to (down,0)
@@ -1081,7 +1080,8 @@ m_numVBTilesX(0),
 m_numVBTilesY(0),
 m_numVertexBufferTiles(0),
 m_numBlockColumnsInLastVB(0),
-m_numBlockRowsInLastVB(0)
+m_numBlockRowsInLastVB(0),
+m_lastRelightValid(false)
 {
 	TheHeightMap = this;
 }
@@ -1433,6 +1433,39 @@ void HeightMapRenderObjClass::On_Frame_Update(void)
 		pLight->m_priorEnable = pLight->m_enabled;
 	}
 	if (numDynaLights > 0) {
+		DynamicLightPass pass;
+		memset((void *)&pass, 0, sizeof(pass));
+		pass.map = m_map;
+		pass.drawOrgX = m_map->getDrawOrgX();
+		pass.drawOrgY = m_map->getDrawOrgY();
+		pass.originX = m_originX;
+		pass.originY = m_originY;
+		pass.numLights = numDynaLights;
+		for (k=0; k<numDynaLights; k++) {
+			W3DDynamicLight *pLight = enabledLights[k];
+			DynamicLightInputs &in = pass.lights[k];
+			in.type = pLight->Get_Type();
+			in.enabled = pLight->isEnabled();
+			in.position = pLight->Get_Position();
+			pLight->Get_Spot_Direction(in.spotDirection);
+			pLight->Get_Diffuse(&in.diffuse);
+			pLight->Get_Ambient(&in.ambient);
+			pLight->Get_Far_Attenuation_Range(in.midRange, in.range);
+			in.bounds[0] = pLight->m_minX;		in.bounds[1] = pLight->m_minY;
+			in.bounds[2] = pLight->m_maxX;		in.bounds[3] = pLight->m_maxY;
+			in.bounds[4] = pLight->m_prevMinX;	in.bounds[5] = pLight->m_prevMinY;
+			in.bounds[6] = pLight->m_prevMaxX;	in.bounds[7] = pLight->m_prevMaxY;
+		}
+		// Same inputs as the last relight and no vertex buffer rewritten since: the tiles already
+		// hold what this pass would write.  Ground that moved and is waiting for its rebuild, or a
+		// full rebuild pending, changes the normals first, so those passes relight as before.
+		if (m_lastRelightValid && !m_hasDirtyRegion && !m_needFullUpdate &&
+				memcmp(&pass, &m_lastRelight, sizeof(pass)) == 0) {
+			return;
+		}
+		memcpy((void *)&m_lastRelight, &pass, sizeof(pass));
+		m_lastRelightValid = true;
+
 		//step through each vertex buffer that needs updating
 		for (j=0; j<m_numVBTilesY; j++)
 		{
