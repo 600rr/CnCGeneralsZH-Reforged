@@ -390,7 +390,7 @@ found and fixed â€” EA's own, not port damage.**
 - Losing the relay player no longer picks a player who never existed.
 - Order confirmations are filed in one step instead of scanning the whole queue.
 - A dropped order's retry wait stops doubling after two steps.
-- A shell's flight path is worked out the same way on every machine. The game borrowed that sum from a DirectX library that, going by its code, picks how to do it by processor: one way on Intel chips, another on everyone else's. The two answers differ in the last digits, and when both were run over half a million calculations shaped like the game's own shell paths, nearly half came out slightly different. That is enough for two machines to disagree about where a shell is. Nobody has reported it in a match, and the game has not been tested across two machines, but every machine now uses the same sum whatever its processor. A replay recorded on an Intel machine with an earlier version may not play back exactly.
+- A shell's flight path is worked out the same way on every machine. The game borrowed that sum from a DirectX library that, going by its code, picks how to do it by processor: one way on Intel chips, another on everyone else's. The two answers differ in the last digits, and when both were run over half a million calculations shaped like the game's own shell paths, nearly half came out slightly different. That is enough for two machines to disagree about where a shell is. Nobody has reported it in a match, but every machine now uses the same sum whatever its processor. A replay recorded on an Intel machine with an earlier version may not play back exactly.
 
 ## Sharper textures, for free
 
@@ -1853,6 +1853,6 @@ The whole HUD is on the hardware. Four colours carry it, and they mean the same 
 ---
 
 ## Not there yet
-- Online and LAN play are untested.
+- Internet play. LAN works: two separate PCs have played each other on one network. Matches over the internet wait on Reforged's own lobby server, which is still on paper.
 - A frame through Direct3D 11 still costs a little more than it does through the old renderer: 7.6ms against 6.3ms in a screen full of inferno cannon fire. `-d3d9` on the command line puts the old renderer back on its own.
 - You need to own the game; no game data ships here.
