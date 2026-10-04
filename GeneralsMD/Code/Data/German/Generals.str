@@ -15373,6 +15373,10 @@ GUI:ScoreboardPerSecond
 "PRO SEK"
 END
 
+GUI:ScoreboardKills
+"A"
+END
+
 GUI:ScoreboardDeaths
 "T"
 END
