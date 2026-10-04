@@ -510,7 +510,7 @@ GUI:AreYouSureDelete
 END
 
 GUI:CopyFileToDesktop
-"WIEDERHOLUNG AUF DEN DESKTOP KOPIEREN?"
+"REPLAY AUF DEN DESKTOP KOPIEREN?"
 END
 
 GUI:AreYouSureCopy
@@ -522,15 +522,15 @@ GUI:ErrorCopyingFile
 END
 
 GUI:LoadReplay
-"WIEDERHOLUNG LADEN"
+"REPLAY LADEN"
 END
 
 GUI:DeleteReplay
-"WIEDERHOLUNG LÖSCHEN"
+"REPLAY LÖSCHEN"
 END
 
 GUI:CopyReplay
-"WIEDERHOLUNG KOPIEREN"
+"REPLAY KOPIEREN"
 END
 
 GUI:ErrorDeletingFile
@@ -1042,7 +1042,7 @@ TOOLTIP:AcceptButton
 END
 
 TOOLTIP:CopyReplayToDesktop
-"Ausgewählte Wiederholung auf deinen Desktop kopieren"
+"Ausgewähltes Replay auf deinen Desktop kopieren"
 END
 
 TOOLTIP:ProviderType
@@ -3250,11 +3250,11 @@ GUI:RemoteIPDesc
 END
 
 GUI:SaveCamera
-"Kamera in Wiederholungen speichern"
+"Kamera in Replays speichern"
 END
 
 GUI:UseCamera
-"Gespeicherte Kamera in Wiederholungen verwenden"
+"Gespeicherte Kamera in Replays verwenden"
 END
 
 Mouse:Windows
@@ -7666,15 +7666,15 @@ GUI:MissionSave
 END
 
 GUI:SaveReplay
-"WIEDERHOLUNG SPEICHERN"
+"REPLAY SPEICHERN"
 END
 
 GUI:OverwriteReplayTitle
-"WIEDERHOLUNG ÜBERSCHREIBEN"
+"REPLAY ÜBERSCHREIBEN"
 END
 
 GUI:OverwriteReplay
-"Wiederholung überschreiben?"
+"Replay überschreiben?"
 END
 
 GUI:ConfirmDelete
@@ -8722,7 +8722,7 @@ GUI:ESRB_Bottom
 END
 
 GUI:ReplaySaved
-"Wiederholung gespeichert"
+"Replay gespeichert"
 END
 
 OBJECT:Monument
@@ -9086,11 +9086,11 @@ GUI:ExitMission
 END
 
 GUI:OlderReplayVersionTitle
-"ÄLTERE WIEDERHOLUNGSVERSION"
+"ÄLTERE REPLAY-VERSION"
 END
 
 GUI:OlderReplayVersion
-"Die Wiedergabe wird beim Laden eventuell nicht korrekt angezeigt. Trotzdem laden?"
+"Das Replay wird beim Laden eventuell nicht korrekt angezeigt. Trotzdem laden?"
 END
 
 GUI:Shadows2D
@@ -9714,11 +9714,11 @@ GUI:MainMenuLoadGame
 END
 
 GUI:MainMenuLoadReplay
-"WIEDERHOLUNG LADEN"
+"REPLAY LADEN"
 END
 
 GUI:LastReplay
-"Letzte Wiederholung"
+"Letztes Replay"
 END
 
 GUI:Player
@@ -14294,7 +14294,7 @@ GUI:SignalAttentionPlaced
 END
 
 GUI:TogglePauseDescription
-"Pausiert und setzt das Spiel fort. Nur Einzelspieler und Wiederholungen."
+"Pausiert und setzt das Spiel fort. Nur Einzelspieler und Replays."
 END
 
 GUI:GamePaused
@@ -14854,7 +14854,7 @@ TOOLTIP:EmptyBuildingPips
 END
 
 GUI:ArchiveReplays
-"Wiederholungen archivieren"
+"Replays archivieren"
 END
 
 TOOLTIP:ArchiveReplays
