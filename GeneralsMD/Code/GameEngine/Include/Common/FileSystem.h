@@ -140,6 +140,10 @@ public:
 
 	Bool createDirectory(AsciiString directory); ///< create a directory of the given name.
 
+	/// language when Data\<language>\Language.ini is loose or in an archive, otherwise "english".
+	/// Only meaningful once the archives are mounted.
+	AsciiString installedLanguage(const AsciiString &language) const;
+
 	Bool areMusicFilesOnCD();
 	void loadMusicFilesFromCD();
 	void unloadMusicFilesFromCD();

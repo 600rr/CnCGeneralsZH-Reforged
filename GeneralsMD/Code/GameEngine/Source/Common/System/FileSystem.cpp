@@ -252,7 +252,7 @@ Bool FileSystem::doesFileExist(const Char *filename) const
     m_fileExist[key]=true;
 		return TRUE;
 	}
-	if (TheArchiveFileSystem->doesFileExist(filename)) 
+	if (TheArchiveFileSystem != NULL && TheArchiveFileSystem->doesFileExist(filename))
   {
     m_fileExist[key]=true;
 		return TRUE;
@@ -313,6 +313,19 @@ Bool FileSystem::createDirectory(AsciiString directory)
 		return TheLocalFileSystem->createDirectory(directory);
 	}
 	return FALSE;
+}
+
+//============================================================================
+// FileSystem::installedLanguage
+//============================================================================
+/* The registry's Language outlives the files it names: a Steam install switched from German to
+	 English keeps Language=german with only EnglishZH.big beside the exe, and GlobalLanguage::init
+	 then threw on Data\german\Language.ini before the first frame (player report #39). */
+AsciiString FileSystem::installedLanguage(const AsciiString &language) const
+{
+	AsciiString probe;
+	probe.format("Data\\%s\\Language.ini", language.str());
+	return doesFileExist(probe.str()) ? language : AsciiString("english");
 }
 
 //============================================================================

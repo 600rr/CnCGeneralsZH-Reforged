@@ -183,6 +183,7 @@ static int GetSystemMetrics( int which )
 #include <math.h>
 #include <atomic>
 #include <chrono>
+#include <filesystem>
 #include <thread>
 
 //////////////////////////////////////////////////////////////////////////////
@@ -518,6 +519,27 @@ TEST(ini_missing_file_throws)
 		threw = TRUE;
 	}
 	CHECK( threw );
+}
+
+/* Player report #39: Language=german in the registry, only English data installed, and
+   GlobalLanguage::init threw on Data\german\Language.ini at startup.  GameEngine::init now asks
+   installedLanguage once the archives are up and falls back to english. */
+TEST(installed_language_falls_back_to_english_when_its_data_is_missing)
+{
+	CHECK( bootOnce() );
+
+	/* on POSIX the backslashed name is one flat file in the working directory, which is also
+	   what the test file system's fopen looks for */
+	std::error_code ec;
+	std::filesystem::create_directories( "Data/zhtestlang", ec );
+	writeFile( "Data\\zhtestlang\\Language.ini", "; test\n" );
+
+	CHECK_STR( TheFileSystem->installedLanguage( AsciiString( "zhtestlang" ) ).str(), "zhtestlang" );
+	CHECK_STR( TheFileSystem->installedLanguage( AsciiString( "zhtestnodata" ) ).str(), "english" );
+
+	remove( "Data\\zhtestlang\\Language.ini" );
+	std::filesystem::remove( "Data/zhtestlang", ec );
+	std::filesystem::remove( "Data", ec );		// only if this test made it; a non-empty one stays
 }
 
 /* An unknown block name aborts the whole file - INI::load throws
