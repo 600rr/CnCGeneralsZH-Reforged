@@ -35,6 +35,8 @@ Data/Cinema/rf_reach.txt
 Data/Cinema/rf_smoke.txt
 Data/Cinema/rf_snow.txt
 Data/Cinema/rf_tank.txt
+Data/Cinema/rf_thumb_fa.txt
+Data/Cinema/rf_thumb_fe.txt
 Data/Cinema/rf_town.txt
 Data/Cinema/rf_watch.txt
 Data/Cinema/s240_beach.txt
@@ -123,6 +125,8 @@ Data/Scenarios/rf_pin.txt
 Data/Scenarios/rf_reach.txt
 Data/Scenarios/rf_smoke.txt
 Data/Scenarios/rf_snow.txt
+Data/Scenarios/rf_thumb_fa.txt
+Data/Scenarios/rf_thumb_fe.txt
 Data/Scenarios/s240_beach.txt
 Data/Scenarios/s240_bridge.txt
 Data/Scenarios/s240_heli.txt
