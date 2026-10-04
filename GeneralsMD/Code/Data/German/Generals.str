@@ -4070,7 +4070,7 @@ CONTROLBAR:UpgradeGLAJunkRepair
 END
 
 CONTROLBAR:UpgradeGLAAPBullets
-"&Panzerbrechende Geschosse"
+"A&P-Geschosse"
 END
 
 CONTROLBAR:UpgradeGLAAPRockets
@@ -4466,7 +4466,7 @@ UPGRADE:TranqDarts
 END
 
 UPGRADE:APBullets
-"Panzerbrechende Geschosse"
+"AP-Geschosse"
 END
 
 UPGRADE:BioBomb
@@ -8950,7 +8950,7 @@ GUI:TextureLow
 END
 
 GUI:GameSpeed
-"Spielgeschwindigkeit"
+"Spieltempo"
 END
 
 GUI:SlowGameSpeed
@@ -15019,6 +15019,10 @@ END
 
 TOOLTIP:StatNewWeaponFigures
 "%d Schaden, %d Reichweite"
+END
+
+TOOLTIP:Upgrades
+"AUFRÜSTUNGEN"
 END
 
 TOOLTIP:UpgradeChanges
