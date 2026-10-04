@@ -47,6 +47,12 @@ found and fixed â€” EA's own, not port damage.**
 - A vehicle that had just parked used to start its next move with a lurch, and arrived crabbing sideways into its spot. Both are gone.
 - Groups get where they are going as fast as before. Twenty Crusaders crossing a generated map arrived on average within 3% of the old time over eight maps, and the last of them a fifth of a second later. A replay recorded before this change plays back differently.
 
+## Soldiers turn and stop on their feet
+
+- Send a running Ranger back the way he came and he used to slide backwards past his own nose for a sixth of a second while he swung round. Now his feet carry him round with the turn, and past a right angle he plants them and pivots. On a gentle bend he barely slows: through 30 degrees a Ranger keeps 85% of his pace where he used to drop to 68%, and a 90 degree corner costs him half the time it did.
+- A soldier told to stop takes three short steps to a halt instead of freezing mid-stride, about one more step of ground. Arriving at the end of a move looks the same way. He still starts walking as quickly after the click as he always did.
+- Infantry on attack move look before they step. A Ranger used to walk three paces toward the move point, stop and turn on an enemy that had been in plain sight, and a Red Guard came at it from the side and pivoted on the spot before he fired. Both now walk straight at the enemy and arrive facing it. A replay recorded before this change plays back differently.
+
 ## Tanks shoot on the move
 
 - A turret that picked its own target on the move fired once and then let go of it until its next look round, two seconds later for most units. A Technical driving past four Troop Crawlers hit them twice. It now hits every 6 frames, 11 times, as fast as it fires standing still. On the same drive a Quad Cannon went from 28 hits to 53 and a Gattling Tank from 28 to 50, and an Overlord's second shell comes 10 frames after its first instead of 38.

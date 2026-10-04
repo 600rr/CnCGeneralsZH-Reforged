@@ -53,6 +53,34 @@
 # walks a diagonal 33 degrees off the Hacker's bearing, stops 110 short from its full 0.83 in one
 # frame and pivots the 33 degrees in 2 frames on the spot before it fires. The Rebel repeats the Ranger. The Pathfinder pivots 4 frames on
 # the spot, kills the Hacker from where it stands and walks on without stopping again.
+#
+# After the infantry drive (Locomotor::moveTowardsPositionLegs, brakeLegs) and the attack-move scan
+# on the first frame for infantry. Same command line, same twelve ids, every run on CRC 0x434F4651.
+# Before is the same script over the logs above, so where it reads a frame differently from the
+# table above it does so on both sides.
+#
+#                                Ranger      Red Guard   Pathfinder  squad (8)
+#   order to first step          2 / 2       2 / 2       2 / 2       2-4 / 2-4
+#   order to top speed           7 / 7       9 / 9       10 / 10     7-9 / 7-9
+#   frames lost 30 deg           0.7 / 0.3   0.8 / 0.2   0.6 / 0.2   0.4-0.8 / 0.2-0.5
+#   60 deg                       2.3 / 1.0   2.7 / 1.0   2.2 / 1.0   1.9-2.4 / 0.9-1.0
+#   90 deg                       4.4 / 2.1   5.4 / 2.2   4.9 / 2.4   2.8-4.9 / 1.7-2.3
+#   132 deg                      6.4 / 5.1   7.5 / 5.7   8.5 / 6.3   6.1-7.0 / 4.6-5.9
+#   175 deg                      8.1 / 7.6   9.3 / 7.8   9.3 / 8.8   7.8-8.4 / 7.2-7.8
+#   least forward speed, bends   -0.135 / +0.012  -0.191 / +0.015  -0.259 / +0.018
+#   stop order                   1 frame, 0.67 / 3 frames 0.45 0.23 0, 1.33 long (Red Guard 1.67, Pathfinder 2.0)
+#   arrival brake                0.56 0.02 0 / 0.45 0.22 0.01 0, 3 to 5 off the point both times
+#
+# Nobody skids backwards any more: his walk turns with his nose, and on a bend he keeps the cosine of
+# what is still to turn, so a 30 degree bend keeps him at 74 to 90% where it used to drop him to 65 to
+# 80%. Past a right angle he stops in three frames and turns on the spot, which is why the slowest
+# speed through a reverse reads 3% now. The turn winds up and down over two frames and still peaks at
+# 16.7 degrees a frame. Attack-move: no false start on any walker or squad member (five of the eight
+# took one before). The Ranger stands still 6 frames while the approach path comes, then walks
+# straight in and stops 112 from the Hacker on frame 76 facing it (frame 77, after the false start,
+# before); the Red Guard stops 109 short on frame 77 facing it, 0 degrees off where it was 18 and
+# pivoted, on frame 79. Squad at the +840 goal: last stop 100 frames after the order (116 before),
+# 9 to 42 from the point.
 
 30    spawn      0  AirF_AmericaInfantryRanger   8   900 3500  15
 60    move       0  AirF_AmericaInfantryRanger       1298 3498

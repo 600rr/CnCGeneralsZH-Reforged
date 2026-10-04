@@ -3702,6 +3702,10 @@ StateReturnType AIAttackMoveToState::onEnter()
 	m_frameToApproachOn = 0;
 	// spread the scans of a group that was all ordered on the same frame over the scan interval.
 	m_frameToScanOn = TheGameLogic->getFrame() + ((UnsignedInt)owner->getID() % ATTACK_MOVE_SCAN_RATE);
+	/* A soldier looks before he steps. Spread like the rest, a Ranger walked three steps towards the
+		 move point, stopped and turned on an enemy that had been in sight from the start. */
+	if (owner->isKindOf(KINDOF_INFANTRY))
+		m_frameToScanOn = TheGameLogic->getFrame();
 
 	return AIMoveToState::onEnter();
 }

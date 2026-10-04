@@ -416,7 +416,9 @@ protected:
 
 	void maintainCurrentPositionThrust(Object* obj, PhysicsBehavior *physics);
 	void maintainCurrentPositionOther(Object* obj, PhysicsBehavior *physics);
-	void maintainCurrentPositionLegs(Object* obj, PhysicsBehavior *physics) { maintainCurrentPositionOther(obj, physics); }
+	Bool maintainCurrentPositionLegs(Object* obj, PhysicsBehavior *physics);
+	Bool brakeLegs(Object* obj, PhysicsBehavior *physics);
+	Real getLegsStopDecel(const Object* obj) const;
 	void maintainCurrentPositionWheels(Object* obj, PhysicsBehavior *physics) { maintainCurrentPositionOther(obj, physics); }
 	void maintainCurrentPositionTreads(Object* obj, PhysicsBehavior *physics) { maintainCurrentPositionOther(obj, physics); }
 	void maintainCurrentPositionHover(Object* obj, PhysicsBehavior *physics);

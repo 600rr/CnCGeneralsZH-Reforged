@@ -81,6 +81,10 @@ static const Real VEHICLE_CORNER_GRIP = 0.5f;					// share of its braking a car 
 static const Real WHEEL_MIN_RADIUS_BODY_LENGTHS = 1.5f;	// a car turns no tighter than this, unless that arc cannot reach the goal
 static const Real WHEEL_TIGHT_RADIUS_BODY_LENGTHS = 0.3f;	// and then crawls round this, at its turn speed
 
+// Infantry on two legs (moveTowardsPositionLegs, maintainCurrentPositionLegs).
+static const Real INFANTRY_YAW_EASE_FRAMES = 2.0f;		// frames for a turn on the move to wind up to TurnRate, or back down from it
+static const Real INFANTRY_STOP_FRAMES = 3.0f;				// a soldier stops from top speed in this many frames, whatever its Braking
+
 
 #define MAX_BRAKING_FACTOR 5.0f
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1077,6 +1081,9 @@ void Locomotor::locoUpdate_moveTowardsAngle(Object* obj, Real goalAngle)
 			brakeHelicopter(obj, physics);
 			m_yawRate = 0.0f;	// this turn is rotateTowardsPosition's, which parking needs to stop dead on the heading
 		}
+		// a soldier turning to aim may still be walking off the end of his approach
+		if (m_template->m_appearance == LOCO_LEGS_TWO)
+			brakeLegs(obj, physics);
 		handleBehaviorZ(obj, physics, *obj->getPosition());
 	}
 
@@ -1110,7 +1117,7 @@ void Locomotor::setPhysicsOptions(Object* obj)
 	physics->setStickToGround(getStickToGround()); // walking guys aren't allowed to catch huge (or even small) air.
 	Bool helicopter = isHelicopter(obj);
 	physics->setMotiveSteersSideways(helicopter);
-	if (!helicopter && !isGroundVehicle(obj))
+	if (!helicopter && !isGroundVehicle(obj) && m_template->m_appearance != LOCO_LEGS_TWO)
 	{
 		// landed, taxiing or dying: whatever it was pulling or swinging when it last flew or drove is over
 		m_yawRate = 0.0f;
@@ -2197,26 +2204,32 @@ void Locomotor::moveTowardsPositionLegs(Object* obj, PhysicsBehavior *physics, c
 	}
 	
 	Real relAngle = stdAngleDiff(desiredAngle, angle);
-	locoUpdate_moveTowardsAngle(obj, desiredAngle);
+	if (fabs(goalPos.x - obj->getPosition()->x) < 0.1f && fabs(goalPos.y - obj->getPosition()->y) < 0.1f)
+		relAngle = 0.0f;	// right on it the bearing is rounding noise
 
-	//
-	// Modulate speed according to turning. The more we have to turn, the slower we go
-	//
-	const Real QUARTERPI = PI / 4.0f;
-	Real angleCoeff = (Real)fabs( relAngle ) / (QUARTERPI);
-	if (angleCoeff > 1.0f)
-		angleCoeff = 1.0;
+	/* EA swung the nose at a flat TurnRate and left the walk on its old line, so a soldier sent back
+		 the way he came skidded backwards past his own nose for five frames while it came round, and any
+		 bend past 45 degrees took his speed to nothing. The turn now winds up and down over
+		 INFANTRY_YAW_EASE_FRAMES, his feet carry the walk round with the nose, and his speed follows the
+		 cosine of what is left to turn: nearly all of it on a gentle bend, none past a right angle, where
+		 he stops in INFANTRY_STOP_FRAMES and turns on the spot. */
+	Real turnRate = getMaxTurnRate(obj->getBodyModule()->getDamageState());
+	turnVehicle(obj, physics, easeYaw(relAngle, turnRate, turnRate / INFANTRY_YAW_EASE_FRAMES));
 
-	Real goalSpeed = (1.0f - angleCoeff) * desiredSpeed;
+	Real goalSpeed = desiredSpeed * Cos(relAngle);
+	if (goalSpeed < 0.0f)
+		goalSpeed = 0.0f;
 
-	//Real slowDownDist = (actualSpeed - m_template->m_minSpeed) / getBraking();
-	Real slowDownDist = calcSlowDownDist(actualSpeed, m_template->m_minSpeed, getBraking());
-	if (onPathDistToGoal < slowDownDist && !getFlag(NO_SLOW_DOWN_AS_APPROACHING_DEST))
+	// the fastest he can still stop from before the end of the route
+	Real stopDecel = getLegsStopDecel(obj);
+	if (!getFlag(NO_SLOW_DOWN_AS_APPROACHING_DEST))
 	{
-		goalSpeed = m_template->m_minSpeed;
+		Real stopSpeed = sqrt(2.0f * stopDecel * onPathDistToGoal);
+		if (goalSpeed > stopSpeed)
+			goalSpeed = stopSpeed;
 	}
-
-
+	if (goalSpeed < m_template->m_minSpeed)
+		goalSpeed = m_template->m_minSpeed;
 
 	//
 	// Maintain goal speed
@@ -2225,7 +2238,7 @@ void Locomotor::moveTowardsPositionLegs(Object* obj, PhysicsBehavior *physics, c
 	if (speedDelta != 0.0f)
 	{
 		Real mass = physics->getMass();
-		Real acceleration = (speedDelta > 0.0f) ? maxAcceleration : -getBraking();
+		Real acceleration = (speedDelta > 0.0f) ? maxAcceleration : -stopDecel;
 		Real accelForce = mass * acceleration;
 
 		/*
@@ -3297,12 +3310,8 @@ Bool Locomotor::locoUpdate_maintainCurrentPosition(Object* obj)
 			requiresConstantCalling = TRUE;
 			break;
 		case LOCO_LEGS_TWO:
-			maintainCurrentPositionLegs(obj, physics);
-			requiresConstantCalling = FALSE;
-			break;
 		case LOCO_CLIMBER:
-			maintainCurrentPositionLegs(obj, physics);
-			requiresConstantCalling = FALSE;
+			requiresConstantCalling = maintainCurrentPositionLegs(obj, physics);
 			break;
 		case LOCO_WHEELS_FOUR:
 		case LOCO_MOTORCYCLE:
@@ -3449,6 +3458,41 @@ void Locomotor::maintainCurrentPositionHover(Object* obj, PhysicsBehavior *physi
 		}
 	}
 
+}
+
+//-------------------------------------------------------------------------------------------------
+/// a soldier with nowhere to go comes to a stop; TRUE while he still moves
+Bool Locomotor::maintainCurrentPositionLegs(Object* obj, PhysicsBehavior *physics)
+{
+	physics->setTurning(TURN_NONE);
+	return brakeLegs(obj, physics);
+}
+
+//-------------------------------------------------------------------------------------------------
+/**
+	Take a soldier's walk off at getLegsStopDecel a frame, along whatever line it is on; TRUE while
+	some is left. EA zeroed it on the frame of a stop order or an arrival, and the man stood dead
+	still in mid-stride.
+*/
+Bool Locomotor::brakeLegs(Object* obj, PhysicsBehavior *physics)
+{
+	m_yawRate = 0.0f;	// a turn from here is rotateTowardsPosition's
+	if (!physics->isMotive())	// no need to stop something that isn't moving
+		return FALSE;
+	const Coord3D *vel = physics->getVelocity();
+	Real speed = sqrt(vel->x*vel->x + vel->y*vel->y) - getLegsStopDecel(obj);
+	physics->scrubVelocity2D(speed > 0.0f ? speed : 0.0f);
+	return speed > 0.0f;
+}
+
+//-------------------------------------------------------------------------------------------------
+/// the hardest a soldier brakes: his Braking, or whatever stops him from top speed in INFANTRY_STOP_FRAMES
+Real Locomotor::getLegsStopDecel(const Object* obj) const
+{
+	Real decel = getMaxSpeedForCondition(obj->getBodyModule()->getDamageState()) / INFANTRY_STOP_FRAMES;
+	if (decel < getBraking())
+		decel = getBraking();
+	return decel;
 }
 
 //-------------------------------------------------------------------------------------------------
