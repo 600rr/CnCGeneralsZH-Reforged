@@ -98,6 +98,12 @@ public:
 	// light is baked into the vertices, so its bump is shaded against this.
 	void Set_Terrain_Sun(const float direction[3]);
 
+	// The vehicle headlights for the frame, eight floats a light: world position, reach, world
+	// direction, cosine of the cone's edge.  Past HEADLIGHT_SLOTS the rest are dropped; the caller
+	// sorts them nearest first.  Zero lights leaves every program's pixels as they were.  The gain
+	// is what a pixel gains per channel per unit of light (HEADLIGHT_SAMPLING).
+	void Set_Headlights(const float * lights, unsigned count, const float gain[3]);
+
 	// The engine bound a texture at this stage that has no D3D11 copy - a render target it drew
 	// into, most often.  Sampling white there paints a full screen quad over the frame, so a draw
 	// that reads one is refused instead.
@@ -339,6 +345,13 @@ private:
 		// what is behind it, zero on a frame without; the same for a particle shading itself; one
 		// for a draw in camera space; and the power on the self-shade.
 		float VolumeParameters[4];
+		// The headlights (HEADLIGHT_SAMPLING): the pixel's way back to the world, how many slots
+		// are lit and the gain per channel, then each slot's position and reach and its direction
+		// and cone edge.
+		float WorldFromClip[16];
+		float HeadlightParameters[4];
+		float HeadlightPosition[HEADLIGHT_SLOTS][4];
+		float HeadlightDirection[HEADLIGHT_SLOTS][4];
 	};
 	// A model under directional lights, drawn by generated programs.
 	bool Normal_Mapped() const;
@@ -426,6 +439,7 @@ private:
 	// kept until one of them changes, because an inverse a draw does not need is an inverse nobody
 	// should pay for.
 	float ShadowFromClip[16];
+	float WorldFromClip[16];
 	float ShadowFromClipView[16];
 	float ShadowFromClipProjection[16];
 	bool ShadowFromClipValid;
@@ -457,6 +471,10 @@ private:
 	bool SmokeMapRefused;
 	bool SmokeMapFilled;
 	float SmokeStrength;
+	// Set_Headlights' slots, eight floats each, how many are lit and the gain per channel.
+	float Headlights[HEADLIGHT_SLOTS][8];
+	unsigned HeadlightCount;
+	float HeadlightGain[3];
 	bool Make_Smoke_Map();
 	void Release_Smoke_Map();
 

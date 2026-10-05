@@ -324,6 +324,10 @@ DX11BackendClass::DX11BackendClass()
 	SmokeMapRefused = false;
 	SmokeMapFilled = false;
 	SmokeStrength = 0.0f;
+	memset(Headlights, 0, sizeof(Headlights));
+	HeadlightCount = 0;
+	memset(HeadlightGain, 0, sizeof(HeadlightGain));
+	set_identity(WorldFromClip);
 	for (unsigned stage = 0; stage < DX11_BACKEND_TEXTURE_STAGES; ++stage) {
 		set_identity(TextureTransforms[stage]);
 	}
@@ -1178,6 +1182,23 @@ bool DX11BackendClass::Terrain_Bumped() const
 void DX11BackendClass::Set_Terrain_Sun(const float direction[3])
 {
 	memcpy(TerrainSun, direction, sizeof(TerrainSun));
+	ConstantsChanged = true;
+}
+
+void DX11BackendClass::Set_Headlights(const float * lights, unsigned count, const float gain[3])
+{
+	if (count > HEADLIGHT_SLOTS) {
+		count = HEADLIGHT_SLOTS;
+	}
+	if (count == HeadlightCount && memcmp(HeadlightGain, gain, sizeof(HeadlightGain)) == 0
+		&& (count == 0 || memcmp(Headlights, lights, sizeof(float) * 8 * count) == 0)) {
+		return;
+	}
+	if (count > 0) {
+		memcpy(Headlights, lights, sizeof(float) * 8 * count);
+	}
+	memcpy(HeadlightGain, gain, sizeof(HeadlightGain));
+	HeadlightCount = count;
 	ConstantsChanged = true;
 }
 
@@ -2247,6 +2268,7 @@ void DX11BackendClass::Upload_Pixel_Constants()
 			multiply(world_to_camera, Projection, scene_clip);
 			if (invert(scene_clip, clip_to_world)) {
 				multiply(clip_to_world, SunViewProjection, ShadowFromClip);
+				memcpy(WorldFromClip, clip_to_world, sizeof(WorldFromClip));
 				memcpy(ShadowFromClipView, world_to_camera, sizeof(View));
 				memcpy(ShadowFromClipProjection, Projection, sizeof(Projection));
 				ShadowFromClipValid = true;
@@ -2270,6 +2292,13 @@ void DX11BackendClass::Upload_Pixel_Constants()
 		pixel_block.ShadowSoftness[1] = ShadowTexelsPerGap;
 		pixel_block.ShadowSoftness[2] = ShadowUnitsPerDepth;
 		pixel_block.ShadowSoftness[3] = ShadowSkyFill;
+		memcpy(pixel_block.WorldFromClip, WorldFromClip, sizeof(pixel_block.WorldFromClip));
+		pixel_block.HeadlightParameters[0] = static_cast<float>(HeadlightCount);
+		memcpy(&pixel_block.HeadlightParameters[1], HeadlightGain, sizeof(HeadlightGain));
+		for (unsigned slot = 0; slot < HeadlightCount; ++slot) {
+			memcpy(pixel_block.HeadlightPosition[slot], &Headlights[slot][0], sizeof(float) * 4);
+			memcpy(pixel_block.HeadlightDirection[slot], &Headlights[slot][4], sizeof(float) * 4);
+		}
 	}
 
 	/* The sky a metal surface mirrors.  There is no cubemap: the colour is the map's own sunlight,

@@ -120,6 +120,10 @@ void Direct3D11_Mirror_Normal_Map(struct IDirect3DBaseTexture9 * normal_map);
 
 // The way the sun's light travels, world space, for the bumped terrain.  Set once a frame.
 void Direct3D11_Set_Terrain_Sun(const float direction[3]);
+// The vehicle headlights for the frame, nearest the camera first, eight floats each: world
+// position, reach, world direction, cosine of the cone's edge; and what a pixel gains per channel
+// per unit of their light.  A Direct3D 9 run ignores them.
+void Direct3D11_Set_Headlights(const float * lights, unsigned count, const float gain[3]);
 unsigned long long Direct3D11_Normal_Mapped_Draws();
 
 // The sun's depth buffer.  Between Begin and End every draw lands in it and nowhere else, which is

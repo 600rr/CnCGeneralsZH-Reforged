@@ -290,6 +290,13 @@ void Direct3D11_Set_Terrain_Sun(const float direction[3])
 	}
 }
 
+void Direct3D11_Set_Headlights(const float * lights, unsigned count, const float gain[3])
+{
+	if (Active) {
+		Backend.Set_Headlights(lights, count, gain);
+	}
+}
+
 unsigned long long Direct3D11_Normal_Mapped_Draws()
 {
 	return Active ? Backend.Normal_Mapped_Draw_Count() : 0;

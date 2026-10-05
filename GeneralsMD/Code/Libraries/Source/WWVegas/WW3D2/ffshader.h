@@ -305,18 +305,68 @@ const unsigned NORMAL_MAPPED_LIGHTS = 4;
 	"    else sun = sun_reaching(position);\n" \
 	"    return sun * smoke_reaching(position);\n" \
 	"}\n" \
+	"\n" \
+	HEADLIGHT_SAMPLING
+
+// Vehicle headlights on a night map, Direct3D 11 only and riding on the smoke's text for that
+// reason: one spot light per lit vehicle, the nearest HEADLIGHT_SLOTS to the camera
+// (W3DModelDraw::lightHeadlights).  Each slot is a world position with the reach in w and a world
+// direction with the cosine of the cone's edge in w.  The pixel goes back to the world through
+// WorldFromClip, the inverse of the matrix it was drawn with, and its facing comes from the
+// derivatives because the generated programs carry no normal to the pixel half.  The light is a
+// gain on the pixel rather than an addition: what the map's own light left at black (the shroud,
+// a black texel) stays black, and a count of zero leaves every pixel exactly as it was.  The gain
+// per channel (HeadlightParameters.yzw) is the lamp's warm white over the map's own terrain light,
+// so a pixel the blue moon lit gains what the lamp would have given its texture: under a cold moon
+// the red channel gains most and the lit ground turns warm.  The derivatives are taken before the
+// loop, outside any flow control.
+#define HEADLIGHT_SLOTS 16
+#define HEADLIGHT_SLOTS_TEXT "16"
+#define HEADLIGHT_SAMPLING \
+	"float3 headlight_reaching(float4 position)\n" \
+	"{\n" \
+	"    float2 ndc = float2(position.x * ShadowViewport.x * 2.0 - 1.0,\n" \
+	"                        1.0 - position.y * ShadowViewport.y * 2.0);\n" \
+	"    float4 world = mul(float4(ndc, position.z, 1.0), WorldFromClip);\n" \
+	"    world.xyz /= world.w;\n" \
+	"    float3 facing = cross(ddx(world.xyz), ddy(world.xyz));\n" \
+	"    float3 surface = facing * rsqrt(max(dot(facing, facing), 1e-20));\n" \
+	"    float light = 0.0;\n" \
+	"    int count = (int)HeadlightParameters.x;\n" \
+	"    [loop] for (int i = 0; i < count; ++i) {\n" \
+	"        float3 to = world.xyz - HeadlightPosition[i].xyz;\n" \
+	"        float reach = HeadlightPosition[i].w;\n" \
+	"        float dist = length(to);\n" \
+	"        if (dist >= reach) continue;\n" \
+	"        float3 way = to / max(dist, 0.001);\n" \
+	"        float edge = HeadlightDirection[i].w;\n" \
+	"        float cone = smoothstep(edge, lerp(edge, 1.0, 0.6), dot(way, HeadlightDirection[i].xyz));\n" \
+	"        float near = dist / reach;\n" \
+	"        float fall = 1.0 - near * near;\n" \
+	"        light += cone * fall * (0.4 + 0.6 * abs(dot(surface, way)));\n" \
+	"    }\n" \
+	"    // a knee, so a dozen cones over one square do not wash it out white\n" \
+	"    light = 2.0 * light / (2.0 + light);\n" \
+	"    return light * HeadlightParameters.yzw;\n" \
+	"}\n" \
 	"\n"
 
-// The constant block's field for it, declared after SkyUp: DX11BackendClass::PixelConstantBlock.
+// The constant block's fields for it, declared after SkyUp: DX11BackendClass::PixelConstantBlock.
 #define VOLUMETRIC_CONSTANTS \
-	"    float4 VolumeParameters;\n"
+	"    float4 VolumeParameters;\n" \
+	"    row_major float4x4 WorldFromClip;\n" \
+	"    float4 HeadlightParameters;\n" \
+	"    float4 HeadlightPosition[" HEADLIGHT_SLOTS_TEXT "];\n" \
+	"    float4 HeadlightDirection[" HEADLIGHT_SLOTS_TEXT "];\n"
 
 // SHADOW_APPLY with the smoke in it.  A particle takes the shade whatever its own brightness: the
 // threshold is there for ground under the shroud, and on smoke it tied the shade to the colour, so
 // the fire's glow, lifting a dark plume over the threshold, made it take more shade and go darker.
+// The headlights come after the shade: a shadow is the sun's, and a lamp shines into it.
 #define VOLUMETRIC_SHADOW_APPLY SHADOW_LIT \
 	"    if (VolumeParameters.z > 0.5) shadow_lit = 1.0;\n" \
-	"    current.rgb *= lerp(1.0, light_reaching(input.Position), shadow_lit);\n"
+	"    current.rgb *= lerp(1.0, light_reaching(input.Position), shadow_lit);\n" \
+	"    current.rgb = saturate(current.rgb * (1.0 + headlight_reaching(input.Position)));\n"
 
 // The HLSL for one description, or false when the description names an operation or an argument
 // this does not generate.  A refusal is not a failure: the caller keeps the fixed-function path for

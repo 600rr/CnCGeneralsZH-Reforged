@@ -71,6 +71,7 @@ static void drawFramerateBar(void);
 
 #include "GameClient/Drawable.h"
 #include "W3DDevice/GameClient/W3DSmoothMotion.h"
+#include "W3DDevice/GameClient/Module/W3DModelDraw.h"
 #include "GameLogic/Object.h"
 #include "GameClient/Keyboard.h"		// TheKeyboard; on Windows WinMain.h brought it too
 #include "Platform/SleepMilliseconds.h"
@@ -2529,6 +2530,10 @@ AGAIN:
 
 			// R1: after the particles read the logic bones (Lorenzen's note above), before anything renders.
 			smoothMotionApply();
+
+			// After the smooth motion, so a lamp's light sits where its model is drawn this frame.
+			if (primaryW3DView && primaryW3DView->get3DCamera())
+				W3DModelDraw::lightHeadlights(primaryW3DView->get3DCamera()->Get_Position());
 
 			if (TheWaterRenderObj)
 				TheWaterRenderObj->updateRenderTargetTextures(primaryW3DView->get3DCamera());	//do a render into each texture
