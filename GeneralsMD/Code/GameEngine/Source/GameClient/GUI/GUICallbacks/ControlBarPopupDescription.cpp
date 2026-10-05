@@ -185,38 +185,58 @@ static void findUpgradeEffects( const ThingTemplate *thing, UpgradeEffects &effe
 	}
 }
 
-/** One weapon slot's figures; `weapon` NULL for a slot with nothing in it that hurts. */
-struct WeaponFigures
+//-------------------------------------------------------------------------------------------------
+/** A clip fires its shots a delay apart and then reloads in place of the last delay.  A weapon that
+	* does no damage, the dummies that hold a slot until an upgrade fills it, is none. */
+//-------------------------------------------------------------------------------------------------
+WeaponFigures ControlBarWeaponFigures( const WeaponTemplate *weapon, const WeaponBonus &bonus )
 {
-	const WeaponTemplate *weapon;
-	Real damage;
-	Real range;
-	Real attacksPerSecond;
-};
+	WeaponFigures figure = {};
+	if( weapon->getDamageType() == DAMAGE_HEALING || !IsHealthDamagingDamage( weapon->getDamageType() ) )
+		return figure;
 
-/** A unit's health and its weapons, slot by slot. */
-struct UnitFigures
-{
-	Real health;
-	WeaponFigures slots[ WEAPONSLOT_COUNT ];
+	const Real damage = weapon->getPrimaryDamage( bonus );
+	if( damage <= 0.0f )
+		return figure;
+	const Real delay = max( 1.0f, INT_TO_REAL( weapon->getMinDelayBetweenShots() + weapon->getMaxDelayBetweenShots() ) * 0.5f
+																	/ bonus.getField( WeaponBonus::RATE_OF_FIRE ) );
+	const Int clip = weapon->getClipSize();
+	const Real cycle = clip > 0 ? ( clip - 1 ) * delay + max( 1, weapon->getClipReloadTime( bonus ) ) : delay;
 
-	/** The slot with the most damage a second, WEAPONSLOT_COUNT for an unarmed unit. */
-	Int mainSlot( void ) const
-	{
-		Int best = WEAPONSLOT_COUNT;
-		for( Int slot = PRIMARY_WEAPON; slot < WEAPONSLOT_COUNT; ++slot )
-			if( slots[ slot ].weapon && ( best == WEAPONSLOT_COUNT || slots[ slot ].damage * slots[ slot ].attacksPerSecond
-																																> slots[ best ].damage * slots[ best ].attacksPerSecond ) )
-				best = slot;
-		return best;
-	}
-};
+	figure.weapon = weapon;
+	figure.damage = damage;
+	figure.range = weapon->getAttackRange( bonus );
+	figure.attacksPerSecond = ( clip > 0 ? clip : 1 ) * LOGICFRAMES_PER_SECOND / cycle;
+	return figure;
+}
 
 //-------------------------------------------------------------------------------------------------
-/** `thing`'s figures with `effect` applied, read off the template the way Weapon::computeBonus
-	* reads an object: the game's own weapon bonuses and the weapon's extra ones for the conditions
-	* set.  A clip fires its shots a delay apart and then reloads in place of the last delay.  A
-	* weapon that does no damage, the dummies that hold a slot until an upgrade fills it, is none. */
+/** Read off the template the way Weapon::computeBonus reads an object: the game's own weapon
+	* bonuses and the weapon's extra ones for the conditions set. */
+//-------------------------------------------------------------------------------------------------
+void ControlBarTemplateWeaponFigures( const ThingTemplate *thing, const WeaponSetFlags &setFlags,
+																			WeaponBonusConditionFlags bonusFlags, UnitFigures &figures )
+{
+	const WeaponTemplateSet *set = thing->findWeaponTemplateSet( setFlags );
+	if( set == NULL )
+		return;
+
+	for( Int slot = PRIMARY_WEAPON; slot < WEAPONSLOT_COUNT; ++slot )
+	{
+		const WeaponTemplate *weapon = set->getNth( (WeaponSlotType)slot );
+		if( weapon == NULL )
+			continue;
+
+		WeaponBonus bonus;
+		TheGlobalData->m_weaponBonusSet->appendBonuses( bonusFlags, bonus );
+		if( weapon->getExtraBonus() )
+			weapon->getExtraBonus()->appendBonuses( bonusFlags, bonus );
+		figures.slots[ slot ] = ControlBarWeaponFigures( weapon, bonus );
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+/** `thing`'s figures with `effect` applied. */
 //-------------------------------------------------------------------------------------------------
 static UnitFigures figuresOf( const ThingTemplate *thing, const UpgradeEffect &effect )
 {
@@ -227,35 +247,7 @@ static UnitFigures figuresOf( const ThingTemplate *thing, const UpgradeEffect &e
 	if( effect.weaponSet )
 		setFlags.set( WEAPONSET_PLAYER_UPGRADE );
 	const WeaponBonusConditionFlags bonusFlags = effect.weaponBonus ? ( 1 << WEAPONBONUSCONDITION_PLAYER_UPGRADE ) : 0;
-	const WeaponTemplateSet *set = thing->findWeaponTemplateSet( setFlags );
-	if( set == NULL )
-		return figures;
-
-	for( Int slot = PRIMARY_WEAPON; slot < WEAPONSLOT_COUNT; ++slot )
-	{
-		const WeaponTemplate *weapon = set->getNth( (WeaponSlotType)slot );
-		if( weapon == NULL || weapon->getDamageType() == DAMAGE_HEALING || !IsHealthDamagingDamage( weapon->getDamageType() ) )
-			continue;
-
-		WeaponBonus bonus;
-		TheGlobalData->m_weaponBonusSet->appendBonuses( bonusFlags, bonus );
-		if( weapon->getExtraBonus() )
-			weapon->getExtraBonus()->appendBonuses( bonusFlags, bonus );
-
-		const Real damage = weapon->getPrimaryDamage( bonus );
-		if( damage <= 0.0f )
-			continue;
-		const Real delay = max( 1.0f, INT_TO_REAL( weapon->getMinDelayBetweenShots() + weapon->getMaxDelayBetweenShots() ) * 0.5f
-																		/ bonus.getField( WeaponBonus::RATE_OF_FIRE ) );
-		const Int clip = weapon->getClipSize();
-		const Real cycle = clip > 0 ? ( clip - 1 ) * delay + max( 1, weapon->getClipReloadTime( bonus ) ) : delay;
-
-		WeaponFigures &figure = figures.slots[ slot ];
-		figure.weapon = weapon;
-		figure.damage = damage;
-		figure.range = weapon->getAttackRange( bonus );
-		figure.attacksPerSecond = ( clip > 0 ? clip : 1 ) * LOGICFRAMES_PER_SECOND / cycle;
-	}
+	ControlBarTemplateWeaponFigures( thing, setFlags, bonusFlags, figures );
 	return figures;
 }
 

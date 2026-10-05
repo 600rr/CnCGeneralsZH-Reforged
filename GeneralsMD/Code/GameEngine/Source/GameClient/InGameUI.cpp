@@ -116,6 +116,7 @@
 #include "GameLogic/Module/BodyModule.h"
 #include "GameLogic/Module/JetAIUpdate.h"
 #include "GameLogic/Weapon.h"
+#include "GameLogic/Armor.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/RankInfo.h"
 #include "GameLogic/GameLogic.h"
@@ -11499,9 +11500,10 @@ static void putPowerBar( HtmlValues &values, std::vector< HtmlValues > &cells )
 	* right panel: `cells` from the bottom up, each {{lit}} "lit" up to the way from this rank to the
 	* next, at {{y}} and {{h}} pixels inside the lip, and `stars` one per rank, {{lit}} up to the rank
 	* reached.  The groove's border goes on top of its size in the page, so expframe.w and .h are cut
-	* to its inside here.  Watching, it is the watched player's. */
+	* to its inside here.  `player` is the general it is of, the watched one while watching and NULL
+	* when nobody is, which leaves the groove empty; the caller stands the groove down then. */
 //-------------------------------------------------------------------------------------------------
-static void putExperienceBar( HtmlValues &values, std::vector< HtmlValues > &cells, std::vector< HtmlValues > &stars )
+static void putExperienceBar( HtmlValues &values, const Player *player, std::vector< HtmlValues > &cells, std::vector< HtmlValues > &stars )
 {
 	enum { FRAME_BORDER = 2, FRAME_LIP = 1, EXPERIENCE_CELLS = 10, FULL = 100 };
 
@@ -11511,8 +11513,6 @@ static void putExperienceBar( HtmlValues &values, std::vector< HtmlValues > &cel
 	values[ "expframe.h" ] = std::to_string( max( 0, height ) );
 	values[ "expframe.innerw" ] = std::to_string( max( 0, width - 2 * FRAME_LIP ) );
 
-	const Player *player = TheControlBar->isObserverControlBarOn() ? TheControlBar->getObserverLookAtPlayer()
-																																 : ThePlayerList->getLocalPlayer();
 	if( player == NULL )
 	{
 		cells.clear();
@@ -11907,14 +11907,39 @@ static void putWell( std::vector< HtmlValues > &wells, size_t &filled, const IRe
 	putPageRect( entry, "header", wellHeader( well, scale ), headed, scale );
 }
 
-/** A lone unit's name, rank and health for the page, beside its portrait `portrait` in the
-	* selection's well `well`: {{selinfo.x}} .y .w .h, {{sel.name}}, data-each="selstars" a star for
-	* each veterancy level it has, {{sel.health}} "820/1000", {{sel.healthw}} the bar's lit width in
-	* page pixels out of selinfo.w, and {{sel.healthstate}} "green", "yellow" or "red". */
-static void putSelectedUnit( HtmlValues &values, std::vector< HtmlValues > &stars, const IRegion2D &portrait,
-														 const IRegion2D &well, Bool shown )
+/** The damage a lone unit's armour is shown against, what most of the fighting deals, each under its
+	* label in the string table. */
+static const struct { DamageType type; const char *label; } SHOWN_ARMOR[] =
 {
-	enum { INFO_GAP = 6, HEALTH_YELLOW_PERCENT = 50, HEALTH_RED_PERCENT = 25, STAR_PITCH = 11 };
+	{ DAMAGE_SMALL_ARMS, "TOOLTIP:StatVsGuns" },
+	{ DAMAGE_ARMOR_PIERCING, "TOOLTIP:StatVsShells" },
+	{ DAMAGE_INFANTRY_MISSILE, "TOOLTIP:StatVsRockets" },
+	{ DAMAGE_EXPLOSION, "TOOLTIP:StatVsBlast" },
+};
+
+/** One column of the figures under a lone unit's health, {{x}} its left in page pixels, {{label}}
+	* over {{value}}, and {{state}} "strong", "weak" or nothing. */
+static void putFigureColumn( std::vector< HtmlValues > &columns, Int column, Int count, Int width, const char *label,
+														 const std::string &value, const char *state )
+{
+	HtmlValues &entry = listEntry( columns, column );
+	entry[ "x" ] = std::to_string( column * width / count );
+	entry[ "label" ] = WideCharStringToMultiByte( TheGameText->fetch( label ).str() );
+	entry[ "value" ] = value;
+	entry[ "state" ] = state;
+}
+
+/** A lone unit's name, rank, health, main weapon and armour for the page, beside its portrait
+	* `portrait` in the selection's well `well`: {{selinfo.x}} .y .w .h, {{sel.name}},
+	* data-each="selstars" a star for each veterancy level it has, {{sel.health}} "820/1000",
+	* {{sel.healthw}} the bar's lit width in page pixels out of selinfo.w, {{sel.healthstate}} "green",
+	* "yellow" or "red", data-each="selweapon" the main weapon's damage, damage a second and range and
+	* data-each="selarmor" what its armour does to each of SHOWN_ARMOR, "-75%".  Both are the object's
+	* as it stands - the weapon set it carries, its veterancy, upgrades and container, the armour set
+	* its upgrades put on - read through the same const calls the logic makes. */
+static void putSelectedUnit( HtmlValues &values, HtmlLists &lists, const IRegion2D &portrait, const IRegion2D &well, Bool shown )
+{
+	enum { INFO_GAP = 6, HEALTH_YELLOW_PERCENT = 50, HEALTH_RED_PERCENT = 25, STAR_PITCH = 11, WEAPON_FIGURES = 3 };
 	const Real scale = ControlBarHudScale();
 	IRegion2D info = portrait;
 	info.lo.x = portrait.hi.x + REAL_TO_INT( INFO_GAP * scale );
@@ -11924,16 +11949,25 @@ static void putSelectedUnit( HtmlValues &values, std::vector< HtmlValues > &star
 	const Object *object = drawable ? drawable->getObject() : NULL;
 	shown = shown && object != NULL;
 	putPageRect( values, "selinfo", info, shown, scale );
+	std::vector< HtmlValues > &stars = lists[ "selstars" ];
+	std::vector< HtmlValues > &weaponColumns = lists[ "selweapon" ];
+	std::vector< HtmlValues > &armorColumns = lists[ "selarmor" ];
 	stars.clear();
 	if( !shown )
+	{
+		weaponColumns.clear();
+		armorColumns.clear();
 		return;
+	}
 
 	// an enemy in disguise is what he looks like, as his portrait is (ControlBar::setPortraitByObject):
-	// the disguise's name, and no rank or health, which are his own
+	// the disguise's name, and no rank, health, weapon or armour, which are his own
 	if( drawable->getStealthLook() == STEALTHLOOK_DISGUISED_ENEMY )
 	{
 		values[ "sel.name" ] = WideCharStringToMultiByte( drawable->getTemplate()->getDisplayName().str() );
 		values[ "sel.healthshown" ] = "hidden";
+		weaponColumns.clear();
+		armorColumns.clear();
 		return;
 	}
 
@@ -11953,6 +11987,63 @@ static void putSelectedUnit( HtmlValues &values, std::vector< HtmlValues > &star
 	values[ "sel.health" ] = std::to_string( health ) + "/" + std::to_string( maxHealth );
 	values[ "sel.healthw" ] = std::to_string( atoi( values[ "selinfo.w" ].c_str() ) * health / maxHealth );
 	values[ "sel.healthstate" ] = percent <= HEALTH_RED_PERCENT ? "red" : percent <= HEALTH_YELLOW_PERCENT ? "yellow" : "green";
+
+	// a unit of the local player's or an ally's shows its figures as they stand; anybody else's only
+	// with the veterancy his stars show already, since his upgrades, battle plans and horde are what
+	// he has researched and planned.  A watcher is in nobody's match and sees everything
+	const Player *local = ThePlayerList->getLocalPlayer();
+	const Bool ours = localPlayerWatching() || object->getControllingPlayer() == local
+										|| local->getRelationship( object->getTeam() ) == ALLIES;
+	const Int width = atoi( values[ "selinfo.w" ].c_str() );
+	UnitFigures figures = {};
+	if( ours )
+	{
+		for( Int slot = PRIMARY_WEAPON; slot < WEAPONSLOT_COUNT; slot++ )
+		{
+			const Weapon *weapon = object->getWeaponInWeaponSlot( (WeaponSlotType)slot );
+			if( weapon == NULL )
+				continue;
+			WeaponBonus bonus;
+			weapon->computeBonus( object, 0, bonus );
+			figures.slots[ slot ] = ControlBarWeaponFigures( weapon->getTemplate(), bonus );
+		}
+	}
+	else
+	{
+		enum { VETERANCY_BONUSES = ( 1 << WEAPONBONUSCONDITION_VETERAN ) | ( 1 << WEAPONBONUSCONDITION_ELITE ) | ( 1 << WEAPONBONUSCONDITION_HERO ) };
+		WeaponSetFlags setFlags = object->getWeaponSetFlags();
+		setFlags.set( WEAPONSET_PLAYER_UPGRADE, 0 );
+		ControlBarTemplateWeaponFigures( object->getTemplate(), setFlags, object->getWeaponBonusCondition() & VETERANCY_BONUSES, figures );
+	}
+	const Int main = figures.mainSlot();
+	if( main == WEAPONSLOT_COUNT )
+		weaponColumns.clear();
+	else
+	{
+		const WeaponFigures &weapon = figures.slots[ main ];
+		putFigureColumn( weaponColumns, 0, WEAPON_FIGURES, width, "TOOLTIP:StatDamage", std::to_string( REAL_TO_INT( weapon.damage ) ), "" );
+		putFigureColumn( weaponColumns, 1, WEAPON_FIGURES, width, "TOOLTIP:StatShortDamagePerSecond",
+										 std::to_string( REAL_TO_INT( weapon.damage * weapon.attacksPerSecond ) ), "" );
+		putFigureColumn( weaponColumns, 2, WEAPON_FIGURES, width, "TOOLTIP:StatRange", std::to_string( REAL_TO_INT( weapon.range ) ), "" );
+		weaponColumns.resize( WEAPON_FIGURES );
+	}
+
+	// the armour, and for our own the body's damage scalar on top of it, which is where a battle plan
+	// such as Hold the Line goes (ActiveBody::attemptDamage)
+	ArmorSetFlags armorFlags;
+	for( Int set = 0; set < ARMORSET_COUNT; set++ )
+		if( object->testArmorSetFlag( (ArmorSetType)set ) && ( ours || set != ARMORSET_PLAYER_UPGRADE ) )
+			armorFlags.set( set );
+	const Armor armor( object->getTemplate()->findArmorTemplateSet( armorFlags )->getArmorTemplate() );
+	const Real scalar = ours ? object->getBodyModule()->getDamageScalar() : 1.0f;
+	const Int shownArmor = (Int)ARRAY_SIZE( SHOWN_ARMOR );
+	for( Int each = 0; each < shownArmor; each++ )
+	{
+		const Int change = REAL_TO_INT_FLOOR( armor.adjustDamage( SHOWN_ARMOR[ each ].type, PERCENT ) * scalar + 0.5f ) - PERCENT;
+		putFigureColumn( armorColumns, each, shownArmor, width, SHOWN_ARMOR[ each ].label,
+										 ( change > 0 ? "+" : "" ) + std::to_string( change ) + "%", change < 0 ? "strong" : change > 0 ? "weak" : "" );
+	}
+	armorColumns.resize( shownArmor );
 }
 
 static GameWindow *numberedWindow( const char *prefix, Int number )
@@ -12333,7 +12424,10 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	const Int wellHeight = REAL_TO_INT( COMMAND_ROWS * ( COMMAND_CELL_HEIGHT + CELL_GAP ) * scale );
 	const Int consoleTopLine = foot - wellHeight - REAL_TO_INT( ( HEADER_GAP + HEADER_HEIGHT ) * scale );
 	const Int radarWidth = ( foot - consoleTopLine ) * RADAR_WIDTH / RADAR_HEIGHT;
-	const Int radarWellWidth = radarWidth + REAL_TO_INT( ( EXPERIENCE_GAP + EXPERIENCE_WIDTH ) * scale );
+	// a watcher who has picked nobody to follow has no general's experience to show, and the groove
+	// and the room for it go
+	const Player *experiencePlayer = watching ? TheControlBar->getObserverLookAtPlayer() : ThePlayerList->getLocalPlayer();
+	const Int radarWellWidth = radarWidth + ( experiencePlayer ? REAL_TO_INT( ( EXPERIENCE_GAP + EXPERIENCE_WIDTH ) * scale ) : 0 );
 	const Int selectionWellWidth = REAL_TO_INT( PORTRAIT_PLACES * ( CELL_WIDTH + CELL_GAP ) * scale );
 	const Int gridWellWidth = REAL_TO_INT( COMMAND_COLUMNS * ( COMMAND_CELL_WIDTH + CELL_GAP ) * scale );
 	const ICoord2D cell = cellSize();
@@ -12379,8 +12473,8 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	TheControlBar->placeWindowAt( radarWindow, radar );
 	IRegion2D experience = radarWell;
 	experience.lo.x = experience.hi.x - REAL_TO_INT( EXPERIENCE_WIDTH * scale );
-	putPageRect( values, "expframe", experience, leftFound, scale );
-	putExperienceBar( values, lists[ "expcells" ], lists[ "rankstars" ] );
+	putPageRect( values, "expframe", experience, leftFound && experiencePlayer != NULL, scale );
+	putExperienceBar( values, experiencePlayer, lists[ "expcells" ], lists[ "rankstars" ] );
 
 	// in the selection's header, on its grid of HEADER_SLOTS from its left: the idle worker's key, the
 	// skills key - the rank's stars, and the button that opens the promotion screen - and in a
@@ -12623,7 +12717,7 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	if( multi )
 		portraitCell.hi.x = portraitCell.lo.x;
 	TheControlBar->placeWindowAt( portraitWindow, portraitCell );
-	putSelectedUnit( values, lists[ "selstars" ], portraitCell, selectionWell, portraitShown && !multi );
+	putSelectedUnit( values, lists, portraitCell, selectionWell, portraitShown && !multi );
 
 	std::vector< HtmlValues > &portraitCells = lists[ "portraitcells" ];
 	size_t portraitFilled = 0;

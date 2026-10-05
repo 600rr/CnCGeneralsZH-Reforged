@@ -15809,6 +15809,26 @@ TOOLTIP:StatNewWeaponFigures
 "%d hasar, %d menzil"
 END
 
+TOOLTIP:StatShortDamagePerSecond
+"Hasar/sn"
+END
+
+TOOLTIP:StatVsGuns
+"Mermi"
+END
+
+TOOLTIP:StatVsShells
+"Top"
+END
+
+TOOLTIP:StatVsRockets
+"Roket"
+END
+
+TOOLTIP:StatVsBlast
+"Bomba"
+END
+
 TOOLTIP:Upgrades
 "GELİŞTİRMELER"
 END

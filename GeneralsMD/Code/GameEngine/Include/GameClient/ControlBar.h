@@ -40,6 +40,9 @@
 #include "Common/Overridable.h"
 #include "Common/Science.h"
 #include "GameClient/Color.h"
+#include "Common/BitFlags.h"
+#include "GameLogic/WeaponBonusConditionFlags.h"
+#include "GameLogic/WeaponSetFlags.h"
 
 // FORWARD REFERENCES /////////////////////////////////////////////////////////////////////////////
 class Drawable;
@@ -48,6 +51,7 @@ class Image;
 class Object;
 class ThingTemplate;
 class WeaponTemplate;
+class WeaponBonus;
 class SpecialPowerTemplate;
 class WindowVideoManager;
 class WindowVideoManager;
@@ -799,6 +803,42 @@ struct BuildTooltipCard
 	std::vector< BuildTooltipUpgrade > upgrades;	///< a unit's upgrades, or the units an upgrade changes
 	IRegion2D anchor;							///< the hovered window in screen pixels, its top the grid's top for a command button
 };
+
+/** One weapon slot's figures; `weapon` NULL for a slot with nothing in it that hurts. */
+struct WeaponFigures
+{
+	const WeaponTemplate *weapon;
+	Real damage;
+	Real range;
+	Real attacksPerSecond;
+};
+
+/** A unit's health and its weapons, slot by slot. */
+struct UnitFigures
+{
+	Real health;
+	WeaponFigures slots[ WEAPONSLOT_COUNT ];
+
+	/** The slot with the most damage a second, WEAPONSLOT_COUNT for an unarmed unit. */
+	Int mainSlot( void ) const
+	{
+		Int best = WEAPONSLOT_COUNT;
+		for( Int slot = PRIMARY_WEAPON; slot < WEAPONSLOT_COUNT; ++slot )
+			if( slots[ slot ].weapon && ( best == WEAPONSLOT_COUNT || slots[ slot ].damage * slots[ slot ].attacksPerSecond
+																																> slots[ best ].damage * slots[ best ].attacksPerSecond ) )
+				best = slot;
+		return best;
+	}
+};
+
+/** `weapon`'s figures under `bonus`, the build tooltip's and the selected unit's alike
+	* (ControlBarPopupDescription.cpp). */
+WeaponFigures ControlBarWeaponFigures( const WeaponTemplate *weapon, const WeaponBonus &bonus );
+
+/** `thing`'s weapons in the set `setFlags` picks, each under the bonuses `bonusFlags` give it, into
+	* `figures`' slots; a template with no such set leaves them as they are. */
+void ControlBarTemplateWeaponFigures( const ThingTemplate *thing, const WeaponSetFlags &setFlags,
+																			WeaponBonusConditionFlags bonusFlags, UnitFigures &figures );
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
