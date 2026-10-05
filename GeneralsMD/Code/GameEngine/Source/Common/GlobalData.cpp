@@ -1160,7 +1160,6 @@ GlobalData::GlobalData()
 #else
 	m_smoothMotion = TRUE;
 #endif
-	m_closerZoomPercent = 0;
 	m_dragTolerance = 25;		// what Mouse.ini in INIZH.big says, so nothing moves until the slider does
 	// a left drag with the move, attack move or guard key armed draws a formation line
 	m_formationDrag = TRUE;

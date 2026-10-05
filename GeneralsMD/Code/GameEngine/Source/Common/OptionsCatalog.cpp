@@ -63,16 +63,6 @@ OPTION_BOOL_ACCESSORS( m_isometricCamera )
 OPTION_BOOL_ACCESSORS( m_smoothMotion )
 OPTION_BOOL_ACCESSORS( m_startAtMaxZoom )
 
-// The view copied its closest height out of GlobalData once, when it was made, so a change from
-// the menu has to be handed to it.  It is not moved: the next turn of the wheel meets the new limit.
-static Int get_m_closerZoomPercent( void ) { return TheGlobalData->m_closerZoomPercent; }
-static void set_m_closerZoomPercent( Int value )
-{
-	TheWritableGlobalData->m_closerZoomPercent = value;
-	if (TheTacticalView)
-		TheTacticalView->setMinHeightAboveGround( View_closestCameraHeight( TheGlobalData->m_minCameraHeight, value ) );
-}
-
 // This catalog loads before there is a mouse, so the value waits in GlobalData and Mouse::parseIni
 // takes it from there.  The menu changes it with the mouse up, which is the branch below.
 static Int get_m_dragTolerance( void ) { return TheGlobalData->m_dragTolerance; }
@@ -274,14 +264,6 @@ const OptionDef TheOptionCatalog[] =
 	{ "StartAtMaxZoom",						OPT_WND( "CheckStartAtMaxZoom" ), "GUI:StartAtMaxZoom",
 		OPTION_BOOL, APPLY_LIVE, 0, 1,
 		get_m_startAtMaxZoom, set_m_startAtMaxZoom },
-
-	// Percent taken off GameData.ini's MinCameraHeight, so the wheel comes nearer the ground than
-	// the 120 units the game ships with; 60 leaves 48.  There is no row for the far end and there
-	// will not be one: how much of the map a player sees is an advantage, and Options.ini is outside
-	// the mismatch check.  This one only ever shows less.
-	{ "CloserZoom",								OPT_WND( "SliderCloserZoom" ), "GUI:CloserZoom",
-		OPTION_INT, APPLY_LIVE, 0, 60,
-		get_m_closerZoomPercent, set_m_closerZoomPercent },
 
 	// Pixels the pointer may travel with a button held before the press stops being a click and
 	// starts a selection box, a camera drag or a formation line.  Mouse.ini says 25, which is the

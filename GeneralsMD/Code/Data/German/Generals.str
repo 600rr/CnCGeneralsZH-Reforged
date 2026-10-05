@@ -14713,14 +14713,6 @@ TOOLTIP:StartAtMaxZoom
 "Ein Spiel beginnt mit der Kamera so weit draußen, wie das Rad reicht. Aus beginnt es in der Höhe, für die die Karte gerahmt wurde."
 END
 
-GUI:CloserZoom
-"Näherer Zoom"
-END
-
-TOOLTIP:CloserZoom
-"Wie viel näher ans Gelände das Rad die Kamera bringen darf. 0 Prozent ist die Grenze des Spiels."
-END
-
 GUI:DragTolerance
 "Ziehschwelle"
 END

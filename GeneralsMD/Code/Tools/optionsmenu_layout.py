@@ -163,8 +163,6 @@ NEW_CONTROLS = [
     (CHECK,  "CheckIsometricCamera",   "GUI:IsometricCamera"),
     (CHECK,  "CheckSmoothMotion",      "GUI:SmoothMotion"),
     (CHECK,  "CheckStartAtMaxZoom",    "GUI:StartAtMaxZoom"),
-    (LABEL,  "LabelCloserZoom",        "GUI:CloserZoom"),
-    (SLIDER, "SliderCloserZoom",       None),
     (LABEL,  "LabelDragTolerance",     "GUI:DragTolerance"),
     (SLIDER, "SliderDragTolerance",    None),
     (CHECK,  "CheckTreeSway",          "GUI:TreeSway"),
@@ -183,7 +181,7 @@ NEW_CONTROLS = [
 READOUTS = [
     "ValueGamma", "ValueTextureResolution", "ValueParticleCap", "ValueAnisotropy",
     "ValueMusicVolume", "ValueSFXVolume", "ValueVoiceVolume", "ValueScrollSpeed",
-    "ValueCloserZoom", "ValueDragTolerance",
+    "ValueDragTolerance",
 ]
 
 # Lines of small grey text under a control that say what its current choice does, written by
@@ -199,8 +197,7 @@ NOTE_COLOR = ("ENABLED:  192 192 192 255, ENABLEDBORDER:  0 0 0 255, "
 
 # a cloned slider keeps its template's range unless it is given one; selfcheck holds these to the
 # catalog row's own bounds
-SLIDER_RANGES = [("SliderAnisotropy", 0, 16), ("SliderCloserZoom", 0, 60),
-                 ("SliderDragTolerance", 2, 50)]
+SLIDER_RANGES = [("SliderAnisotropy", 0, 16), ("SliderDragTolerance", 2, 50)]
 
 # EA's captions that do not fit the page: two popup headings written in capitals, and a check box
 # caption that ran 20 pixels past the panel's right edge once it stood in a 268 pixel column.
@@ -291,8 +288,7 @@ GROUP_LAYOUT = [
         setting("ScrollSpeedLabel", "SliderScrollSpeed", "ValueScrollSpeed"),
         ("check", "CheckZoomToCursor"),
         ("check", "CheckIsometricCamera"),
-        ("check", "CheckStartAtMaxZoom"),
-        setting("LabelCloserZoom", "SliderCloserZoom", "ValueCloserZoom")]),
+        ("check", "CheckStartAtMaxZoom")]),
     ("PageControls", 1, "GUI:OptionsGroupOrders", [
         ("check", "Retaliation"),
         ("check", "CheckDoubleClickAttackMove")]),

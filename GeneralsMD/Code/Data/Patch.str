@@ -869,14 +869,6 @@ TOOLTIP:StartAtMaxZoom
 "A match opens with the camera as far out as the wheel goes. Off, it opens at the height the map was framed for."
 END
 
-GUI:CloserZoom
-"Closer Zoom"
-END
-
-TOOLTIP:CloserZoom
-"How much nearer the ground the wheel may bring the camera. 0% is the game's own limit."
-END
-
 GUI:DragTolerance
 "Drag Threshold"
 END

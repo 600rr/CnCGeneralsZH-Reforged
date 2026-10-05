@@ -324,7 +324,8 @@ void W3DView::setOrigin( Int x, Int y)
 // how far past the map's default max camera height the player may zoom out by hand.
 // only the manual zoom limit is stretched - the default/scripted views still use
 // m_maxHeightAboveGround, so a map still opens framed the way its author meant it to.
-#define ZOOM_OUT_LIMIT_FACTOR (3.2f)
+// 2.9 puts the ceiling at 899 over GameData.ini's MaxCameraHeight of 310; it was 3.2 (992).
+#define ZOOM_OUT_LIMIT_FACTOR (2.9f)
 void W3DView::buildCameraTransform( Matrix3D *transform )
 {
 	Vector3 sourcePos, targetPos;

@@ -15357,14 +15357,6 @@ TOOLTIP:StartAtMaxZoom
 "Maç, kamera tekerleğin gittiği en uzak noktadayken açılır. Kapalıyken haritanın kendisi için ayarlanan yükseklikte açılır."
 END
 
-GUI:CloserZoom
-"Daha Yakın Kamera"
-END
-
-TOOLTIP:CloserZoom
-"Tekerleğin kamerayı yere ne kadar daha yaklaştırabileceği. Yüzde 0 oyunun kendi sınırıdır."
-END
-
 GUI:DragTolerance
 "Sürükleme Eşiği"
 END

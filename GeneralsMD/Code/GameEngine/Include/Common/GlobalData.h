@@ -428,7 +428,6 @@ public:
 	Bool m_zoomToCursor;				///< the mouse wheel zooms toward whatever the cursor is over
 	Bool m_isometricCamera;				///< the tactical view from far off down a narrow cone, near enough orthographic
 	Bool m_smoothMotion;				///< R1: models shown between their last two logic states each render frame (W3DSmoothMotion.h)
-	Int m_closerZoomPercent;			///< percent taken off MinCameraHeight, so the wheel comes nearer the ground; 0 = as GameData.ini has it
 	Int m_dragTolerance;				///< pixels the pointer may travel with a button held before the press is a drag; replaces Mouse.ini's DragTolerance
 	Bool m_formationDrag;				///< with the move, attack move or guard key armed, a left drag spreads the selection along the line drawn
 	Bool m_showAllyCursors;				///< in a network game, draw where each ally's mouse is pointing

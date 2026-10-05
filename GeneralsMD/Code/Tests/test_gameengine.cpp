@@ -12842,33 +12842,28 @@ TEST(texture_filter_defaults_to_anisotropic)
 	TheWritableGlobalData = saved;
 }
 
-/* Three rows on the Controls page.  The zoom one may only ever bring the camera nearer: the far
-	 limit is how much of the map a player sees, Options.ini is outside the mismatch check, and a row
-	 whose range let the floor climb past the ceiling would push the ceiling up with it in
-	 W3DView::setDefaultView. */
-TEST(start_zoom_closer_zoom_and_drag_threshold_are_rows_that_change_nothing_until_asked)
+/* Two rows on the Controls page.  The camera's near and far limits are not among them: they are
+	 fixed in View.cpp and W3DView.cpp for everyone, because Options.ini is outside the mismatch
+	 check and the far one is how much of the map a player sees. */
+TEST(start_zoom_and_drag_threshold_are_rows_that_change_nothing_until_asked)
 {
 	const OptionDef *start = findOptionDef( "StartAtMaxZoom" );
-	const OptionDef *closer = findOptionDef( "CloserZoom" );
 	const OptionDef *drag = findOptionDef( "DragTolerance" );
-	CHECK( start != NULL && closer != NULL && drag != NULL );
-	if( start == NULL || closer == NULL || drag == NULL )
+	CHECK( start != NULL && drag != NULL );
+	if( start == NULL || drag == NULL )
 		return;
 
 	CHECK_EQ( (Int)start->kind, (Int)OPTION_BOOL );
-	CHECK_EQ( (Int)closer->kind, (Int)OPTION_INT );
 	CHECK_EQ( (Int)drag->kind, (Int)OPTION_INT );
 	CHECK( strstr( start->widgetName, "CheckStartAtMaxZoom" ) != NULL );
-	CHECK( strstr( closer->widgetName, "SliderCloserZoom" ) != NULL );
 	CHECK( strstr( drag->widgetName, "SliderDragTolerance" ) != NULL );
 
 	GlobalData *saved = TheWritableGlobalData;
 	GlobalData *scratch = NEW GlobalData;
 	TheWritableGlobalData = scratch;
 
-	// an Options.ini with none of the three keys plays the way the last version did
+	// an Options.ini with neither key plays the way the last version did
 	CHECK_EQ( start->get(), 1 );
-	CHECK_EQ( closer->get(), 0 );
 	CHECK_EQ( drag->get(), 25 );	// DragTolerance in INIZH.big's Mouse.ini
 	CHECK( drag->lo > 0 && drag->lo <= 25 && drag->hi >= 25 );
 
@@ -12876,19 +12871,6 @@ TEST(start_zoom_closer_zoom_and_drag_threshold_are_rows_that_change_nothing_unti
 	CHECK_EQ( (Int)scratch->m_startAtMaxZoom, 0 );
 	drag->set( 8 );
 	CHECK_EQ( scratch->m_dragTolerance, 8 );
-	closer->set( 40 );
-	CHECK_EQ( scratch->m_closerZoomPercent, 40 );
-
-	// the slider's left end is GameData.ini's own limit, and no position on it is above that
-	CHECK_EQ( closer->lo, 0 );
-	CHECK( closer->hi < 100 );
-	CHECK_NEAR( View_closestCameraHeight( 120.0f, closer->lo ), 120.0f, 0.001f );
-	CHECK_NEAR( View_closestCameraHeight( 120.0f, 60 ), 48.0f, 0.001f );
-	for( Int percent = closer->lo; percent <= closer->hi; ++percent )
-	{
-		const Real height = View_closestCameraHeight( 120.0f, percent );
-		CHECK( height > 0.0f && height <= 120.0f );
-	}
 
 	TheWritableGlobalData = saved;
 	delete scratch;

@@ -117,6 +117,11 @@ View::~View()
 {
 }
 
+// The wheel may bring the camera this much of GameData.ini's MinCameraHeight down to the ground:
+// 120 becomes 90.  A view setting, so it lives here and not in GameData.ini, which every machine in
+// a network game has to agree on byte for byte.  It only shows less of the map, never more.
+#define CLOSEST_ZOOM_FACTOR (0.75f)
+
 void View::init( void )
 {
 	m_width = DEFAULT_VIEW_WIDTH;
@@ -132,7 +137,7 @@ void View::init( void )
 	
 	m_zoom = 1.0f;
 	m_maxHeightAboveGround = TheGlobalData->m_maxCameraHeight;
-	m_minHeightAboveGround = View_closestCameraHeight( TheGlobalData->m_minCameraHeight, TheGlobalData->m_closerZoomPercent );
+	m_minHeightAboveGround = TheGlobalData->m_minCameraHeight * CLOSEST_ZOOM_FACTOR;
 	m_okToAdjustHeight = FALSE;
 
 	m_defaultAngle = 0.0f;
@@ -158,9 +163,9 @@ View *View::prependViewToList( View *list )
 // zoom key does; a caller driving this from a render frame passes the fraction of a logic
 // frame that has actually gone by, so the zoom rate stops depending on the frame rate.
 //
-// EA's step was 10 world units.  The reachable band is roughly 100 (MinCameraHeight) to 480
-// (MaxCameraHeight * ZOOM_OUT_LIMIT_FACTOR), so crossing it took about 38 notches - most of a
-// wheel's travel to go from the ground to the whole map.  60 puts it at about six.
+// EA's step was 10 world units.  The reachable band is 90 (MinCameraHeight * CLOSEST_ZOOM_FACTOR)
+// to about 900 (MaxCameraHeight * ZOOM_OUT_LIMIT_FACTOR), so crossing it would take about 80
+// notches - a whole wheel's travel to go from the ground to the whole map.  60 puts it at about 14.
 #define ZOOM_STEP_HEIGHT (60.0f)
 
 void View::zoomIn( Real steps )
@@ -214,15 +219,6 @@ Real View_stepAngleByEighths( Real angle, Int steps )
 {
 	const Real step = PI / 4.0f;
 	return View_snapAngleToEighth( angle ) + steps * step;
-}
-
-/**
- * CloserZoom: the lowest the wheel may bring the camera, which is GameData.ini's MinCameraHeight
- * with that percentage taken off.
- */
-Real View_closestCameraHeight( Real minCameraHeight, Int closerZoomPercent )
-{
-	return minCameraHeight * (Real)(100 - closerZoomPercent) / 100.0f;
 }
 
 /**
