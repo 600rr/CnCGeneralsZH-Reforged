@@ -1895,8 +1895,12 @@ void Drawable::calcPhysicsXformGround( const Locomotor *locomotor, PhysicsXformI
 	if (steps != 0)
 	{
 		const Object *obj = getObject();
+		// EA's per-appearance versions of this each returned on an object without physics
+		const PhysicsBehavior *physics = obj->getPhysics();
+		if (physics == NULL)
+			return;
 		BodyDamageType bdt = obj->getBodyModule()->getDamageState();
-		Real speed = obj->getPhysics()->getForwardSpeed2D();
+		Real speed = physics->getForwardSpeed2D();
 		Real angle = getOrientation();
 		if (steps > MAX_CATCH_UP_FRAMES)
 		{

@@ -971,7 +971,9 @@ static void setDefaults( void )
  		// Extra Animations (buildups) and Swaying Trees checkboxes
 		//
 		GadgetCheckBoxSetChecked( checkExtraAnimations, !TheGlobalData->m_useDrawModuleLOD);
-		GadgetCheckBoxSetChecked( checkTreeSway, TheGlobalData->m_useTreeSway);
+		// the fork's box: a stock or modded OptionsMenu.wnd that wins over Run/Window has none
+		if( checkTreeSway )
+			GadgetCheckBoxSetChecked( checkTreeSway, TheGlobalData->m_useTreeSway);
 
 		//-------------------------------------------------------------------------------------------------
  		// DisableDynamicLOD
@@ -1310,7 +1312,8 @@ static void saveOptions( void )
 		TheWritableGlobalData->m_useDrawModuleLOD = !GadgetCheckBoxIsChecked( checkExtraAnimations );
 		(*pref)["ExtraAnimations"] = TheGlobalData->m_useDrawModuleLOD ? AsciiString("no") : AsciiString("yes");
 
-		TheWritableGlobalData->m_useTreeSway = GadgetCheckBoxIsChecked( checkTreeSway );
+		// without the fork's box the trees sway with the extra animations, as retail decided it
+		TheWritableGlobalData->m_useTreeSway = checkTreeSway ? GadgetCheckBoxIsChecked( checkTreeSway ) : !TheGlobalData->m_useDrawModuleLOD;
 		(*pref)["TreeSway"] = TheGlobalData->m_useTreeSway ? AsciiString("yes") : AsciiString("no");
 
 		TheWritableGlobalData->m_enableDynamicLOD = !GadgetCheckBoxIsChecked( checkNoDynamicLod );
@@ -1986,6 +1989,10 @@ static Bool isDetailPresetCatalogControl( const GameWindow *control )
 static void showCatalogValue( const OptionDef &def, Int value )
 {
 	GameWindow *widget = findOptionWidget( def );
+	// every catalog control is the fork's, so a stock or modded OptionsMenu.wnd has none of them
+	if( widget == NULL )
+		return;
+
 	switch( def.kind )
 	{
 		case OPTION_BOOL:
@@ -2108,7 +2115,8 @@ static void showDetailPreset( Int index )
 	GadgetCheckBoxSetChecked( checkExtraAnimations, preset.m_useBuildupScaffolds );
 	GadgetCheckBoxSetChecked( checkHeatEffects, preset.m_useHeatEffects );
 	GadgetCheckBoxSetChecked( checkNoDynamicLod, !preset.m_enableDynamicLOD );
-	GadgetCheckBoxSetChecked( checkTreeSway, preset.m_useTreeSway );
+	if( checkTreeSway )
+		GadgetCheckBoxSetChecked( checkTreeSway, preset.m_useTreeSway );
 	for( Int row = 0; row < DETAIL_PRESET_CATALOG_ROW_COUNT; ++row )
 		showCatalogValue( *findOptionDef( TheDetailPresetCatalogRows[ row ].iniKey ), TheDetailPresetCatalogRows[ row ].values[ index ] );
 	ignoreSelected = FALSE;
@@ -2461,7 +2469,8 @@ void OptionsMenuInit( WindowLayout *layout, void *userData )
 
 	GadgetCheckBoxSetChecked( checkExtraAnimations, !TheGlobalData->m_useDrawModuleLOD);
 
-	GadgetCheckBoxSetChecked( checkTreeSway, TheGlobalData->m_useTreeSway);
+	if( checkTreeSway )
+		GadgetCheckBoxSetChecked( checkTreeSway, TheGlobalData->m_useTreeSway);
 
 	GadgetCheckBoxSetChecked( checkNoDynamicLod, !TheGlobalData->m_enableDynamicLOD);
 
