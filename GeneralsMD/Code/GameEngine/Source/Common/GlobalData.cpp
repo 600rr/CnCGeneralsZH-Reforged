@@ -959,6 +959,8 @@ GlobalData::GlobalData()
 #else
 	m_menuLayout = MENU_LAYOUT_FIT;
 #endif
+	// the game as it shipped until a player picks Reforged
+	m_interfaceStyle = INTERFACE_STYLE_CLASSIC;
 	// the lobby's own colours until somebody asks for something else
 	m_playerColorScheme = PLAYER_COLORS_ORIGINAL;
 	// the words the game shipped with until somebody picks a translation

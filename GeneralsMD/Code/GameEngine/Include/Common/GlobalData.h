@@ -83,6 +83,11 @@ enum { HUD_SCALE_COUNT = 4 };
 	* 4:3 area; a full-screen backdrop still fills the screen.  At 4:3 the two are the same. */
 enum { MENU_LAYOUT_STRETCH = 0, MENU_LAYOUT_FIT = 1, MENU_LAYOUT_COUNT = 2 };
 
+/** The InterfaceStyle option: the HUD, mouse and keys of Zero Hour 1.04, or this fork's own.
+	* Client only, read at startup (the key overlay loads once), and never by GameLogic: two players
+	* on different styles are still in the same game. */
+enum { INTERFACE_STYLE_CLASSIC = 0, INTERFACE_STYLE_REFORGED = 1, INTERFACE_STYLE_COUNT = 2 };
+
 /** The IncomeRate option: what the income beside the money is counted over.  Automatic is per
 	* minute below INCOME_RATE_AUTOMATIC_PER_SECOND_FROM dollars a second and per second from there
 	* up: under that a whole number of dollars a second rounds most of the income away, which is
@@ -342,6 +347,8 @@ public:
 	Int m_healthBarMode;					///< HealthBarModeType: which units wear a bar at all
 	Int m_hudScale;								///< HUD size step, 0 = 100%; see ControlBarHudScale (client only)
 	Int m_menuLayout;							///< MENU_LAYOUT_STRETCH or MENU_LAYOUT_FIT, for the Menus/ layouts (client only)
+	Int m_interfaceStyle;					///< INTERFACE_STYLE_CLASSIC or INTERFACE_STYLE_REFORGED (client only, never GameLogic)
+	Bool isClassicUI() const { return m_interfaceStyle == INTERFACE_STYLE_CLASSIC; }
 	Int m_playerColorScheme;			///< PlayerColorSchemeType: whose colour the client draws (client only)
 	Int m_textLanguage;						///< TextLanguageType: the translation GameText lays over the CSF, read once at startup (client only)
 	Bool m_showOrderLines;				///< draw a line from each selected unit to where it is going, and its queue (client only)

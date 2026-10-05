@@ -1077,6 +1077,22 @@ TOOLTIP:MenuLayout
 "Fit keeps the menus in the shape they were drawn in and centres them on a wide screen. Stretch widens them to the screen's edges, as the game always did."
 END
 
+GUI:InterfaceStyle
+"Interface"
+END
+
+GUI:InterfaceStyle0
+"Classic"
+END
+
+GUI:InterfaceStyle1
+"Reforged"
+END
+
+TOOLTIP:InterfaceStyle
+"Classic is the command bar, mouse and hotkeys of Zero Hour 1.04. Reforged is this version's console in the middle, right-click orders and key grid. Takes effect the next time the game starts."
+END
+
 GUI:OptionsGroupInput
 "Input"
 END

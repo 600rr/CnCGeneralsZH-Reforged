@@ -7408,6 +7408,42 @@ TEST(player_color_scheme_round_trips_through_options_ini)
 	TheWritableGlobalData = saved;
 }
 
+TEST(interface_style_defaults_to_classic_and_round_trips_through_options_ini)
+{
+	/* The key overlay is loaded once at startup, so the row asks for a restart; an Options.ini that
+		 never named the key, every one saved before it existed, comes up Classic. */
+	const OptionDef *def = findOptionDef( "InterfaceStyle" );
+	CHECK( def != NULL );
+	if( def == NULL )
+		return;
+	CHECK_EQ( (Int)def->kind, (Int)OPTION_ENUM );
+	CHECK_EQ( (Int)def->apply, (Int)APPLY_RESTART );
+	CHECK_EQ( def->lo, 0 );
+	CHECK_EQ( def->hi, INTERFACE_STYLE_COUNT - 1 );
+	CHECK( def->widgetName != NULL && def->widgetName[ 0 ] != '\0' );
+
+	GlobalData *saved = TheWritableGlobalData;
+	TheWritableGlobalData = NEW GlobalData;
+
+	CHECK_EQ( TheGlobalData->m_interfaceStyle, (Int)INTERFACE_STYLE_CLASSIC );
+	CHECK( TheGlobalData->isClassicUI() );
+
+	UserPreferences pref;
+	loadOptionsFromPreferences( pref );
+	CHECK( TheGlobalData->isClassicUI() );
+
+	TheWritableGlobalData->m_interfaceStyle = INTERFACE_STYLE_REFORGED;
+	saveOptionsToPreferences( pref );
+	CHECK_STR( pref[ AsciiString( "InterfaceStyle" ) ].str(), "1" );
+
+	TheWritableGlobalData->m_interfaceStyle = INTERFACE_STYLE_CLASSIC;
+	loadOptionsFromPreferences( pref );
+	CHECK( !TheGlobalData->isClassicUI() );
+
+	delete TheWritableGlobalData;
+	TheWritableGlobalData = saved;
+}
+
 /** Every colour the scheme can hand out has to be opaque and has to be visible: an alpha of zero
 	 draws nothing at all, and a member of an alliance past the fourth is a darkened repeat that must
 	 not reach black. */

@@ -15549,6 +15549,22 @@ TOOLTIP:MenuLayout
 "Sığdır, menüleri çizildikleri biçimde tutar ve geniş ekranda ortalar. Esnet, oyunun her zaman yaptığı gibi onları ekranın kenarlarına kadar genişletir."
 END
 
+GUI:InterfaceStyle
+"Arayüz"
+END
+
+GUI:InterfaceStyle0
+"Klasik"
+END
+
+GUI:InterfaceStyle1
+"Reforged"
+END
+
+TOOLTIP:InterfaceStyle
+"Klasik, Zero Hour 1.04'ün komut çubuğu, faresi ve kısayol tuşları. Reforged, bu sürümün ortadaki konsolu, sağ tıkla emir ve tuş ızgarası. Oyun bir sonraki açılışında geçerli olur."
+END
+
 GUI:OptionsGroupInput
 "Kontrol Düzeni"
 END

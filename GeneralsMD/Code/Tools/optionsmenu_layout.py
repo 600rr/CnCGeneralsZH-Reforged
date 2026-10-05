@@ -152,6 +152,8 @@ NEW_CONTROLS = [
     (COMBO,  "ComboBoxHudScale",       None),
     (LABEL,  "LabelMenuLayout",        "GUI:MenuLayout"),
     (COMBO,  "ComboBoxMenuLayout",     None),
+    (LABEL,  "LabelInterfaceStyle",    "GUI:InterfaceStyle"),
+    (COMBO,  "ComboBoxInterfaceStyle", None),
     (LABEL,  "LabelLanguage",          "GUI:Language"),
     (COMBO,  "ComboBoxLanguage",       None),
     (CHECK,  "CheckOrderLines",        "GUI:OrderLines"),
@@ -308,6 +310,7 @@ GROUP_LAYOUT = [
         ("check", "CheckOrderLines"),
         ("check", "CheckEmptyBuildingPips")]),
     ("PageGameplay", 1, "GUI:OptionsGroupHud", [
+        setting("LabelInterfaceStyle", "ComboBoxInterfaceStyle"),
         setting("LabelHudScale", "ComboBoxHudScale"),
         setting("LabelIncomeRate", "ComboBoxIncomeRate"),
         ("check", "CheckNetBox")]),

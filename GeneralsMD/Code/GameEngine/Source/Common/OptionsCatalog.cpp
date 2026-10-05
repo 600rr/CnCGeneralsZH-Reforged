@@ -89,6 +89,7 @@ OPTION_BOOL_ACCESSORS( m_classicGraphics )
 OPTION_INT_ACCESSORS( m_healthBarMode )
 OPTION_INT_ACCESSORS( m_hudScale )
 OPTION_INT_ACCESSORS( m_menuLayout )
+OPTION_INT_ACCESSORS( m_interfaceStyle )
 OPTION_INT_ACCESSORS( m_playerColorScheme )
 OPTION_INT_ACCESSORS( m_textLanguage )
 OPTION_BOOL_ACCESSORS( m_showOrderLines )
@@ -400,6 +401,14 @@ const OptionDef TheOptionCatalog[] =
 	{ "MenuLayout",								OPT_WND( "ComboBoxMenuLayout" ), "GUI:MenuLayout",
 		OPTION_ENUM, APPLY_SHELL_REBUILD, 0, MENU_LAYOUT_COUNT - 1,
 		get_m_menuLayout, set_m_menuLayout },
+
+	// Classic or Reforged: the HUD, mouse and keys of Zero Hour 1.04, or this fork's own.  The key
+	// overlay (CommandMapReforged.ini) is loaded once while the engine starts, after GameData.ini has
+	// already run this table, so the value is known in time without an early read; changing it takes
+	// a restart.  Client only: GameLogic never reads it.
+	{ "InterfaceStyle",						OPT_WND( "ComboBoxInterfaceStyle" ), "GUI:InterfaceStyle",
+		OPTION_ENUM, APPLY_RESTART, 0, INTERFACE_STYLE_COUNT - 1,
+		get_m_interfaceStyle, set_m_interfaceStyle },
 
 	// Whose colour a player is drawn in.  Purely local: the match still agrees on the lobby's
 	// colours and this only changes what this screen puts on top of them, so two people in the same

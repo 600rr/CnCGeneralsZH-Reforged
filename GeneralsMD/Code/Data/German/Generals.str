@@ -14901,6 +14901,22 @@ TOOLTIP:MenuLayout
 "Einpassen behält die Menüs in ihrer gezeichneten Form und zentriert sie auf einem breiten Bildschirm. Strecken weitet sie bis an die Bildschirmränder, wie es das Spiel immer tat."
 END
 
+GUI:InterfaceStyle
+"Oberfläche"
+END
+
+GUI:InterfaceStyle0
+"Klassisch"
+END
+
+GUI:InterfaceStyle1
+"Reforged"
+END
+
+TOOLTIP:InterfaceStyle
+"Klassisch ist die Befehlsleiste, Maus und Tastenbelegung von Zero Hour 1.04. Reforged ist die Konsole in der Mitte, Befehle per Rechtsklick und das Tastenraster dieser Version. Gilt ab dem nächsten Spielstart."
+END
+
 GUI:OptionsGroupInput
 "Eingabe"
 END
