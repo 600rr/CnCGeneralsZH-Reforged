@@ -880,6 +880,22 @@ void testShadowDecal(void)
 }
 */
 
+/** Whether a caster the camera does not see would be drawn if it were on the screen.  A shadow decal
+		lies where the sun puts it, and that need not be on the screen with its caster: a Scud climbing
+		off the top of the picture at full zoom-out lays its streak across the middle of it, and
+		gating the decal on the caster's own visibility took the streak away the moment the missile
+		left the frame.  This is the scene's visibility test (RTS3DScene::Visibility_Check) less its
+		frustum cull: hidden, stealthed and fogged casters still cast nothing.  A decal that lands off
+		the screen too costs what its cells inside the drawn terrain cost, and queueDecal clips it to
+		that. */
+static Bool isShownOffScreen(RenderObjClass *robj)
+{
+	if (!robj->Is_Not_Hidden_At_All() || robj->Get_User_Data() == NULL)
+		return FALSE;
+	Drawable *draw = ((DrawableInfo *)robj->Get_User_Data())->m_drawable;
+	return !draw->isDrawableEffectivelyHidden() && !draw->getFullyObscuredByShroud();
+}
+
 #define BRIDGE_OFFSET_FACTOR 1.5f
 /**Decals have a low poly count so its better to render large numbers at once.  This system will queue them
 up until the buffers fill up.  It will then flush the buffer (draw decals) and be ready for new decals.  This
@@ -1551,10 +1567,9 @@ Int W3DProjectedShadowManager::renderShadows(RenderInfoClass & rinfo)
 						lastShadowDecalTexture=shadow->m_shadowTexture[0];
 						lastShadowType=shadow->m_type;
 					}
-					///@todo: may need to fix this if shadows are large enough to be seen while object is not visible
-					if (shadow->m_robj->Is_Really_Visible())
+					if (shadow->m_robj->Is_Really_Visible() || isShownOffScreen(shadow->m_robj))
 					{	//queueSimpleDecal(shadow);
-						queueDecal(shadow);	//only draw shadow if casting object is visible
+						queueDecal(shadow);
 						projectionCount++;
 					}
 					continue;

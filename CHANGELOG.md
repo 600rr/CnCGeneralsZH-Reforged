@@ -1231,6 +1231,11 @@ The whole HUD is on the hardware. Four colours carry it, and they mean the same 
   Comanche's thin body so wide that nothing of it was left on the ground, and the spinning blades
   never reached the shadow at all. Now the blades turn in the shadow as a star under the fuselage,
   still softer than a tank's.
+- Zoomed all the way out, the top of the screen has its shadows. The sun's view of the battlefield
+  was a fixed square around the middle of the screen, and from full height the far ground at the top
+  lies well outside it, so buildings, trees and tanks up there stood on bright ground with nothing
+  under them. The square now opens to whatever the camera sees, up to two and a half times as wide.
+  At a map's normal playing height nothing changes.
 - A building stands on the ground instead of sitting on top of it. There is a soft patch under every
   structure's footprint, the darkening a corner traps in daylight, and the shadow it casts starts at
   its own wall rather than a step away from it. The frame's corners and creases get the same
@@ -1245,7 +1250,8 @@ The whole HUD is on the hardware. Four colours carry it, and they mean the same 
 - `UseShadowVolumesForSkins = No` puts the old flat blobs back.
 - Scuds, rockets and falling bombs cast a shadow running along the ground. A missile climbing
   straight up throws a thin streak away from the sun now. It used to lay a short blob on the ground
-  that spun every frame, as if the missile were tumbling.
+  that spun every frame, as if the missile were tumbling. A missile that has climbed out of the top
+  of the picture keeps its streak on the ground you can see; it used to vanish with the missile.
 - An aircraft's shadow lands where the sun puts it, not underneath the aircraft. Every plane and helicopter in the game's own data asks for a sun "no lower than 89 degrees", so each one cast its shadow straight down and towed it along directly below itself at any height, while the tank beside it was lit by the map's real sun and threw its shadow off to the side. Aircraft now take the same sun as everything else: a helicopter's shadow slides out from under it as it climbs, and a plane's runs ahead of or behind it depending on the hour the map is set at. On a map lit by a very low sun the shadow is held to what a 30 degree sun would cast, so it does not stretch across half the screen. The flat blob shadows under missiles and bombs follow the same ray.
 - A big smoke cloud darkens the ground under it and fades as it does.
 - Smoke and dust stand in the sunlight. A column off a burning building throws a soft shadow as thick as the smoke is: a puff of dust barely tints the sand, a black plume darkens the ground, the tanks and the houses under it and the smoke behind it. The column itself is bright on the side facing the sun and goes dark on the far side, and a cloud drifting through a building's shadow greys over with everything else in there. A cloud used to cast a round patch straight down whichever way the sun stood, and took no shade from anything. Fire casts nothing, it is light. A machine that cannot run the newer picture keeps the round patch.
