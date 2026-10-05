@@ -4223,6 +4223,9 @@ void W3DVolumetricShadowManager::renderShadowMap( CameraClass &sceneCamera )
 	DX8Wrapper::Set_DX8_Render_State( D3DRS_CULLMODE, D3DCULL_CW );
 
 	RenderInfoClass sunInfo( sun );
+	// MeshClass::Render leaves the light pieces (beams, glows) out under this hint.
+	sunInfo.Push_Override_Flags( RenderInfoClass::RINFO_OVERRIDE_SHADOW_RENDERING );
+	MeshClass::Shadow_Pass_Light_Meshes = 0;
 #ifndef DEBUG_LOGGING
 	Int castersCounted = 0;
 #endif
@@ -4392,8 +4395,9 @@ void W3DVolumetricShadowManager::renderShadowMap( CameraClass &sceneCamera )
 		if (frame >= nextReportFrame)
 		{
 			nextReportFrame = frame + LOGICFRAMES_PER_SECOND;
-			DEBUG_LOG(("SHADOWMAP: %d casters, %d left out as reaching nothing in view, %s\n",
-				castersCounted, castersOutOfView, Direct3D11_Shadow_Map_Report().c_str()));
+			DEBUG_LOG(("SHADOWMAP: %d casters, %d left out as reaching nothing in view, %d light meshes left out, %s\n",
+				castersCounted, castersOutOfView, MeshClass::Shadow_Pass_Light_Meshes,
+				Direct3D11_Shadow_Map_Report().c_str()));
 		}
 	}
 }

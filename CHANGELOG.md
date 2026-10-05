@@ -1238,6 +1238,12 @@ The whole HUD is on the hardware. Four colours carry it, and they mean the same 
   Comanche's thin body so wide that nothing of it was left on the ground, and the spinning blades
   never reached the shadow at all. Now the blades turn in the shadow as a star under the fuselage,
   still softer than a tank's.
+- Headlights light the ground instead of shading it. At night a Humvee, an Avenger or a Sentry
+  Drone with its lights on laid its own beam on the ground as a dark wedge in front of it, as if
+  the light were a solid thing standing in the moonlight, and civilian cars, trucks and the lamps
+  on night buildings did the same. A beam or a glow casts nothing now. Rotor blades, leaves,
+  fences and flags keep their shadows. With nine vehicles parked on Dark Night's village square,
+  44 beams and glows around them came out of the shadow.
 - Zoomed all the way out, the top of the screen has its shadows. The sun's view of the battlefield
   was a fixed square around the middle of the screen, and from full height the far ground at the top
   lies well outside it, so buildings, trees and tanks up there stood on bright ground with nothing
