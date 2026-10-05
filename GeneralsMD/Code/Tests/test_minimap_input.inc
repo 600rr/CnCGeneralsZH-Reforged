@@ -246,9 +246,14 @@ struct MinimapInputFixture
 		ui->scrolling = ui->selecting = FALSE;
 		ui->enabled = TRUE;
 		TheInGameUI = ui;
+		// Reforged's radar: left looks, right orders.  Classic swaps them, and says so in its own test
+		savedStyle = TheGlobalData->m_interfaceStyleInUse;
+		TheWritableGlobalData->m_interfaceStyleInUse = INTERFACE_STYLE_REFORGED;
 	}
+	Int savedStyle;
 	~MinimapInputFixture()
 	{
+		TheWritableGlobalData->m_interfaceStyleInUse = savedStyle;
 		windows.winDestroyAll();
 		TheRadar = savedRadar;
 		TheTerrainLogic = savedTerrain;
@@ -291,6 +296,21 @@ TEST(minimap_drag_tracks_held_left_click_and_stops_on_release_with_units_selecte
 	f.event(messages, GameMessage::MSG_RAW_MOUSE_POSITION, 130, 230);
 	CHECK(f.engine.view.lookAtCalls == 3);
 	CHECK(f.windows.winGetGrabWindow() == NULL);
+	CHECK(messages.commands.getFirstMessage() == NULL);
+}
+
+/* Classic's radar is the game as shipped: with units selected the right button looks and drags. */
+TEST(minimap_classic_right_button_looks_with_units_selected)
+{
+	CHECK(bootOnce());
+	MinimapInputFixture f;
+	MinimapMessages messages;
+	messages.stream.attachTranslator(NEW WindowTranslator, 10);
+	TheWritableGlobalData->m_interfaceStyleInUse = INTERFACE_STYLE_CLASSIC;
+	((MinimapTestUI*)TheInGameUI)->selected.push_back(NULL);
+	f.event(messages, GameMessage::MSG_RAW_MOUSE_RIGHT_BUTTON_DOWN, 120, 220);
+	CHECK(f.engine.view.lookAtCalls == 1);
+	f.event(messages, GameMessage::MSG_RAW_MOUSE_RIGHT_BUTTON_UP, 120, 220);
 	CHECK(messages.commands.getFirstMessage() == NULL);
 }
 

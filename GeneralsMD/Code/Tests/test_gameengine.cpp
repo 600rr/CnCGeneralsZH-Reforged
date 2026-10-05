@@ -1256,6 +1256,17 @@ TEST(force_fire_is_the_attack_key_and_nothing_else)
 	CHECK( !CommandXlat_isForceAttackTargeting( false, true ) );
 }
 
+/* InGameUI.cpp: Classic is the game as shipped, where ctrl held was force fire. */
+extern Bool InGameUI_isForceFireOn( Bool forceAttackArmed, Bool ctrlHeld, Bool classicUI );
+
+TEST(ctrl_force_fires_in_classic_and_only_there)
+{
+	CHECK(  InGameUI_isForceFireOn( FALSE, TRUE,  TRUE ) );
+	CHECK( !InGameUI_isForceFireOn( FALSE, TRUE,  FALSE ) );
+	CHECK(  InGameUI_isForceFireOn( TRUE,  FALSE, FALSE ) );
+	CHECK( !InGameUI_isForceFireOn( FALSE, FALSE, TRUE ) );
+}
+
 /* Player.cpp: the lobby's unit limit is 840 units shared out by the players who are not watching. */
 TEST(unit_limit_shares_840_between_the_players)
 {

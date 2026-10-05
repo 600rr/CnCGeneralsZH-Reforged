@@ -1609,7 +1609,10 @@ void InGameUI::setRadiusCursor(RadiusCursorType cursorType, const SpecialPowerTe
 			break;
 		case RADIUSCURSOR_GUARD_AREA:
 			// no decal: its size was fixed when the button was pressed, and the wheel changes the radius
-			// after that.  The area pick ring takes its place (isAreaPicking)
+			// after that.  The area pick ring takes its place (isAreaPicking).  Classic has no ring and
+			// no wheel, so it wears EA's decal at the standard range the guard will hold
+			if( TheGlobalData->isClassicUI() )
+				radius = AIGuardMachine::getStdGuardRange(obj);
 			break;
 		case RADIUSCURSOR_FRIENDLY_SPECIALPOWER:
 		case RADIUSCURSOR_OFFENSIVE_SPECIALPOWER:
@@ -6396,6 +6399,10 @@ Bool InGameUI::isHiddenByShroud( const Object *obj ) const
 //-------------------------------------------------------------------------------------------------
 void InGameUI::markNextOrderQueued( OrderQueueMode mode )
 {
+	// the game as shipped had no order list, and Classic sends the logic nothing it did not have
+	if( TheGlobalData->isClassicUI() )
+		return;
+
 	GameMessage *msg = TheMessageStream->appendMessage( GameMessage::MSG_QUEUE_NEXT_ORDER );
 	msg->appendIntegerArgument( mode );
 }
@@ -7041,11 +7048,17 @@ void InGameUI::createCommandHint( const GameMessage *msg )
 }
 
 //-------------------------------------------------------------------------------------------------
-/** Force fire is the attack key alone. */
+/** Force fire is the attack key alone in Reforged.  Ctrl held is how the game as shipped force
+	* fired, and Classic is that game. */
 //-------------------------------------------------------------------------------------------------
+Bool InGameUI_isForceFireOn( Bool forceAttackArmed, Bool ctrlHeld, Bool classicUI )
+{
+	return forceAttackArmed || ( classicUI && ctrlHeld );
+}
+
 Bool InGameUI::isForceFireOn( void ) const
 {
-	return m_forceAttackArmed;
+	return InGameUI_isForceFireOn( m_forceAttackArmed, m_forceAttackMode, TheGlobalData->isClassicUI() );
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -7622,6 +7635,10 @@ static const Real AREA_SWEEP_RADIUS = 300.0f;	///< a search and destroy's circle
 //-------------------------------------------------------------------------------------------------
 Bool InGameUI::isAreaPicking( void ) const
 {
+	// Classic's guard holds the standard range: no ring under the cursor and nothing for the wheel
+	if( TheGlobalData->isClassicUI() )
+		return FALSE;
+
 	if( m_guardArmed || m_areaOrder != AREA_ORDER_NONE )
 		return TRUE;
 

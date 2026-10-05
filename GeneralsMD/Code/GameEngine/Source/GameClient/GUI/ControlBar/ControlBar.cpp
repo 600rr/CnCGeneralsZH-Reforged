@@ -4203,6 +4203,10 @@ CommandSet *ControlBar::newCommandSetOverride( CommandSet *setToOverride )
 //-------------------------------------------------------------------------------------------------
 Int getBuildBatchCount( void )
 {
+	// Classic's click is one unit, as the game shipped
+	if( TheGlobalData->isClassicUI() )
+		return 1;
+
 	if( TheKeyboard->isCtrl() )
 		return TheKeyboard->isShift() ? CTRL_SHIFT_BUILD_QUEUE_COUNT : CTRL_BUILD_QUEUE_COUNT;
 
@@ -5262,7 +5266,14 @@ void ControlBar::setControlCommand( GameWindow *button, const CommandButton *com
 	setCommandBarBorder(button, commandButton->getCommandButtonMappedBorderType());
 	
 	// the key in the button's top left corner is its place's, and a place is only known once the
-	// whole set is on the bar: labelCommandPlaces paints it
+	// whole set is on the bar: labelCommandPlaces paints it.  Classic has no places: its key is the
+	// letter after the '&' in the button's own label, as the game shipped
+	if( TheHotKeyManager && TheGlobalData->isClassicUI() )
+	{
+		AsciiString hotKey = TheHotKeyManager->searchHotKey( commandButton->getTextLabel() );
+		if( hotKey.isNotEmpty() )
+			TheHotKeyManager->addHotKey( button, hotKey );
+	}
 
 	GadgetButtonSetAltSound(button, "GUICommandBarClick");
 

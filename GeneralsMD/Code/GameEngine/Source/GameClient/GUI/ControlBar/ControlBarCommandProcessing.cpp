@@ -758,7 +758,7 @@ CBCommandStatus ControlBar::processCommandUI( GameWindow *control,
 				break;
 
 			// shift: the unit buys it when its list gets there, and the money is looked at then
-			const Bool queued = TheInGameUI->isInWaypointMode();
+			const Bool queued = TheInGameUI->isInWaypointMode() && !TheGlobalData->isClassicUI();
 
 			//Make sure the player can really make this
 			if( !queued && TheUpgradeCenter->canAffordUpgrade( ThePlayerList->getLocalPlayer(), upgradeT, TRUE ) == FALSE )
