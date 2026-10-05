@@ -86,6 +86,10 @@ static void note_refusal(const char * reason)
 
 static std::vector<std::string> Notes;
 
+// Raised whenever a texture's view is replaced or its pixels are marked for a recopy; see
+// DX11Texture_Generation.
+static unsigned long long Generation = 0;
+
 static unsigned Mirrored = 0;
 static unsigned Refused = 0;
 static unsigned Reused = 0;
@@ -491,6 +495,7 @@ static ID3D11ShaderResourceView * apply_lod(ID3D11Device * device, IDirect3DBase
 	texture->SetPrivateData(DX11_TEXTURE_VIEW, replacement, sizeof(replacement), D3DSPD_IUNKNOWN);
 	replacement->Release();
 	texture->SetPrivateData(DX11_TEXTURE_LOD, &lod, sizeof(lod), 0);
+	++Generation;
 	return replacement;
 }
 
@@ -555,6 +560,12 @@ void DX11Texture_Mark_Dirty(IDirect3DSurface9 * surface)
 	const unsigned char dirty = 1;
 	texture->SetPrivateData(DX11_TEXTURE_DIRTY, &dirty, sizeof(dirty), 0);
 	texture->Release();
+	++Generation;
+}
+
+unsigned long long DX11Texture_Generation()
+{
+	return Generation;
 }
 
 bool DX11Texture_Update(ID3D11Device * device, ID3D11DeviceContext * context,

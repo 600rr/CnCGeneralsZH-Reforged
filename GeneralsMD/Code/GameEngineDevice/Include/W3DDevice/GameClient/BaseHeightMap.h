@@ -297,6 +297,29 @@ protected:
 	// STL is "smart." This is a variable sized bitset. Very memory efficient.
 	std::vector<bool> m_showAsVisibleCliff;
 
+	/** getStaticDiffuse's answer per height sample.  The 3-way blend pass asks for four of them per
+		visible tile on every render pass, and the answer only moves with the five heights it reads
+		(kept here as the key) and with the lights, whose every input sits in m_staticDiffuseInputs
+		as raw bits; a change there bumps m_staticDiffuseGeneration and so retires every cell.
+		The inputs are walked once a render frame, on every 3-way pass, and again after anything
+		that says the lighting moved (m_staticDiffuseStale), not on every call. */
+	struct StaticDiffuseCell
+	{
+		Int diffuse;
+		UnsignedShort generation;	///< 0 is never valid
+		UnsignedByte heights[5];	///< centre, left, right, below, above
+	};
+	std::vector<StaticDiffuseCell> m_staticDiffuseCells;
+	std::vector<UnsignedInt> m_staticDiffuseInputs;
+	UnsignedShort m_staticDiffuseGeneration;
+	Bool m_staticDiffuseStale;				///< lighting or map changed since the last walk
+	UnsignedInt m_staticDiffuseFrame;	///< WW3D frame of the last walk
+	void refreshStaticDiffuseInputs(void);
+
+	/// Bumped by anything that can change what the ground draws: heights, lighting, the 3-way tile
+	/// list.  A cache of terrain vertices that saw the same value has nothing to rebuild.
+	Int m_terrainContentVersion;
+
 
 	ShaderClass m_shaderClass; ///<shader or rendering state for heightmap
 	VertexMaterialClass	  	  *m_vertexMaterialClass;	///< vertex shader (lighting) for terrain

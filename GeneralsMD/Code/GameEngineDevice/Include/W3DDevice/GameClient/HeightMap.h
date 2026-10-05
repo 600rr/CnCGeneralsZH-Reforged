@@ -100,6 +100,19 @@ protected:
 	Int m_numExtraBlendTiles;		///<number of blend tiles in m_extraBlendTilePositions.
 	Int	m_numVisibleExtraBlendTiles; ///<number rendered last frame.	
 	Int m_extraBlendTilePositionsSize;	//<total size of array including unused memory.
+
+	/** The 3-way tiles' vertices, kept from one pass to the next.  They used to be rebuilt into the
+		shared dynamic buffer on every pass, and they only change with what m_extraBlendKey holds:
+		the terrain's content version, the drawn rectangle, the buffer's capacity, the map and how
+		its tiles sit in the terrain texture. */
+	enum { EXTRA_BLEND_KEY_SIZE = 8 };
+	DX8VertexBufferClass *m_extraBlendVB;
+	DX8IndexBufferClass *m_extraBlendIB;
+	Int m_extraBlendCapacity;		///< tiles the two buffers hold
+	WorldHeightMap *m_extraBlendMap;	///< map the buffers were filled from; NULL means refill
+	Int m_extraBlendKey[EXTRA_BLEND_KEY_SIZE];
+	Int m_extraBlendVertexCount;
+	Int m_extraBlendIndexCount;
 	DX8VertexBufferClass	**m_vertexBufferTiles;	///<collection of smaller vertex buffers that make up 1 heightmap
 	char	**m_vertexBufferBackup;	///< In memory copy of the vertex buffer data for quick update of dynamic lighting.
 	Int m_originX; ///<  Origin point in the grid.  Slides around.

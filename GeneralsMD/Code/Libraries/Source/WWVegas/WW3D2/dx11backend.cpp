@@ -285,6 +285,9 @@ DX11BackendClass::DX11BackendClass()
 	PixelConstantsHeld = false;
 	EngineConstantsHeld = false;
 	ConstantsChanged = true;
+	VertexConstantsChanged = false;
+	PixelConstantsChanged = false;
+	TexturesChanged = true;
 	PipelineChanged = true;
 	StateObjectsChanged = true;
 	for (unsigned sampler = 0; sampler < DX11_BACKEND_TEXTURE_STAGES; ++sampler) {
@@ -1077,7 +1080,26 @@ void DX11BackendClass::Set_Render_State(D3DRENDERSTATETYPE state, DWORD value)
 	// The raw value, not Get_Render_State: that one answers for the caster pass while it runs.
 	if (RenderStates.Get_Stored_Render_State(state) != value) {
 		RenderStates.Set_Render_State(state, value);
-		ConstantsChanged = true;
+		// Only these reach the constant blocks; see Upload_Vertex_Constants and
+		// Upload_Pixel_Constants.  The blend switch is there because the caster pass's alpha
+		// reference depends on it.  A blend, depth or cull change used to rebuild and compare both
+		// blocks to find the same bytes.
+		switch (state) {
+		case D3DRS_AMBIENT:
+		case D3DRS_FOGSTART:
+		case D3DRS_FOGEND:
+		case D3DRS_FOGDENSITY:
+			VertexConstantsChanged = true;
+			break;
+		case D3DRS_FOGCOLOR:
+		case D3DRS_TEXTUREFACTOR:
+		case D3DRS_ALPHAREF:
+		case D3DRS_ALPHABLENDENABLE:
+			PixelConstantsChanged = true;
+			break;
+		default:
+			break;
+		}
 		PipelineChanged = true;
 		StateObjectsChanged = true;
 	}
@@ -1118,6 +1140,9 @@ void DX11BackendClass::Set_Texture(unsigned stage, ID3D11ShaderResourceView * te
 			if (was_target || Views_Current_Target(stage, texture)) {
 				PipelineChanged = true;
 			}
+		}
+		if (texture != Textures[stage]) {
+			TexturesChanged = true;
 		}
 		Textures[stage] = texture;
 	}
@@ -1261,7 +1286,13 @@ void DX11BackendClass::Set_Transform(D3DTRANSFORMSTATETYPE state, const float ma
 	}
 	if (held != NULL && memcmp(held, matrix, sizeof(float) * 16) != 0) {
 		memcpy(held, matrix, sizeof(float) * 16);
-		ConstantsChanged = true;
+		// The pixel block reads the view and the projection; the world and the texture transforms
+		// are the vertex block's alone.
+		if (held == View || held == Projection) {
+			ConstantsChanged = true;
+		} else {
+			VertexConstantsChanged = true;
+		}
 	}
 }
 
@@ -1281,7 +1312,7 @@ void DX11BackendClass::Set_Material(const float ambient[4], const float diffuse[
 	memcpy(MaterialSpecular, specular, sizeof(MaterialSpecular));
 	memcpy(MaterialEmissive, emissive, sizeof(MaterialEmissive));
 	MaterialPower = power;
-	ConstantsChanged = true;
+	VertexConstantsChanged = true;
 }
 
 void DX11BackendClass::Set_Light(unsigned index, DWORD type, const float position[4],
@@ -2012,11 +2043,25 @@ void DX11BackendClass::Upload_Constants()
 		EngineConstantsHeld = true;
 	}
 
-	// Nothing either block is built from has been set since both buffers were last written.
-	if (!ConstantsChanged && VertexConstantsHeld && PixelConstantsHeld) {
-		return;
-	}
+	// Each block is built only when something it is built from has been set since its buffer was
+	// last written.
+	const bool vertex_due = ConstantsChanged || VertexConstantsChanged || !VertexConstantsHeld;
+	const bool pixel_due = ConstantsChanged || PixelConstantsChanged || !PixelConstantsHeld;
 	ConstantsChanged = false;
+	VertexConstantsChanged = false;
+	PixelConstantsChanged = false;
+	if (vertex_due) {
+		Upload_Vertex_Constants();
+	}
+	if (pixel_due) {
+		Upload_Pixel_Constants();
+	}
+}
+
+void DX11BackendClass::Upload_Vertex_Constants()
+{
+	ID3D11DeviceContext * context = Device->Get_Context();
+	D3D11_MAPPED_SUBRESOURCE mapped;
 
 	VertexConstantBlock vertex_block;
 	memset(&vertex_block, 0, sizeof(vertex_block));
@@ -2082,6 +2127,12 @@ void DX11BackendClass::Upload_Constants()
 			VertexConstantsHeld = true;
 		}
 	}
+}
+
+void DX11BackendClass::Upload_Pixel_Constants()
+{
+	ID3D11DeviceContext * context = Device->Get_Context();
+	D3D11_MAPPED_SUBRESOURCE mapped;
 
 	PixelConstantBlock pixel_block;
 	memset(&pixel_block, 0, sizeof(pixel_block));
@@ -2388,19 +2439,31 @@ void DX11BackendClass::Bind_State_Objects()
 		Bound.Rasterizer = rasterizer;
 	}
 
-	ID3D11SamplerState * samplers[DX11_BACKEND_TEXTURE_STAGES];
-	ID3D11ShaderResourceView * textures[DX11_BACKEND_TEXTURE_STAGES];
-	for (unsigned sampler = 0; sampler < DX11_BACKEND_TEXTURE_STAGES; ++sampler) {
-		samplers[sampler] = Sampler_State(sampler);
-		textures[sampler] = Readable_Texture(sampler, Textures[sampler]);
+	// The stages are what the last draw bound unless a texture or a sampler state was set since, or
+	// that draw read a copy of the target, which has to be taken again for this one.
+	bool stages_changed = !known || TexturesChanged;
+	for (unsigned sampler = 0; sampler < DX11_BACKEND_TEXTURE_STAGES && !stages_changed; ++sampler) {
+		stages_changed = SamplerChanged[sampler];
 	}
-	if (!known || memcmp(samplers, Bound.Samplers, sizeof(samplers)) != 0) {
-		context->PSSetSamplers(0, DX11_BACKEND_TEXTURE_STAGES, samplers);
-		memcpy(Bound.Samplers, samplers, sizeof(samplers));
-	}
-	if (!known || memcmp(textures, Bound.Textures, sizeof(textures)) != 0) {
-		context->PSSetShaderResources(0, DX11_BACKEND_TEXTURE_STAGES, textures);
-		memcpy(Bound.Textures, textures, sizeof(textures));
+	if (stages_changed) {
+		TexturesChanged = false;
+		ID3D11SamplerState * samplers[DX11_BACKEND_TEXTURE_STAGES];
+		ID3D11ShaderResourceView * textures[DX11_BACKEND_TEXTURE_STAGES];
+		for (unsigned sampler = 0; sampler < DX11_BACKEND_TEXTURE_STAGES; ++sampler) {
+			samplers[sampler] = Sampler_State(sampler);
+			textures[sampler] = Readable_Texture(sampler, Textures[sampler]);
+			if (textures[sampler] != Textures[sampler]) {
+				TexturesChanged = true;
+			}
+		}
+		if (!known || memcmp(samplers, Bound.Samplers, sizeof(samplers)) != 0) {
+			context->PSSetSamplers(0, DX11_BACKEND_TEXTURE_STAGES, samplers);
+			memcpy(Bound.Samplers, samplers, sizeof(samplers));
+		}
+		if (!known || memcmp(textures, Bound.Textures, sizeof(textures)) != 0) {
+			context->PSSetShaderResources(0, DX11_BACKEND_TEXTURE_STAGES, textures);
+			memcpy(Bound.Textures, textures, sizeof(textures));
+		}
 	}
 	// Left bound when the draw does not read it, since only a normal mapped program declares t4.
 	if (NormalMap != NULL && (!known || NormalMap != Bound.NormalMap)) {
@@ -2424,12 +2487,22 @@ void DX11BackendClass::Bind_State_Objects()
 		}
 		// The smoke's map beside it at t6 and s6, or nothing on a frame without smoke, which the
 		// program never reads: its strength is zero then.
+		// Both were bound again on every receiving draw, which is most of the frame.
 		ID3D11ShaderResourceView * const maps[2] = { ShadowMapTexture, Smoke_Map() };
-		context->PSSetShaderResources(DX11_BACKEND_TEXTURE_STAGES + 1, 2, maps);
+		if (!known || maps[0] != Bound.Maps[0] || maps[1] != Bound.Maps[1]) {
+			context->PSSetShaderResources(DX11_BACKEND_TEXTURE_STAGES + 1, 2, maps);
+			Bound.Maps[0] = maps[0];
+			Bound.Maps[1] = maps[1];
+		}
 		if (ShadowMapSampler != NULL) {
 			ID3D11SamplerState * const samplers_of_maps[2] = { ShadowMapSampler, SmokeMapSampler };
-			context->PSSetSamplers(DX11_BACKEND_TEXTURE_STAGES + 1, (SmokeMapSampler != NULL) ? 2 : 1,
-				samplers_of_maps);
+			if (!known || samplers_of_maps[0] != Bound.MapSamplers[0]
+					|| samplers_of_maps[1] != Bound.MapSamplers[1]) {
+				context->PSSetSamplers(DX11_BACKEND_TEXTURE_STAGES + 1,
+					(SmokeMapSampler != NULL) ? 2 : 1, samplers_of_maps);
+				Bound.MapSamplers[0] = samplers_of_maps[0];
+				Bound.MapSamplers[1] = samplers_of_maps[1];
+			}
 		}
 	}
 }

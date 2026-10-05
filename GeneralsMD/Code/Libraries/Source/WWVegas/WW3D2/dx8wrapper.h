@@ -525,6 +525,11 @@ public:
 
 	static bool Validate_Device(void);
 
+	// While Direct3D 11 presents, the Direct3D 9 device is not told the render states, stage and
+	// sampler states, textures, material or lights as they are set, only marked as owing them.
+	// Anything that draws on that device or reads its state back calls this first.
+	static void Flush_Deferred_D3D9_State(void);
+
 	// Deferred
 
 	static void Set_Shader(const ShaderClass& shader);
@@ -1002,6 +1007,20 @@ protected:
 	static unsigned						draw_calls;
 	static bool								CurrentDX8LightEnables[4];
 
+	// What the Direct3D 9 device has not been told yet, one bit per state, stage or light; the
+	// values are the caches above.  Defer_D3D9_State says whether a setter marks or calls.
+	static bool								Defer_D3D9_State();
+	static bool								D3D9StatePending;
+	static unsigned						PendingRenderStates[256/32];
+	static unsigned						PendingTextureStageStates[MAX_TEXTURE_STAGES];
+	static unsigned						PendingSamplerStates[MAX_TEXTURE_STAGES];
+	static unsigned						PendingTextures;
+	static bool								PendingMaterial;
+	static D3DMATERIAL9					PendingMaterialValue;
+	static unsigned						PendingLights;
+	static unsigned						PendingLightEnables;
+	static D3DLIGHT9						PendingLightValues[4];
+
 	static unsigned long FrameCount;
 
 	static DX8Caps*						CurrentCaps;
@@ -1184,12 +1203,29 @@ WWINLINE void DX8Wrapper::Set_Ambient(const Vector3& color)
 //
 // ----------------------------------------------------------------------------
 
+// While Direct3D 11 presents, the Direct3D 9 device skips its indexed draws, and what it was told
+// for them was 7-8% of the main thread spent inside d3d9.dll at 1080p.  The few readers left - the
+// fixed-function probe's sampled draws, the draws that still go to the device, the smudge test's
+// read back - call Flush_Deferred_D3D9_State first.  True means mark the state pending, not call.
+WWINLINE bool DX8Wrapper::Defer_D3D9_State()
+{
+	if (!Direct3D11_Present_Is_Enabled()) return false;
+	D3D9StatePending=true;
+	return true;
+}
+
 WWINLINE void DX8Wrapper::Set_DX8_Material(const D3DMATERIAL9* mat)
 {
 	DX8_RECORD_MATERIAL_CHANGE();
 	WWASSERT(mat);
 	SNAPSHOT_SAY(("DX8 - SetMaterial\n"));
-	DX8CALL(SetMaterial(mat));
+	if (Defer_D3D9_State()) {
+		PendingMaterialValue=*mat;
+		PendingMaterial=true;
+	}
+	else {
+		DX8CALL(SetMaterial(mat));
+	}
 
 	// D3DCOLORVALUE is four floats in red, green, blue, alpha order, which is the order the
 	// generated shader reads them, so each one goes across as it stands.
@@ -1201,8 +1237,15 @@ WWINLINE void DX8Wrapper::Set_DX8_Light(int index, D3DLIGHT9* light)
 {
 	if (light) {
 		DX8_RECORD_LIGHT_CHANGE();
-		DX8CALL(SetLight(index,light));
-		DX8CALL(LightEnable(index,true));
+		if (Defer_D3D9_State()) {
+			PendingLightValues[index]=*light;
+			PendingLights|=1u<<index;
+			PendingLightEnables|=1u<<index;
+		}
+		else {
+			DX8CALL(SetLight(index,light));
+			DX8CALL(LightEnable(index,true));
+		}
 		CurrentDX8LightEnables[index]=true;
 		SNAPSHOT_SAY(("DX8 - SetLight %d\n",index));
 
@@ -1222,7 +1265,12 @@ WWINLINE void DX8Wrapper::Set_DX8_Light(int index, D3DLIGHT9* light)
 	else if (CurrentDX8LightEnables[index]) {
 		DX8_RECORD_LIGHT_CHANGE();
 		CurrentDX8LightEnables[index]=false;
-		DX8CALL(LightEnable(index,false));
+		if (Defer_D3D9_State()) {
+			PendingLightEnables|=1u<<index;
+		}
+		else {
+			DX8CALL(LightEnable(index,false));
+		}
 		Direct3D11_Mirror_Light_Disabled(index);
 		SNAPSHOT_SAY(("DX8 - DisableLight %d\n",index));
 	}
@@ -1244,7 +1292,15 @@ WWINLINE void DX8Wrapper::Set_DX8_Render_State(D3DRENDERSTATETYPE state, unsigne
 #endif
 
 	RenderStates[state]=value;
-	DX8CALL(SetRenderState( state, value ));
+	// The water reads the cull mode back off the device and the stencil passes the colour write
+	// mask, and each puts what it read back through here into the Direct3D 11 mirror.  Those two
+	// still reach the device on every call, so what is read is what it always was.
+	if (state!=D3DRS_CULLMODE && state!=D3DRS_COLORWRITEENABLE && Defer_D3D9_State()) {
+		PendingRenderStates[state>>5]|=1u<<(state&31);
+	}
+	else {
+		DX8CALL(SetRenderState( state, value ));
+	}
 	Direct3D11_Mirror_Render_State(state, value);
 	DX8_RECORD_RENDER_STATE_CHANGE();
 }
@@ -1275,7 +1331,12 @@ WWINLINE void DX8Wrapper::Set_DX8_Texture_Stage_State(unsigned stage, D3DTEXTURE
 #endif
 
 	TextureStageStates[stage][(unsigned int)state]=value;
-	DX8CALL(SetTextureStageState( stage, state, value ));
+	if (Defer_D3D9_State()) {
+		PendingTextureStageStates[stage]|=1u<<(unsigned)state;
+	}
+	else {
+		DX8CALL(SetTextureStageState( stage, state, value ));
+	}
 	Direct3D11_Mirror_Texture_Stage_State(stage, state, value);
 	DX8_RECORD_TEXTURE_STAGE_STATE_CHANGE();
 }
@@ -1303,7 +1364,12 @@ WWINLINE void DX8Wrapper::Set_DX8_Texture_Stage_State(unsigned stage, D3DSAMPLER
 #endif
 
 	SamplerStates[stage][(unsigned int)state]=value;
-	DX8CALL(SetSamplerState( stage, state, value ));
+	if (Defer_D3D9_State()) {
+		PendingSamplerStates[stage]|=1u<<(unsigned)state;
+	}
+	else {
+		DX8CALL(SetSamplerState( stage, state, value ));
+	}
 	Direct3D11_Mirror_Sampler_State(stage, state, value);
 	DX8_RECORD_TEXTURE_STAGE_STATE_CHANGE();
 }
@@ -1322,7 +1388,12 @@ WWINLINE void DX8Wrapper::Set_DX8_Texture(unsigned int stage, IDirect3DBaseTextu
 	if (Textures[stage]) Textures[stage]->Release();
 	Textures[stage] = texture;
 	if (Textures[stage]) Textures[stage]->AddRef();
-	DX8CALL(SetTexture(stage, texture));
+	if (Defer_D3D9_State()) {
+		PendingTextures|=1u<<stage;
+	}
+	else {
+		DX8CALL(SetTexture(stage, texture));
+	}
 	Direct3D11_Mirror_Texture(stage, texture);
 	DX8_RECORD_TEXTURE_CHANGE();
 }

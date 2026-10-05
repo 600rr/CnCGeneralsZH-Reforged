@@ -1934,13 +1934,30 @@ static Bool stripSwitchedOff( Bool GlobalData::* flag )
 }
 
 //-------------------------------------------------------------------------------------------------
+/** Labels the string table had, by {{text:Label}} name, already turned into UTF-8.  The game's own
+	* table is read once at startup and searched before the map's, so a label found there answers the
+	* same all session; one only the map's map.str has answers the same until reset() at the match's
+	* end, the resetAll that also drops the map's table.  A missing label is asked again every time.
+	* ponytail: map.str reloaded mid-match (the map cache's scan) would leave a map-only label stale;
+	* no page asks for one. */
+static std::map< std::string, std::string > s_gameTexts;
+
 /** {{text:Label}}: a string table label, in the player's language. */
 //-------------------------------------------------------------------------------------------------
 static Bool lookupGameText( const std::string &name, std::string &value )
 {
 	if( name.compare( 0, TEXT_LOOKUP.size(), TEXT_LOOKUP ) != 0 )
 		return FALSE;
-	value = WideCharStringToMultiByte( TheGameText->fetch( name.substr( TEXT_LOOKUP.size() ).c_str() ).str() );
+	std::map< std::string, std::string >::const_iterator found = s_gameTexts.find( name );
+	if( found != s_gameTexts.end() )
+	{
+		value = found->second;
+		return TRUE;
+	}
+	Bool exists = FALSE;
+	value = WideCharStringToMultiByte( TheGameText->fetch( name.substr( TEXT_LOOKUP.size() ).c_str(), &exists ).str() );
+	if( exists )
+		s_gameTexts[ name ] = value;
 	return TRUE;
 }
 
@@ -2575,7 +2592,7 @@ void InGameUI::drawSpectatorPage( void )
 	for( std::set< std::string >::const_iterator name = m_spectatorFlipped.begin(); name != m_spectatorFlipped.end(); ++name )
 		values[ FLIP_ACTION + *name ] = "flipped";
 
-	m_spectatorOverlay->setPage( HtmlTemplate_expand( m_spectatorPage, values, m_spectatorLists, lookupGameText ) );
+	m_spectatorOverlay->setPage( m_spectatorPage, values, m_spectatorLists, lookupGameText );
 	m_spectatorOverlay->hover( TheMouse->getMouseStatus()->pos );
 	m_spectatorOverlay->draw();
 	m_spectatorPageShown = TRUE;
@@ -4145,6 +4162,7 @@ void InGameUI::reset( void )
 	m_scoreboardOpen = FALSE;
 	m_scoreboardPageLoaded = FALSE;
 	m_scoreboardHtml.clear();
+	s_gameTexts.clear();				// the map's string table goes with the map
 	m_earnedReadingCount = 0;		// a new match and a loaded save both come through here
 	m_controlBarPageLoaded = FALSE;
 	m_netPageLoaded = FALSE;
@@ -4527,7 +4545,7 @@ void InGameUI::drawAlertPage( void )
 	values[ "top" ] = std::to_string( REAL_TO_INT_FLOOR( m_topBarBottom / scale + 0.5f ) + ALERT_GAP );
 	values[ "whose" ] = alert.whose;
 	values[ "text" ] = alert.text;
-	m_alertOverlay->setPage( HtmlTemplate_expand( m_alertPage, values, HtmlLists(), lookupGameText ) );
+	m_alertOverlay->setPage( m_alertPage, values, HtmlLists(), lookupGameText );
 
 	const UnsignedInt left = alertHoldMs( m_alerts.size() - 1 ) - ( nowMs - m_alertStartMs );
 	m_alertOverlay->setAlpha( left < ALERT_FADE_MS ? (Int)( ALERT_OPAQUE * left / ALERT_FADE_MS ) : ALERT_OPAQUE );
@@ -4675,7 +4693,7 @@ void InGameUI::drawFeed( void )
 
 	HtmlValues values;
 	values[ "top" ] = std::to_string( REAL_TO_INT_FLOOR( feedTop() / ControlBarHudPageScale() ) );
-	m_feedOverlay->setPage( HtmlTemplate_expand( m_feedPage, values, lists, lookupGameText ) );
+	m_feedOverlay->setPage( m_feedPage, values, lists, lookupGameText );
 	m_feedOverlay->draw();
 }
 
@@ -4768,7 +4786,7 @@ void InGameUI::drawChat( void )
 	values[ "typed" ] = WideCharStringToMultiByte( typed.str() );
 	values[ "caret" ] = frame / CHAT_CARET_FRAMES % 2 == 0 ? "lit" : "";
 	values[ "audience" ] = WideCharStringToMultiByte( audience.str() );
-	m_chatOverlay->setPage( HtmlTemplate_expand( m_chatPage, values, lists, lookupGameText ) );
+	m_chatOverlay->setPage( m_chatPage, values, lists, lookupGameText );
 	m_chatOverlay->setAlpha( open ? OPAQUE_PAGE : min( (Int)OPAQUE_PAGE, (Int)( newestUntil - frame ) * OPAQUE_PAGE / CHAT_FADE_FRAMES ) );
 	m_chatOverlay->draw();
 }
@@ -12131,7 +12149,7 @@ void InGameUI::drawNetPage( void )
 	// into the readings themselves rather than a copy of them made every frame; nothing else reads
 	// them, and the next sample clears them
 	m_hudValues[ "side" ] = spectatorSide();
-	m_netOverlay->setPage( HtmlTemplate_expand( m_netPage, m_hudValues, HtmlLists(), lookupGameText ) );
+	m_netOverlay->setPage( m_netPage, m_hudValues, HtmlLists(), lookupGameText );
 	m_netOverlay->draw();
 }
 
@@ -12154,7 +12172,7 @@ void InGameUI::drawReadoutPage( const HtmlValues &values )
 		m_readoutOverlay->setHud( TRUE );
 	}
 
-	m_readoutOverlay->setPage( HtmlTemplate_expand( m_readoutPage, values, HtmlLists(), lookupGameText ) );
+	m_readoutOverlay->setPage( m_readoutPage, values, HtmlLists(), lookupGameText );
 	m_readoutOverlay->draw();
 }
 
@@ -12202,7 +12220,7 @@ void InGameUI::drawCellGridFront( Int grid )
 	// lent to the page and taken back, rather than copied every frame
 	std::vector< HtmlValues > &frontCells = lists[ "frontcells" ];
 	frontCells.swap( m_cellFrontCells[ grid ] );
-	overlay->setPage( HtmlTemplate_expand( m_controlBarPage, values, lists, lookupGameText ) );
+	overlay->setPage( m_controlBarPage, values, lists, lookupGameText );
 	frontCells.swap( m_cellFrontCells[ grid ] );
 	overlay->draw();
 }
@@ -12684,7 +12702,7 @@ Bool InGameUI::drawControlBarPage( const IRegion2D *panels, const Bool *shown, I
 	if( !m_promotionPage.empty() )
 		standDownPromotionScreen();
 
-	m_controlBarOverlay->setPage( HtmlTemplate_expand( m_controlBarPage, values, lists, lookupGameText ) );
+	m_controlBarOverlay->setPage( m_controlBarPage, values, lists, lookupGameText );
 	// swapped rather than copied: the front windows get this frame's cells, and the lists get the
 	// front windows' old ones to write the next frame over
 	m_cellFrontCells[ CELL_GRID_COMMAND ].swap( commandCells );
@@ -13090,7 +13108,7 @@ void InGameUI::drawPromotionPage( GameWindow *parent, Bool front )
 		headings.push_back( entry );
 	}
 
-	overlay->setPage( HtmlTemplate_expand( m_promotionPage, values, lists, lookupGameText ) );
+	overlay->setPage( m_promotionPage, values, lists, lookupGameText );
 	overlay->hover( TheMouse->getMouseStatus()->pos );
 	overlay->draw();
 }
@@ -13280,7 +13298,7 @@ void InGameUI::drawQuitMenuPage( GameWindow *parent )
 			keys.push_back( entry );
 	}
 
-	m_quitMenuOverlay->setPage( HtmlTemplate_expand( m_quitMenuPage, values, lists, lookupGameText ) );
+	m_quitMenuOverlay->setPage( m_quitMenuPage, values, lists, lookupGameText );
 	m_quitMenuOverlay->setAlpha( pageAlpha );
 	m_quitMenuOverlay->draw();
 
@@ -13290,7 +13308,7 @@ void InGameUI::drawQuitMenuPage( GameWindow *parent )
 		if( m_quitMenuKeyOverlays.size() <= each )
 			m_quitMenuKeyOverlays.push_back( new HtmlOverlay( m_superweaponNormalFont ) );
 		keys.assign( 1, fading[ each ].entry );
-		m_quitMenuKeyOverlays[ each ]->setPage( HtmlTemplate_expand( m_quitMenuPage, values, lists, lookupGameText ) );
+		m_quitMenuKeyOverlays[ each ]->setPage( m_quitMenuPage, values, lists, lookupGameText );
 		m_quitMenuKeyOverlays[ each ]->setAlpha( fading[ each ].alpha );
 		m_quitMenuKeyOverlays[ each ]->draw();
 	}
@@ -13667,7 +13685,7 @@ void InGameUI::drawQueueTray( void )
 		m_queueFrontOverlay->setHud( TRUE );
 	}
 	values[ "layer" ] = "back";
-	m_queueOverlay->setPage( HtmlTemplate_expand( m_queuePage, values, lists, lookupGameText ) );
+	m_queueOverlay->setPage( m_queuePage, values, lists, lookupGameText );
 	m_queueOverlay->draw();
 
 	TheDisplay->beginBatch2D();
@@ -13675,7 +13693,7 @@ void InGameUI::drawQueueTray( void )
 	TheDisplay->endBatch2D();
 
 	values[ "layer" ] = "front";
-	m_queueFrontOverlay->setPage( HtmlTemplate_expand( m_queuePage, values, lists, lookupGameText ) );
+	m_queueFrontOverlay->setPage( m_queuePage, values, lists, lookupGameText );
 	m_queueFrontOverlay->draw();
 }
 
@@ -13878,7 +13896,7 @@ void InGameUI::drawSuperweaponStrip( void )
 		m_superweaponOverlay = new HtmlOverlay( m_superweaponNormalFont );
 		m_superweaponOverlay->setScreenPixels( TRUE );
 	}
-	m_superweaponOverlay->setPage( HtmlTemplate_expand( m_queuePage, values, lists, lookupGameText ) );
+	m_superweaponOverlay->setPage( m_queuePage, values, lists, lookupGameText );
 	m_superweaponOverlay->draw();
 
 	// a cameo has no frame drawn over its edge, so a readout's plate stands in its very corner: the
@@ -15076,7 +15094,7 @@ Bool InGameUI::drawTooltipPage( const UnicodeString &cursorText, const RGBColor 
 		box.hi.x = box.lo.x + m_tooltipSize.x;
 		box.hi.y = box.lo.y + m_tooltipSize.y;
 		putPageRect( values, "box", box, TRUE, ControlBarHudPageScale() );
-		m_tooltipOverlay->setPage( HtmlTemplate_expand( m_tooltipPage, values, lists, lookupGameText ) );
+		m_tooltipOverlay->setPage( m_tooltipPage, values, lists, lookupGameText );
 
 		std::vector< IRegion2D > laidOut;
 		m_tooltipOverlay->rectsOf( "#box", laidOut );

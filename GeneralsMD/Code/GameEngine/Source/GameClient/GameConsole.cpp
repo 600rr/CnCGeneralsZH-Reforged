@@ -552,7 +552,7 @@ void GameConsole::renderCheatPanel( void )
 	std::vector< std::string > clicks;
 	fillCheatPanelCells( lists[ "cells" ], clicks );
 
-	m_cheatOverlay->setPage( HtmlTemplate_expand( m_cheatPage, values, lists, lookupCheatPanelText ) );
+	m_cheatOverlay->setPage( m_cheatPage, values, lists, lookupCheatPanelText );
 	m_cheatOverlay->hover( TheMouse->getMouseStatus()->pos );
 	m_cheatOverlay->draw();
 	m_cheatPanelShown = TRUE;

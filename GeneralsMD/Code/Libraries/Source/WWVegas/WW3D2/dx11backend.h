@@ -350,6 +350,8 @@ private:
 	bool Build_Vertex_Description(VertexPipelineDescription & description) const;
 	bool Build_Combiner_Description(CombinerDescription & description) const;
 	void Upload_Constants();
+	void Upload_Vertex_Constants();
+	void Upload_Pixel_Constants();
 
 	// Both indexed draws land here; only the topology differs.
 	bool Draw_Indexed(unsigned index_count, unsigned start_index, unsigned base_vertex,
@@ -519,8 +521,17 @@ private:
 	// input to any of them needs its setter to raise the flag here, or the draw after it reads the
 	// previous batch's lighting.
 	bool ConstantsChanged;
+	// An input of one block only: the world and texture transforms and the material reach only the
+	// vertex block, the terrain sun, the scene view and the smoke only the pixel block.  A mesh
+	// changes its world transform every draw, and rebuilding the pixel block for it was a rebuild
+	// whose bytes always matched.  ConstantsChanged stands for both.
+	bool VertexConstantsChanged;
+	bool PixelConstantsChanged;
 	bool PipelineChanged;
 	bool SamplerChanged[DX11_BACKEND_TEXTURE_STAGES];
+	// A stage's texture changed, or the last draw sampled the current target and so needs a fresh
+	// copy of it: either way the stages have to be looked at again before the next draw binds.
+	bool TexturesChanged;
 	// A render state, or the shadow caster pass that answers for some of them, changed since the
 	// three state objects were last looked up.
 	bool StateObjectsChanged;
@@ -676,6 +687,10 @@ private:
 		ID3D11SamplerState * Samplers[DX11_BACKEND_TEXTURE_STAGES];
 		ID3D11ShaderResourceView * Textures[DX11_BACKEND_TEXTURE_STAGES];
 		ID3D11ShaderResourceView * NormalMap;
+		// The sun's map and the smoke's at t5 and t6, and their samplers as last passed: the
+		// second sampler is null when only the first was set.
+		ID3D11ShaderResourceView * Maps[2];
+		ID3D11SamplerState * MapSamplers[2];
 		ID3D11InputLayout * Layout;
 		ID3D11Buffer * VertexBuffer;
 		UINT VertexStride;

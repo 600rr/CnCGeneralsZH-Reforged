@@ -207,6 +207,8 @@ void DX8Wrapper::_Set_DX8_Render_Target(IDirect3DSurface9 * render_target, IDire
 void DX8Wrapper::_Draw_DX8_Primitive_UP(D3DPRIMITIVETYPE type, unsigned primitive_count,
 	const void * vertices, unsigned stride)
 {
+	// Drawn on Direct3D 9 whichever device presents: the smudge test reads this draw back.
+	Flush_Deferred_D3D9_State();
 	DX8CALL(DrawPrimitiveUP(type, primitive_count, vertices, stride));
 	if (type == D3DPT_TRIANGLESTRIP) {
 		Direct3D11_Draw_User_Strip(vertices, primitive_count, stride);
@@ -325,6 +327,16 @@ unsigned							DX8Wrapper::texture_stage_state_changes			= 0;
 unsigned							DX8Wrapper::draw_calls									= 0;
 unsigned							DX8Wrapper::_MainThreadID								= 0;
 bool								DX8Wrapper::CurrentDX8LightEnables[4];
+bool								DX8Wrapper::D3D9StatePending							= false;
+unsigned							DX8Wrapper::PendingRenderStates[256/32];
+unsigned							DX8Wrapper::PendingTextureStageStates[MAX_TEXTURE_STAGES];
+unsigned							DX8Wrapper::PendingSamplerStates[MAX_TEXTURE_STAGES];
+unsigned							DX8Wrapper::PendingTextures							= 0;
+bool								DX8Wrapper::PendingMaterial							= false;
+D3DMATERIAL9					DX8Wrapper::PendingMaterialValue;
+unsigned							DX8Wrapper::PendingLights								= 0;
+unsigned							DX8Wrapper::PendingLightEnables						= 0;
+D3DLIGHT9						DX8Wrapper::PendingLightValues[4];
 bool								DX8Wrapper::IsDeviceLost;
 int								DX8Wrapper::ZBias;
 float								DX8Wrapper::ZNear;
@@ -565,6 +577,8 @@ void DX8Wrapper::Shutdown(void)
 	// combiner cache compiled.
 	FixedFunctionProbe_Dump("ffprobe.txt");
 	CombinerShaderCache_Release();
+	// The setters stop deferring once Direct3D 11 is gone, so nothing may be left owed across it.
+	Flush_Deferred_D3D9_State();
 	Direct3D11_Release();
 	restore_desktop_display();
 
@@ -688,6 +702,7 @@ bool DX8Wrapper::Validate_Device(void)
 {	RenderUInt32 numPasses=0;
 	RenderResult hRes;
 
+	Flush_Deferred_D3D9_State();
 	hRes=_Get_D3D_Device()->ValidateDevice(&numPasses);
 
 	return (hRes == D3D_OK);
@@ -695,6 +710,8 @@ bool DX8Wrapper::Validate_Device(void)
 
 void DX8Wrapper::Invalidate_Cached_Render_States(void)
 {
+	// The caches below are about to stop holding the values the device is owed.
+	Flush_Deferred_D3D9_State();
 	render_state_changed=0;
 
 	int a;
@@ -1069,6 +1086,9 @@ bool DX8Wrapper::Reset_Device(bool reload_assets)
 	WWDEBUG_SAY(("Resetting device.\n"));
 	DX8_THREAD_ASSERT();
 	if ((IsInitted) && (D3DDevice != NULL)) {
+		// The textures the device holds bound at Reset() are the ones it held before deferring.
+		Flush_Deferred_D3D9_State();
+
 		// Release all non-MANAGED stuff
 		WW3D::_Invalidate_Textures();
 
@@ -1123,6 +1143,9 @@ bool DX8Wrapper::Reset_Device(bool reload_assets)
 void DX8Wrapper::Release_Device(void)
 {
 	if (D3DDevice) {
+
+		// So that no pending bit outlives this device and is sent to the next one.
+		Flush_Deferred_D3D9_State();
 
 		// The device made every shader in the combiner cache and outliving it is not something they
 		// can do.  Nothing recompiles them: the next draw asks the cache again and it is empty.
@@ -2714,9 +2737,10 @@ void DX8Wrapper::Draw(
 	Apply_Render_State_Changes();
 
 	// -ffprobe only: the fixed-function inventory phase 2 has to write as HLSL, counted off the
-	// device rather than off this wrapper's cache, so a call site that set its own states directly
-	// is seen too.
-	if (FixedFunctionProbe_Is_Enabled()) {
+	// device rather than off this wrapper's cache.  Under D3D11 the device is behind that cache, so
+	// the sample flushes the wrapper's cached values to it first; only the draws it samples pay.
+	if (FixedFunctionProbe_Samples_Draw()) {
+		Flush_Deferred_D3D9_State();
 		FixedFunctionProbe_Record(D3DDevice);
 	}
 
@@ -2741,6 +2765,7 @@ void DX8Wrapper::Draw(
 	if (WW3D::Is_Snapshot_Activated()) {
 		RenderUInt32 passes=0;	// DWORD on Windows, which ValidateDevice writes
 		SNAPSHOT_SAY(("ValidateDevice: "));
+		Flush_Deferred_D3D9_State();
 		RenderResult res=D3DDevice->ValidateDevice(&passes);
 		switch (res) {
 		case D3D_OK:
@@ -2819,10 +2844,10 @@ void DX8Wrapper::Draw(
 				DX8_RECORD_RENDER(polygon_count,vertex_count,render_state.shader);
 				DX8_RECORD_DRAW_CALLS();
 				// When Direct3D 11 owns the window, the Direct3D 9 frame is never shown and nothing
-				// reads its pixels back, so drawing it is only GPU time.  The state is still set on
-				// the D3D9 device above: the fixed-function probe reads it, and the wrapper's own
-				// cache relies on it.  _Draw_DX8_Primitive_UP keeps its D3D9 draw, because the smudge
-				// hardware test draws with it and reads the D3D9 target back.
+				// reads its pixels back, so drawing it is only GPU time.  Most of the state for it is
+				// deferred as well (Defer_D3D9_State) and sent only before the probe's sampled draws.
+				// _Draw_DX8_Primitive_UP keeps its D3D9 draw, because the smudge hardware test draws
+				// with it and reads the D3D9 target back.
 				if (!Direct3D11_Present_Is_Enabled()) {
 					DX8CALL(DrawIndexedPrimitive(
 						(D3DPRIMITIVETYPE)primitive_type,
@@ -3099,6 +3124,63 @@ void DX8Wrapper::Apply_Render_State_Changes()
 	render_state_changed&=((unsigned)WORLD_IDENTITY|(unsigned)VIEW_IDENTITY);
 
 	SNAPSHOT_SAY(("DX8Wrapper::Apply_Render_State_Changes() - finished\n"));
+}
+
+// Each owed value is the latest one the cache holds, sent once however often it changed since the
+// last flush.  Nothing outside this wrapper writes these states on the device on a modern card
+// (shader.cpp's stage 2 writes are Voodoo3 only), so the device ends where it would have been.
+void DX8Wrapper::Flush_Deferred_D3D9_State(void)
+{
+	if (!D3D9StatePending) return;
+	D3D9StatePending=false;
+
+	for (unsigned word=0; word<256/32; ++word) {
+		unsigned bits=PendingRenderStates[word];
+		PendingRenderStates[word]=0;
+		for (unsigned bit=0; bits!=0; ++bit, bits>>=1) {
+			if (bits&1) {
+				const unsigned state=word*32+bit;
+				DX8CALL(SetRenderState((D3DRENDERSTATETYPE)state, RenderStates[state]));
+			}
+		}
+	}
+
+	for (unsigned stage=0; stage<MAX_TEXTURE_STAGES; ++stage) {
+		unsigned bits=PendingTextureStageStates[stage];
+		PendingTextureStageStates[stage]=0;
+		for (unsigned state=0; bits!=0; ++state, bits>>=1) {
+			if (bits&1) {
+				DX8CALL(SetTextureStageState(stage, (D3DTEXTURESTAGESTATETYPE)state, TextureStageStates[stage][state]));
+			}
+		}
+		bits=PendingSamplerStates[stage];
+		PendingSamplerStates[stage]=0;
+		for (unsigned state=0; bits!=0; ++state, bits>>=1) {
+			if (bits&1) {
+				DX8CALL(SetSamplerState(stage, (D3DSAMPLERSTATETYPE)state, SamplerStates[stage][state]));
+			}
+		}
+		if (PendingTextures&(1u<<stage)) {
+			DX8CALL(SetTexture(stage, Textures[stage]));
+		}
+	}
+	PendingTextures=0;
+
+	if (PendingMaterial) {
+		PendingMaterial=false;
+		DX8CALL(SetMaterial(&PendingMaterialValue));
+	}
+
+	for (unsigned index=0; index<4; ++index) {
+		if (PendingLights&(1u<<index)) {
+			DX8CALL(SetLight(index, &PendingLightValues[index]));
+		}
+		if (PendingLightEnables&(1u<<index)) {
+			DX8CALL(LightEnable(index, CurrentDX8LightEnables[index]));
+		}
+	}
+	PendingLights=0;
+	PendingLightEnables=0;
 }
 
 IDirect3DTexture9 * DX8Wrapper::_Create_DX8_Texture
@@ -5500,6 +5582,7 @@ void DX8Wrapper::Draw_Owned_Triangles(unsigned first_index, unsigned triangle_co
 	// sites, which had them written out by hand and not always the same way.
 	const unsigned index_count=as_strip ? (triangle_count+2) : (triangle_count*3);
 
+	Flush_Deferred_D3D9_State();
 	DX8CALL(DrawIndexedPrimitive(
 		as_strip ? D3DPT_TRIANGLESTRIP : D3DPT_TRIANGLELIST,
 		0,						// BaseVertexIndex: the stream offset already moved the vertices
@@ -5523,6 +5606,7 @@ void DX8Wrapper::Draw_Owned_Points(unsigned first_vertex, unsigned point_count)
 	DX8_THREAD_ASSERT();
 	if (point_count==0) return;
 
+	Flush_Deferred_D3D9_State();
 	DX8CALL(DrawPrimitive(D3DPT_POINTLIST, first_vertex, point_count));
 
 	// No mirror: the Direct3D 11 backend resolves triangles out of the fixed-function state and

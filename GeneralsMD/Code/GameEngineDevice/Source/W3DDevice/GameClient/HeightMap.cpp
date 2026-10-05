@@ -142,6 +142,10 @@ inline Int IABS(Int x) {	if (x>=0) return x; return -x;};
 void HeightMapRenderObjClass::freeIndexVertexBuffers(void)
 {
 	REF_PTR_RELEASE(m_indexBuffer);
+	REF_PTR_RELEASE(m_extraBlendVB);
+	REF_PTR_RELEASE(m_extraBlendIB);
+	m_extraBlendCapacity = 0;
+	m_extraBlendMap = NULL;
 	if (m_vertexBufferTiles) {
 		for (int i=0; i<m_numVertexBufferTiles; i++)
 			REF_PTR_RELEASE(m_vertexBufferTiles[i]);
@@ -945,6 +949,7 @@ void HeightMapRenderObjClass::doPartialUpdate(const IRegion2D &partialRange, Wor
 	//over the same tile and require an extra render pass.
 
 	Int i, j;
+	m_terrainContentVersion++;	// the 3-way list below changes
 	//First remove any existing extra blend tiles within this partial region
 	for (j=0; j<m_numExtraBlendTiles; j++)
 	{	Int x = m_extraBlendTilePositions[j] & 0xffff;
@@ -1071,6 +1076,12 @@ m_extraBlendTilePositions(NULL),
 m_numExtraBlendTiles(0),
 m_numVisibleExtraBlendTiles(0),
 m_extraBlendTilePositionsSize(0),
+m_extraBlendVB(NULL),
+m_extraBlendIB(NULL),
+m_extraBlendCapacity(0),
+m_extraBlendMap(NULL),
+m_extraBlendVertexCount(0),
+m_extraBlendIndexCount(0),
 m_vertexBufferTiles(NULL),
 m_vertexBufferBackup(NULL),
 m_originX(0),
@@ -2282,28 +2293,42 @@ void HeightMapRenderObjClass::renderExtraBlendTiles(void)
 	if (maxBlendTiles > 10000)	//we can only fit about 10000 tiles into a single VB.
 		maxBlendTiles = 10000;
 
-	DynamicVBAccessClass vb_access(BUFFER_TYPE_DYNAMIC_DX8,DX8_FVF_XYZNDUV2,maxBlendTiles*4);
-	DynamicIBAccessClass ib_access(BUFFER_TYPE_DYNAMIC_DX8,maxBlendTiles*6);
-	{
+	//Loop over visible terrain and extract all the tiles that need extra blend
+	Int drawEdgeY=m_map->getDrawOrgY()+m_map->getDrawHeight()-1;
+	Int drawEdgeX=m_map->getDrawOrgX()+m_map->getDrawWidth()-1;
+	if (drawEdgeX > (m_map->getXExtent()-1))
+		drawEdgeX = m_map->getXExtent()-1;
+	if (drawEdgeY > (m_map->getYExtent()-1))
+		drawEdgeY = m_map->getYExtent()-1;
+	Int drawStartX=m_map->getDrawOrgX();
+	Int drawStartY=m_map->getDrawOrgY();
 
-		DynamicVBAccessClass::WriteLockClass lock(&vb_access);
-		VertexFormatXYZNDUV2* vb= lock.Get_Formatted_Vertex_Array();
-		DynamicIBAccessClass::WriteLockClass lockib(&ib_access);
+	// Everything the fill below reads, apart from the 3-way list, the heights and the lights, which
+	// all move m_terrainContentVersion.  The lights are checked here, once a pass.
+	refreshStaticDiffuseInputs();
+	const Int key[EXTRA_BLEND_KEY_SIZE] = { m_terrainContentVersion, drawStartX, drawStartY,
+		drawEdgeX, drawEdgeY, maxBlendTiles, m_map->getExtraBlendUVGeneration(),
+		TheGlobalData->m_adjustCliffTextures };
+	if (m_extraBlendMap != m_map || memcmp(key, m_extraBlendKey, sizeof(key)) != 0)
+	{
+		m_extraBlendMap = NULL;
+		if (m_extraBlendCapacity != maxBlendTiles)
+		{
+			REF_PTR_RELEASE(m_extraBlendVB);
+			REF_PTR_RELEASE(m_extraBlendIB);
+			m_extraBlendVB = NEW_REF(DX8VertexBufferClass,(DX8_FVF_XYZNDUV2,maxBlendTiles*4,DX8VertexBufferClass::USAGE_DEFAULT));
+			m_extraBlendIB = NEW_REF(DX8IndexBufferClass,(maxBlendTiles*6));
+			m_extraBlendCapacity = maxBlendTiles;
+		}
+
+		DX8VertexBufferClass::WriteLockClass lock(m_extraBlendVB);
+		VertexFormatXYZNDUV2* vb=(VertexFormatXYZNDUV2*)lock.Get_Vertex_Array();
+		DX8IndexBufferClass::WriteLockClass lockib(m_extraBlendIB);
 		UnsignedShort *ib=lockib.Get_Index_Array();
 
 		if (!vb || !ib) return;
 
 		const UnsignedByte* data = m_map->getDataPtr();
-
-		//Loop over visible terrain and extract all the tiles that need extra blend
-		Int drawEdgeY=m_map->getDrawOrgY()+m_map->getDrawHeight()-1;
-		Int drawEdgeX=m_map->getDrawOrgX()+m_map->getDrawWidth()-1;
-		if (drawEdgeX > (m_map->getXExtent()-1))
-			drawEdgeX = m_map->getXExtent()-1;
-		if (drawEdgeY > (m_map->getYExtent()-1))
-			drawEdgeY = m_map->getYExtent()-1;
-		Int drawStartX=m_map->getDrawOrgX();
-		Int drawStartY=m_map->getDrawOrgY();
 
 		try {
 		for (Int j=0; j<m_numExtraBlendTiles; j++)
@@ -2410,17 +2435,24 @@ void HeightMapRenderObjClass::renderExtraBlendTiles(void)
 		} catch(...) {
 			IndexBufferExceptionFunc();
 		}
+
+		memcpy(m_extraBlendKey, key, sizeof(key));
+		m_extraBlendMap = m_map;
+		m_extraBlendVertexCount = vertexCount;
+		m_extraBlendIndexCount = indexCount;
 	}//unlock vertex buffer
+	vertexCount = m_extraBlendVertexCount;
+	indexCount = m_extraBlendIndexCount;
 
 	if (vertexCount)
 	{
 		//Check if we couldn't fit all blend tiles into vertex buffer so we can enlarge it for next frame.
 		if (vertexCount == (maxBlendTiles*4))
 			maxBlendTiles += 16;	//enlarge by 16 to reduce trashing.
-		
+
 		ShaderClass::Invalidate();	//invalidate to force shader to reset since we directly changed states
-		DX8Wrapper::Set_Index_Buffer(ib_access,0);
-		DX8Wrapper::Set_Vertex_Buffer(vb_access);
+		DX8Wrapper::Set_Index_Buffer(m_extraBlendIB,0);
+		DX8Wrapper::Set_Vertex_Buffer(m_extraBlendVB);
 		VertexMaterialClass *vmat=VertexMaterialClass::Get_Preset(VertexMaterialClass::PRELIT_DIFFUSE);
 		DX8Wrapper::Set_Material(vmat);
 		REF_PTR_RELEASE(vmat);
