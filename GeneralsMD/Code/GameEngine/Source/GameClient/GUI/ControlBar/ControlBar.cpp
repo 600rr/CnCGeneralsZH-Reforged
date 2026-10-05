@@ -5438,6 +5438,13 @@ void ControlBar::setPortraitByObject( Object *obj )
 		m_rightHUDWindow->winClearStatus( WIN_STATUS_IMAGE );
 		m_rightHUDCameoWindow->winSetStatus( WIN_STATUS_IMAGE );
 
+		// a player's upgrades are his research, which nobody else can see on the battlefield, so they
+		// light only for the local player, his allies and a watcher; an enemy's or a neutral's portrait
+		// lights only what the unit carries itself, its drones and add-ons.  Retail lit them all
+		Player *local = ThePlayerList->getLocalPlayer();
+		const Bool researchShown = player && ( !local->isPlayerActive() || player == local
+																					 || local->getRelationship( player->getDefaultTeam() ) == ALLIES );
+
 		for(Int i = 0; i < MAX_UPGRADE_CAMEO_UPGRADES; ++i)
 		{
 			AsciiString upgradeName = thing->getUpgradeCameoName(i);
@@ -5461,7 +5468,7 @@ void ControlBar::setPortraitByObject( Object *obj )
 				//Object level upgrades
 				m_rightHUDUpgradeCameos[i]->winEnable( TRUE );
 			}
-			else if( player && player->hasUpgradeComplete( ut ) )
+			else if( researchShown && player->hasUpgradeComplete( ut ) )
 			{
 				//Player level upgrades
 				m_rightHUDUpgradeCameos[i]->winEnable( TRUE );

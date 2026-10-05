@@ -11935,7 +11935,7 @@ static void putFigureColumn( std::vector< HtmlValues > &columns, Int column, con
 
 /** A lone unit's name, rank, health, main weapon and armour for the page, beside its portrait
 	* `portrait` in the selection's well `well`: {{selinfo.x}} .y .w .h, {{sel.name}},
-	* data-each="selstars" a star for each veterancy level it has, {{sel.health}} "820/1000",
+	* data-each="selstars" a star for each veterancy level it has, {{sel.health}} "820/1000" or "82%",
 	* {{sel.healthw}} the bar's lit width in page pixels out of selinfo.w, {{sel.healthstate}} "green",
 	* "yellow" or "red", data-each="selweapon" the main weapon's damage, damage a second and range and
 	* data-each="selarmor" what its armour does to each of SHOWN_ARMOR, "-75%".  Both are the object's
@@ -11987,20 +11987,23 @@ static void putSelectedUnit( HtmlValues &values, HtmlLists &lists, const IRegion
 		stars.push_back( star );
 	}
 
-	const BodyModuleInterface *body = object->getBodyModule();
-	const Int health = (Int)REAL_TO_INT_CEIL( body->getHealth() );
-	const Int maxHealth = max( 1, (Int)REAL_TO_INT_CEIL( body->getMaxHealth() ) );
-	const Int percent = health * PERCENT / maxHealth;
-	values[ "sel.health" ] = std::to_string( health ) + "/" + std::to_string( maxHealth );
-	values[ "sel.healthw" ] = std::to_string( atoi( values[ "selinfo.w" ].c_str() ) * health / maxHealth );
-	values[ "sel.healthstate" ] = percent <= HEALTH_RED_PERCENT ? "red" : percent <= HEALTH_YELLOW_PERCENT ? "yellow" : "green";
-
 	// a unit of the local player's or an ally's shows its figures as they stand; anybody else's only
 	// with the veterancy his stars show already, since his upgrades, battle plans and horde are what
 	// he has researched and planned.  A watcher is in nobody's match and sees everything
 	const Player *local = ThePlayerList->getLocalPlayer();
 	const Bool ours = localPlayerWatching() || object->getControllingPlayer() == local
 										|| local->getRelationship( object->getTeam() ) == ALLIES;
+
+	// an enemy's health as a share of his whole: the whole is research too, Composite Armor and the
+	// armour upgrades raise it, and the bar over the unit only ever showed the share
+	const BodyModuleInterface *body = object->getBodyModule();
+	const Int health = (Int)REAL_TO_INT_CEIL( body->getHealth() );
+	const Int maxHealth = max( 1, (Int)REAL_TO_INT_CEIL( body->getMaxHealth() ) );
+	const Int percent = health * PERCENT / maxHealth;
+	values[ "sel.health" ] = ours ? std::to_string( health ) + "/" + std::to_string( maxHealth ) : std::to_string( percent ) + "%";
+	values[ "sel.healthw" ] = std::to_string( atoi( values[ "selinfo.w" ].c_str() ) * health / maxHealth );
+	values[ "sel.healthstate" ] = percent <= HEALTH_RED_PERCENT ? "red" : percent <= HEALTH_YELLOW_PERCENT ? "yellow" : "green";
+
 	UnitFigures figures = {};
 	if( ours )
 	{
