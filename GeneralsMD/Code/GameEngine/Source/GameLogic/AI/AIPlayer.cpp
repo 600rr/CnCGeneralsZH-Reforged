@@ -8068,6 +8068,10 @@ static const Int MAX_RAIDERS = 2;
 static const Real HEALER_PATIENT_HEALTH = 0.9f;	///< a unit below this share of its health is worth hovering over
 static const UnsignedInt HEALER_HIT_FRAMES = 3 * LOGICFRAMES_PER_SECOND;	///< a healer hit this recently pulls back
 static const UnsignedInt HEALER_REPORT_FRAMES = 60 * LOGICFRAMES_PER_SECOND;
+/** The reach of a Helix's propaganda tower, ChinaHelixPropagandaTower's Radius in retail ChinaAir.ini.
+	* A unit inside two towers heals as fast as inside one (Object::attemptHealingFromSoleBenefactor),
+	* so a healer keeps its spot this far from every other healer's. */
+static const Real HEALER_TOWER_RADIUS = 150.0f;
 
 /** How far past a known gun's reach a Helix keeps, for the gun's own step forward. */
 static const Real HELIX_GUN_MARGIN = 80.0f;
@@ -8397,10 +8401,21 @@ Coord3D AIPlayer::rearOf( const Coord3D *from, const std::vector<AIKnownGun> &gu
 	return spot;
 }
 
+static Bool insideAnotherTower( const std::vector<Coord3D> &taken, Real x, Real y )
+{
+	for( size_t t = 0; t < taken.size(); ++t )
+		if( sqr( taken[ t ].x - x ) + sqr( taken[ t ].y - y ) < sqr( HEALER_TOWER_RADIUS ) )
+			return TRUE;
+	return FALSE;
+}
+
 /** A healer goes over the most hurt of ours that stands clear of every known gun, out with the army
 	* when the army is out; with nobody hurt it hangs behind the middle of whoever is out, at the first
 	* point toward home no known gun reaches.  Hit, or with a known anti-air gun in reach, it pulls back
-	* the same way.  It carries nobody and is in no wave. */
+	* the same way.  It carries nobody and is in no wave.
+	* Healers in lower slots choose first, and a later one leaves alone whatever already stands inside
+	* their towers: it takes the most hurt unit outside them, and its place behind the wave moves
+	* sideways across the way home until it clears them. */
 void AIPlayer::steerHealer( Int slot, const std::vector<AIKnownGun> &guns )
 {
 	DutyHelix &duty = m_dutyHelix[ slot ];
@@ -8446,6 +8461,14 @@ void AIPlayer::steerHealer( Int slot, const std::vector<AIKnownGun> &guns )
 	}
 	else if( helix->hasUpgrade( tower ) )
 	{
+		// the spots the healers in lower slots took this pass, the slots being steered in order
+		std::vector<Coord3D> taken;
+		for( Int s = 0; s < slot; ++s )
+		{
+			const DutyHelix &other = m_dutyHelix[ s ];
+			if( other.id != INVALID_ID && other.role == HELIX_HEALER && (other.phase == HEAL_PATIENT || other.phase == HEAL_REAR) )
+				taken.push_back( other.spot );
+		}
 		std::vector<Object *> owned;
 		m_player->iterateObjects( collectOwned, &owned );
 		Object *hurtOut = NULL;
@@ -8470,7 +8493,8 @@ void AIPlayer::steerHealer( Int slot, const std::vector<AIKnownGun> &guns )
 			}
 			const BodyModuleInterface *body = obj->getBodyModule();
 			const Real missing = body->getMaxHealth() - body->getHealth();
-			if( body->getHealth() >= HEALER_PATIENT_HEALTH * body->getMaxHealth() || deepestReach( guns, at->x, at->y, FALSE ) >= -HELIX_GUN_MARGIN )
+			if( body->getHealth() >= HEALER_PATIENT_HEALTH * body->getMaxHealth() || deepestReach( guns, at->x, at->y, FALSE ) >= -HELIX_GUN_MARGIN ||
+					insideAnotherTower( taken, at->x, at->y ) )
 				continue;
 			if( !home && missing > missingOut )
 			{
@@ -8495,6 +8519,29 @@ void AIPlayer::steerHealer( Int slot, const std::vector<AIKnownGun> &guns )
 			middle.x /= out;
 			middle.y /= out;
 			spot = rearOf( &middle, guns );
+			// sideways, alternately right and left, by a tower's reach plus the slack a lower slot's spot
+			// keeps before it is re-ordered, so a step always clears the spot it stepped away from
+			const Real dx = m_baseCenter.x - middle.x;
+			const Real dy = m_baseCenter.y - middle.y;
+			const Real length = (Real)sqrt( dx * dx + dy * dy );
+			if( length > 0.0f && insideAnotherTower( taken, spot.x, spot.y ) )
+			{
+				Region3D extent;
+				TheTerrainLogic->getExtent( &extent );
+				for( Int step = 1; step <= 4; ++step )
+				{
+					const Real side = (HEALER_TOWER_RADIUS + HELIX_REORDER_DISTANCE) * ((step + 1) / 2) * ((step & 1) ? 1.0f : -1.0f);
+					const Real x = spot.x - dy / length * side;
+					const Real y = spot.y + dx / length * side;
+					if( x >= extent.lo.x && x <= extent.hi.x && y >= extent.lo.y && y <= extent.hi.y &&
+							!insideAnotherTower( taken, x, y ) && deepestReach( guns, x, y, FALSE ) < -HELIX_GUN_MARGIN )
+					{
+						spot.x = x;
+						spot.y = y;
+						break;
+					}
+				}
+			}
 		}
 	}
 	if( phase == HEAL_HOME && isAtHome( pos ) )
