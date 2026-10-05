@@ -85,12 +85,6 @@ struct CombinerDescription
 	// bound pixel shader, and generating them there would apply each of them twice.
 	PixelPipelineDescription PixelPipeline;
 
-	// D3D11 only: light the pixel again through the normal map at t4 before the
-	// stages read the diffuse colour, and add a highlight scaled by the map's alpha after them.
-	// The vertex half has to have been generated with the same flag.  Initialised here because
-	// callers fill a description field by field and one written before this existed never sets it.
-	bool NormalMapped = false;
-
 	// D3D11 only: take the pixel back out of clip space, look it up in the sun's depth buffer at t5
 	// and darken it by how much of the filter comes back blocked.  No vertex half is involved: the
 	// position comes from SV_Position and one matrix, which is what keeps this off the varyings the
@@ -101,8 +95,8 @@ struct CombinerDescription
 	// (D3DRENDERSTATETYPE: "added to the base color after the texture cascade but before alpha
 	// blending").  Every profile writes it, D3D9's included: D3D9 does the add only for its
 	// fixed-function stages, and a bound pixel shader, which the D3D9 profile's program is, replaces
-	// it ("Writing HLSL Shaders in Direct3D 9").  A normal mapped program adds its own highlight
-	// instead.  Initialised here for a caller that fills the rest field by field.
+	// it ("Writing HLSL Shaders in Direct3D 9").  Initialised here for a caller that fills the rest
+	// field by field.
 	bool SpecularAdd = false;
 
 	// D3D11 only: the vertex half carries a fire's glow in the specular slot (VertexPipelineDescription::
@@ -113,8 +107,8 @@ struct CombinerDescription
 	bool SmokeGlow = false;
 };
 
-// The normal mapped pixel program reads this many directional lights from its constants.  Slots
-// past the draw's own lights carry no colour and add nothing.
+// The constant block still carries this many normal mapped light slots, unread, so the shadow and
+// sky fields behind them keep their offsets.
 const unsigned NORMAL_MAPPED_LIGHTS = 4;
 
 // How much of the sun reaches a pixel, shared by the generated programs and the transcribed ones so

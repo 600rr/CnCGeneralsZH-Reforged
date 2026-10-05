@@ -518,11 +518,6 @@ W3DDisplay::~W3DDisplay()
 
 	// Same reason as above: WW3D2 has no logging in a shipping build, and a -dx11 run that made no
 	// device at all would otherwise look exactly like one that made a device nothing drew through.
-	if( Direct3D11_Normal_Maps_Active() )
-	{
-		DEBUG_LOG(("NORMALMAPS: %I64u draws lit per pixel\n", Direct3D11_Normal_Mapped_Draws()));
-	}
-
 	if( Direct3D11_Is_Enabled() )
 	{
 		unsigned pipelines = 0;
@@ -1140,10 +1135,8 @@ void W3DDisplay::init( void )
 	// next to its exe, and the shipped programs there are read-only anyway.
 	Direct3D11_Set_Shader_Cache_Directory( TheGlobalData->getPath_UserData().str() );
 	pushDirect3D11PostChain();
-	// Classic graphics is read here once and not again: a texture that has looked for its normal
-	// map keeps the answer, and a tile size cannot change under a loaded map.  The menu says the
-	// setting waits for the next launch.
-	Direct3D11_Normal_Maps_Enable( !TheGlobalData->m_classicGraphics );
+	// Classic graphics is read here once and not again: a tile size cannot change under a loaded
+	// map.  The menu says the setting waits for the next launch.
 	// Before any map is read: every tile and the atlas are sized by it.  A headless run draws no
 	// ground, so it keeps EA's tile and the memory, and classic graphics keeps EA's tile to look it.
 	TheTilePixelExtent = (TheGlobalData->m_headless || TheGlobalData->m_classicGraphics)
@@ -2576,11 +2569,6 @@ AGAIN:
 		{
 			USE_PERF_TIMER(BigAssRenderLoop)
 			static Bool couldRender = true;
-			// The bumped ground is shaded against the first terrain light, the one its
-			// vertex colours were lit by.  A script can change the time of day, so every frame.
-			const Coord3D &sun = TheGlobalData->m_terrainLightPos[0];
-			const float sunDirection[3] = { sun.x, sun.y, sun.z };
-			Direct3D11_Set_Terrain_Sun( sunDirection );
 			if ((TheGlobalData->m_breakTheMovie == FALSE) && (TheGlobalData->m_disableRender == false) && WW3D::Begin_Render( true, true, Vector3( 0.0f, 0.0f, 0.0f ), TheWaterTransparency->m_minWaterOpacity ) == WW3D_ERROR_OK)		
 			{
 				

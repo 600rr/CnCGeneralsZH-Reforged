@@ -110,21 +110,10 @@ DX11BufferTwinClass * Direct3D11_Twin_Index_Buffer(unsigned byte_count, bool dyn
 // first bind and kept on it, so nothing in the loaders has to know this exists.
 void Direct3D11_Mirror_Texture(unsigned stage, struct IDirect3DBaseTexture9 * texture);
 
-// Normal maps: TextureClass looks for a "<name>_nrm.dds" beside every texture it binds at stage
-// zero and hands it over here, null when there is none; the terrain builds its own.  Active is
-// false on a Direct3D 9 run, which has no pixel half to light with, and after the classic graphics
-// setting turned them off, which it does once, before the first texture is bound.
-void Direct3D11_Normal_Maps_Enable(bool enabled);
-bool Direct3D11_Normal_Maps_Active();
-void Direct3D11_Mirror_Normal_Map(struct IDirect3DBaseTexture9 * normal_map);
-
-// The way the sun's light travels, world space, for the bumped terrain.  Set once a frame.
-void Direct3D11_Set_Terrain_Sun(const float direction[3]);
 // The vehicle headlights for the frame, nearest the camera first, eight floats each: world
 // position, reach, world direction, cosine of the cone's edge; and what a pixel gains per channel
 // per unit of their light.  A Direct3D 9 run ignores them.
 void Direct3D11_Set_Headlights(const float * lights, unsigned count, const float gain[3]);
-unsigned long long Direct3D11_Normal_Mapped_Draws();
 
 // The sun's depth buffer.  Between Begin and End every draw lands in it and nowhere else, which is
 // how the caster pass is written without the engine knowing what a render target is.  False from

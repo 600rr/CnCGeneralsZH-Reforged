@@ -35,7 +35,6 @@ static HRESULT PresentFailure = S_OK;
 static bool PresentFailureReported = false;
 static bool VSyncRequested = false;
 static bool Active = false;
-static bool NormalMapsEnabled = true;
 static DX11DeviceClass Device;
 static DX11BackendClass Backend;
 static DX11PostProcessClass Post;
@@ -255,39 +254,6 @@ void Direct3D11_Mirror_Texture(unsigned stage, struct IDirect3DBaseTexture9 * te
 		: DX11Texture_Mirror(Device.Get_Device(), Device.Get_Context(), texture);
 	Backend.Set_Texture(stage, view);
 	Backend.Set_Texture_Missing(stage, texture != NULL && view == NULL);
-
-	// A new texture at stage zero drops the old one's normal map.  TextureClass::Apply hands over
-	// the new one's right after this, and a texture bound any other way has none.
-	if (stage == 0) {
-		Backend.Set_Normal_Map(NULL);
-	}
-}
-
-void Direct3D11_Normal_Maps_Enable(bool enabled)
-{
-	NormalMapsEnabled = enabled;
-}
-
-bool Direct3D11_Normal_Maps_Active()
-{
-	return Active && NormalMapsEnabled;
-}
-
-void Direct3D11_Mirror_Normal_Map(struct IDirect3DBaseTexture9 * normal_map)
-{
-	if (!Active) {
-		return;
-	}
-	Backend.Set_Normal_Map(normal_map == NULL
-		? NULL
-		: DX11Texture_Mirror(Device.Get_Device(), Device.Get_Context(), normal_map));
-}
-
-void Direct3D11_Set_Terrain_Sun(const float direction[3])
-{
-	if (Active) {
-		Backend.Set_Terrain_Sun(direction);
-	}
 }
 
 void Direct3D11_Set_Headlights(const float * lights, unsigned count, const float gain[3])
@@ -295,11 +261,6 @@ void Direct3D11_Set_Headlights(const float * lights, unsigned count, const float
 	if (Active) {
 		Backend.Set_Headlights(lights, count, gain);
 	}
-}
-
-unsigned long long Direct3D11_Normal_Mapped_Draws()
-{
-	return Active ? Backend.Normal_Mapped_Draw_Count() : 0;
 }
 
 bool Direct3D11_Begin_Shadow_Map(unsigned size)

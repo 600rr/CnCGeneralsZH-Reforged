@@ -59,12 +59,7 @@ DX11BufferTwinClass * Direct3D11_Twin_Vertex_Buffer(unsigned, bool) { return NUL
 DX11BufferTwinClass * Direct3D11_Twin_Index_Buffer(unsigned, bool) { return NULL; }
 void Direct3D11_Mirror_Texture(unsigned, struct IDirect3DBaseTexture9 *) {}
 
-void Direct3D11_Normal_Maps_Enable(bool) {}
-bool Direct3D11_Normal_Maps_Active() { return false; }
-void Direct3D11_Mirror_Normal_Map(struct IDirect3DBaseTexture9 *) {}
-void Direct3D11_Set_Terrain_Sun(const float [3]) {}
 void Direct3D11_Set_Headlights(const float *, unsigned, const float [3]) {}
-unsigned long long Direct3D11_Normal_Mapped_Draws() { return 0; }
 
 bool Direct3D11_Begin_Shadow_Map(unsigned) { return false; }
 void Direct3D11_End_Shadow_Map() {}

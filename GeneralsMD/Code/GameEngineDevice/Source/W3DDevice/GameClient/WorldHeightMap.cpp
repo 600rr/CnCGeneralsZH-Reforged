@@ -54,7 +54,6 @@
 #include "W3DDevice/GameClient/HeightMap.h"
 #include "W3DDevice/GameClient/TerrainTex.h"
 #include "W3DDevice/GameClient/W3DShadow.h"
-#include "dx11runtime.h"
 
 #include "Common/file.h"
 
@@ -1593,15 +1592,6 @@ TextureClass *WorldHeightMap::getTerrainTexture(void)
 		m_terrainTex = MSGNEW("WorldHeightMap_getTerrainTexture") TerrainTextureClass(pow2Height);
 		m_terrainTexHeight = m_terrainTex->update(this);
 		m_extraBlendUVGeneration++;	// the tiles just moved in the texture, and its height may have changed
-		if (Direct3D11_Normal_Maps_Active()) {
-			// The ground's normals, laid out exactly as its colours, so the pixel program
-			// reads both at the same coordinate.  Built from the tiles every load; nothing ships one.
-			TerrainTextureClass *normalTex = MSGNEW("WorldHeightMap_getTerrainTexture")
-				TerrainTextureClass(pow2Height, WW3D_FORMAT_A8R8G8B8);
-			normalTex->updateNormals(this);
-			m_terrainTex->Set_Normal_Map(normalTex);
-			REF_PTR_RELEASE(normalTex);
-		}
 		char buf[64];
 		sprintf(buf, "Base tex height %d\n", pow2Height);
 		DEBUG_LOG((buf));

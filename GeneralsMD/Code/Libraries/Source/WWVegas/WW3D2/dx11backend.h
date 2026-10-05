@@ -88,16 +88,6 @@ public:
 	void Set_Sampler_State(unsigned sampler, D3DSAMPLERSTATETYPE state, DWORD value);
 	void Set_Texture(unsigned stage, ID3D11ShaderResourceView * texture);
 
-	// The normal map that goes with the texture at stage zero, or null when it has none.  A lit
-	// draw with directional lights only is then lit per pixel through it, and so is the terrain;
-	// every other draw ignores it.
-	void Set_Normal_Map(ID3D11ShaderResourceView * normal_map);
-	unsigned long long Normal_Mapped_Draw_Count() const { return NormalMappedDraws; }
-
-	// The way the sun's light travels, in world space: the terrain has no D3D light of its own, its
-	// light is baked into the vertices, so its bump is shaded against this.
-	void Set_Terrain_Sun(const float direction[3]);
-
 	// The vehicle headlights for the frame, eight floats a light: world position, reach, world
 	// direction, cosine of the cone's edge.  Past HEADLIGHT_SLOTS the rest are dropped; the caller
 	// sorts them nearest first.  Zero lights leaves every program's pixels as they were.  The gain
@@ -316,8 +306,11 @@ private:
 		float LightFields[MAXIMUM_VERTEX_LIGHTS][VERTEX_REGISTERS_PER_LIGHT][4];
 	};
 
-	// The normal map fields go last: a program that is not normal mapped declares the first three
-	// and nothing else, which a larger buffer serves.
+	// A program that receives no shadow declares the first three fields and nothing else, which a
+	// larger buffer serves.  The four after AlphaReference, and Sky and SkyUp, belonged to the normal
+	// maps taken out on 2026-10-06; nothing reads them and nothing writes them, but the generated
+	// programs still declare them, and every field behind them is found by its offset.  They stay
+	// until the generators and the cached programs move together.
 	struct PixelConstantBlock
 	{
 		float TextureFactor[4];
@@ -353,10 +346,6 @@ private:
 		float HeadlightPosition[HEADLIGHT_SLOTS][4];
 		float HeadlightDirection[HEADLIGHT_SLOTS][4];
 	};
-	// A model under directional lights, drawn by generated programs.
-	bool Normal_Mapped() const;
-	// The ground, drawn by one of the transcribed terrain programs with its light baked in.
-	bool Terrain_Bumped() const;
 	// A draw that is painting the world and can take a shadow from the sun's map.
 	bool Shadow_Receiving() const;
 
@@ -388,9 +377,6 @@ private:
 	DX11SamplerBlockClass Samplers[DX11_BACKEND_TEXTURE_STAGES];
 	DWORD StageStates[DX11_BACKEND_TEXTURE_STAGES][DX11_BACKEND_STAGE_STATES];
 	ID3D11ShaderResourceView * Textures[DX11_BACKEND_TEXTURE_STAGES];
-	ID3D11ShaderResourceView * NormalMap;
-	unsigned long long NormalMappedDraws;
-	float TerrainSun[3];
 
 	DWORD VertexFormat;
 	ID3D11Buffer * StreamBuffer;
@@ -742,7 +728,6 @@ private:
 		ID3D11RasterizerState * Rasterizer;
 		ID3D11SamplerState * Samplers[DX11_BACKEND_TEXTURE_STAGES];
 		ID3D11ShaderResourceView * Textures[DX11_BACKEND_TEXTURE_STAGES];
-		ID3D11ShaderResourceView * NormalMap;
 		// The sun's map and the smoke's at t5 and t6, and their samplers as last passed: the
 		// second sampler is null when only the first was set.
 		ID3D11ShaderResourceView * Maps[2];
