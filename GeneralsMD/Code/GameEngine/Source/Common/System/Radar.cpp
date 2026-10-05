@@ -41,6 +41,7 @@
 #include "Common/GlobalData.h"
 #include "Common/Xfer.h"
 
+#include "GameClient/ControlBar.h"
 #include "GameClient/Drawable.h"
 #include "GameClient/Eva.h"
 #include "GameClient/GameWindowManager.h"
@@ -1238,6 +1239,9 @@ void Radar::tryUnderAttackEvent( const Object *obj )
 	// if event created, do some more feedback
 	if( eventCreated )
 	{
+		// the lamp beside the radar; only the Classic bar has one to light
+		if( TheControlBar )
+			TheControlBar->triggerRadarAttackGlow();
 		//
 		///@todo Should make an INI data driven table for radar event strings, and audio events
 		//

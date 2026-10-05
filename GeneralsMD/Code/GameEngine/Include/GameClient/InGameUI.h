@@ -465,7 +465,7 @@ public:  // ********************************************************************
 	void feedStructure( Object *structure, Bool finished );
 	void feedScience( Player *player, ScienceType science );
 	virtual void toggleMessages( void ) { m_messagesOn = 1 - m_messagesOn; }	///< toggle messages on/off
-	void openScoreboard( void ) { m_scoreboardOpen = TRUE; }		///< the Tab scoreboard, up while Tab is held
+	void openScoreboard( void );		///< the Tab scoreboard, up while Tab is held; EA's diplomacy screen in Classic
 	void closeScoreboard( void ) { m_scoreboardOpen = FALSE; }
 	Bool pickSpectatorStat( Int commandSlot );	///< a command bar key while watching: TRUE when it picked a stat
 	/** The command bar's page, Window/Html/ControlBar.html, under the bar's windows: its panels are
@@ -1671,6 +1671,26 @@ protected:
 	void clearSignalMarks( void );
 	void addFeedLine( HtmlValues line );
 	void feedAct( Player *player, const Image *cameo, const std::string &what, const char *tag, const char *label );
+
+	//
+	// The Classic interface's message list: EA's column of six lines in the top left corner, each in
+	// its own colour, fading out from the moment it is written.  Reforged writes the event feed.
+	//
+	enum { CLASSIC_MESSAGES = 6 };
+	struct ClassicMessage
+	{
+		DisplayString *text;
+		UnsignedInt frame;					///< the logic frame it was written on
+		Color color;
+	};
+	ClassicMessage							m_classicMessages[ CLASSIC_MESSAGES ];	///< newest first
+	UnsignedInt									m_classicMessageFadeFrame;			///< the last logic frame the fade was stepped on
+	void addClassicMessage( const UnicodeString &text, const Color *color );
+	void fadeClassicMessages( void );
+	void drawClassicMessages( void );
+	void freeClassicMessages( void );
+	void drawClassicSuperweapon( SuperweaponInfo *info, const AsciiString &templateName, Bool isReady, Int readySecs,
+															 Int x, Int *y );
 	void watchDozers( void );
 	void drawFeed( void );
 	Int feedTop( void ) const;

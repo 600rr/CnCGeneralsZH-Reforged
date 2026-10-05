@@ -348,7 +348,11 @@ public:
 	Int m_hudScale;								///< HUD size step, 0 = 100%; see ControlBarHudScale (client only)
 	Int m_menuLayout;							///< MENU_LAYOUT_STRETCH or MENU_LAYOUT_FIT, for the Menus/ layouts (client only)
 	Int m_interfaceStyle;					///< INTERFACE_STYLE_CLASSIC or INTERFACE_STYLE_REFORGED (client only, never GameLogic)
-	Bool isClassicUI() const { return m_interfaceStyle == INTERFACE_STYLE_CLASSIC; }
+	/// the style this run was started in: the row is APPLY_RESTART, but the options menu writes
+	/// m_interfaceStyle on Accept, and half the HUD was already built in the old style by then
+	Int m_interfaceStyleInUse;
+	void latchInterfaceStyle() { m_interfaceStyleInUse = m_interfaceStyle; }	///< GameEngine::init, after the command line
+	Bool isClassicUI() const { return m_interfaceStyleInUse == INTERFACE_STYLE_CLASSIC; }
 	Int m_playerColorScheme;			///< PlayerColorSchemeType: whose colour the client draws (client only)
 	Int m_textLanguage;						///< TextLanguageType: the translation GameText lays over the CSF, read once at startup (client only)
 	Bool m_showOrderLines;				///< draw a line from each selected unit to where it is going, and its queue (client only)

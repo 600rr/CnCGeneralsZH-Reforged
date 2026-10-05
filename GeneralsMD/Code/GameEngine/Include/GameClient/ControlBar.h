@@ -1166,6 +1166,9 @@ public:
 		* solid panel. */
 	void setPageSolids( const std::vector< IRegion2D > *solids, const std::vector< IRegion2D > *holes = NULL );
 
+	/// the radar's under-attack lamp, EA's: the Classic interface keeps it, Reforged hides the window
+	void triggerRadarAttackGlow( void );
+
 	/** The HUD page's place for the general's powers: the first in `corner`, the bottom left of the
 		* grid, each `cell` big with `gap` between them, a group of SPECIAL_POWER_SHORTCUT_COLS going
 		* up from it as a column and the next group the column right of it, the order the group keys
@@ -1519,6 +1522,8 @@ protected:
 	std::vector< IRegion2D > m_pageSolids;							///< what the CSS page drew solid, in screen pixels; see setPageSolids
 	std::vector< IRegion2D > m_pageHoles;								///< the page's own buttons, which let their clicks through
 	Bool m_pageSolidsActive;														///< the page is drawing, so m_pageSolids decides clicks and not the plates
+	GameWindow *m_radarAttackGlowWindow;										///< WinUAttack, Classic only; NULL in Reforged
+	Int m_remainingRadarAttackGlowFrames;										///< logic frames left on the lamp's flashing
 	Player *m_watchedSelection;													///< the player the selection last named while watching, NULL for nobody
 
 	WindowLayout *m_buildToolTipLayout;										///< The window that will slide on/display tooltips

@@ -7438,6 +7438,11 @@ TEST(interface_style_defaults_to_classic_and_round_trips_through_options_ini)
 
 	TheWritableGlobalData->m_interfaceStyle = INTERFACE_STYLE_CLASSIC;
 	loadOptionsFromPreferences( pref );
+	CHECK_EQ( TheGlobalData->m_interfaceStyle, (Int)INTERFACE_STYLE_REFORGED );
+
+	// the HUD keeps the style it started in until the next start: Accept writes the row at once
+	CHECK( TheGlobalData->isClassicUI() );
+	TheWritableGlobalData->latchInterfaceStyle();
 	CHECK( !TheGlobalData->isClassicUI() );
 
 	delete TheWritableGlobalData;
@@ -11906,6 +11911,46 @@ TEST(the_three_panels_are_one_bar_at_4x3_and_pull_apart_on_a_wide_screen)
 
 	CHECK( ControlBarPanelDesignToScreen( ControlBar::CB_PANEL_COUNT, &whole, 1920, 1080, &left ) == FALSE );
 	CHECK( ControlBarPanelDesignToScreen( ControlBar::CB_PANEL_LEFT, &whole, 0, 0, &left ) == FALSE );
+}
+
+TEST(the_classic_bar_is_one_piece_centred_in_the_4x3_box)
+{
+	/* The Classic interface puts EA's bar back together, and on a wide screen it stands in the
+		 middle of the 4:3 box with the world showing down both sides, not pulled apart to the edges. */
+	CHECK_EQ( UIRectForScreen( 1920, 1080 ).x, 240 );
+	CHECK_EQ( UIRectForScreen( 1920, 1080 ).w, 1440 );
+	CHECK_EQ( UIRectForScreen( 1920, 1080 ).h, 1080 );
+	CHECK_EQ( UIRectForScreen( 2560, 1080 ).x, 560 );
+	CHECK_EQ( UIRectForScreen( 1024, 768 ).x, 0 );
+	CHECK_EQ( UIRectForScreen( 1024, 768 ).w, 1024 );
+	CHECK_EQ( UIRectForScreen( 1280, 1024 ).y, 64 );		// narrower than 4:3: full width, on the bottom with the bar
+
+	GlobalData *saved = TheWritableGlobalData;
+	TheWritableGlobalData = NEW GlobalData;
+	TheWritableGlobalData->m_interfaceStyle = INTERFACE_STYLE_CLASSIC;
+	TheWritableGlobalData->latchInterfaceStyle();
+
+	IRegion2D whole;
+	whole.lo.x = 0;
+	whole.lo.y = 408;
+	whole.hi.x = 800;
+	whole.hi.y = 600;
+	for( Int screen = 0; screen < 2; screen++ )
+	{
+		const Int w = screen ? 2560 : 1920;
+		const UIRect box = UIRectForScreen( w, 1080 );
+		for( Int p = 0; p < ControlBar::CB_PANEL_COUNT; p++ )
+		{
+			IRegion2D rect;
+			CHECK( ControlBarPanelDesignToScreen( p, &whole, w, 1080, &rect ) );
+			CHECK_NEAR( (Real)rect.lo.x, (Real)box.x, 1.5f );
+			CHECK_NEAR( (Real)rect.hi.x, (Real)( box.x + box.w ), 1.5f );
+			CHECK_EQ( rect.hi.y, 1080 );
+		}
+	}
+
+	delete TheWritableGlobalData;
+	TheWritableGlobalData = saved;
 }
 
 TEST(a_plate_covers_the_windows_its_panel_is_responsible_for)

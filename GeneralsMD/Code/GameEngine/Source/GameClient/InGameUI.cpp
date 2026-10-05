@@ -1125,6 +1125,13 @@ InGameUI::InGameUI()
 	m_messagePointSize = 10;
 	m_messageBold = FALSE;
 	m_messageDelayMS = 5000;
+	for( i = 0; i < CLASSIC_MESSAGES; i++ )
+	{
+		m_classicMessages[ i ].text = NULL;
+		m_classicMessages[ i ].frame = 0;
+		m_classicMessages[ i ].color = 0;
+	}
+	m_classicMessageFadeFrame = 0;
 
 	m_militaryCaptionColor.red   = 200;
 	m_militaryCaptionColor.green = 200;
@@ -1470,8 +1477,10 @@ void InGameUI::init( void )
 		if (TheGlobalLanguageData->m_superweaponCountdownNormalFont.name.isNotEmpty())
 		{	m_superweaponNormalFont = TheGlobalLanguageData->m_superweaponCountdownNormalFont.name;
 			m_superweaponNormalPointSize = TheGlobalLanguageData->m_superweaponCountdownNormalFont.size;
-			// these are overlay text on the battlefield, not panel text - take them down a notch
-			m_superweaponNormalPointSize = max( 8, (m_superweaponNormalPointSize * 4) / 5 );
+			// these are overlay text on the battlefield, not panel text - take them down a notch, except
+			// in the Classic interface, which draws EA's column of them at EA's size
+			if( !TheGlobalData->isClassicUI() )
+				m_superweaponNormalPointSize = max( 8, (m_superweaponNormalPointSize * 4) / 5 );
 			m_superweaponNormalBold = TheGlobalLanguageData->m_superweaponCountdownNormalFont.bold;
 		}
 
@@ -1497,7 +1506,9 @@ void InGameUI::init( void )
 	// the message list is overlay text in the top-left corner of the battlefield, not panel text -
 	// take it down a notch, same as the superweapon countdown above. (line spacing follows the
 	// font height in postDraw(), so the whole stack shrinks with it.)
-	m_messagePointSize = max( 8, (m_messagePointSize * 4) / 5 );
+	// The Classic interface's list is EA's, at EA's size.
+	if( !TheGlobalData->isClassicUI() )
+		m_messagePointSize = max( 8, (m_messagePointSize * 4) / 5 );
 
 	/**@ todo we used to put in the hint spy translator, but it's difficult
 	to order the translators when the code is not centralized so it has
@@ -1941,6 +1952,9 @@ enum
 static void readHtmlPage( const char *path, std::string &page )
 {
 	page.clear();
+	// the Classic interface is EA's, and every page here has EA's windows, or nothing, to fall back on
+	if( TheGlobalData->isClassicUI() )
+		return;
 	File *file = TheFileSystem->openFile( path, File::READ | File::BINARY );
 	if( file == NULL )
 	{
@@ -4348,7 +4362,137 @@ void InGameUI::reset( void )
 void InGameUI::freeMessageResources( void )
 {
 	m_feedLines.clear();
+	freeClassicMessages();
 }  // end freeMessageResources
+
+//-------------------------------------------------------------------------------------------------
+void InGameUI::freeClassicMessages( void )
+{
+	for( Int i = 0; i < CLASSIC_MESSAGES; i++ )
+	{
+		if( m_classicMessages[ i ].text )
+			TheDisplayStringManager->freeDisplayString( m_classicMessages[ i ].text );
+		m_classicMessages[ i ].text = NULL;
+		m_classicMessages[ i ].frame = 0;
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+/** EA's InGameUI::addMessageText: the oldest line falls off the end, the new one goes in at the top
+	* in white or grey by turns, or in the colour it was given. */
+//-------------------------------------------------------------------------------------------------
+void InGameUI::addClassicMessage( const UnicodeString &text, const Color *color )
+{
+	const Color color1 = color ? ( *color | GameMakeColor( 0, 0, 0, 255 ) ) : m_messageColor1;
+	const Color color2 = color ? ( *color | GameMakeColor( 0, 0, 0, 255 ) ) : m_messageColor2;
+
+	if( m_classicMessages[ CLASSIC_MESSAGES - 1 ].text )
+		TheDisplayStringManager->freeDisplayString( m_classicMessages[ CLASSIC_MESSAGES - 1 ].text );
+	for( Int i = CLASSIC_MESSAGES - 1; i >= 1; i-- )
+		m_classicMessages[ i ] = m_classicMessages[ i - 1 ];
+
+	ClassicMessage &added = m_classicMessages[ 0 ];
+	added.frame = TheGameLogic->getFrame();
+	added.text = TheDisplayStringManager->newDisplayString();
+	added.text->setFont( TheFontLibrary->getFont( m_messageFont,
+		TheGlobalLanguageData->adjustFontSize( m_messagePointSize ), m_messageBold ) );
+	added.text->setText( text );
+	added.color = ( m_classicMessages[ 1 ].text == NULL || m_classicMessages[ 1 ].color == color2 ) ? color1 : color2;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** EA's fade, once a logic frame: a line loses alpha by a hundredth of its age every frame from the
+	* start (MessageDelayMS divided by the frame rate and by a thousand is 0 in EA's arithmetic), so a
+	* line is gone about seven seconds after it came. */
+//-------------------------------------------------------------------------------------------------
+void InGameUI::fadeClassicMessages( void )
+{
+	const UnsignedInt now = TheGameLogic->getFrame();
+	if( now == m_classicMessageFadeFrame )
+		return;
+	m_classicMessageFadeFrame = now;
+
+	const UnsignedInt timeout = m_messageDelayMS / LOGICFRAMES_PER_SECOND / 1000;
+	for( Int i = CLASSIC_MESSAGES - 1; i >= 0; i-- )
+	{
+		ClassicMessage &line = m_classicMessages[ i ];
+		if( line.text == NULL || now - line.frame <= timeout )
+			continue;
+		UnsignedByte r, g, b, a;
+		GameGetColorComponents( line.color, &r, &g, &b, &a );
+		const Int amount = REAL_TO_INT( ( now - line.frame ) * 0.01f );
+		a = ( a - amount < 0 ) ? 0 : a - amount;
+		line.color = GameMakeColor( r, g, b, a );
+		if( a == 0 )
+		{
+			TheDisplayStringManager->freeDisplayString( line.text );
+			line.text = NULL;
+		}
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+void InGameUI::drawClassicMessages( void )
+{
+	fadeClassicMessages();
+	if( !m_messagesOn )
+		return;
+
+	const UIRect box = TheUIRect();
+	const Int x = box.x + m_messagePosition.x;
+	Int y = box.y + m_messagePosition.y;
+	for( Int i = CLASSIC_MESSAGES - 1; i >= 0; i-- )
+	{
+		ClassicMessage &line = m_classicMessages[ i ];
+		if( line.text == NULL )
+			continue;
+		UnsignedByte r, g, b, a;
+		GameGetColorComponents( line.color, &r, &g, &b, &a );
+		line.text->draw( x, y, line.color, GameMakeColor( 0, 0, 0, a ) );
+		y += line.text->getFont()->height;
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+/** EA's countdown line: the power's name right-aligned to x and its clock after it, in its owner's
+	* colour, the ready one bold and flashing.  The text is only set again when the second, the
+	* readiness or a forced refresh changes it. */
+//-------------------------------------------------------------------------------------------------
+void InGameUI::drawClassicSuperweapon( SuperweaponInfo *info, const AsciiString &templateName, Bool isReady,
+																			 Int readySecs, Int x, Int *y )
+{
+	if( readySecs != (Int)info->m_timestamp || isReady != info->m_ready || info->m_forceUpdateText )
+	{
+		if( isReady )
+			info->setFont( m_superweaponReadyFont, m_superweaponReadyPointSize, m_superweaponReadyBold );
+		else if( info->m_timestamp == 0 )
+			info->setFont( m_superweaponNormalFont, m_superweaponNormalPointSize, m_superweaponNormalBold );
+		info->m_forceUpdateText = false;
+		info->m_ready = isReady;
+		info->m_timestamp = readySecs;
+		AsciiString label;
+		label.format( "GUI:%s", templateName.str() );
+		UnicodeString name, time;
+		name.format( u"%ls: ", TheGameText->fetch( label.str() ).str() );
+		time.format( u"%d:%2.2d", readySecs / 60, readySecs % 60 );
+		info->setText( name, time );
+	}
+
+	Color color = 0;
+	if( isReady && m_superweaponFlashDuration != 0.0f )
+	{
+		if( TheGameLogic->getFrame() >= m_superweaponLastFlashFrame + (Int)m_superweaponFlashDuration )
+		{
+			m_superweaponUsedFlashColor = !m_superweaponUsedFlashColor;
+			m_superweaponLastFlashFrame = TheGameLogic->getFrame();
+		}
+		color = m_superweaponUsedFlashColor ? 0 : m_superweaponFlashColor;
+	}
+	const Color drop = GameMakeColor( 0, 0, 0, 255 );
+	info->drawName( x, *y, color, drop );
+	info->drawTime( x, *y, color, drop );
+	*y += REAL_TO_INT( info->getHeight() );
+}
 
 //-------------------------------------------------------------------------------------------------
 /** Same as the unicode message method, but this takes an ascii string which is assumed
@@ -4413,6 +4557,11 @@ void InGameUI::message( UnicodeString format, ... )
 //-------------------------------------------------------------------------------------------------
 void InGameUI::addMessageText( const UnicodeString& formattedMessage )
 {
+	if( TheGlobalData->isClassicUI() )
+	{
+		addClassicMessage( formattedMessage, NULL );
+		return;
+	}
 	HtmlValues line;
 	line[ "kind" ] = "note";
 	line[ "before" ] = WideCharStringToMultiByte( formattedMessage.str() );
@@ -4425,6 +4574,13 @@ void InGameUI::addMessageText( const UnicodeString& formattedMessage )
 //-------------------------------------------------------------------------------------------------
 void InGameUI::playerMessage( Player *player, const UnicodeString &text )
 {
+	// EA wrote these lines in the player's colour
+	if( TheGlobalData->isClassicUI() )
+	{
+		const Color color = player->getPlayerColor();
+		addClassicMessage( text, &color );
+		return;
+	}
 	HtmlValues line = spectatorHead( player );
 	line[ "kind" ] = "player";
 	line[ "portrait" ] = line[ "image" ];
@@ -4475,6 +4631,9 @@ static std::string buttonName( const CommandButton *button )
 //-------------------------------------------------------------------------------------------------
 void InGameUI::feedAct( Player *player, const Image *cameo, const std::string &what, const char *tag, const char *label )
 {
+	// the feed's own lines, a power fired or a promotion bought: EA's list never carried them
+	if( TheGlobalData->isClassicUI() )
+		return;
 	HtmlValues line = spectatorHead( player );
 	line[ "kind" ] = "act";
 	line[ "portrait" ] = line[ "image" ];
@@ -4781,6 +4940,15 @@ enum
 //-------------------------------------------------------------------------------------------------
 void InGameUI::chatMessage( Player *player, const UnicodeString &text )
 {
+	// EA's: "[name] text" in the message list, in the sender's colour
+	if( TheGlobalData->isClassicUI() )
+	{
+		UnicodeString said;
+		said.format( u"[%ls] %ls", player->getPlayerDisplayName().str(), text.str() );
+		const Color color = player->getPlayerColor();
+		addClassicMessage( said, &color );
+		return;
+	}
 	FeedLine line;
 	line.values = spectatorHead( player );
 	line.values[ "text" ] = WideCharStringToMultiByte( text.str() );
@@ -4800,7 +4968,8 @@ void InGameUI::chatMessage( Player *player, const UnicodeString &text )
 //-------------------------------------------------------------------------------------------------
 void InGameUI::drawChat( void )
 {
-	if( !TheGameLogic->isInGame() || TheGameLogic->isInShellGame() )
+	// Classic: EA's InGameChat.wnd draws itself where it was laid out, and the lines are messages
+	if( !TheGameLogic->isInGame() || TheGameLogic->isInShellGame() || TheGlobalData->isClassicUI() )
 		return;
 
 	// shut, the chat is the talk around its newest line: every line that came within CHAT_LINE_FRAMES
@@ -8257,6 +8426,7 @@ void InGameUI::postDraw( void )
 	drawSpectatorPage();
 	drawFeed();
 	drawChat();
+	drawClassicMessages();
 
 	if( m_militarySubtitle )
 	{
@@ -8299,6 +8469,13 @@ void InGameUI::postDraw( void )
 		//
 		m_superweaponIconCount = 0;
 		m_spectatorSuperweapons.clear();
+
+		// the Classic interface writes EA's column of names and clocks instead, inside the 4:3 box
+		const Bool classic = TheGlobalData->isClassicUI();
+		const UIRect box = TheUIRect();
+		const Int classicX = box.x + REAL_TO_INT( m_superweaponPosition.x * box.w );
+		Int classicY = box.y + REAL_TO_INT( m_superweaponPosition.y * box.h );
+		const Int classicBottom = box.y + REAL_TO_INT( box.h * 0.8f * 0.82f );	// EA's: the view above its bar
 
 		for (Int i=0; i<MAX_PLAYER_COUNT; ++i)
 		{
@@ -8408,8 +8585,13 @@ void InGameUI::postDraw( void )
                     info->m_evaReadyPlayed = false; // Reset Eva for next time
                 }
               
+                if ( classic )
+                {
+                  if ( !m_superweaponHiddenByScript && classicY < classicBottom )
+                    drawClassicSuperweapon( info, mapIt->first, isReady, readySecs, classicX, &classicY );
+                }
                 // hand it to the strip
-                if ( !m_superweaponHiddenByScript )
+                else if ( !m_superweaponHiddenByScript )
                 {
                   info->m_forceUpdateText = false;
                   info->m_ready = isReady;
@@ -8450,7 +8632,8 @@ void InGameUI::postDraw( void )
 			}
 		}
 
-		drawSuperweaponStrip();
+		if( !classic )
+			drawSuperweaponStrip();
 	}
 
 	// draw named timers
@@ -8458,8 +8641,9 @@ void InGameUI::postDraw( void )
 	{
 //		Int namedTimerCount = 0;
 		Bool reverseXDir = (m_namedTimerPosition.x >= 0.5f);
-		Int startX = (Int)(m_namedTimerPosition.x * TheDisplay->getWidth());
-		Int startY = (Int)(m_namedTimerPosition.y * TheDisplay->getHeight());
+		const UIRect box = TheUIRect();
+		Int startX = box.x + (Int)(m_namedTimerPosition.x * box.w);
+		Int startY = box.y + (Int)(m_namedTimerPosition.y * box.h);
 		Color bgColor = GameMakeColor( 0, 0, 0, 255 );
 		for (NamedTimerMapIt mapIt = m_namedTimers.begin(); mapIt != m_namedTimers.end(); ++mapIt)
 		{
@@ -8801,9 +8985,10 @@ void InGameUI::militarySubtitle( const AsciiString& label, Int duration )
 	
 	// calculate where this screen position should be since the position being passed in is based off 8x6
 	Coord2D multiplier;
-	multiplier.x = (float)TheDisplay->getWidth() / 800.0f;
-	multiplier.y = (float)TheDisplay->getHeight() / 600.0f;
-	
+	const UIRect box = TheUIRect();
+	multiplier.x = (float)box.w / 800.0f;
+	multiplier.y = (float)box.h / 600.0f;
+
 	// lets bring out the data structure!
 	m_militarySubtitle = NEW MilitarySubtitleData;
 
@@ -8811,8 +8996,8 @@ void InGameUI::militarySubtitle( const AsciiString& label, Int duration )
 	m_militarySubtitle->blockDrawn = TRUE;
 	m_militarySubtitle->blockBeginFrame = currLogicFrame;
 	m_militarySubtitle->lifetime = messageTimeout;
-	m_militarySubtitle->blockPos.x =  m_militarySubtitle->position.x = m_militaryCaptionPosition.x * multiplier.x;
-	m_militarySubtitle->blockPos.y =  m_militarySubtitle->position.y = m_militaryCaptionPosition.y * multiplier.y;
+	m_militarySubtitle->blockPos.x =  m_militarySubtitle->position.x = box.x + m_militaryCaptionPosition.x * multiplier.x;
+	m_militarySubtitle->blockPos.y =  m_militarySubtitle->position.y = box.y + m_militaryCaptionPosition.y * multiplier.y;
 	m_militarySubtitle->incrementOnFrame = currLogicFrame + (Int)(((Real)LOGICFRAMES_PER_SECOND * TheGlobalLanguageData->m_militaryCaptionDelayMS)/1000.0f);
 	m_militarySubtitle->index = 0;
 	for (int i = 1; i < MAX_SUBTITLE_LINES; i ++)
@@ -10267,8 +10452,9 @@ void InGameUI::drawHudOverlay( void )
 	// screen grew: the lettering inside it scales and the margin around it did not, so a 1440-tall
 	// shot and a 1080-tall one did not overlay however the text was sized.
 	const Int pad = stripPixels( 2 );
-	Int x = TheDisplay->getWidth() - textWidth - pad - stripPixels( 4 );
-	Int y = stripPixels( 2 );
+	const UIRect box = TheUIRect();
+	Int x = box.x + box.w - textWidth - pad - stripPixels( 4 );
+	Int y = box.y + stripPixels( 2 );
 
 	// a plate behind it, so it stays legible over bright terrain
 	TheDisplay->drawFillRect( x - pad, y - 1, textWidth + pad*2, textHeight + 2,
@@ -10945,7 +11131,7 @@ static Int gatherPlayerSkills( const Player *player, const CommandButton **butto
 void InGameUI::drawSkillStrip( void )
 {
 	// the spectator page's left panel lists them instead; the page's flag is the last frame's here
-	if( stripSwitchedOff( &GlobalData::m_showSkillStrip ) || m_spectatorPageShown )
+	if( stripSwitchedOff( &GlobalData::m_showSkillStrip ) || m_spectatorPageShown || TheGlobalData->isClassicUI() )
 		return;
 	if( TheGameLogic == NULL || !TheGameLogic->isInGame() || TheGameLogic->isInShellGame() )
 		return;
@@ -11312,6 +11498,18 @@ static void putSeatQueue( HtmlValues &row, Player *player )
 	* with its production, the queue over the console he no longer has.  Every section opens with a
 	* band of kind "band" carrying its {{label}}, how many seats are {{standing}} of {{seats}}, and
 	* {{side}} "allies", "enemies" or "team". */
+//-------------------------------------------------------------------------------------------------
+void InGameUI::openScoreboard( void )
+{
+	// the key that holds the scoreboard up is EA's diplomacy key, and Classic gives it back to diplomacy
+	if( TheGlobalData->isClassicUI() )
+	{
+		ToggleDiplomacy( FALSE );
+		return;
+	}
+	m_scoreboardOpen = TRUE;
+}
+
 //-------------------------------------------------------------------------------------------------
 void InGameUI::drawScoreboard( void )
 {
@@ -14182,7 +14380,8 @@ void InGameUI::drawProductionStrip( void )
 	m_productionStripCount = 0;
 	m_productionStripTotal = 0;
 
-	if( TheGameLogic == NULL || !TheGameLogic->isInGame() || TheGameLogic->isInShellGame() )
+	// EA's HUD has no strip: the queue is read off the building's own command bar
+	if( TheGameLogic == NULL || !TheGameLogic->isInGame() || TheGameLogic->isInShellGame() || TheGlobalData->isClassicUI() )
 		return;
 
 	Player *player = ThePlayerList ? ThePlayerList->getLocalPlayer() : NULL;
@@ -14464,8 +14663,9 @@ void InGameUI::popupMessage( const AsciiString& identifier, Int x, Int y, Int wi
 	if( y < 0 )
 		y = 0;
 
-	m_popupMessageData->x = TheDisplay->getWidth() * (INT_TO_REAL(x) / 100);
-	m_popupMessageData->y = TheDisplay->getHeight() * (INT_TO_REAL(y) / 100);
+	const UIRect box = TheUIRect();
+	m_popupMessageData->x = box.x + box.w * (INT_TO_REAL(x) / 100);
+	m_popupMessageData->y = box.y + box.h * (INT_TO_REAL(y) / 100);
 	// cap the lower limit of the width
 	if(width < 50)
 		width = 50;

@@ -522,13 +522,29 @@ static Bool startsWithFolder( const char *path, const char *folder )
 	return *path == '/' || *path == '\\';
 }
 
+// The Classic interface puts everything in the 4:3 box (UIRectForScreen), battlefield furniture and
+// all, except the layouts the command bar takes back out of the loader's stretch itself
+// (layoutPanels, ControlBarLayoutUniform): they divide the stretch back out, so they must be given it.
+static Bool barLaysOutItself( const char *filename )
+{
+	static const char *const own[] = { "controlbar.wnd", "generalsexppoints.wnd", "genpowersshortcutbar" };
+	for( Int i = 0; i < (Int)ARRAY_SIZE( own ); i++ )
+		if( strnicmp( filename, own[ i ], strlen( own[ i ] ) ) == 0 )
+			return TRUE;
+	return FALSE;
+}
+
 static Bool layoutFits( const char *filename )
 {
-	if( TheGlobalData == NULL || TheGlobalData->m_menuLayout != MENU_LAYOUT_FIT || filename == NULL )
+	if( TheGlobalData == NULL || filename == NULL )
 		return FALSE;
 	// "Menus/X.wnd" as the shell names them, or the whole "Window\\Menus\\X.wnd"
 	if( startsWithFolder( filename, "window" ) )
 		filename += 7;
+	if( TheGlobalData->isClassicUI() )
+		return !barLaysOutItself( filename );
+	if( TheGlobalData->m_menuLayout != MENU_LAYOUT_FIT )
+		return FALSE;
 	return startsWithFolder( filename, "menus" );
 }
 

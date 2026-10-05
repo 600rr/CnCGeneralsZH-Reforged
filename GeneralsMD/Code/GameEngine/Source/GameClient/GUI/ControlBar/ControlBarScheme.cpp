@@ -1153,16 +1153,36 @@ void ControlBarSchemeManager::update( void )
 }
 
 //-----------------------------------------------------------------------------
+/** The Classic interface lays EA's bar out at one scale, centred and standing on the bottom of the
+	* screen (layoutPanels, ControlBarPanelDesignToScreen), so its painting goes through that same
+	* transform instead of the loader's two-way stretch. */
+//-----------------------------------------------------------------------------
+static Coord2D paintTransform( Coord2D stretch, ICoord2D *offset )
+{
+	if( TheGlobalData == NULL || !TheGlobalData->isClassicUI() || TheDisplay == NULL )
+		return stretch;
+
+	const Real s = ControlBarUniformScale();
+	offset->x += REAL_TO_INT_FLOOR( TheDisplay->getWidth() * 0.5f - 400.0f * s );
+	offset->y += REAL_TO_INT_FLOOR( TheDisplay->getHeight() - 600.0f * s );
+	Coord2D uniform;
+	uniform.x = uniform.y = s;
+	return uniform;
+}
+
 void ControlBarSchemeManager::drawForeground( ICoord2D offset )
 {
-	if(m_currentScheme)	
-		m_currentScheme->drawForeground( m_multiplyer, offset);
+	// two statements: paintTransform moves `offset`, and argument order is the compiler's choice
+	const Coord2D multi = paintTransform( m_multiplyer, &offset );
+	if(m_currentScheme)
+		m_currentScheme->drawForeground( multi, offset );
 }
 //-----------------------------------------------------------------------------
 void ControlBarSchemeManager::drawBackground( ICoord2D offset )
 {
-	if(m_currentScheme)	
-		m_currentScheme->drawBackground( m_multiplyer, offset );
+	const Coord2D multi = paintTransform( m_multiplyer, &offset );
+	if(m_currentScheme)
+		m_currentScheme->drawBackground( multi, offset );
 }
 
 //-----------------------------------------------------------------------------

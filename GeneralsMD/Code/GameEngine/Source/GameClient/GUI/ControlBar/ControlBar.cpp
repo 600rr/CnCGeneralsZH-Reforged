@@ -1558,6 +1558,8 @@ ControlBar::ControlBar( void )
 	updateCommanBarBorderColors(GAME_COLOR_UNDEFINED,GAME_COLOR_UNDEFINED,GAME_COLOR_UNDEFINED,GAME_COLOR_UNDEFINED);
 
 	m_pageSolidsActive = FALSE;
+	m_radarAttackGlowWindow = NULL;
+	m_remainingRadarAttackGlowFrames = 0;
 
 #if defined( _INTERNAL ) || defined( _DEBUG )
 	m_lastFrameMarkedDirty = 0;
@@ -1648,6 +1650,21 @@ static const Real thePanelAnchorFraction[ ControlBar::CB_PANEL_COUNT ] = { 0.0f,
 /// ...and which authored x that anchor is, so at 4:3 the three plates reassemble the shipped bar
 static const Real thePanelAnchorDesignX[ ControlBar::CB_PANEL_COUNT ] = { 0.0f, 400.0f, 800.0f };
 
+/// The Classic interface: EA's bar in one piece, all three panels pinned on the screen's centre at
+/// the design's centre, which is the shipped layout at one scale inside the 4:3 box (UIRectForScreen).
+static Bool barIsClassic( void )
+{
+	return TheGlobalData != NULL && TheGlobalData->isClassicUI();
+}
+
+/// Where a panel's design x 0 lands on screen.
+static Real panelOriginX( Int panel, Real dispW, Real s )
+{
+	if( barIsClassic() )
+		return dispW * 0.5f - CONTROL_BAR_DESIGN_W * 0.5f * s;
+	return dispW * thePanelAnchorFraction[ panel ] - thePanelAnchorDesignX[ panel ] * s;
+}
+
 //-------------------------------------------------------------------------------------------------
 /** One scale for both axes, the smaller of the two, so nothing anywhere in the HUD is distorted.
 	* Everything that used to work this out for itself now asks here. */
@@ -1694,7 +1711,7 @@ Real ControlBarHudScale( void )
 	// the player's HudScale option on top, 100/115/130/150%
 	static const Real steps[] = { 1.0f, 1.15f, 1.3f, 1.5f };
 	Int step = TheGlobalData ? TheGlobalData->m_hudScale : 0;
-	if( step < 0 || step > 3 )
+	if( step < 0 || step > 3 || barIsClassic() )		// EA's HUD has the one size
 		step = 0;
 
 	return ControlBarHudScaleFit( ControlBarHudScaleFor( TheDisplay->getWidth(), TheDisplay->getHeight() ) * steps[ step ],
@@ -1759,12 +1776,14 @@ void ControlBarLayoutUniform( GameWindow *root, Real anchorFracX, Real anchorFra
 	const Real s = ControlBarUniformScale();
 
 	//
-	// The anchor is a point that does not move: the same fraction of the screen and of the design
-	// space.  (1,1) keeps the bottom right corner where it was however wide the screen is, which is
-	// what a bar hanging off the right edge above the command bar wants.
+	// The anchor is a point that does not move: the same fraction of the interface's rectangle and
+	// of the design space.  (1,1) keeps the bottom right corner where it was however wide the
+	// screen is, which is what a bar hanging off the right edge above the command bar wants.  In
+	// the Classic interface the rectangle is the 4:3 box, so every anchor lands on the box itself.
 	//
-	const Real originX = dispW * anchorFracX - CONTROL_BAR_DESIGN_W * anchorFracX * s;
-	const Real originY = dispH * anchorFracY - CONTROL_BAR_DESIGN_H * anchorFracY * s;
+	const UIRect box = TheUIRect();
+	const Real originX = box.x + box.w * anchorFracX - CONTROL_BAR_DESIGN_W * anchorFracX * s;
+	const Real originY = box.y + box.h * anchorFracY - CONTROL_BAR_DESIGN_H * anchorFracY * s;
 
 	ICoord2D rootOrigin;
 	root->winGetScreenPosition( &rootOrigin.x, &rootOrigin.y );
@@ -1806,13 +1825,16 @@ Bool ControlBarPanelDesignToScreen( Int panel, const IRegion2D *design,
 	const Real loadScaleY = dispH / CONTROL_BAR_DESIGN_H;
 	const Real s = loadScaleX < loadScaleY ? loadScaleX : loadScaleY;
 
-	const Real originX = dispW * thePanelAnchorFraction[ panel ]
-											 - thePanelAnchorDesignX[ panel ] * s;
+	const Real originX = panelOriginX( panel, dispW, s );
 
 	rectOut->lo.x = REAL_TO_INT_FLOOR( originX + design->lo.x * s );
 	rectOut->hi.x = REAL_TO_INT_CEIL ( originX + design->hi.x * s );
 	rectOut->lo.y = REAL_TO_INT_FLOOR( dispH - ( CONTROL_BAR_DESIGN_H - design->lo.y ) * s );
 	rectOut->hi.y = REAL_TO_INT_CEIL ( dispH - ( CONTROL_BAR_DESIGN_H - design->hi.y ) * s );
+
+	// the Classic bar is EA's one piece, centred in the 4:3 box, and touches no screen edge but the bottom
+	if( barIsClassic() )
+		return TRUE;
 
 	//
 	// The screen has three edges the bar touches and each belongs to one panel: the left panel owns
@@ -2134,8 +2156,21 @@ void ControlBar::setPageSolids( const std::vector< IRegion2D > *solids, const st
 }
 
 //-------------------------------------------------------------------------------------------------
+void ControlBar::triggerRadarAttackGlow( void )
+{
+	if( m_radarAttackGlowWindow == NULL )
+		return;
+	m_remainingRadarAttackGlowFrames = 150;
+	m_radarAttackGlowWindow->winEnable( FALSE );
+}
+
+//-------------------------------------------------------------------------------------------------
 Bool ControlBar::letsClickThrough( GameWindow *window, Int x, Int y )
 {
+	// EA's bar: its input-blocking panes are the shape of the bar, and they keep their clicks
+	if( barIsClassic() )
+		return FALSE;
+
 	GameWindow *frame = window->winGetParent();
 	if( frame == NULL || m_controlBarSchemeManager == NULL || TheDisplay == NULL )
 		return FALSE;
@@ -2222,8 +2257,7 @@ void ControlBar::placeInPanel( GameWindow *win, Int panel,
 	const Real loadScaleX = dispW / CONTROL_BAR_DESIGN_W;
 	const Real loadScaleY = dispH / CONTROL_BAR_DESIGN_H;
 	const Real s = ControlBarUniformScale();
-	const Real originX = dispW * thePanelAnchorFraction[ panel ]
-											 - thePanelAnchorDesignX[ panel ] * s;
+	const Real originX = panelOriginX( panel, dispW, s );
 
 	ICoord2D rel, size;
 	win->winGetPosition( &rel.x, &rel.y );
@@ -2258,7 +2292,8 @@ void ControlBar::placeInPanel( GameWindow *win, Int panel,
 	// observer panes - slides across into the field.  See ControlBarPlate.
 	//
 	const ControlBarPlate *plate = NULL;
-	if( m_controlBarSchemeManager )
+	// the Classic bar wears the scheme's own painting, which ControlBarScheme.ini's windows match
+	if( m_controlBarSchemeManager && !barIsClassic() )
 	{
 		plate = ControlBarPlateForSide( m_controlBarSchemeManager->getCurrentSide(), panel );
 		if( plate == NULL )
@@ -2515,7 +2550,8 @@ void ControlBar::updatePanelSlide( void )
 //-------------------------------------------------------------------------------------------------
 void ControlBar::showPanel( Int panel, Bool show, Bool immediate )
 {
-	if( panel < 0 || panel >= CB_PANEL_COUNT )
+	// EA's bar is one piece and minimises as one (setLowControlBarConfig)
+	if( panel < 0 || panel >= CB_PANEL_COUNT || barIsClassic() )
 		return;
 
 	m_panelSlideTo[ panel ] = show ? 0.0f : 1.0f;
@@ -2760,7 +2796,7 @@ void ControlBar::layoutPanels( void )
 	//
 	for( p = 0; p < CB_PANEL_COUNT; p++ )
 		m_panelDropCap[ p ] = 0;
-	if( m_controlBarSchemeManager )
+	if( m_controlBarSchemeManager && !barIsClassic() )
 	{
 		const ControlBarPlate *rightPlate =
 			ControlBarPlateForSide( m_controlBarSchemeManager->getCurrentSide(), CB_PANEL_RIGHT );
@@ -2906,6 +2942,8 @@ void ControlBar::shutdownWindows( void )
 	m_rightHUDCameoWindow = NULL;
 	m_rightHUDUnitSelectParent = NULL;
 	m_communicatorButton = NULL;
+	m_radarAttackGlowWindow = NULL;
+	m_remainingRadarAttackGlowFrames = 0;
 	m_animateDownWindow = NULL;
 	m_multiSelectTiles.clear();
 	m_sideSelectAnimateDown = FALSE;
@@ -3091,9 +3129,15 @@ void ControlBar::initWindows( void )
 			setControlCommand(win, findCommandButton("NonCommand_IdleWorker") );
 			win->winSetTooltipFunc(commandButtonTooltip);
 		}
-		// the bar carries no beacon button; nothing below shows it again
+		// the Reforged bar carries no beacon button; nothing below shows it again.  Classic keeps EA's
 		win = TheWindowManager->winGetWindowFromId(NULL,TheNameKeyGenerator->nameToKey("ControlBar.wnd:ButtonPlaceBeacon"));
-		win->winHide(TRUE);
+		if( win && barIsClassic() )
+		{
+			setControlCommand( win, findCommandButton( "NonCommand_Beacon" ) );
+			win->winSetTooltipFunc( commandButtonTooltip );
+		}
+		else if( win )
+			win->winHide(TRUE);
 		win = TheWindowManager->winGetWindowFromId(NULL,TheNameKeyGenerator->nameToKey("ControlBar.wnd:ButtonGeneral"));
 		if(win)
 		{
@@ -3123,10 +3167,12 @@ void ControlBar::initWindows( void )
 			win->winSetTooltipFunc(commandButtonTooltip);
 		}
 
-		// the radar's under-attack light is gone from the bar: the radar ping, the EVA line and the
-		// message say it already
+		// the radar's under-attack light is gone from the Reforged bar: the radar ping, the EVA line
+		// and the message say it already.  Classic keeps it flashing, as EA's did
 		win = TheWindowManager->winGetWindowFromId(NULL, TheNameKeyGenerator->nameToKey("ControlBar.wnd:WinUAttack"));
-		if(win)
+		if( win && barIsClassic() )
+			m_radarAttackGlowWindow = win;
+		else if(win)
 			win->winHide(TRUE);
 
 
@@ -3302,6 +3348,15 @@ void ControlBar::update( void )
 	if( logicTick )
 	{
 		getStarImage();
+
+		// EA's lamp: 150 frames, flipping every 15.  winEnable(FALSE) is the lit image
+		if( m_radarAttackGlowWindow && m_remainingRadarAttackGlowFrames > 0 )
+		{
+			if( --m_remainingRadarAttackGlowFrames <= 0 )
+				m_radarAttackGlowWindow->winEnable( TRUE );
+			else if( m_remainingRadarAttackGlowFrames % 15 == 0 )
+				m_radarAttackGlowWindow->winEnable( !BitTest( m_radarAttackGlowWindow->winGetStatus(), WIN_STATUS_ENABLED ) );
+		}
 	}
 
 	//
@@ -6121,6 +6176,17 @@ void ControlBar::setLowControlBarConfig( void )
 	// down with the selection panel and stops it on the bottom edge of the screen.
 	//
 	TheTacticalView->setHeight((Int)(TheDisplay->getHeight()));
+
+	// EA's: the whole bar drops to a tenth of the screen from the bottom, its top edge still showing
+	if( barIsClassic() )
+	{
+		m_contextParent[ CP_MASTER ]->winSetPosition( m_defaultControlBarPosition.x,
+			REAL_TO_INT( TheDisplay->getHeight() - 0.1f * TheDisplay->getHeight() ) );
+		m_contextParent[ CP_MASTER ]->winHide(FALSE);
+		setUpDownImages();
+		return;
+	}
+
 	m_contextParent[ CP_MASTER ]->winSetPosition(m_defaultControlBarPosition.x, m_defaultControlBarPosition.y);
 	m_contextParent[ CP_MASTER ]->winHide(FALSE);
 

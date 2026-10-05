@@ -1669,6 +1669,22 @@ Int parseTextLanguage(char *args[], int num)
 	return 1;
 }
 
+/* -interface <classic|reforged>: the InterfaceStyle row for this run, over what Options.ini saved,
+	 * so one script can shoot both interfaces without writing the player's file.  Client only. */
+Int parseInterfaceStyle(char *args[], int num)
+{
+	if (TheWritableGlobalData && num > 1)
+	{
+		if (strcasecmp(args[1], "classic") == 0)
+			TheWritableGlobalData->m_interfaceStyle = INTERFACE_STYLE_CLASSIC;
+		else if (strcasecmp(args[1], "reforged") == 0)
+			TheWritableGlobalData->m_interfaceStyle = INTERFACE_STYLE_REFORGED;
+		DEBUG_LOG(("-interface: %s\n", TheWritableGlobalData->m_interfaceStyle == INTERFACE_STYLE_CLASSIC ? "classic" : "reforged"));
+		return 2;
+	}
+	return 1;
+}
+
 /* -dx11dump <directory>: write every program the Direct3D 11 backend generates into that
 	 * directory as it is built, named by the order it was built in with the state it came from on
 	 * its first line.  A generated program that draws the wrong thing cannot be read any other way:
@@ -2518,6 +2534,7 @@ static CommandLineParam params[] =
 	{ "-msaa", parseMSAA },
 	{ "-d3d9", parseDirect3D9 },
 	{ "-language", parseTextLanguage },
+	{ "-interface", parseInterfaceStyle },
 	{ "-dx11dump", parseDirect3D11Dump },
 	{ "-dx11post", parseDirect3D11Post },
 	{ "-autocamera", parseAutoCamera },
