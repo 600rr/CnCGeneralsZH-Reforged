@@ -30,9 +30,11 @@
 #include "Common/FileSystem.h"
 #include "Common/GameEngine.h"
 #include "Common/MessageStream.h"
+#include "Common/OptionsCatalog.h"
 #include "Common/Player.h"
 #include "Common/PlayerList.h"
 #include "Common/Recorder.h"
+#include "Common/UserPreferences.h"
 #include "GameLogic/GameLogic.h"
 #include "GameNetwork/GameSpy/ThreadUtils.h"
 
@@ -166,6 +168,67 @@ static AsciiString runSpeed( AsciiString arguments )
 
 	result.format( "speed %d%%", TheGameEngine->getFramesPerSecondLimit() * SPEED_NORMAL_PERCENT / LOGICFRAMES_PER_SECOND );
 	return result;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** "Key = value (range)" for a row of TheOptionCatalog, the value this run is using. */
+//-------------------------------------------------------------------------------------------------
+static AsciiString describeOption( const OptionDef &def )
+{
+	AsciiString result;
+	if( def.kind == OPTION_BOOL )
+		result.format( "%s = %s (yes/no)", def.iniKey, formatOptionValue( def, def.get() ).str() );
+	else
+		result.format( "%s = %s (%d..%d)", def.iniKey, formatOptionValue( def, def.get() ).str(), def.lo, def.hi );
+	return result;
+}
+
+static AsciiString unknownOption( const char *command, AsciiString key )
+{
+	AsciiString result;
+	result.format( "%s: no setting called '%s'; 'get' lists them", command, key.str() );
+	return result;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Any setting in the options catalog by its Options.ini key, written to Options.ini the way the
+	* options menu's Accept writes it.  A row that shows the moment its GlobalData field changes is
+	* changed now too; the rest wait for the next launch, because the device reset or shell rebuild
+	* the menu runs after them is not the console's to start. */
+//-------------------------------------------------------------------------------------------------
+static AsciiString runSetOption( AsciiString arguments )
+{
+	AsciiString key;
+	arguments.nextToken( &key );
+	arguments.trim();
+
+	const OptionDef *def = findOptionDef( key.str() );
+	if( def == NULL )
+		return unknownOption( "set", key );
+
+	AsciiString result;
+	Int value;
+	if( !parseOptionText( *def, arguments.str(), &value ) )
+	{
+		if( def->kind == OPTION_BOOL )
+			result.format( "set: %s takes yes or no, not '%s'", def->iniKey, arguments.str() );
+		else
+			result.format( "set: %s takes a whole number from %d to %d, not '%s'", def->iniKey, def->lo, def->hi, arguments.str() );
+		return result;
+	}
+
+	OptionPreferences pref;
+	pref[ AsciiString( def->iniKey ) ] = formatOptionValue( *def, value );
+	pref.write();
+
+	if( def->apply != APPLY_LIVE )
+	{
+		result.format( "%s = %s saved, from the next launch", def->iniKey, formatOptionValue( *def, value ).str() );
+		return result;
+	}
+
+	def->set( value );
+	return describeOption( *def );
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -338,6 +401,9 @@ void GameConsole::runCommand( AsciiString commandLine )
 		printLine( AsciiString( "clear         empty the scrollback" ) );
 		printLine( AsciiString( "echo <text>   print the text back" ) );
 		printLine( AsciiString( "speed [n]     game speed in percent, 100 is normal, 'reset' goes back" ) );
+		printLine( AsciiString( "get [key]     a setting by its Options.ini key; no key lists them all" ) );
+		printLine( AsciiString( "set <key> <v> change a setting and save it, e.g. 'set ShowNetBox no' hides the" ) );
+		printLine( AsciiString( "              top right info box, 'set ShowSuperweaponStrip no' the superweapon timers" ) );
 		if( areCheatsAvailable() )
 		{
 			printLine( AsciiString( "cheats        single-player cheats" ) );
@@ -389,6 +455,25 @@ void GameConsole::runCommand( AsciiString commandLine )
 	if( command == "speed" )
 	{
 		printLine( runSpeed( arguments ) );
+		return;
+	}
+
+	if( command == "get" )
+	{
+		if( arguments.isEmpty() )
+		{
+			for( Int i = 0; i < TheOptionCatalogCount; ++i )
+				printLine( describeOption( TheOptionCatalog[ i ] ) );
+			return;
+		}
+		const OptionDef *def = findOptionDef( arguments.str() );
+		printLine( def == NULL ? unknownOption( "get", arguments ) : describeOption( *def ) );
+		return;
+	}
+
+	if( command == "set" )
+	{
+		printLine( runSetOption( arguments ) );
 		return;
 	}
 

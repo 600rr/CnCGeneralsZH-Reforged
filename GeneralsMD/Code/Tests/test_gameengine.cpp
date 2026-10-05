@@ -12924,6 +12924,42 @@ TEST(net_box_is_a_check_box_that_starts_on_under_its_own_key)
 	delete scratch;
 }
 
+/* The console's "set" types a value rather than reading one back from Options.ini, so a typo has to
+	 be refused instead of turning a box off ("set ShowNetBox maybe" read leniently is "no") or being
+	 clamped into some other number. */
+TEST(console_set_parses_only_what_the_row_takes)
+{
+	const OptionDef *box = findOptionDef( "ShowNetBox" );
+	const OptionDef *drag = findOptionDef( "DragTolerance" );
+	CHECK( box != NULL && drag != NULL );
+	if( box == NULL || drag == NULL )
+		return;
+
+	Int value = -1;
+	CHECK( parseOptionText( *box, "no", &value ) && value == 0 );
+	CHECK( parseOptionText( *box, "ON", &value ) && value == 1 );
+	CHECK( parseOptionText( *box, "0", &value ) && value == 0 );
+	CHECK( parseOptionText( *box, "true", &value ) && value == 1 );
+	value = 7;
+	CHECK( !parseOptionText( *box, "maybe", &value ) );
+	CHECK( !parseOptionText( *box, "", &value ) );
+	CHECK( !parseOptionText( *box, "2", &value ) );
+	CHECK_EQ( value, 7 );
+
+	CHECK( parseOptionText( *drag, "2", &value ) && value == 2 );
+	CHECK( parseOptionText( *drag, "50", &value ) && value == 50 );
+	value = 7;
+	CHECK( !parseOptionText( *drag, "1", &value ) );
+	CHECK( !parseOptionText( *drag, "51", &value ) );
+	CHECK( !parseOptionText( *drag, "10px", &value ) );
+	CHECK( !parseOptionText( *drag, "", &value ) );
+	CHECK_EQ( value, 7 );
+
+	CHECK( formatOptionValue( *box, 0 ) == "no" );
+	CHECK( formatOptionValue( *drag, 12 ) == "12" );
+	CHECK( findOptionDef( "showsuperweaponstrip" ) != NULL );
+}
+
 /* The income beside the money, per second as it always was until the player picks otherwise.
 	 Automatic is the one with a rule in it: under ten dollars a second the whole number rounds most
 	 of the income away, $135 a minute reading "+2/s", so that is where it goes per minute. */

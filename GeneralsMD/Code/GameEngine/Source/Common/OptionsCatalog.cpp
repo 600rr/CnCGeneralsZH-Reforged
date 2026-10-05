@@ -554,7 +554,34 @@ static Int parseOptionValue( const OptionDef& def, const AsciiString& stored )
 }
 
 //-----------------------------------------------------------------------------
-static AsciiString formatOptionValue( const OptionDef& def, Int value )
+Bool parseOptionText( const OptionDef& def, const char *text, Int *value )
+{
+	if( def.kind == OPTION_BOOL )
+	{
+		// off and on in pairs, so a word's index modulo two is its value
+		static const char *const TheBoolWords[] = { "no", "yes", "false", "true", "off", "on", "n", "y", "f", "t", "0", "1" };
+		for( Int i = 0; i < (Int)( sizeof( TheBoolWords ) / sizeof( TheBoolWords[ 0 ] ) ); ++i )
+		{
+			if( strcasecmp( text, TheBoolWords[ i ] ) == 0 )
+			{
+				*value = i % 2;
+				return TRUE;
+			}
+		}
+		return FALSE;
+	}
+
+	char *end;
+	const long number = strtol( text, &end, 10 );
+	if( end == text || *end != '\0' || number < def.lo || number > def.hi )
+		return FALSE;
+
+	*value = (Int)number;
+	return TRUE;
+}
+
+//-----------------------------------------------------------------------------
+AsciiString formatOptionValue( const OptionDef& def, Int value )
 {
 	if( def.kind == OPTION_BOOL )
 		return AsciiString( value ? "yes" : "no" );
