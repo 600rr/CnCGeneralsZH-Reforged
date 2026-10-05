@@ -5272,12 +5272,26 @@ void ControlBar::setControlCommand( GameWindow *button, const CommandButton *com
 	
 	// the key in the button's top left corner is its place's, and a place is only known once the
 	// whole set is on the bar: labelCommandPlaces paints it.  Classic has no places: its key is the
-	// letter after the '&' in the button's own label, as the game shipped
+	// game's own, the letter after the '&' in the button's label - the English label's in every
+	// language, so a Turkish or German player presses what an English one does - and it wears it
+	// on the button the way Reforged wears a grid key
 	if( TheHotKeyManager && TheGlobalData->isClassicUI() )
 	{
-		AsciiString hotKey = TheHotKeyManager->searchHotKey( commandButton->getTextLabel() );
-		if( hotKey.isNotEmpty() )
-			TheHotKeyManager->addHotKey( button, hotKey );
+		WideChar letter = TheGameText ? TheGameText->fetchEnglishHotKey( commandButton->getTextLabel() ) : 0;
+		if( letter >= u'a' && letter <= u'z' )
+			letter -= ( u'a' - u'A' );
+		if( letter != 0 )
+		{
+			TheHotKeyManager->addHotKey( button, HotKeyManager::nameOf( letter ) );
+			const WideChar text[ 2 ] = { letter, 0 };
+			GadgetButtonSetText( button, UnicodeString( text ) );
+			button->winSetStatus( WIN_STATUS_SHORTCUT_BUTTON );
+		}
+		else
+		{
+			GadgetButtonSetText( button, UnicodeString( u"" ) );
+			button->winClearStatus( WIN_STATUS_SHORTCUT_BUTTON );
+		}
 	}
 
 	GadgetButtonSetAltSound(button, "GUICommandBarClick");
