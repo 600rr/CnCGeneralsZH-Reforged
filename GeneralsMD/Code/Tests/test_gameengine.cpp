@@ -55,6 +55,7 @@
 #include "GameNetwork/RankPointValue.h"
 #include "GameClient/ChromaKeyboard.h"
 #include "GameClient/MetaEvent.h"
+#include "GameClient/HotKey.h"
 #include "GameClient/ClickTolerance.h"
 #include "GameClient/HtmlTemplate.h"
 #include "GameClient/KeyDownInfo.h"
@@ -1254,6 +1255,19 @@ TEST(force_fire_is_the_attack_key_and_nothing_else)
 	/* neither key: nothing force fires, which is what ctrl held down now gets. */
 	CHECK( !CommandXlat_isForceAttackTargeting( false, false ) );
 	CHECK( !CommandXlat_isForceAttackTargeting( false, true ) );
+}
+
+/* HotKey.cpp: a label's '&' letter and the key a Turkish keyboard types meet on one map key. */
+TEST(hotkey_names_fold_turkish_letters_and_case)
+{
+	CHECK_STR( HotKeyManager::nameOf( L'B' ).str(), "b" );
+	CHECK_STR( HotKeyManager::nameOf( L'b' ).str(), "b" );
+	CHECK( HotKeyManager::nameOf( 0x0130 ) == HotKeyManager::nameOf( L'i' ) );	// İptal against the i key
+	CHECK( HotKeyManager::nameOf( 0x0131 ) == HotKeyManager::nameOf( L'I' ) );
+	CHECK( HotKeyManager::nameOf( 0x015E ) == HotKeyManager::nameOf( 0x015F ) );	// Ş ş
+	CHECK( HotKeyManager::nameOf( 0x00C7 ) == HotKeyManager::nameOf( 0x00E7 ) );	// Ç ç
+	CHECK( HotKeyManager::nameOf( 0x011E ) == HotKeyManager::nameOf( 0x011F ) );	// Ğ ğ
+	CHECK( HotKeyManager::nameOf( 0x015E ) != HotKeyManager::nameOf( L'^' ) );	// not its low byte
 }
 
 /* InGameUI.cpp: Classic is the game as shipped, where ctrl held was force fire. */
