@@ -1353,9 +1353,10 @@ void CommandSet::parseCommandButton( INI* ini, void *instance, void *store, cons
 	{
 		/* A mod's CommandButton.ini can lack a button the fork's CommandSetReforged.ini names: Contra X
 			 Beta 2 has no Early_Command_ChinaCarpetBomb, and slot 2 of Infa_ChinaCommandCenterCommandSetUpgrade
-			 threw and stopped the game at start.  The slot keeps what it held, which for a patched set is
-			 empty, since parseCommandSetDefinition clears it first, and every reader already passes over an
-			 empty slot.  The outcome depends only on the files, which are in the INI checksum. */
+			 threw and stopped the game at start.  The slot keeps what it held: empty for a new set and for a
+			 patched one, which parseCommandSetDefinition clears first, the parent's button for a map.ini
+			 override, which starts as a copy.  Every reader already passes over an empty slot, and the
+			 outcome depends only on the files, which are in the INI and map checksums. */
 		DEBUG_LOG(( "[LINE: %d - FILE: '%s'] CommandSet %s slot %d names unknown button '%s'; the slot is skipped.\n",
 								ini->getLineNum(), ini->getFilename().str(), ((CommandSet *)instance)->getName().str(),
 								buttonIndex + 1, token ));

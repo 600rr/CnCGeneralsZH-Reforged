@@ -14396,6 +14396,42 @@ TEST(the_bars_windows_can_be_torn_down_twice_without_taking_the_bar_with_them)
 	CHECK( bar.findCommandButton( AsciiString( "NoSuchCommandButton" ) ) == NULL );
 }
 
+/* CommandSetReforged.ini names EA's Early_Command_ChinaCarpetBomb in slot 2 of a China command center
+	 set.  Contra X Beta 2 has no such button, and CommandSet::parseCommandButton threw and stopped the
+	 game at start.  The slot is skipped now: it stays empty and the slots after it still parse. */
+TEST(command_set_slot_naming_an_unknown_button_is_skipped)
+{
+	CHECK( bootOnce() );
+
+	ControlBar bar;
+	ControlBar *savedBar = TheControlBar;
+	TheControlBar = &bar;
+
+	writeFile( TEST_INI,
+		"CommandButton ProbeButton\r\n"
+		"End\r\n"
+		"CommandSet ProbeCommandSet\r\n"
+		"  1 = ProbeButton\r\n"
+		"  2 = NoSuchCommandButton\r\n"
+		"  3 = ProbeButton\r\n"
+		"End\r\n" );
+	CHECK( loadIni( TEST_INI ) );
+
+	const CommandButton *probe = bar.findCommandButton( AsciiString( "ProbeButton" ) );
+	const CommandSet *set = bar.findCommandSet( AsciiString( "ProbeCommandSet" ) );
+	CHECK( probe != NULL );
+	CHECK( set != NULL );
+	if( set != NULL )
+	{
+		CHECK( set->getCommandButton( 0 ) == probe );
+		CHECK( set->getCommandButton( 1 ) == NULL );
+		CHECK( set->getCommandButton( 2 ) == probe );
+	}
+
+	remove( TEST_INI );
+	TheControlBar = savedBar;
+}
+
 /* ControlBarScheme.cpp: the scheme places the money readout, the two general's tabs and the toolbar
 	 column by reading their parent's screen position and subtracting it, and layoutPanels then runs
 	 over the answer.  Asking for the panels back is not the same as having them back - the slide is
