@@ -74,6 +74,7 @@
 #include "GameLogic/PartitionManager.h"
 #include "Common/ActionManager.h"				// canCaptureBuilding, for the tech buildings
 #include "GameLogic/Module/SpecialPowerModule.h"	// ... and the module that does it
+#include "GameLogic/Module/SpecialAbilityUpdate.h"	// ending a raider's bomb run
 #include "GameLogic/Module/CollideModule.h"	// ... and the collide that takes a vehicle by touching it
 #include "GameLogic/Module/ContainModule.h"
 #include "GameLogic/Module/OpenContain.h"			// a seat's own shoot-out flag, asked before a rider exists
@@ -8732,6 +8733,12 @@ void AIPlayer::flyRaid( Int slot, const std::vector<AIKnownGun> &guns )
 				abort = "the run took too long";
 			if( abort )
 				ai->aiMoveToPosition( &duty.spot, CMD_FROM_AI );
+			// The bomb is a persistent ability: it drops again under the Helix every time it recharges, and
+			// an aborted one flies back to its spot the moment the Helix is idle.  Only an order from
+			// outside the AI ends it, and these are all the AI's own, so a raider bombed its way home and
+			// went on bombing its own base every ten seconds.
+			if( duty.phase == RAID_BACK || abort )
+				helix->findSpecialAbilityUpdate( SPECIAL_HELIX_NAPALM_BOMB )->onExit( FALSE );
 			break;
 
 		case RAID_BACK:
