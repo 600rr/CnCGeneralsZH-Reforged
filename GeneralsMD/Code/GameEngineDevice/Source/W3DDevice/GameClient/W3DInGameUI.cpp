@@ -746,7 +746,7 @@ void W3DInGameUI::drawBuildGrid( void )
 	enum { GRID_CELLS = GRID_RADIUS * 2 + 1, GRID_POINTS = GRID_CELLS + 1 };
 
 	// half the width of a painted line, in world units - a cell is PLACEMENT_CELL (10) across
-	const Real LINE_HALF_WIDTH = 0.45f;
+	const Real LINE_HALF_WIDTH = 0.3f;
 	// the ground is sampled at the line, so a line running across a slope would sink into the hill
 	// on one side; lifting the whole sheet a hair keeps it out of the dirt without floating
 	const Real GRID_LIFT = 0.35f;
@@ -791,8 +791,9 @@ void W3DInGameUI::drawBuildGrid( void )
 
 	GroundOverlayQuads &quads = theGroundOverlayQuads;
 
-	// the lines themselves, one quad per cell edge so they follow the ground over every bump
-	const Real LINE_ALPHA = 0x58;
+	// the lines themselves, one quad per cell edge so they follow the ground over every bump.  Faint
+	// on purpose: players said the brighter grid hid the ground they were trying to read
+	const Real LINE_ALPHA = 0x26;
 	for( iy = 0; drawLines && iy < GRID_POINTS; ++iy )
 	{
 		for( ix = 0; ix < GRID_POINTS; ++ix )
@@ -823,7 +824,7 @@ void W3DInGameUI::drawBuildGrid( void )
 
 	// and a red wash over every cell a structure cannot stand on.  Filling the cell reads at a
 	// glance where an X drawn in thin lines did not.
-	const Real BLOCKED_ALPHA = 0x44;
+	const Real BLOCKED_ALPHA = 0x30;
 	for( iy = 0; iy < GRID_CELLS; ++iy )
 	{
 		for( ix = 0; ix < GRID_CELLS; ++ix )

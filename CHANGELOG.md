@@ -30,6 +30,7 @@ found and fixed â€” EA's own, not port damage.**
 - Your production queue stands on the console over your selection, five to a row, each row only as long as what is in it. The event feed runs down from the menu key in the top left corner, and the chat sits under it.
 - Point at the attack, hold position or move key and a card says what it does, in English or Turkish. Those three are painted onto the grid rather than given to a unit, so the game had no card for them and showed nothing. The card stands on top of the command bar like every other button's.
 - HUD Size grows the console from its middle, and on a narrow screen it stops at the size that still fits.
+- The grid under a building you are placing is fainter and its lines thinner, and the red squares where nothing can stand are lighter, so the ground under them shows through. Untick grid placement on the Controls page and the lines go altogether.
 
 ## Groups attack-move at their own speed
 
