@@ -137,8 +137,8 @@ void View::init( void )
 	
 	m_zoom = 1.0f;
 	m_maxHeightAboveGround = TheGlobalData->m_maxCameraHeight;
-	// Classic stops at GameData.ini's own MinCameraHeight, as the game shipped
-	m_minHeightAboveGround = TheGlobalData->m_minCameraHeight * ( TheGlobalData->isClassicUI() ? 1.0f : CLOSEST_ZOOM_FACTOR );
+	// the same in both interfaces; Classic keeps only EA's step (ZOOM_STEP_HEIGHT)
+	m_minHeightAboveGround = TheGlobalData->m_minCameraHeight * CLOSEST_ZOOM_FACTOR;
 	m_okToAdjustHeight = FALSE;
 
 	m_defaultAngle = 0.0f;

@@ -325,8 +325,8 @@ void W3DView::setOrigin( Int x, Int y)
 // only the manual zoom limit is stretched - the default/scripted views still use
 // m_maxHeightAboveGround, so a map still opens framed the way its author meant it to.
 // 2.9 puts the ceiling at 899 over GameData.ini's MaxCameraHeight of 310; it was 3.2 (992).
-// Classic is EA's: the hand zoom stops at the map's own maximum, a factor of 1.
-#define ZOOM_OUT_LIMIT_FACTOR (TheGlobalData->isClassicUI() ? 1.0f : 2.9f)
+// Classic shares the reach and keeps EA's 10 unit wheel step (View.cpp).
+#define ZOOM_OUT_LIMIT_FACTOR (2.9f)
 void W3DView::buildCameraTransform( Matrix3D *transform )
 {
 	Vector3 sourcePos, targetPos;
