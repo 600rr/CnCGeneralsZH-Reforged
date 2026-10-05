@@ -181,7 +181,8 @@ enum
 
 static const Real REACH_OUTLINE_WIDTH = 1.0f;
 
-static const Real BLIND_SPOT_TARGET_HEIGHT = 10.0f;	///< top of a tank, the height a defence has to see over a hill
+static const Real BLIND_SPOT_TARGET_HEIGHT = 7.5f;	///< top of a Rocket Buggy, Combat Cycle or Technical, the lowest
+																										///  thing that raids a base: ground that is clear is clear for all
 static const Real LOS_TERRAIN_SLOP = 0.5f;					///< the terrain line-of-sight test's own fudge
 static const Real BLIND_SPOT_RING_WIDTH = PATHFIND_CELL_SIZE_F * 0.5f;	///< two looks a pathfind cell, so a corner is not stepped over
 
@@ -1750,29 +1751,54 @@ void InGameUI::evaluateSoloNexus( Drawable *newlyAddedDrawable )
 
 
 //-------------------------------------------------------------------------------------------------
-/** The longest weapon range anything in this template's weapon sets can reach.  Every set is
-	* walked, not just the one an empty condition mask happens to select: a defence whose gun lives
-	* in a conditional set (an upgrade, a garrisoned variant) would otherwise report no range.  The
-	* range is the one the weapon is tested with, which the game trims a little from the INI number. */
+/** Whether a defence shoots this weapon at the ground on its own: the weapon hits ground targets,
+	* and the set lets a target the defence picked for itself choose it, the test the weapon set's
+	* chooser makes for CMD_FROM_AI.  A Patriot's 450 assist missile is NONE there and only fires
+	* when another Patriot asks, a Gattling Cannon's 400 gun is anti-air, and both used to be the
+	* ring while the ground gun that does the shooting reaches 225. */
 //-------------------------------------------------------------------------------------------------
-static Real templateWeaponRange( const ThingTemplate *tmpl )
+static Bool picksGroundTargetsWith( const WeaponTemplateSet &set, WeaponSlotType slot )
 {
+	const WeaponTemplate *wt = set.getNth( slot );
+	if( wt == NULL || ( wt->getAntiMask() & WEAPON_ANTI_GROUND ) == 0 )
+		return FALSE;
+	const UnsignedInt sources = set.getNthCommandSourceMask( slot );
+	return ( sources & ( 1 << CMD_FROM_AI ) ) != 0 || ( sources & CMD_DEFAULT_SWITCH_WEAPON ) != 0;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The longest range, and the shortest minimum range, of the guns this template shoots at the
+	* ground with (picksGroundTargetsWith).  Every set is walked, not just the one an empty condition
+	* mask happens to select: a defence whose gun lives in a conditional set (an upgrade, a garrisoned
+	* variant) would otherwise report no range.  The range is the one the weapon is tested with,
+	* which the game trims a little from the INI number.  No structure carries a range bonus (battle
+	* plans leave out STRUCTURE), so the bare range is the live one. */
+//-------------------------------------------------------------------------------------------------
+static Real templateWeaponRange( const ThingTemplate *tmpl, Real *minimumRange = NULL )
+{
+	if( minimumRange )
+		*minimumRange = 0.0f;
 	if( tmpl == NULL )
 		return 0.0f;
 
 	const WeaponBonus noBonus;
 	Real range = 0.0f;
+	Real closest = FLT_MAX;
 	const WeaponTemplateSetVector& sets = tmpl->getWeaponTemplateSets();
 	for( WeaponTemplateSetVector::const_iterator si = sets.begin(); si != sets.end(); ++si )
 	{
 		for( Int ws = PRIMARY_WEAPON; ws < WEAPONSLOT_COUNT; ++ws )
 		{
+			if( !picksGroundTargetsWith( *si, (WeaponSlotType)ws ) )
+				continue;
 			const WeaponTemplate *wt = si->getNth( (WeaponSlotType)ws );
-			if( wt )
-				range = max( range, wt->getAttackRange( noBonus ) );
+			range = max( range, wt->getAttackRange( noBonus ) );
+			closest = min( closest, wt->getMinimumAttackRange() );
 		}
 	}
 
+	if( minimumRange && range > 0.0f )
+		*minimumRange = closest;
 	return range;
 }
 
@@ -1787,11 +1813,12 @@ static Real templateWeaponRange( const ThingTemplate *tmpl )
 	*
 	* Only a structure the INI marks SPAWNS_ARE_THE_WEAPONS counts its spawns.  A GLA supply stash
 	* spawns workers too, and a worker carries a mine-disarming weapon, so reading every spawner's
-	* spawns put a reach circle round the stash. */
+	* spawns put a reach circle round the stash.  Spawns walk about the site, so they get no
+	* minimum range hole. */
 //-------------------------------------------------------------------------------------------------
-static Real templatePlacementRange( const ThingTemplate *tmpl )
+static Real templatePlacementRange( const ThingTemplate *tmpl, Real *minimumRange = NULL )
 {
-	Real range = templateWeaponRange( tmpl );
+	Real range = templateWeaponRange( tmpl, minimumRange );
 	if( range > 0.0f || tmpl == NULL || TheThingFactory == NULL )
 		return range;
 	if( !tmpl->isKindOf( KINDOF_SPAWNS_ARE_THE_WEAPONS ) )
@@ -1833,6 +1860,16 @@ static Real templateReach( const ThingTemplate *tmpl )
 	if( !( range > 0.0f && range <= FLT_MAX ) )
 		return 0.0f;
 	return range + tmpl->getTemplateGeometryInfo().getBoundingCircleRadius();
+}
+
+/// the hole in the middle of templateReach that a minimum range leaves (a Fire Base's 50, a Strategy
+/// Center's 100), from the centre the same way; 0 for a defence that shoots at its own feet
+static Real templateHole( const ThingTemplate *tmpl )
+{
+	Real minimumRange = 0.0f;
+	if( templatePlacementRange( tmpl, &minimumRange ) <= 0.0f || minimumRange <= 0.0f )
+		return 0.0f;
+	return minimumRange + tmpl->getTemplateGeometryInfo().getBoundingCircleRadius();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2804,13 +2841,14 @@ static void fillSpanRows( std::vector< std::vector< ICoord2D > > &rows, Color co
 //-------------------------------------------------------------------------------------------------
 /** A defence's reach cut into the blind-spot polar grid: sector ray covers the angles from ray to
 	* ray + 1, ring ring the distances from ring to ring + 1 ring widths.  reach is how far each sector
-	* goes, longer down a slope, and radius the longest of them.  blocked is empty for a defence that
-	* shoots whatever is in range. */
+	* goes, longer down a slope, and radius the longest of them; nothing nearer than hole is hit
+	* either.  blocked is empty for a defence that shoots whatever is in range. */
 //-------------------------------------------------------------------------------------------------
 struct ReachView
 {
 	Coord3D center;
 	Real radius;
+	Real hole;
 	std::vector< Real > reach;
 	Int rings;
 	std::vector< Bool > blocked;
@@ -2820,6 +2858,7 @@ static void traceReachView( ReachView &view, const ThingTemplate *tmpl )
 {
 	const Real flatReach = templateReach( tmpl );
 	const Real range = templatePlacementRange( tmpl );
+	view.hole = templateHole( tmpl );
 	view.reach.resize( BLIND_SPOT_RAYS );
 	view.radius = 0.0f;
 	for( Int ray = 0; ray < BLIND_SPOT_RAYS; ray++ )
@@ -2832,6 +2871,12 @@ static void traceReachView( ReachView &view, const ThingTemplate *tmpl )
 static Bool templateNeedsLineOfSight( const ThingTemplate *tmpl )
 {
 	return TheAI->getAiData()->m_attackUsesLineOfSight && tmpl->isKindOf( KINDOF_ATTACK_NEEDS_LINE_OF_SIGHT );
+}
+
+/// ground inside the reach that the defence still cannot hit: behind a hill or a building, or too close
+static Bool templateHasBlindSpots( const ThingTemplate *tmpl )
+{
+	return templateNeedsLineOfSight( tmpl ) || templateHole( tmpl ) > 0.0f;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2855,9 +2900,10 @@ Int blindSpotRingCount( Real radius, Real mapSpan )
 /** Fill in which cells of the grid a defence cannot see from eyeZ.  Along one sector the walk keeps
 	* the steepest terrain seen so far, which is the horizon: a target whose top sits under that slope
 	* is behind a hill.  Everything from the first building cell outwards is behind that building, the
-	* building's own ground included; the defence's own cells, self, are not in its way. */
+	* building's own ground included; the defence's own cells, self, are not in its way.  Without
+	* lineOfSight only the minimum range hole is filled in. */
 //-------------------------------------------------------------------------------------------------
-static void lookRoundReach( ReachView &view, Real eyeZ, ObjectID self )
+static void lookRoundReach( ReachView &view, Real eyeZ, ObjectID self, Bool lineOfSight )
 {
 	Region3D extent;
 	extent.zero();
@@ -2888,8 +2934,9 @@ static void lookRoundReach( ReachView &view, Real eyeZ, ObjectID self )
 			const Bool behindHill = targetSlope < horizonSlope;
 			horizonSlope = max( horizonSlope, ( groundZ - LOS_TERRAIN_SLOP - eyeZ ) / along );
 
-			const Bool inReach = ( ring + 0.5f ) * BLIND_SPOT_RING_WIDTH < view.reach[ ray ];
-			view.blocked[ ray * view.rings + ring ] = inReach && ( behindBuilding || behindHill );
+			const Real middle = ( ring + 0.5f ) * BLIND_SPOT_RING_WIDTH;
+			const Bool unseen = lineOfSight && ( behindBuilding || behindHill );
+			view.blocked[ ray * view.rings + ring ] = middle < view.reach[ ray ] && ( unseen || middle < view.hole );
 		}
 	}
 }
@@ -2906,7 +2953,7 @@ static Bool reachViewHits( const ReachView &view, Real x, Real y )
 	if( angle < 0.0f )
 		angle += 2.0f * PI;
 	const Int ray = min( (Int)( angle * BLIND_SPOT_RAYS / ( 2.0f * PI ) ), BLIND_SPOT_RAYS - 1 );
-	if( distance >= view.reach[ ray ] )
+	if( distance >= view.reach[ ray ] || distance < view.hole )
 		return FALSE;
 	if( view.blocked.empty() )
 		return TRUE;
@@ -2994,7 +3041,7 @@ static void buildBlindSpotShade( BlindSpotShade &shade, const ThingTemplate *tmp
 {
 	shade.view.center = center;
 	traceReachView( shade.view, tmpl );
-	lookRoundReach( shade.view, eyeZ, self );
+	lookRoundReach( shade.view, eyeZ, self, templateNeedsLineOfSight( tmpl ) );
 
 	const Int cornerRings = shade.view.rings + 1;
 	shade.corners.resize( BLIND_SPOT_RAYS * cornerRings );
@@ -3086,7 +3133,7 @@ static const ReachView &guardView( const Object *obj )
 	guard.rings = 0;
 	traceReachView( guard, obj->getTemplate() );
 	if( templateNeedsLineOfSight( obj->getTemplate() ) )
-		lookRoundReach( guard, obj->getPosition()->z + obj->getGeometryInfo().getMaxHeightAbovePosition(), obj->getID() );
+		lookRoundReach( guard, obj->getPosition()->z + obj->getGeometryInfo().getMaxHeightAbovePosition(), obj->getID(), TRUE );
 	return guard;
 }
 
@@ -3177,12 +3224,13 @@ static const BlindSpotShade &selectedBlindSpotShade( const Object *obj )
 	* own ground included.  The blocked cells are projected corner by corner onto the terrain and
 	* filled as one shape, row by row, so the shade follows the ground and has no seams in it.
 	*
-	* A Stinger Site, a bunker and anything else that does not need the line of sight gets no shading,
-	* because none of that ground is out of its reach. */
+	* A defence with a minimum range, a Fire Base or a Strategy Center, gets the ground too close to
+	* fire at shaded the same way.  A Stinger Site, a bunker and anything else that needs neither gets
+	* no shading, because none of that ground is out of its reach. */
 //-------------------------------------------------------------------------------------------------
 void InGameUI::drawBlindSpots( void )
 {
-	if( m_pendingPlaceType != NULL && m_placementRangeRingUp && templateNeedsLineOfSight( m_pendingPlaceType ) )
+	if( m_pendingPlaceType != NULL && m_placementRangeRingUp && templateHasBlindSpots( m_pendingPlaceType ) )
 	{
 		refreshStructureKeys();
 		Coord3D center = *m_placeIcon[ 0 ]->getPosition();
@@ -3204,7 +3252,7 @@ void InGameUI::drawBlindSpots( void )
 		const Object *obj = (*it)->getObject();
 		if( obj == NULL || !obj->isKindOf( KINDOF_STRUCTURE ) || templateReach( obj->getTemplate() ) <= 0.0f )
 			continue;
-		if( !templateNeedsLineOfSight( obj->getTemplate() ) || !reachRevealedToLocal( obj ) )
+		if( !templateHasBlindSpots( obj->getTemplate() ) || !reachRevealedToLocal( obj ) )
 			continue;
 
 		refreshStructureKeys();
@@ -3396,8 +3444,9 @@ static void drawReachSegment( const ReachSegment &segment, const Player *owner )
 /** While a structure is on the cursor, the reach of every armed building in sight: yours, your
 	* allies', and the one on the cursor if it is armed.  An enemy's is never drawn.
 	*
-	* Each circle is exactly the distance a shot is allowed at: the weapon range the game tests with,
-	* measured from the edge of the shooter's bounding circle, so from the centre it is that range
+	* Each circle is exactly the distance a shot is allowed at: the range the game tests with of the
+	* guns the building fires at the ground on its own (picksGroundTargetsWith), measured from the
+	* edge of the shooter's bounding circle, so from the centre it is that range
 	* plus the bounding radius.  Each is drawn in its owner's colour.  Where one player's circles
 	* overlap they are one area: the thin outline leaves out every stretch of a circle that runs inside
 	* another of the same player's, cutting it where the two cross.  An ally's building under fog is
