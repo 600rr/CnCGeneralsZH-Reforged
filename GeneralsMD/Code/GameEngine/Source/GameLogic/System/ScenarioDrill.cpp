@@ -221,6 +221,8 @@ static Bool parseActionType( const AsciiString &token, ScenarioActionType *actio
 		*action = SCENARIO_ACTION_HUNT;
 	else if (token == "forceattack")
 		*action = SCENARIO_ACTION_FORCEATTACK;
+	else if (token == "weaponat")
+		*action = SCENARIO_ACTION_WEAPONAT;
 	else
 		return FALSE;
 
@@ -304,6 +306,7 @@ static Int tokensNeededFor( ScenarioActionType action )
 		case SCENARIO_ACTION_SHIFTGUARD:	return SCENARIO_TOKENS_MOVE;
 		case SCENARIO_ACTION_CONSTRUCT:		return SCENARIO_TOKENS_MOVE;
 		case SCENARIO_ACTION_HUNT:				return SCENARIO_TOKENS_MOVE;
+		case SCENARIO_ACTION_WEAPONAT:		return SCENARIO_TOKENS_MOVE;
 		case SCENARIO_ACTION_STANCE:			return SCENARIO_TOKENS_STANCE;
 		case SCENARIO_ACTION_SHIFTATTACK:	return SCENARIO_TOKENS_ATTACK;
 		case SCENARIO_ACTION_FORCEATTACK:	return SCENARIO_TOKENS_ATTACK;
@@ -387,11 +390,18 @@ ScenarioParseResult ScenarioDrill_parseLine( const char *line, ScenarioAction *a
 		case SCENARIO_ACTION_SHIFTGUARD:
 		case SCENARIO_ACTION_CONSTRUCT:
 		case SCENARIO_ACTION_HUNT:
+		case SCENARIO_ACTION_WEAPONAT:
 		{
 			Int next = SCENARIO_ORDER_POSITION_TOKEN;
 			const ScenarioParseResult position = parseScenarioPosition( tokens, count, &next, action );
 			if (position != SCENARIO_PARSE_OK)
 				return position;
+			if (actionType == SCENARIO_ACTION_WEAPONAT)
+			{
+				action->name = (count > next) ? tokens[ next ] : AsciiString( "tertiary" );
+				if (action->name != "primary" && action->name != "secondary" && action->name != "tertiary")
+					return SCENARIO_PARSE_BAD_ACTION;
+			}
 			if (actionType == SCENARIO_ACTION_HUNT)
 				action->radius = (count > next) ? (Real)atof( tokens[ next ].str() ) : SCENARIO_DEFAULT_SWEEP_RADIUS;
 			if (actionType == SCENARIO_ACTION_ARRIVE && count > next)
@@ -1362,6 +1372,28 @@ static Bool executeForceAttack( const ScenarioAction &action, Player *player, AI
 	return TRUE;
 }
 
+/** A FIRE_WEAPON button with NEED_TARGET_POS, clicked on the ground (the Comanche's rocket pods): the
+	  arguments GUICommandTranslator gives MSG_DO_WEAPON_AT_LOCATION, the button's default shot count and
+	  nothing under the cursor, handed to the dispatcher with the matching units as the selection.  The
+	  dispatcher destroys the group. */
+static Bool executeWeaponAt( const ScenarioAction &action, Player *player, const Coord3D &dest, AIGroup *group, Int taken )
+{
+	const WeaponSlotType weaponSlot = (action.name == "primary") ? PRIMARY_WEAPON
+																	: (action.name == "secondary") ? SECONDARY_WEAPON : TERTIARY_WEAPON;
+	GameMessage *msg = newInstance( GameMessage )( GameMessage::MSG_DO_WEAPON_AT_LOCATION );
+	msg->friend_setPlayerIndex( player->getPlayerIndex() );
+	msg->appendIntegerArgument( weaponSlot );
+	msg->appendLocationArgument( dest );
+	msg->appendIntegerArgument( 0x7fffffff );		// CommandButton's MaxShotsToFire when the INI says none
+	msg->appendObjectIDArgument( INVALID_ID );
+	TheGameLogic->logicMessageDispatcher( msg, group );
+	msg->deleteInstance();
+
+	DEBUG_LOG(("SCENARIO: frame %d weaponat slot %d '%s' x%d %s at (%.0f,%.0f)\n",
+						 action.frame, action.slot, action.selector.str(), taken, action.name.str(), dest.x, dest.y));
+	return TRUE;
+}
+
 /** The search and destroy key: the ring sweepRoute gives this seat round the point, from where the
 	  units stand, each point handed to the order queue the way the key's messages arrive - the first
 	  fresh, the rest behind it - and then a guard of the whole circle.  Each message gets a group of
@@ -1499,6 +1531,9 @@ static Bool executeOrder( const ScenarioAction &action, Player *player, const Co
 
 		case SCENARIO_ACTION_FORCEATTACK:
 			return executeForceAttack( action, player, group, taken );		// so does this, or it does itself
+
+		case SCENARIO_ACTION_WEAPONAT:
+			return executeWeaponAt( action, player, dest, group, taken );		// the dispatcher again
 
 		case SCENARIO_ACTION_HUNT:
 			return executeSweep( action, player, dest, group, taken );		// and so does this

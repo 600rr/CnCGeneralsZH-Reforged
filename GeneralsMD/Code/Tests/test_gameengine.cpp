@@ -15018,6 +15018,14 @@ TEST(scenario_parses_the_order_lines)
 	CHECK_STR( action.targetSelector.str(), "GLAVehicleTechnical*" );
 	CHECK_EQ( (Int)ScenarioDrill_parseLine( "200 forceattack 0 * 1", &action ), (Int)SCENARIO_PARSE_MISSING_ARGS );
 
+	CHECK_EQ( (Int)ScenarioDrill_parseLine( "1400 weaponat 1 AmericaVehicleComanche 2050 3700", &action ), (Int)SCENARIO_PARSE_OK );
+	CHECK_EQ( (Int)action.action, (Int)SCENARIO_ACTION_WEAPONAT );
+	CHECK_NEAR( action.at.x, 2050.0f, 0.01f );
+	CHECK_STR( action.name.str(), "tertiary" );
+	CHECK_EQ( (Int)ScenarioDrill_parseLine( "1400 weaponat 1 * start0:100:0 primary", &action ), (Int)SCENARIO_PARSE_OK );
+	CHECK_STR( action.name.str(), "primary" );
+	CHECK_EQ( (Int)ScenarioDrill_parseLine( "1400 weaponat 1 * 2050 3700 quaternary", &action ), (Int)SCENARIO_PARSE_BAD_ACTION );
+
 	CHECK_EQ( (Int)ScenarioDrill_parseLine( "200 shiftpower 0 * 1 AmericaSupplyCenter SpecialAbilityBlackLotusCaptureBuilding",
 																					 &action ), (Int)SCENARIO_PARSE_OK );
 	CHECK_EQ( (Int)action.action, (Int)SCENARIO_ACTION_SHIFTPOWER );
