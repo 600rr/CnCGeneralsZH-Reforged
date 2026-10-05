@@ -58,12 +58,6 @@ bool DX11Texture_Update(ID3D11Device * device, ID3D11DeviceContext * context,
 // surface with no texture behind it is ignored.
 void DX11Texture_Mark_Dirty(IDirect3DSurface9 * surface);
 
-// Changes whenever a mirror call could hand back something different for a texture it has already
-// mirrored: a view replaced for a new level of detail, or pixels marked for a recopy.  A caller
-// that remembers a view may keep it while this holds still.  A SetLOD alone does not move it; the
-// next mirror call on that texture does.
-unsigned long long DX11Texture_Generation();
-
 // The render target view over the copy of the texture this surface is a level of, built on the
 // first call and kept on that texture with the shader resource view.  Null when the surface has no
 // texture behind it, which is the device's own back buffer.

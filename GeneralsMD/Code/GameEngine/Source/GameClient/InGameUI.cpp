@@ -1942,6 +1942,17 @@ static Bool stripSwitchedOff( Bool GlobalData::* flag )
 	* no page asks for one. */
 static std::map< std::string, std::string > s_gameTexts;
 
+/** What drawProductionStrip's last sweep was of, and how many slots it filled. */
+static struct
+{
+	Bool valid;
+	UnsignedInt frame;
+	const Player *player;
+	ObjectID selected;
+	Int count;
+	Int total;
+} s_stripGather;
+
 /** {{text:Label}}: a string table label, in the player's language. */
 //-------------------------------------------------------------------------------------------------
 static Bool lookupGameText( const std::string &name, std::string &value )
@@ -4163,6 +4174,7 @@ void InGameUI::reset( void )
 	m_scoreboardPageLoaded = FALSE;
 	m_scoreboardHtml.clear();
 	s_gameTexts.clear();				// the map's string table goes with the map
+	s_stripGather.valid = FALSE;	// and the strip's sweep with the match it was of
 	m_earnedReadingCount = 0;		// a new match and a loaded save both come through here
 	m_controlBarPageLoaded = FALSE;
 	m_netPageLoaded = FALSE;
@@ -11761,6 +11773,25 @@ static Bool controlBarUnion( const char *const *names, IRegion2D &box )
 	return found;
 }
 
+/** The values `name`.x, `name`.y and so on, their keys built in one string kept from call to call:
+	* name + ".x" made a new string for every key of every rectangle on the bar, every pass.  One at a
+	* time: a second one alive at once would write over the first's key. */
+struct HtmlValueKey
+{
+	HtmlValueKey( HtmlValues &values, const std::string &name ) : m_values( values ), m_stem( name.size() ) { s_key.assign( name ); }
+	std::string &at( const char *suffix )
+	{
+		s_key.resize( m_stem );
+		s_key += suffix;
+		return m_values[ s_key ];
+	}
+
+	HtmlValues &m_values;
+	size_t m_stem;
+	static std::string s_key;
+};
+std::string HtmlValueKey::s_key;
+
 static void putPageRect( HtmlValues &values, const std::string &name, const IRegion2D &rect, Bool shown,
 												 Real scale = ControlBarUniformScale() );
 
@@ -11830,15 +11861,16 @@ static void putFrame( HtmlValues &values, const std::string &name, const IRegion
 	const Int innerRight = Edge::page( content.hi.x, scale ), innerBottom = Edge::page( content.hi.y, scale );
 	const Int right = Edge::page( box.hi.x, scale ), bottom = Edge::page( box.hi.y, scale );
 
-	values[ name + ".x" ] = std::to_string( left );
-	values[ name + ".y" ] = std::to_string( top );
-	values[ name + ".w" ] = std::to_string( shown ? max( 0, innerRight - innerLeft ) : 0 );
-	values[ name + ".h" ] = std::to_string( shown ? max( 0, innerBottom - innerTop ) : 0 );
-	values[ name + ".bl" ] = std::to_string( max( 0, innerLeft - left ) );
-	values[ name + ".bt" ] = std::to_string( max( 0, innerTop - top ) );
-	values[ name + ".br" ] = std::to_string( max( 0, right - innerRight ) );
-	values[ name + ".bb" ] = std::to_string( max( 0, bottom - innerBottom ) );
-	values[ name + ".shown" ] = shown ? "shown" : "hidden";
+	HtmlValueKey key( values, name );
+	key.at( ".x" ) = std::to_string( left );
+	key.at( ".y" ) = std::to_string( top );
+	key.at( ".w" ) = std::to_string( shown ? max( 0, innerRight - innerLeft ) : 0 );
+	key.at( ".h" ) = std::to_string( shown ? max( 0, innerBottom - innerTop ) : 0 );
+	key.at( ".bl" ) = std::to_string( max( 0, innerLeft - left ) );
+	key.at( ".bt" ) = std::to_string( max( 0, innerTop - top ) );
+	key.at( ".br" ) = std::to_string( max( 0, right - innerRight ) );
+	key.at( ".bb" ) = std::to_string( max( 0, bottom - innerBottom ) );
+	key.at( ".shown" ) = shown ? "shown" : "hidden";
 }
 
 /** The console's next well, `width` screen pixels wide from `left` between `top` and `bottom`, and
@@ -12085,11 +12117,12 @@ static void putPageRect( HtmlValues &values, const std::string &name, const IReg
 	const Int top = REAL_TO_INT_FLOOR( rect.lo.y / scale + 0.5f );
 	const Int right = REAL_TO_INT_FLOOR( rect.hi.x / scale + 0.5f );
 	const Int bottom = REAL_TO_INT_FLOOR( rect.hi.y / scale + 0.5f );
-	values[ name + ".x" ] = std::to_string( left );
-	values[ name + ".y" ] = std::to_string( top );
-	values[ name + ".w" ] = std::to_string( shown ? right - left : 0 );
-	values[ name + ".h" ] = std::to_string( shown ? bottom - top : 0 );
-	values[ name + ".shown" ] = shown ? "shown" : "hidden";
+	HtmlValueKey key( values, name );
+	key.at( ".x" ) = std::to_string( left );
+	key.at( ".y" ) = std::to_string( top );
+	key.at( ".w" ) = std::to_string( shown ? right - left : 0 );
+	key.at( ".h" ) = std::to_string( shown ? bottom - top : 0 );
+	key.at( ".shown" ) = shown ? "shown" : "hidden";
 }
 
 static void drawCommandGridFront( GameWindow *window, WinInstanceData *instData )
@@ -14020,6 +14053,7 @@ void InGameUI::drawProductionStrip( void )
 	// An enemy's or a neutral's never gets here, and a watcher left above.
 	//
 	ObjectID selected = INVALID_ID;
+	Object *leader = NULL;
 	if( getSelectCount() == 1 && !m_selectedDrawables.empty() )
 	{
 		Object *sel = m_selectedDrawables.front()->getObject();
@@ -14027,24 +14061,60 @@ void InGameUI::drawProductionStrip( void )
 								 isAllyOfLocalPlayer( sel->getControllingPlayer()->getPlayerIndex() ) ) )
 		{
 			selected = sel->getID();
-			appendProducerQueue( sel, m_productionStrip, &m_productionStripCount, PRODUCTION_STRIP_ROW_MAX,
-													 &m_productionStripTotal, TRUE );
+			leader = sel;
 		}
 	}
 
 	//
-	// One sweep, one column: the queues and the buildings going up are gathered into the same
-	// cells and sorted against each other, so the strip is a single run of what the base has
-	// coming.  A dozer raising a war factory now sits in the queue where its finishing time puts
-	// it instead of standing in a column of its own beside it.
+	// What the sweep finds is the logic's - queues, building sites, build times - and the logic only
+	// changes inside a logic frame, each of which moves getFrame() on; the new match or loaded save
+	// that starts it over comes through reset().  So within one frame, for the same player and the
+	// same building leading, the sweep finds what it found last pass, and with five or six passes
+	// drawn to a frame, walking every object the player owns for it each time was a share of its own.
+	// Only the slots' places are the drawing's, and they go back to the sweep's zero.
 	//
-	ProductionStripGather gather;
-	gather.slot = m_productionStrip;
-	gather.count = &m_productionStripCount;
-	gather.total = &m_productionStripTotal;
-	gather.max = PRODUCTION_STRIP_ROW_MAX;
-	gather.skip = selected;
-	player->iterateObjects( gatherStripEverything, &gather );
+	// Except while time is frozen: GameLogic::update still runs the scripts on every frozen pass and
+	// returns before the frame moves, so a cinematic can change a queue with the frame standing still.
+	// The same test as the update's own freeze return.
+	const Bool timeFrozen = ( !TheGameEngine->isMultiplayerSession() && TheTacticalView->isTimeFrozen()
+														&& !TheTacticalView->isCameraMovementFinished() )
+													|| TheScriptEngine->isTimeFrozenDebug() || TheScriptEngine->isTimeFrozenScript();
+	const UnsignedInt frame = TheGameLogic->getFrame();
+	if( !timeFrozen && s_stripGather.valid && s_stripGather.frame == frame && s_stripGather.player == player
+			&& s_stripGather.selected == selected )
+	{
+		m_productionStripCount = s_stripGather.count;
+		m_productionStripTotal = s_stripGather.total;
+		for( Int i = 0; i < m_productionStripCount; i++ )
+			m_productionStrip[ i ].pos.x = m_productionStrip[ i ].pos.y = 0;
+	}
+	else
+	{
+		if( leader )
+			appendProducerQueue( leader, m_productionStrip, &m_productionStripCount, PRODUCTION_STRIP_ROW_MAX,
+													 &m_productionStripTotal, TRUE );
+
+		//
+		// One sweep, one column: the queues and the buildings going up are gathered into the same
+		// cells and sorted against each other, so the strip is a single run of what the base has
+		// coming.  A dozer raising a war factory now sits in the queue where its finishing time puts
+		// it instead of standing in a column of its own beside it.
+		//
+		ProductionStripGather gather;
+		gather.slot = m_productionStrip;
+		gather.count = &m_productionStripCount;
+		gather.total = &m_productionStripTotal;
+		gather.max = PRODUCTION_STRIP_ROW_MAX;
+		gather.skip = selected;
+		player->iterateObjects( gatherStripEverything, &gather );
+
+		s_stripGather.valid = TRUE;
+		s_stripGather.frame = frame;
+		s_stripGather.player = player;
+		s_stripGather.selected = selected;
+		s_stripGather.count = m_productionStripCount;
+		s_stripGather.total = m_productionStripTotal;
+	}
 
 #ifdef DEBUG_LOGGING
 	tGatherEnd = Clock_Ticks();

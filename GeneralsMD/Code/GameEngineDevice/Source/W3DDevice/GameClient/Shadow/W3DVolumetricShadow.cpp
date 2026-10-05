@@ -52,6 +52,8 @@
 #include "W3DDevice/GameClient/W3DGranny.h"
 #include "W3DDevice/GameClient/HeightMap.h"
 #include "W3DDevice/GameClient/W3DBridgeBuffer.h"
+#include "W3DDevice/GameClient/W3DWater.h"
+#include "GameLogic/PolygonTrigger.h"
 #include "d3dx9math.h"
 #include "Common/GlobalData.h"
 #include "Common/DrawModule.h"
@@ -3972,6 +3974,106 @@ static void fillSmokeMap( const Matrix3D &sunTransform, const Vector3 &focus )
 	}
 }
 
+/* The 2D scene (W3DView::draw, last) is drawn through its own camera at (0, 0, 1) with a view plane
+	 of 2 by 1.5 at unit distance (W3DView.cpp, m_2DCamera), so its quads - the script fade and the
+	 team dot of W3DStatusCircle - lie on z = 0 inside |x| <= 1, |y| <= 0.75.  Render2DClass draws
+	 the interface's quads and text with identity world, view and projection (render2d.cpp), so a
+	 pixel of those comes back out at its own NDC: |x|, |y| <= 1 and a depth from 0 to 1.  Those that
+	 blend by source alpha or multiply by source colour go through the shadow program like any world
+	 draw, and their pixels land at those world positions: at the corner of the map, which the sun's
+	 box covers whenever the camera is near it.  The reach is the corner of that unit cube from the
+	 origin, the square root of three; the filter's own reach is added by the caller. */
+#define SHADOW_MAP_OVERLAY_REACH 1.75f
+// ponytail: a constant pad on every caster's bounding sphere, because an HLod's sphere comes from
+// its model and need not cover what a deployed state swings out (a raised Scud, the Nuke Cannon's
+// barrel, a crane arm).  The ceiling is a part reaching more than this past its sphere; the upgrade
+// is a sphere per condition state, or the sphere of the posed sub-objects.
+#define SHADOW_MAP_CASTER_PAD 30.0f
+
+/** Whether a water mirror will read the map this pass fills.  WaterRenderObjClass::renderMirror
+		draws the reflected scene before the next frame's depth pass, through that frame's camera,
+		while the map still holds this frame's casters, and the legacy frame buffer mirror draws one
+		inside this frame through a reflected camera.  Neither is a frustum known here, so a map that
+		can reflect at all keeps every caster in the box.  Translucent water mirrors only through its
+		water areas; the grid mesh never does. */
+static Bool waterMirrorReadsTheMap()
+{
+	if (TheWaterRenderObj == NULL)
+		return FALSE;
+	if (TheGlobalData->m_waterType == WaterRenderObjClass::WATER_TYPE_3_GRIDMESH)
+		return FALSE;
+	if (TheGlobalData->m_waterType != WaterRenderObjClass::WATER_TYPE_0_TRANSLUCENT)
+		return TRUE;
+	for (PolygonTrigger *area = PolygonTrigger::getFirstPolygonTrigger(); area; area = area->getNext())
+	{
+		if (area->isWaterArea() && area->getNumPoints() >= 3)
+			return TRUE;
+	}
+	return FALSE;
+}
+
+/** Whether anything a pixel of this frame samples can be shadowed by a caster.  The caster is its
+		bounding sphere, and what it can darken lies downwind of it: the sphere swept away from the sun
+		from its own sun side down to the lowest ground on the map, widened by how far the receiving
+		filter reaches across the map.  That capsule runs from upwind to downwind with this radius.
+		Only the four sides of the view are tested: a draw with a depth-biased projection reads the
+		map through near and far planes that are not the camera's, and the sides are the same for
+		every one of them.  The overlay's quads sit at z = 0 whatever the ground does, so for them the
+		capsule runs on to overlayDownwind, swept down to z = 0 when the lowest ground is above it. */
+static Bool shadowReachesTheFrame( const FrustumClass &view, const Vector3 &upwind,
+	const Vector3 &downwind, const Vector3 &overlayDownwind, Real radius )
+{
+	Bool inView = TRUE;
+	for (Int side = 1; side <= 4 && inView; ++side)
+	{
+		const PlaneClass &plane = view.Planes[ side ];
+		inView = Vector3::Dot_Product( plane.N, upwind ) - plane.D <= radius
+			|| Vector3::Dot_Product( plane.N, downwind ) - plane.D <= radius;
+	}
+	if (inView)
+		return TRUE;
+
+	// the 2D scene's and the interface's quads, at the world's origin
+	const Vector3 along = overlayDownwind - upwind;
+	const Real lengthSqr = along.Length2();
+	Real t = (lengthSqr > 0.0f) ? -Vector3::Dot_Product( upwind, along ) / lengthSqr : 0.0f;
+	t = WWMath::Clamp( t, 0.0f, 1.0f );
+	const Vector3 nearest = upwind + along * t;
+	const Real reach = radius + SHADOW_MAP_OVERLAY_REACH;
+	return nearest.Length2() <= reach * reach;
+}
+
+/** Render() is not only a draw.  Animatable3DObjClass::Render moves a playing animation on to the
+		frame the clock says, and W3DModelDraw reads that frame back (Is_Animation_Complete,
+		Peek_Animation_And_Info) to step its states and carry a frame across them.  The depth pass
+		used to do that for every caster in the box every frame, and the frame is a running float sum,
+		so a caster the pass leaves out still has its clock moved here exactly as Render would, which
+		keeps every frame number what it was.  The pose is what the pass no longer pays for: Render
+		posed the bones and the meshes on them, and here they are only marked stale, so whatever draws
+		the model or reads a bone or a sub-object's transform next poses it from the same frame and
+		the same transform the pass would have used. */
+class CasterAnimationClock : public Animatable3DObjClass
+{
+public:
+	static void advance( RenderObjClass *robj )
+	{
+		if (robj->Class_ID() != RenderObjClass::CLASSID_HLOD || !robj->Is_Not_Hidden_At_All())
+			return;
+		HLodClass *hlod = (HLodClass *)robj;
+		if (hlod->Get_HTree() == NULL)
+			return;
+		float frame, multiplier;
+		int frames, mode;
+		if (hlod->Peek_Animation_And_Info( frame, frames, mode, multiplier ) != NULL
+				&& mode != RenderObjClass::ANIM_MODE_MANUAL)
+		{
+			void (Animatable3DObjClass::*progress)( void ) = &CasterAnimationClock::Single_Anim_Progress;
+			(hlod->*progress)();
+		}
+		hlod->Set_Sub_Object_Transforms_Dirty( true );
+	}
+};
+
 /** The sun's depth pass.  The casters are the ones that cast a volume today, drawn again from the
 		sun into a depth buffer nothing samples yet, so this phase can be proved on its own: with it
 		off the frame is what it was, and with it on the map has the world in it and the frame is
@@ -4058,6 +4160,25 @@ void W3DVolumetricShadowManager::renderShadowMap( CameraClass &sceneCamera )
 #ifndef DEBUG_LOGGING
 	Int castersCounted = 0;
 #endif
+	Int castersOutOfView = 0;
+
+	const Real widest = (TheGlobalData->m_shadowMapWidest > 0.0f)
+		? TheGlobalData->m_shadowMapWidest : SHADOW_MAP_WIDEST_TEXELS;
+
+	/* How far across the map a pixel reads, which is how far beside a caster's own outline its
+		 shadow can still darken one.  sun_reaching in ffshader.h: the blocker search's corner tap is
+		 widest times the square root of two away, the filter's turned corner the same at its widest,
+		 the normal offset at most 0.6 of a texel, and a point sampled tap reads the texel whose centre
+		 is up to 0.71 away.  1.5 and 2 cover those with room.  Receivers sit no lower than the
+		 lowest ground on the map: anything under it is seen through the ground, which is drawn and
+		 writes depth in front of it.  A sun at the horizon sweeps forever, so then nothing is left
+		 out, and nothing is while a water mirror can read this map through a camera other than this
+		 one. */
+	const FrustumClass &seen = sceneCamera.Get_Frustum();
+	const Real filterReach = (widest * 1.5f + 2.0f) * texelWidth;
+	const Real lowestReceiver = TheTerrainRenderObject->getMinHeight();
+	const Bool cullToFrame = toSun.Z > 0.01f && !waterMirrorReadsTheMap();
+
 	for (W3DVolumetricShadow *shadow = m_shadowList; shadow; shadow = shadow->m_next)
 	{
 		RenderObjClass *robj = shadow->getRenderObject();
@@ -4068,11 +4189,32 @@ void W3DVolumetricShadowManager::renderShadowMap( CameraClass &sceneCamera )
 			 see.  Culling by the camera meant a tank just off the left of the screen stopped casting,
 			 so its shadow blinked out while the shadow of the tank beside it stayed - and scrolling
 			 turned that into a row of shadows flickering along the edge of the frame. */
+		const SphereClass &bound = robj->Get_Bounding_Sphere();
 		Vector3 inSun;
 		Matrix3D::Inverse_Transform_Vector( transform, robj->Get_Position(), &inSun );
-		const Real reach = SHADOW_MAP_HALF_WIDTH + robj->Get_Bounding_Sphere().Radius;
+		const Real reach = SHADOW_MAP_HALF_WIDTH + bound.Radius;
 		if (inSun.X < -reach || inSun.X > reach || inSun.Y < -reach || inSun.Y > reach)
 			continue;
+
+		/* That tank is still in the map, because its shadow sweeps onto the screen.  What can be left
+			 out is a caster whose shadow, followed downwind to the lowest ground and widened by the
+			 filter, never meets the frame: no pixel drawn this frame reads a texel it is nearest the
+			 sun in, so the map reads the same everywhere it is read. */
+		if (cullToFrame)
+		{
+			const Real casterRadius = bound.Radius + SHADOW_MAP_CASTER_PAD;
+			const Real radius = casterRadius + filterReach;
+			const Real sweep = WWMath::Max( (bound.Center.Z - lowestReceiver + radius) / toSun.Z, 0.0f );
+			const Real overlaySweep = WWMath::Max(
+				(bound.Center.Z - WWMath::Min( lowestReceiver, 0.0f ) + radius) / toSun.Z, 0.0f );
+			if (!shadowReachesTheFrame( seen, bound.Center + toSun * casterRadius,
+					bound.Center - toSun * sweep, bound.Center - toSun * overlaySweep, radius ))
+			{
+				CasterAnimationClock::advance( robj );
+				++castersOutOfView;
+				continue;
+			}
+		}
 
 		robj->Render( sunInfo );
 		++castersCounted;
@@ -4147,8 +4289,6 @@ void W3DVolumetricShadowManager::renderShadowMap( CameraClass &sceneCamera )
 		? TheGlobalData->m_shadowMapSkyFill : SHADOW_MAP_SKY_FILL;
 	const Real strength = (TheGlobalData->m_shadowMapStrength > 0.0f)
 		? TheGlobalData->m_shadowMapStrength : SHADOW_MAP_STRENGTH;
-	const Real widest = (TheGlobalData->m_shadowMapWidest > 0.0f)
-		? TheGlobalData->m_shadowMapWidest : SHADOW_MAP_WIDEST_TEXELS;
 
 	Direct3D11_Set_Shadow_Parameters( SHADOW_MAP_DEPTH_BIAS, strength, widest,
 		SHADOW_MAP_NARROWEST_TEXELS, penumbra / worldPerTexel, unitsPerUnitOfDepth, skyFill );
@@ -4182,8 +4322,8 @@ void W3DVolumetricShadowManager::renderShadowMap( CameraClass &sceneCamera )
 		if (frame >= nextReportFrame)
 		{
 			nextReportFrame = frame + LOGICFRAMES_PER_SECOND;
-			DEBUG_LOG(("SHADOWMAP: %d casters, %s\n", castersCounted,
-				Direct3D11_Shadow_Map_Report().c_str()));
+			DEBUG_LOG(("SHADOWMAP: %d casters, %d left out as reaching nothing in view, %s\n",
+				castersCounted, castersOutOfView, Direct3D11_Shadow_Map_Report().c_str()));
 		}
 	}
 }

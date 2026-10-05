@@ -15436,6 +15436,88 @@ TEST(html_template_fills_values_and_repeats_each)
 	CHECK_STR( HtmlTemplate_expand( "a {{ open", values, lists, lookup ).c_str(), "a {{ open" );
 }
 
+// HtmlOverlay skips filling a page in again when HtmlTemplate_matches says it would come out as the
+// page it already has, so matches has to say exactly what expand() == old would: a changed value,
+// list entry or lookup answer, and an old page longer or shorter than the new one, all differ.
+TEST(html_template_matches_says_what_expand_would)
+{
+	const std::string page =
+		"<p class=\"{{option:A}}\">{{title}}</p>"
+		"<ul><li class=\"t{{team}}\" data-each=\"players\">{{name}}</li></ul>{{text:Label}}";
+
+	HtmlValues values;
+	values[ "option:A" ] = "on";
+	values[ "title" ] = "T&";
+	values[ "team" ] = "9";
+	HtmlLists lists;
+	HtmlValues player;
+	player[ "name" ] = "<b>";
+	lists[ "players" ].push_back( player );
+	player[ "name" ] = "Bo";
+	player[ "team" ] = "1";
+	lists[ "players" ].push_back( player );
+
+	std::string answer = "looked";
+	const HtmlLookup lookup = [ &answer ]( const std::string &name, std::string &value ) -> Bool
+	{
+		if( name != "text:Label" )
+			return FALSE;
+		value = answer;
+		return TRUE;
+	};
+
+	const std::string old = HtmlTemplate_expand( page, values, lists, lookup );
+	CHECK( HtmlTemplate_matches( page, values, lists, lookup, old ) );
+	CHECK( !HtmlTemplate_matches( page, values, lists, lookup, old + "x" ) );
+	CHECK( !HtmlTemplate_matches( page, values, lists, lookup, old.substr( 0, old.size() - 1 ) ) );
+	CHECK( !HtmlTemplate_matches( page, values, lists, lookup, std::string() ) );
+
+	HtmlValues changedValues = values;
+	changedValues[ "title" ] = "U&";
+	CHECK( !HtmlTemplate_matches( page, changedValues, lists, lookup, old ) );
+	// a value the page never names changes nothing
+	changedValues = values;
+	changedValues[ "unused" ] = "x";
+	CHECK( HtmlTemplate_matches( page, changedValues, lists, lookup, old ) );
+
+	HtmlLists changedLists = lists;
+	changedLists[ "players" ][ 1 ][ "name" ] = "Bob";
+	CHECK( !HtmlTemplate_matches( page, values, changedLists, lookup, old ) );
+	changedLists = lists;
+	changedLists[ "players" ].pop_back();
+	CHECK( !HtmlTemplate_matches( page, values, changedLists, lookup, old ) );
+
+	answer = "other";
+	CHECK( !HtmlTemplate_matches( page, values, lists, lookup, old ) );
+	answer = "looked";
+
+	// against expand itself, over values that shift lengths and escaping from case to case
+	const char *const pieces[] = { "", "a", "&", "<>", "<b>", "T&", "9", "\"'", "Bo", "on" };
+	const UnsignedInt count = (UnsignedInt)( sizeof( pieces ) / sizeof( pieces[ 0 ] ) );
+	UnsignedInt seed = 12345;
+	Int agreed = 0;
+	for( Int round = 0; round < 64; round++ )
+	{
+		HtmlValues tryValues = values;
+		HtmlLists tryLists = lists;
+		seed = seed * 1103515245u + 12345u;
+		const char *const piece = pieces[ ( seed >> 8 ) % count ];
+		switch( ( seed >> 16 ) % 5 )
+		{
+			case 0:	break;	// the inputs it was made from
+			case 1:	tryValues[ "title" ] = piece; break;
+			case 2:	tryValues[ "team" ] = piece; break;
+			case 3:	tryLists[ "players" ][ 0 ][ "name" ] = piece; break;
+			case 4:	tryLists[ "players" ][ 1 ][ "team" ] = piece; break;
+		}
+		const Bool same = HtmlTemplate_expand( page, tryValues, tryLists, lookup ) == old;
+		CHECK_EQ( HtmlTemplate_matches( page, tryValues, tryLists, lookup, old ), same );
+		agreed += same ? 1 : 0;
+	}
+	// both answers came up, so the loop is not checking one side only
+	CHECK( agreed > 0 && agreed < 64 );
+}
+
 // litehtml builds an element for every word and every white space character, so the page it is
 // handed has its stylesheet taken out for the CSS parser and each run of white space between tags
 // cut to one; a tag's attribute values keep theirs, a '>' inside quotes included.

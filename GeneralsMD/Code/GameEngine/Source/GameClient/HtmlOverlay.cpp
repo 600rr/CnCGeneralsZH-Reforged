@@ -102,7 +102,7 @@ public:
 	explicit HtmlOverlayContainer( const AsciiString &defaultFont );
 	~HtmlOverlayContainer( void );
 
-	void setPage( const std::string &html );
+	void setPage( const std::string &html, Bool same );
 	void draw( void );
 	Bool hover( const ICoord2D &mouse );
 	std::string click( const ICoord2D &mouse );
@@ -263,12 +263,13 @@ HtmlOverlayContainer::~HtmlOverlayContainer( void )
 }
 
 //-------------------------------------------------------------------------------------------------
-void HtmlOverlayContainer::setPage( const std::string &html )
+/** `same` when `html` is known to be the text the last call was handed, so it need not be compared. */
+void HtmlOverlayContainer::setPage( const std::string &html, Bool same )
 {
 	const Int width = TheDisplay->getWidth();
 	const Int height = TheDisplay->getHeight();
 	const Real scale = m_screenPixels ? 1.0f : m_hud ? ControlBarHudScale() : m_hudPage ? ControlBarHudPageScale() : ControlBarUniformScale();
-	if( m_document && html == m_page && width == m_screenWidth && height == m_screenHeight && scale == m_scale )
+	if( m_document && ( same || html == m_page ) && width == m_screenWidth && height == m_screenHeight && scale == m_scale )
 		return;
 
 	m_page = html;
@@ -940,7 +941,8 @@ void HtmlOverlayContainer::get_language( litehtml::string &language, litehtml::s
 
 //-------------------------------------------------------------------------------------------------
 HtmlOverlay::HtmlOverlay( const AsciiString &defaultFont ) :
-	m_container( new HtmlOverlayContainer( defaultFont ) )
+	m_container( new HtmlOverlayContainer( defaultFont ) ),
+	m_expandedSent( FALSE )
 {
 }
 
@@ -950,40 +952,22 @@ HtmlOverlay::~HtmlOverlay( void )
 	delete m_container;
 }
 
-void HtmlOverlay::setPage( const std::string &html )	{ m_container->setPage( html ); }
+void HtmlOverlay::setPage( const std::string &html )	{ m_expandedSent = FALSE; m_container->setPage( html, FALSE ); }
 
 //-------------------------------------------------------------------------------------------------
-/** The expanded page is made of the written page, the values, the lists and what the lookup answered
-	* for the names neither held, nothing else; all of them the same as last time is the same page, and
-	* filling 38 KB of command bar in again every pass to find that out was a share of the frame. */
+/** Filling 38 KB of command bar in again every pass, to hand litehtml the page it already had, was a
+	* share of the frame of its own. */
 void HtmlOverlay::setPage( const std::string &written, const HtmlValues &values, const HtmlLists &lists,
 													 const HtmlLookup &lookup )
 {
-	Bool same = written == m_written && values == m_values && lists == m_lists;
-	std::string answer;
-	for( std::map< std::string, std::pair< Bool, std::string > >::const_iterator asked = m_asked.begin();
-			 same && asked != m_asked.end(); ++asked )
-	{
-		answer.clear();
-		const Bool known = lookup && lookup( asked->first, answer );
-		same = known == asked->second.first && ( !known || answer == asked->second.second );
-	}
-
+	// compared against the page it made last time, as it would be filled in now: only the names the
+	// page uses are read, where comparing every value and list entry kept, and copying them all on
+	// every change, was most of a pass's page cost
+	const Bool same = m_expandedSent && HtmlTemplate_matches( written, values, lists, lookup, m_expanded );
 	if( !same )
-	{
-		m_asked.clear();
-		const HtmlLookup asking = [ this, &lookup ]( const std::string &name, std::string &value ) -> Bool
-		{
-			const Bool known = lookup && lookup( name, value );
-			m_asked[ name ] = std::make_pair( known, known ? value : std::string() );
-			return known;
-		};
-		m_expanded = HtmlTemplate_expand( written, values, lists, asking );
-		m_written = written;
-		m_values = values;
-		m_lists = lists;
-	}
-	m_container->setPage( m_expanded );
+		m_expanded = HtmlTemplate_expand( written, values, lists, lookup );
+	m_container->setPage( m_expanded, same );
+	m_expandedSent = TRUE;
 }
 void HtmlOverlay::draw( void )													{ m_container->draw(); }
 void HtmlOverlay::setHud( Bool hud )										{ m_container->m_hud = hud; }

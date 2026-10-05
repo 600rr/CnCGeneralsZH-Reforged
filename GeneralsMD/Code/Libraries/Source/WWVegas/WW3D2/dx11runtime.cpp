@@ -36,13 +36,6 @@ static bool PresentFailureReported = false;
 static bool VSyncRequested = false;
 static bool Active = false;
 static bool NormalMapsEnabled = true;
-// The texture the backend's normal map was last mirrored from, and the mirror generation then.
-// TextureClass::Apply hands the same one over on every bind of its texture, and each mirror call is
-// three private data lookups on the D3D9 texture.  Cleared when stage zero changes, which is when
-// the backend drops its normal map, so the D3D9 texture at stage zero (held by the wrapper) is the
-// one this was found for.
-static struct IDirect3DBaseTexture9 * MirroredNormalMap = NULL;
-static unsigned long long MirroredNormalMapGeneration = 0;
 static DX11DeviceClass Device;
 static DX11BackendClass Backend;
 static DX11PostProcessClass Post;
@@ -133,7 +126,6 @@ void Direct3D11_Release()
 	Backend.Shutdown();
 	Device.Release();
 	Active = false;
-	MirroredNormalMap = NULL;
 }
 
 bool Direct3D11_Resize(unsigned width, unsigned height)
@@ -268,7 +260,6 @@ void Direct3D11_Mirror_Texture(unsigned stage, struct IDirect3DBaseTexture9 * te
 	// the new one's right after this, and a texture bound any other way has none.
 	if (stage == 0) {
 		Backend.Set_Normal_Map(NULL);
-		MirroredNormalMap = NULL;
 	}
 }
 
@@ -287,15 +278,9 @@ void Direct3D11_Mirror_Normal_Map(struct IDirect3DBaseTexture9 * normal_map)
 	if (!Active) {
 		return;
 	}
-	if (normal_map != NULL && normal_map == MirroredNormalMap
-			&& DX11Texture_Generation() == MirroredNormalMapGeneration) {
-		return;
-	}
 	Backend.Set_Normal_Map(normal_map == NULL
 		? NULL
 		: DX11Texture_Mirror(Device.Get_Device(), Device.Get_Context(), normal_map));
-	MirroredNormalMap = normal_map;
-	MirroredNormalMapGeneration = DX11Texture_Generation();
 }
 
 void Direct3D11_Set_Terrain_Sun(const float direction[3])

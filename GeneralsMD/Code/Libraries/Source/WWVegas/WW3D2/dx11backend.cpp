@@ -386,6 +386,7 @@ void DX11BackendClass::Release_Cached()
 	LastMemo = 0;
 	NextMemo = 0;
 	LastResolveHeld = false;
+	Resolutions.clear();
 	Forget_Last_State_Objects();
 
 	for (std::map<std::string, Pipeline>::iterator entry = Pipelines.begin();
@@ -1850,6 +1851,25 @@ bool DX11BackendClass::Resolve(Pipeline & pipeline)
 		}
 	}
 
+	ResolveKey resolve_key;
+	memset(&resolve_key, 0, sizeof(resolve_key));
+	resolve_key.Format = VertexFormat;
+	resolve_key.VertexProgram = VertexProgram;
+	resolve_key.PixelProgram = PixelProgram;
+	memcpy(&resolve_key.Vertex, &vertex_description, sizeof(vertex_description));
+	memcpy(&resolve_key.Combiner, &combiner_description, sizeof(combiner_description));
+	ResolutionMap::iterator resolved = Resolutions.find(resolve_key);
+	if (resolved != Resolutions.end()) {
+		if (resolved->second.Refused) {
+			Refuse(resolved->second.Key, static_cast<RefusalReason>(resolved->second.Reason));
+			return false;
+		}
+		pipeline = resolved->second.Resolved;
+		++resolved->second.Use->Draws;
+		Remember_Resolution(resolved->second.Use, pipeline, vertex_description, combiner_description);
+		return true;
+	}
+
 	char format[32];
 	snprintf(format, sizeof(format), "|%lu", VertexFormat);
 
@@ -1871,11 +1891,19 @@ bool DX11BackendClass::Resolve(Pipeline & pipeline)
 	std::map<std::string, Pipeline>::const_iterator existing = Pipelines.find(key);
 	if (existing != Pipelines.end()) {
 		pipeline = existing->second;
-		Remember_Resolution(key, pipeline, vertex_description, combiner_description);
+		PipelineUse * const use = Record_Use(key);
+		const Resolution resolution = { false, 0, pipeline, use, key };
+		Resolutions[resolve_key] = resolution;
+		Remember_Resolution(use, pipeline, vertex_description, combiner_description);
 		return true;
 	}
 	std::map<std::string, unsigned>::const_iterator refused = RefusedPipelines.find(key);
 	if (refused != RefusedPipelines.end()) {
+		// A refusal is kept once it has been seen here, not where it is first made: the paths
+		// below refuse in several places and the next draw of the same state lands here anyway.
+		const Pipeline none = { NULL, NULL, NULL };
+		const Resolution resolution = { true, refused->second, none, NULL, key };
+		Resolutions[resolve_key] = resolution;
 		Refuse(key, static_cast<RefusalReason>(refused->second));
 		return false;
 	}
@@ -1952,11 +1980,27 @@ bool DX11BackendClass::Resolve(Pipeline & pipeline)
 	FrameBuildMilliseconds += DX11Resource_Milliseconds_Now() - build_started;
 	++FrameBuildCount;
 	pipeline = built;
-	Remember_Resolution(key, pipeline, vertex_description, combiner_description);
+	PipelineUse * const use = Record_Use(key);
+	const Resolution resolution = { false, 0, pipeline, use, key };
+	Resolutions[resolve_key] = resolution;
+	Remember_Resolution(use, pipeline, vertex_description, combiner_description);
 	return true;
 }
 
-void DX11BackendClass::Remember_Resolution(const std::string & key, const Pipeline & resolved,
+size_t DX11BackendClass::ResolveKey_Hash::operator()(const ResolveKey & key) const
+{
+	// FNV-1a a word at a time; the key is all four byte fields and zeroed padding.
+	static_assert(sizeof(ResolveKey) % sizeof(unsigned) == 0, "the key hashes whole words");
+	unsigned words[sizeof(ResolveKey) / sizeof(unsigned)];
+	memcpy(words, &key, sizeof(words));
+	unsigned long long hash = 14695981039346656037ULL;
+	for (unsigned index = 0; index < sizeof(words) / sizeof(words[0]); ++index) {
+		hash = (hash ^ words[index]) * 1099511628211ULL;
+	}
+	return static_cast<size_t>(hash);
+}
+
+void DX11BackendClass::Remember_Resolution(PipelineUse * use, const Pipeline & resolved,
 	const VertexPipelineDescription & vertex, const CombinerDescription & combiner)
 {
 	ResolveMemo & memo = Memos[NextMemo];
@@ -1967,7 +2011,7 @@ void DX11BackendClass::Remember_Resolution(const std::string & key, const Pipeli
 	memo.VertexProgram = VertexProgram;
 	memo.PixelProgram = PixelProgram;
 	memo.Resolved = resolved;
-	memo.Use = Record_Use(key);
+	memo.Use = use;
 	LastResolveHeld = true;
 	LastMemo = NextMemo;
 	NextMemo = (NextMemo + 1) % RESOLVE_MEMO_ENTRIES;

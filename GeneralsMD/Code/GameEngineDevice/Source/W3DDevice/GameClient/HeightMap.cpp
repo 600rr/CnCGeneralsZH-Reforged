@@ -539,6 +539,27 @@ Int HeightMapRenderObjClass::updateVB(DX8VertexBufferClass	*pVB, char *data, Int
 /** Update the dynamic lighting values only in a rectangular block of the given Vertex Buffer. 
 The vertex locations and texture coords are unchanged.
 */
+/** Whether the quad at map cell (xCoord, yCoord) lies under any of the lights, where they are now or
+where they were at the last relight: the test updateVBForLight relights a quad by. */
+Bool HeightMapRenderObjClass::quadUnderLight(W3DDynamicLight *pLights[], Int numLights, Int xCoord, Int yCoord)
+{
+	for (Int k=0; k<numLights; k++) {
+		if (pLights[k]->m_minX <= xCoord+1 &&
+			pLights[k]->m_maxX >= xCoord &&
+			pLights[k]->m_minY <= yCoord+1 &&
+			pLights[k]->m_maxY >= yCoord) {
+			return true;
+		}
+		if (pLights[k]->m_prevMinX <= xCoord+1 &&
+			pLights[k]->m_prevMaxX >= xCoord &&
+			pLights[k]->m_prevMinY <= yCoord+1 &&
+			pLights[k]->m_prevMaxY >= yCoord) {
+			return true;
+		}
+	}
+	return false;
+}
+
 Int HeightMapRenderObjClass::updateVBForLight(DX8VertexBufferClass	*pVB, char *data, Int x0, Int y0, Int x1, Int y1, Int originX, Int originY, W3DDynamicLight *pLights[], Int numLights)
 {
 
@@ -557,15 +578,42 @@ Int HeightMapRenderObjClass::updateVBForLight(DX8VertexBufferClass	*pVB, char *d
 		assert(x0 >= originX && y0 >= originY && x1>x0 && y1>y0 && x1<=originX+VERTEX_BUFFER_TILE_LENGTH && y1<=originY+VERTEX_BUFFER_TILE_LENGTH);
 #endif 
 
-		DX8VertexBufferClass::WriteLockClass lockVtxBuffer(pVB);
-		VERTEX_FORMAT *vBase = (VERTEX_FORMAT*)lockVtxBuffer.Get_Vertex_Array();
+		// Lock only from the first quad the loop below writes to the end of the last one.  The
+		// whole tile is 4096 vertices, and with Direct3D 11 its unlock copied every byte into the
+		// D3D9 buffer and again into the D3D11 one for a light a few cells wide.  The bytes outside
+		// the range are untouched, and every copy of them already holds the same thing.
+		Int firstVertex = -1;
+		Int endVertex = 0;
+		for (j=y0; j<y1; j++)
+		{
+			if (HALF_RES_MESH && (j&1)) continue;
+			Int yCoord = getYWithOrigin(j)+m_map->getDrawOrgY()-m_map->getBorderSizeInline();
+			for (i=x0; i<x1; i++)
+			{
+				if (HALF_RES_MESH && (i&1)) continue;
+				Int xCoord = getXWithOrigin(i)+m_map->getDrawOrgX()-m_map->getBorderSizeInline();
+				if (!quadUnderLight(pLights, numLights, xCoord, yCoord)) continue;
+				Int offset = (j-originY)*vertsPerRow+4*(i-originX);
+				if (HALF_RES_MESH) {
+					offset = (j-originY)*vertsPerRow/4+2*(i-originX);
+				}
+				if (firstVertex < 0) firstVertex = offset;
+				endVertex = offset + 4;
+			}
+		}
+		if (firstVertex < 0)
+			return 0;	// no quad under a light: the loop below would write nothing
+
+		DX8VertexBufferClass::AppendLockClass lockVtxBuffer(pVB, firstVertex, endVertex-firstVertex);
+		VERTEX_FORMAT *vLocked = (VERTEX_FORMAT*)lockVtxBuffer.Get_Vertex_Array();
 		// a failed lock - a device that has gone away - hands back nothing to light
-		if (vBase == NULL) {
+		if (vLocked == NULL) {
 			m_lastRelightValid = false;	// nothing written, so the next pass tries again
 			return 0;
 		}
+		VERTEX_FORMAT *vBase = vLocked - firstVertex;	// offsets below stay tile-relative
 		VERTEX_FORMAT *vb;
-		
+
 		for (j=y0; j<y1; j++)
 		{
 			if (HALF_RES_MESH) {

@@ -56,6 +56,7 @@
 #include <map>
 #include <string.h>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 // Two everywhere except the water, which binds four: the river texture, the sparkles, the noise
@@ -596,8 +597,45 @@ private:
 	ResolveMemo Memos[RESOLVE_MEMO_ENTRIES];
 	unsigned LastMemo;		///< the entry the last hit or write used; checked first
 	unsigned NextMemo;		///< the entry the next miss writes over
-	void Remember_Resolution(const std::string & key, const Pipeline & resolved,
+	void Remember_Resolution(PipelineUse * use, const Pipeline & resolved,
 		const VertexPipelineDescription & vertex, const CombinerDescription & combiner);
+
+	// Every resolution a memo miss has already worked out, keyed by the state's own bytes.  A frame
+	// asks for more pipelines in turn than the memo holds, and each miss built the string key again:
+	// about twenty snprintf calls to find a pipeline it had found many times.  The string key is
+	// built once per state here and kept, for a refusal's count.  The key is memset before it is
+	// filled, so hashing and comparing its bytes is safe for the memo's reason; the map is dropped
+	// in Release_Cached with the pipelines it names.
+	struct ResolveKey
+	{
+		DWORD Format;
+		EngineShaderProgram VertexProgram;
+		EngineShaderProgram PixelProgram;
+		VertexPipelineDescription Vertex;
+		CombinerDescription Combiner;
+	};
+	struct ResolveKey_Hash
+	{
+		size_t operator()(const ResolveKey & key) const;
+	};
+	struct ResolveKey_Equal
+	{
+		bool operator()(const ResolveKey & left, const ResolveKey & right) const
+		{
+			return memcmp(&left, &right, sizeof(ResolveKey)) == 0;
+		}
+	};
+	struct Resolution
+	{
+		bool Refused;
+		unsigned Reason;		///< a RefusalReason, as RefusedPipelines holds it
+		Pipeline Resolved;
+		PipelineUse * Use;
+		std::string Key;
+	};
+	typedef std::unordered_map<ResolveKey, Resolution, ResolveKey_Hash, ResolveKey_Equal>
+		ResolutionMap;
+	ResolutionMap Resolutions;
 
 	// Where the draws are landing.  Null means the device's own back buffer and depth buffer.
 	// The first few target changes, in order, with the draw count at each one.  Which target is

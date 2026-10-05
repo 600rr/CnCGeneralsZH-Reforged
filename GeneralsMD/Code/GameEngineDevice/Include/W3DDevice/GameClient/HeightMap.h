@@ -185,6 +185,7 @@ protected:
 	///update vertex diffuse color for dynamic lights inside given rectangle
 	Int updateVBForLight(DX8VertexBufferClass *pVB, char *data, Int x0, Int y0, Int x1, Int y1, Int originX, Int originY, W3DDynamicLight *pLights[], Int numLights);
 	Int updateVBForLightOptimized(DX8VertexBufferClass	*pVB, char *data, Int x0, Int y0, Int x1, Int y1, Int originX, Int originY, W3DDynamicLight *pLights[], Int numLights);
+	static Bool quadUnderLight(W3DDynamicLight *pLights[], Int numLights, Int xCoord, Int yCoord);	///< updateVBForLight's per-quad test
 	///update vertex buffer vertices inside given rectangle
 	Int updateVB(DX8VertexBufferClass	*pVB, char *data, Int x0, Int y0, Int x1, Int y1, Int originX, Int originY, WorldHeightMap *pMap, RefRenderObjListIterator *pLightsIterator);
 	///upate vertex buffers associated with the given rectangle

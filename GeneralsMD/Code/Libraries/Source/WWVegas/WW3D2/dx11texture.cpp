@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 // Where the copy and the refusal are kept on the D3D9 texture.  The view goes in as an IUnknown,
@@ -85,10 +86,6 @@ static void note_refusal(const char * reason)
 }
 
 static std::vector<std::string> Notes;
-
-// Raised whenever a texture's view is replaced or its pixels are marked for a recopy; see
-// DX11Texture_Generation.
-static unsigned long long Generation = 0;
 
 static unsigned Mirrored = 0;
 static unsigned Refused = 0;
@@ -495,11 +492,10 @@ static ID3D11ShaderResourceView * apply_lod(ID3D11Device * device, IDirect3DBase
 	texture->SetPrivateData(DX11_TEXTURE_VIEW, replacement, sizeof(replacement), D3DSPD_IUNKNOWN);
 	replacement->Release();
 	texture->SetPrivateData(DX11_TEXTURE_LOD, &lod, sizeof(lod), 0);
-	++Generation;
 	return replacement;
 }
 
-ID3D11ShaderResourceView * DX11Texture_Mirror(ID3D11Device * device, ID3D11DeviceContext * context,
+static ID3D11ShaderResourceView * mirror(ID3D11Device * device, ID3D11DeviceContext * context,
 	IDirect3DBaseTexture9 * texture)
 {
 	ID3D11ShaderResourceView * view = NULL;
@@ -545,6 +541,92 @@ ID3D11ShaderResourceView * DX11Texture_Mirror(ID3D11Device * device, ID3D11Devic
 	return apply_lod(device, texture, view);
 }
 
+// What mirror() last answered for each texture, so a bind that would get the same answer skips the
+// three private data lookups it asks D3D9 for.  Every texture bind went through them, and they were
+// the d3d9.dll time under TextureClass::Apply in the profile (an unnamed export, Ordinal23, is the
+// nearest label the sampler has for that code).  An entry stands while its texture is alive, has
+// not been written by the CPU since (DX11Texture_Mark_Dirty marks it stale) and answers the same
+// level of detail; the view itself is still owned by the texture.  Main thread only, like every
+// other call here.
+struct MirrorAnswer
+{
+	ID3D11ShaderResourceView * View;
+	DWORD Lod;		///< GetLOD when the answer was taken, before apply_lod clamps it
+	bool Stale;
+};
+typedef std::unordered_map<IDirect3DBaseTexture9 *, MirrorAnswer> MirrorAnswerMap;
+// Never destroyed: a texture still alive when the statics are torn down at exit releases its watch
+// after that, and the watch erases from this.
+static MirrorAnswerMap & MirrorAnswers = *new MirrorAnswerMap;
+
+// Hung on a texture as private data the first time it is answered for, so that D3D9 releasing its
+// private data when the texture goes takes the answer with it before another texture can be made
+// at the same address.
+// {2E2E9C27-1B2A-4C7E-9E2F-1D0B7E9A5C01}
+static const GUID DX11_TEXTURE_WATCH =
+	{ 0x2e2e9c27, 0x1b2a, 0x4c7e, { 0x9e, 0x2f, 0x1d, 0x0b, 0x7e, 0x9a, 0x5c, 0x01 } };
+
+class TextureWatch : public IUnknown
+{
+public:
+	explicit TextureWatch(IDirect3DBaseTexture9 * texture) : References(1), Texture(texture) {}
+
+	HRESULT STDMETHODCALLTYPE QueryInterface(REFIID id, void ** object)
+	{
+		if (id == IID_IUnknown) {
+			*object = static_cast<IUnknown *>(this);
+			AddRef();
+			return S_OK;
+		}
+		*object = NULL;
+		return E_NOINTERFACE;
+	}
+	ULONG STDMETHODCALLTYPE AddRef() { return ++References; }
+	ULONG STDMETHODCALLTYPE Release()
+	{
+		const ULONG left = --References;
+		if (left == 0) {
+			MirrorAnswers.erase(Texture);
+			delete this;
+		}
+		return left;
+	}
+
+private:
+	ULONG References;
+	IDirect3DBaseTexture9 * Texture;
+};
+
+ID3D11ShaderResourceView * DX11Texture_Mirror(ID3D11Device * device, ID3D11DeviceContext * context,
+	IDirect3DBaseTexture9 * texture)
+{
+	MirrorAnswerMap::iterator answer = MirrorAnswers.find(texture);
+	if (answer != MirrorAnswers.end() && !answer->second.Stale
+			&& answer->second.Lod == texture->GetLOD()) {
+		if (answer->second.View != NULL) {
+			++Reused;
+		}
+		return answer->second.View;
+	}
+
+	ID3D11ShaderResourceView * const view = mirror(device, context, texture);
+	if (answer == MirrorAnswers.end()) {
+		// Without the watch nothing would take the answer back when the texture goes.
+		TextureWatch * const watch = new TextureWatch(texture);
+		const bool watched = SUCCEEDED(texture->SetPrivateData(DX11_TEXTURE_WATCH, watch,
+			sizeof(IUnknown *), D3DSPD_IUNKNOWN));
+		watch->Release();
+		if (!watched) {
+			return view;
+		}
+	}
+	MirrorAnswer & held = MirrorAnswers[texture];
+	held.View = view;
+	held.Lod = texture->GetLOD();
+	held.Stale = false;
+	return view;
+}
+
 void DX11Texture_Mark_Dirty(IDirect3DSurface9 * surface)
 {
 	if (surface == NULL) {
@@ -559,13 +641,11 @@ void DX11Texture_Mark_Dirty(IDirect3DSurface9 * surface)
 
 	const unsigned char dirty = 1;
 	texture->SetPrivateData(DX11_TEXTURE_DIRTY, &dirty, sizeof(dirty), 0);
+	MirrorAnswerMap::iterator answer = MirrorAnswers.find(texture);
+	if (answer != MirrorAnswers.end()) {
+		answer->second.Stale = true;
+	}
 	texture->Release();
-	++Generation;
-}
-
-unsigned long long DX11Texture_Generation()
-{
-	return Generation;
 }
 
 bool DX11Texture_Update(ID3D11Device * device, ID3D11DeviceContext * context,

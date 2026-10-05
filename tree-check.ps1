@@ -20,7 +20,7 @@
 # the run-to-run shimmer does not.  Re-measure and move them if the reference machine changes.
 #
 # Exit code is the number of views over the limit.
-param([double]$Limit = 0, [string[]]$Extra = @(), [string[]]$NewEnv = @(), [string]$Base = 'generals_base.exe')
+param([double]$Limit = 0, [string[]]$Extra = @(), [string[]]$NewEnv = @(), [string]$Base = 'generals_base.exe', [string]$Candidate = 'generals.exe')
 $env:ZH_UNATTENDED = "1"	# every game this starts is unattended: no box may wait on a person (EarlyCommandLine.h)
 
 Add-Type -AssemblyName System.Drawing
@@ -71,7 +71,7 @@ function Shoot($exe, $c, $tag) {
   $args = @('-win','-xres','1280','-yres','720','-quickstart','-noshellmap','-multiInstance','-showHudOverlay','-msaa','0','-dx11post','off',
             '-map',"`"Maps\$($c.map)\$($c.map).map`"",'-autoskirmish','4','-aidiff','easy','-seed','5',
             '-maxframes',($c.f+80),'-screenshot',$c.f,'-camera',$c.x,$c.y,'-logPrefix',"chk_$tag`_") + $pace + $Extra
-  $environment = if ($exe -eq 'generals.exe') { $NewEnv } else { @() }
+  $environment = if ($exe -eq $Candidate) { $NewEnv } else { @() }
   try {
     foreach ($e in $environment) { $n, $v = $e -split '=', 2; Set-Item "env:$n" $v }
     $p = Start-Process (Join-Path $run $exe) -ArgumentList $args -WorkingDirectory $run -PassThru
@@ -114,7 +114,7 @@ $fail = 0
 foreach ($c in $cases) {
   $tag = ($c.map -replace '[^A-Za-z]','') + "_$($c.x)_$($c.f)"
   $a = Shoot $Base $c "base_$tag"
-  $b = Shoot 'generals.exe'      $c "new_$tag"
+  $b = Shoot $Candidate          $c "new_$tag"
   $d = DiffPct $a $b
   $lim = if ($Limit -gt 0) { $Limit } else { $c.lim }
   $verdict = if ($d -le $lim) { 'ok' } else { 'DIFFERENT'; }
