@@ -3008,7 +3008,10 @@ static Bool computeHealthRegion( const Drawable *draw, IRegion2D& region )
 
 	Coord3D p;
 	obj->getHealthBoxPosition(p);
-	p.z += healthBarArtLift( obj );
+	// Classic keeps EA's place and size for the bar
+	const Bool classic = TheGlobalData->isClassicUI();
+	if( !classic )
+		p.z += healthBarArtLift( obj );
 	ICoord2D screenCenter;
 	if( !TheTacticalView->worldToScreen( &p, &screenCenter ) )
 		return FALSE;
@@ -3033,7 +3036,7 @@ static Bool computeHealthRegion( const Drawable *draw, IRegion2D& region )
 	// screen: on a 2560 wide screen a tank was three times its 800x600 size wearing the same
 	// hairline bar.  Both follow the screen now.
 	//
-	const Real uiScale = TheUIScale();
+	const Real uiScale = classic ? 1.0f : TheUIScale();
 	healthBoxWidth *= uiScale;
 
 	// do this so health bar doesn't get too skinny or fat after scaling
@@ -3313,6 +3316,14 @@ void Drawable::drawContained( const IRegion2D *healthBarRegion )
 	if (!TheGlobalData->m_showObjectHealth)
 		return;
 
+	// Classic is EA's rule: your own container, selected or under the pointer, and only once
+	// somebody is inside
+	const Bool classic = TheGlobalData->isClassicUI();
+	if (classic &&
+			!((isSelected() || (TheInGameUI && TheInGameUI->getMousedOverDrawableID() == getID())) &&
+				obj->getControllingPlayer() == ThePlayerList->getLocalPlayer()))
+		return;
+
 	//
 	// ...and a building you can garrison shows them whoever holds it. How many rooms are left in
 	// that civilian block is the question you ask before sending a squad at it, and how many are
@@ -3331,7 +3342,7 @@ void Drawable::drawContained( const IRegion2D *healthBarRegion )
 
 	// empty containers still show their (empty) pips, unless the player switched that off for
 	// buildings: a Barracks wears ten empty boxes for the whole match otherwise
-	if (numFull == 0 && !TheGlobalData->m_showEmptyBuildingPips && obj->isKindOf( KINDOF_STRUCTURE ))
+	if (numFull == 0 && (classic || (!TheGlobalData->m_showEmptyBuildingPips && obj->isKindOf( KINDOF_STRUCTURE ))))
 		return;
 
 	Int numInfantry = 0;
@@ -4422,7 +4433,11 @@ void Drawable::drawHealthBar(const IRegion2D* healthBarRegion)
 
 	// m_showObjectHealth is the debug master switch (a cheat key toggles it); which units wear a bar
 	// while it is on is the player's HealthBars setting, applied further down once the health is known
-	if( TheGlobalData->m_showObjectHealth )
+	// Classic is EA's rule: a bar only over what is selected or under the pointer, and over anything
+	// that is, with EA's colours and none of this fork's filters
+	const Bool classic = TheGlobalData->isClassicUI();
+	const Bool mousedOver = TheInGameUI != NULL && TheInGameUI->getMousedOverDrawableID() == getID();
+	if( TheGlobalData->m_showObjectHealth && ( !classic || isSelected() || mousedOver ) )
 	{
 		Object *obj = getObject();
 
@@ -4450,7 +4465,7 @@ void Drawable::drawHealthBar(const IRegion2D* healthBarRegion)
 		//
 		// A booby trap has one hit point and cannot be shot, so its bar was a full green line
 		// forever, over something that is meant to be hidden.
-		if( obj->isKindOf( KINDOF_PROJECTILE ) ||
+		if( !classic && ( obj->isKindOf( KINDOF_PROJECTILE ) ||
 				obj->isKindOf( KINDOF_BOOBY_TRAP ) ||
 				obj->isKindOf( KINDOF_INERT ) ||
 				obj->isKindOf( KINDOF_CLEANUP_HAZARD ) ||
@@ -4459,10 +4474,10 @@ void Drawable::drawHealthBar(const IRegion2D* healthBarRegion)
 				obj->isKindOf( KINDOF_HULK ) ||
 				obj->isKindOf( KINDOF_CLICK_THROUGH ) ||
 				obj->isKindOf( KINDOF_CRATE ) ||
-				( obj->isKindOf( KINDOF_IMMOBILE ) && !obj->isKindOf( KINDOF_STRUCTURE ) ) )
+				( obj->isKindOf( KINDOF_IMMOBILE ) && !obj->isKindOf( KINDOF_STRUCTURE ) ) ) )
 			return;
 
-		if( obj->isKindOf( KINDOF_STRUCTURE ) )
+		if( !classic && obj->isKindOf( KINDOF_STRUCTURE ) )
 		{
 			const ContainModuleInterface *contain = obj->getContain();
 			const Bool isBridge = obj->isKindOf( KINDOF_BRIDGE ) ||
@@ -4505,10 +4520,9 @@ void Drawable::drawHealthBar(const IRegion2D* healthBarRegion)
 
 		// the player's setting decides who wears one.  It is tested here rather than at the top of the
 		// function because smart mode needs the health, and the health needs the body module.
-		if( !Drawable_healthBarModeShows( TheGlobalData->m_healthBarMode,
+		if( !classic && !Drawable_healthBarModeShows( TheGlobalData->m_healthBarMode,
 																			isSelected(),
-																			TheInGameUI != NULL &&
-																				TheInGameUI->getMousedOverDrawableID() == getID(),
+																			mousedOver,
 																			health < maxHealth ) )
 			return;
 
@@ -4521,13 +4535,17 @@ void Drawable::drawHealthBar(const IRegion2D* healthBarRegion)
 		//
 
 		Color color, outlineColor;
-		if( Drawable_disabledShowsBlueHealthBar( obj->getDisabledFlags() ) )
+		const Bool blue = classic
+			? ( obj->getStatusBits().test( OBJECT_STATUS_UNDER_CONSTRUCTION ) ||
+					( obj->isDisabled() && !obj->isDisabledByType( DISABLED_HELD ) ) )
+			: Drawable_disabledShowsBlueHealthBar( obj->getDisabledFlags() );
+		if( blue )
 		{
 			color = GameMakeColor( 0, healthRatio * 255.0f, 255, 255 );//blue to cyan
 			outlineColor = GameMakeColor( 0, healthRatio * 128.0f, 128, 255 );//dark blue to dark cyan
 
 		}
-		else if( obj->getControllingPlayer() != NULL &&
+		else if( !classic && obj->getControllingPlayer() != NULL &&
 						 obj->getControllingPlayer()->getPlayerColor() != 0 )
 		{
 			//
@@ -4606,7 +4624,8 @@ void Drawable::drawHealthBar(const IRegion2D* healthBarRegion)
 		// 2D overlay and the pick ray only knows about the 3D scene, so without this a click on a bar
 		// hits nothing at all.
 		//
-		TheGameClient->addHealthBarPickRegion( this, *healthBarRegion );
+		if( !classic )
+			TheGameClient->addHealthBarPickRegion( this, *healthBarRegion );
 
 		// draw the health box outline
 		TheDisplay->drawOpenRect( healthBarRegion->lo.x, healthBarRegion->lo.y, healthBoxWidth, healthBoxHeight,
@@ -4616,7 +4635,7 @@ void Drawable::drawHealthBar(const IRegion2D* healthBarRegion)
 		// reads in a crowd where every unit carries a bar, without reserving a row above the bar for
 		// a marker. It sits outside rather than replacing the outline, so the bar keeps its owner
 		// colour all the way round.
-		if( isSelected() )
+		if( isSelected() && !classic )
 			TheDisplay->drawOpenRect( healthBarRegion->lo.x - 1, healthBarRegion->lo.y - 1,
 																healthBoxWidth + 2, healthBoxHeight + 2,
 																healthBoxOutlineSize, GameMakeColor( 255, 255, 255, 255 ) );

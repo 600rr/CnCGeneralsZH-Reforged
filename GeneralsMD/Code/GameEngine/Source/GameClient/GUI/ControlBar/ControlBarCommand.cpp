@@ -847,7 +847,9 @@ void ControlBar::updateContextCommand( void )
 		{
 			const ThingTemplate *tmpl = command->getThingTemplate();
 			Player *localPlayer = ThePlayerList ? ThePlayerList->getLocalPlayer() : NULL;
-			if( tmpl && localPlayer )
+			// Classic's cameos are EA's pictures alone: no seconds, price or power on them.  The
+			// seconds were wall-clock ones, so they crept up whenever the match ran under 30 frames
+			if( tmpl && localPlayer && !TheGlobalData->isClassicUI() )
 			{
 				GadgetButtonSetSeconds( win, ControlBar_secondsFromFrames( (Real)tmpl->calcTimeToBuild( localPlayer ) ) );
 				//
@@ -886,7 +888,7 @@ void ControlBar::updateContextCommand( void )
 
 			const UpgradeTemplate *ut = command->getUpgradeTemplate();
 			Player *localPlayer = ThePlayerList ? ThePlayerList->getLocalPlayer() : NULL;
-			if( ut && localPlayer )
+			if( ut && localPlayer && !TheGlobalData->isClassicUI() )
 			{
 				GadgetButtonSetSeconds( win, ControlBar_secondsFromFrames( (Real)ut->calcTimeToBuild( localPlayer ) ) );
 				GadgetButtonSetCost( win, ut->calcCostToBuild( localPlayer ) );
