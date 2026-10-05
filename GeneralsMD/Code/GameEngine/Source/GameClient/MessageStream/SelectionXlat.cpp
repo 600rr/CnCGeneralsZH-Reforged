@@ -481,10 +481,9 @@ GameMessageDisposition SelectionTranslator::translateGameMessage(const GameMessa
 				//
 				// a click on a health bar selects its owner, so the cursor has to say so before the
 				// click - the same fallback, in the same order, as the point pick in
-				// W3DView::iterateDrawablesInRegion.  Classic is the game as shipped, where a bar was only
-				// ever a picture.
+				// W3DView::iterateDrawablesInRegion
 				//
-				if( underCursor == NULL && !TheGlobalData->isClassicUI() )
+				if( underCursor == NULL )
 					underCursor = TheGameClient->pickDrawableByHealthBar( &pixel );
 
 				Object *objUnderCursor = underCursor ? underCursor->getObject() : NULL;

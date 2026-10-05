@@ -350,7 +350,7 @@ GROUP_LAYOUT = [
 REFORGED_ONLY = [
     "CheckSmoothMotion", "CheckZoomToCursor", "CheckStartAtMaxZoom", "CheckSnapCamera45",
     "CheckGridBuild", "CheckSnapBuild45", "ComboBoxHudScale", "CheckNetBox", "ComboBoxIncomeRate",
-    "ComboBoxHealthBars", "CheckOrderLines", "CheckEmptyBuildingPips",
+    "CheckOrderLines",
 ]
 
 
