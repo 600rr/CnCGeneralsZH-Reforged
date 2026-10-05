@@ -4098,8 +4098,12 @@ void InGameUI::update( void )
 		{
 			UnicodeString buffer;
 
-			buffer.format( TheGameText->fetch( perMinute ? "GUI:ControlBarMoneyEarningMinute" : "GUI:ControlBarMoneyEarning" ),
-										 currentMoney, currentEarning );
+			// Classic's readout is EA's: the money and nothing beside it
+			if( TheGlobalData->isClassicUI() )
+				buffer.format( TheGameText->fetch( "GUI:ControlBarMoneyDisplay" ), currentMoney );
+			else
+				buffer.format( TheGameText->fetch( perMinute ? "GUI:ControlBarMoneyEarningMinute" : "GUI:ControlBarMoneyEarning" ),
+											 currentMoney, currentEarning );
 			GadgetStaticTextSetText( moneyWin, buffer );
 			m_lastMoneyDisplayed = currentMoney;
 			m_lastEarningDisplayed = currentEarning;

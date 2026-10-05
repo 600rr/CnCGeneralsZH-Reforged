@@ -15458,7 +15458,7 @@ TOOLTIP:HudOverlay
 END
 
 GUI:NetBox
-"Saat ve Kare Hızı Kutusu"
+"Bilgi Kutusu"
 END
 
 TOOLTIP:NetBox

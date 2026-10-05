@@ -14814,7 +14814,7 @@ TOOLTIP:HudOverlay
 END
 
 GUI:NetBox
-"Uhr- und Bildratenfeld"
+"Infofeld"
 END
 
 TOOLTIP:NetBox

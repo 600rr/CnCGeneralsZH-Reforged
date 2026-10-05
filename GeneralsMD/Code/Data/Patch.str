@@ -970,7 +970,7 @@ TOOLTIP:HudOverlay
 END
 
 GUI:NetBox
-"Clock And Frame Rate Box"
+"Info Box"
 END
 
 TOOLTIP:NetBox

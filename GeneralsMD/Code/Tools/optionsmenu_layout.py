@@ -344,12 +344,12 @@ GROUP_LAYOUT = [
 # gate where the value is read: smooth motion (W3DDisplay.cpp), zoom to cursor (LookAtXlat.cpp), the
 # opening zoom (View.cpp), 45 degree camera snaps (LookAtXlat.cpp, InGameUI.cpp), grid placement and
 # 45 degree building snaps (InGameUI.cpp, W3DInGameUI.cpp), the HUD scale (ControlBar.cpp), the corner
-# net box (InGameUI.cpp, no HTML pages in Classic), health bar mode and empty garrison pips
+# net box (InGameUI.cpp, no HTML pages in Classic), the income beside the money (InGameUI.cpp), health bar mode and empty garrison pips
 # (Drawable.cpp) and order lines (W3DInGameUI.cpp).  Every one is a catalog row, whose menu passes
 # skip a control the layout does not carry, so the Classic layout leaves them out and keeps the value.
 REFORGED_ONLY = [
     "CheckSmoothMotion", "CheckZoomToCursor", "CheckStartAtMaxZoom", "CheckSnapCamera45",
-    "CheckGridBuild", "CheckSnapBuild45", "ComboBoxHudScale", "CheckNetBox",
+    "CheckGridBuild", "CheckSnapBuild45", "ComboBoxHudScale", "CheckNetBox", "ComboBoxIncomeRate",
     "ComboBoxHealthBars", "CheckOrderLines", "CheckEmptyBuildingPips",
 ]
 
