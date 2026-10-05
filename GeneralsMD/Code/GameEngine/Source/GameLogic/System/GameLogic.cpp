@@ -2143,13 +2143,8 @@ void GameLogic::startNewGame( Bool loadingSaveGame )
 	updateLoadProgress(LOAD_PROGRESS_POST_PRELOAD_ASSETS);
 
 	TheTacticalView->setAngleAndPitchToDefault();
-	//StartAtMaxZoom: open the map as far out as the wheel itself may go rather than at the map's
-	//own default height, which is the tighter of the two.  Not the shell map behind the menus:
-	//that one is framed as a set piece and its own default framing is the point of it.
-	if( TheGlobalData->m_startAtMaxZoom && !isInShellGame() )
-		TheTacticalView->setZoomToMax();
-	else
-		TheTacticalView->setZoomToDefault();
+	// the opening zoom is the view's to pick from client settings (View::setZoomToStart)
+	TheTacticalView->setZoomToStart( isInShellGame() );
 
 	if( TheRecorder )
 		TheRecorder->initControls();
@@ -2207,13 +2202,8 @@ void GameLogic::startNewGame( Bool loadingSaveGame )
 	// Set up the camera height based on the map height & globalData.
 	TheTacticalView->initHeightForMap();
 	TheTacticalView->setAngleAndPitchToDefault();
-	//StartAtMaxZoom: open the map as far out as the wheel itself may go rather than at the map's
-	//own default height, which is the tighter of the two.  Not the shell map behind the menus:
-	//that one is framed as a set piece and its own default framing is the point of it.
-	if( TheGlobalData->m_startAtMaxZoom && !isInShellGame() )
-		TheTacticalView->setZoomToMax();
-	else
-		TheTacticalView->setZoomToDefault();
+	// the opening zoom is the view's to pick from client settings (View::setZoomToStart)
+	TheTacticalView->setZoomToStart( isInShellGame() );
 
 	// update the loadscreen 
 	updateLoadProgress(LOAD_PROGRESS_POST_STARTING_CAMERA_2);

@@ -3260,7 +3260,7 @@ void InGameUI::drawBlindSpots( void )
 		fillBlindSpotShade( pending );
 	}
 
-	if( !TheGlobalData->m_showPlacementRangeRing )
+	if( !TheGlobalData->m_showPlacementRangeRing || TheGlobalData->isClassicUI() )
 		return;
 
 	// a selected defence shows its own blind spots only, not what its neighbours cover for it
@@ -3471,7 +3471,7 @@ static void drawReachSegment( const ReachSegment &segment, const Player *owner )
 //-------------------------------------------------------------------------------------------------
 void InGameUI::drawPlacementReach( void )
 {
-	if( !TheGlobalData->m_showPlacementRangeRing )
+	if( !TheGlobalData->m_showPlacementRangeRing || TheGlobalData->isClassicUI() )
 		return;
 
 	// on the cursor, or clicked: a selected armed building brings the circles up just the same
@@ -3550,7 +3550,7 @@ void InGameUI::handleBuildPlacements( void )
 		// so a defense can be sited against what it actually covers. The radius comes off the
 		// template - there is no Object yet - and drawPlacementReach draws it under the cursor.
 		//
-		if( TheGlobalData->m_showPlacementRangeRing )
+		if( TheGlobalData->m_showPlacementRangeRing && !TheGlobalData->isClassicUI() )
 		{
 			m_placementRingRadius = templateReach( m_pendingPlaceType );
 			m_placementRangeRingUp = ( m_placementRingRadius > 0.0f );
@@ -4163,7 +4163,7 @@ void InGameUI::update( void )
 	// interval, which is what the rotate keys do in Stronghold.
 	//
 	const UnsignedInt CAMERA_SNAP_REPEAT_MS = 250;
-	if( TheGlobalData->m_snapCameraRotateTo45 )
+	if( TheGlobalData->m_snapCameraRotateTo45 && !TheGlobalData->isClassicUI() )
 	{
 		if( (m_cameraRotatingLeft || m_cameraRotatingRight) && m_cameraRotatingLeft != m_cameraRotatingRight
 				&& cameraNowMs - m_cameraSnapRepeatMs >= CAMERA_SNAP_REPEAT_MS )
@@ -5266,7 +5266,8 @@ Int InGameUI::allyPlayerMask( void ) const
 //-------------------------------------------------------------------------------------------------
 void InGameUI::sendLocalAllyCursor( void )
 {
-	if( !TheGlobalData->m_showAllyCursors )
+	// the game as shipped sent no cursor to anybody
+	if( !TheGlobalData->m_showAllyCursors || TheGlobalData->isClassicUI() )
 		return;
 
 	// TheNetwork is the whole test for "is this a game with other people in it"
@@ -7510,7 +7511,7 @@ Real InGameUI::computePlacementAngle( const ICoord2D *start, const ICoord2D *end
 
 	// optional 45 degree snap (SnapBuildPlacementTo45 in Options.ini) - lines walls and
 	// defenses up with the base instead of leaving them at whatever the drag produced.
-	if( TheGlobalData->m_snapBuildPlacementTo45 )
+	if( TheGlobalData->m_snapBuildPlacementTo45 && !TheGlobalData->isClassicUI() )
 		angle = snapAngleTo45( angle );
 
 	return angle;
@@ -7560,7 +7561,7 @@ static void placementHalfExtents( const ThingTemplate *what, Real angle, Real *h
 
 void InGameUI::snapPlacementToGrid( Coord3D *world, const ThingTemplate *what, Real angle ) const
 {
-	if( world == NULL || what == NULL || TheGlobalData->m_gridBuildPlacement == FALSE )
+	if( world == NULL || what == NULL || TheGlobalData->m_gridBuildPlacement == FALSE || TheGlobalData->isClassicUI() )
 		return;
 
 	Real halfX, halfY;
@@ -7578,7 +7579,8 @@ void InGameUI::snapPlacementToGrid( Coord3D *world, const ThingTemplate *what, R
 //-------------------------------------------------------------------------------------------------
 Bool InGameUI::placesRow( void )
 {
-	return m_pendingPlaceType != NULL && TheKeyboard &&
+	// Classic places one structure a click, as the game shipped
+	return m_pendingPlaceType != NULL && TheKeyboard && !TheGlobalData->isClassicUI() &&
 				 ( TheKeyboard->isShift() || TheKeyboard->isAlt() ) &&
 				 !TheBuildAssistant->isLineBuildTemplate( m_pendingPlaceType );
 }
@@ -7934,7 +7936,7 @@ Bool InGameUI::overlapsPendingPlacement( const Coord3D *world, const ThingTempla
 //-------------------------------------------------------------------------------------------------
 void InGameUI::snapPlacementToNeighbour( Coord3D *world, const ThingTemplate *what, Real angle ) const
 {
-	if( TheBuildAssistant->isLineBuildTemplate( what ) )
+	if( TheBuildAssistant->isLineBuildTemplate( what ) || TheGlobalData->isClassicUI() )
 		return;
 
 	const Real largestFootprint = 150.0f;		// half-diagonal of the biggest structure it may lean on
@@ -8030,7 +8032,7 @@ void InGameUI::forgetPendingPlacements( void )
 Bool InGameUI::nudgePlacementToLegal( Coord3D *world, const ThingTemplate *what, Real angle,
 																			Object *builderObject ) const
 {
-	if( world == NULL || what == NULL || TheGlobalData->m_nudgeBuildPlacement == FALSE )
+	if( world == NULL || what == NULL || TheGlobalData->m_nudgeBuildPlacement == FALSE || TheGlobalData->isClassicUI() )
 		return FALSE;
 
 	// a wall tiles from the two points you dragged between; sliding one end off that line is not help

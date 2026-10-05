@@ -137,7 +137,8 @@ void View::init( void )
 	
 	m_zoom = 1.0f;
 	m_maxHeightAboveGround = TheGlobalData->m_maxCameraHeight;
-	m_minHeightAboveGround = TheGlobalData->m_minCameraHeight * CLOSEST_ZOOM_FACTOR;
+	// Classic stops at GameData.ini's own MinCameraHeight, as the game shipped
+	m_minHeightAboveGround = TheGlobalData->m_minCameraHeight * ( TheGlobalData->isClassicUI() ? 1.0f : CLOSEST_ZOOM_FACTOR );
 	m_okToAdjustHeight = FALSE;
 
 	m_defaultAngle = 0.0f;
@@ -167,6 +168,20 @@ View *View::prependViewToList( View *list )
 // to about 900 (MaxCameraHeight * ZOOM_OUT_LIMIT_FACTOR), so crossing it would take about 80
 // notches - a whole wheel's travel to go from the ground to the whole map.  60 puts it at about 14.
 #define ZOOM_STEP_HEIGHT (60.0f)
+
+//-------------------------------------------------------------------------------------------------
+/** The zoom a match opens at.  StartAtMaxZoom opens it as far out as the wheel itself may go rather
+	* than at the map's own default height; Classic and the shell map behind the menus keep the map's
+	* framing.  Here rather than in GameLogic, which calls it, because both answers are client
+	* settings. */
+//-------------------------------------------------------------------------------------------------
+void View::setZoomToStart( Bool shellMap )
+{
+	if( TheGlobalData->m_startAtMaxZoom && !TheGlobalData->isClassicUI() && !shellMap )
+		setZoomToMax();
+	else
+		setZoomToDefault();
+}
 
 void View::zoomIn( Real steps )
 {

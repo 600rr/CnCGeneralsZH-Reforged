@@ -430,21 +430,29 @@ void W3DInGameUI::draw( void )
 	if( m_isFormationDragging )
 		drawFormationLine();
 
+	// Classic draws what the game as shipped drew: none of the threads, plan numbers, ally pointers
+	// or guard shields below, and its waypoint path is W3DWaypointBuffer's.  It keeps the order
+	// markers, without their threads, in place of EA's ground ring, which is gone from this tree
+	const Bool classic = TheGlobalData->isClassicUI();
+
 	// and where everything selected is headed, drag or no drag
 	drawOrderHints();
 
 	// and which of the plans each builder puts up next
-	drawBuildPlanNumbers();
+	if( !classic )
+		drawBuildPlanNumbers();
 
 	// where the allies are pointing, which is the one thing on this screen somebody else is doing
-	drawAllyCursors();
+	if( !classic )
+		drawAllyCursors();
 
 	// the attack circle, while the left button is still sweeping it out
 	if( isAttackCircling() )
 		drawAttackCircle();
 
 	// which of the local player's units are holding a guard
-	drawGuardMarkers();
+	if( !classic )
+		drawGuardMarkers();
 
 	// the circle an armed guard will hold, under the cursor, at the size the wheel left it.  A drag
 	// is drawing a guard line instead, where every unit holds its own station.  A search and
@@ -701,7 +709,7 @@ void W3DInGameUI::drawBuildGrid( void )
 		return;
 	// the grid you see is the grid you snap to: with the snap off the lines would mean nothing, but
 	// the cells nothing can stand on still do
-	const Bool drawLines = TheGlobalData->m_gridBuildPlacement;
+	const Bool drawLines = TheGlobalData->m_gridBuildPlacement && !TheGlobalData->isClassicUI();
 	if( m_placeIcon == NULL || m_placeIcon[ 0 ] == NULL )
 		return;
 	if( TheTerrainLogic == NULL || TheAI == NULL )
@@ -1309,7 +1317,7 @@ void W3DInGameUI::drawOrderHints( void )
 
 		// Order Lines off in the options takes the lines away and leaves the markers: where a unit is
 		// going is still worth a glance when the thread across the map is not
-		if( TheGlobalData->m_showOrderLines && !inPlace )
+		if( TheGlobalData->m_showOrderLines && !TheGlobalData->isClassicUI() && !inPlace )
 			TheDisplay->drawLine( from.x, from.y, to.x, to.y, width, lineColor );
 
 		// the marker is the plain pointer, tinted: its white body takes the order colour and the
@@ -1464,7 +1472,7 @@ void W3DInGameUI::drawGuardMarkers( void )
 //-------------------------------------------------------------------------------------------------
 void W3DInGameUI::drawAllyCursorLights( void )
 {
-	if( !TheGlobalData->m_showAllyCursors )
+	if( !TheGlobalData->m_showAllyCursors || TheGlobalData->isClassicUI() )
 		return;
 
 	enum { LIGHT_SEGMENTS = 20, LIGHT_RINGS = 5 };

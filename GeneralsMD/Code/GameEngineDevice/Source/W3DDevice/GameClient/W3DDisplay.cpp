@@ -2186,7 +2186,7 @@ static Bool s_smoothApplied = FALSE;
 
 static void smoothMotionBegin()
 {
-	TheSmoothMotionActive = TheGlobalData->m_smoothMotion && !TheGlobalData->m_headless;
+	TheSmoothMotionActive = TheGlobalData->m_smoothMotion && !TheGlobalData->m_headless && !TheGlobalData->isClassicUI();
 	TheSmoothMotionAlpha = TheSmoothMotionActive ? GameEngine_logicTickFraction() : 1.0f;
 	if (!TheSmoothMotionActive)
 		return;

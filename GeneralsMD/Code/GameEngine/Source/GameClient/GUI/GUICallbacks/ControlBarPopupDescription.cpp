@@ -821,7 +821,7 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 			// Append build time, health, and the best weapon's range and damage, all read off the
 			// template - there is no Object yet to ask.
 			//
-			if( TheGlobalData->m_detailedBuildTooltips )
+			if( TheGlobalData->m_detailedBuildTooltips && !TheGlobalData->isClassicUI() )
 			{
 				card.hasStats = TRUE;
 				card.buildSeconds = ControlBar_secondsFromFrames( (Real)thingTemplate->calcTimeToBuild( player ) );
@@ -849,7 +849,7 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		}
 		else if( upgradeTemplate )
 		{
-			if( TheGlobalData->m_detailedBuildTooltips )
+			if( TheGlobalData->m_detailedBuildTooltips && !TheGlobalData->isClassicUI() )
 				putUpgradeTargets( card, upgradeTemplate, player );
 
 			//We are looking at an upgrade purchase icon. Maybe we already purchased it?

@@ -123,7 +123,8 @@ static Coord2D edgeScrollPull( const ICoord2D& pos )
 {
 	const Int width  = (Int)TheDisplay->getWidth();
 	const Int height = (Int)TheDisplay->getHeight();
-	const Int band = isOverWindow( pos ) ? edgeScrollSize : EdgeScroll_bandForHeight( height );
+	// Classic is the game as shipped: the last three pixels, at full speed, and nothing deeper
+	const Int band = ( TheGlobalData->isClassicUI() || isOverWindow( pos ) ) ? edgeScrollSize : EdgeScroll_bandForHeight( height );
 
 	Coord2D pull;
 	pull.x = EdgeScroll_strength( width - 1 - pos.x, band ) - EdgeScroll_strength( pos.x, band );
@@ -151,7 +152,7 @@ void LookAtTranslator::setScrolling(Int x)
 	TheTacticalView->setMouseLock( TRUE );
 	m_scrollType = x;
 	// A manual pan restores map constraints widened by scripted camera paths.
-	if (TheGlobalData->m_useCameraConstraints && TheGlobalData->m_cameraBoundaryMargin > 0)
+	if (TheGlobalData->m_useCameraConstraints && TheGlobalData->m_cameraBoundaryMargin > 0 && !TheGlobalData->isClassicUI())
 		TheTacticalView->forceCameraConstraintRecalc();
 	if(TheStatsCollector)
 		TheStatsCollector->startScrollTime();
@@ -417,7 +418,8 @@ GameMessageDisposition LookAtTranslator::translateGameMessage(const GameMessage 
 			// edge, so believing it would scroll the map for as long as the mouse sat on the desktop.
 			// Nor while a watcher's director or player camera drives: the spectator page stands on the
 			// top and right edges, and the pointer on its way to it took the camera away (ObserverCamera.h).
-			const Bool edgeScrollAllowed = (!TheGlobalData->m_windowed || TheGlobalData->m_edgeScrollInWindowedMode)
+			// Classic keeps retail's rule whatever Options.ini says.
+			const Bool edgeScrollAllowed = (!TheGlobalData->m_windowed || (TheGlobalData->m_edgeScrollInWindowedMode && !TheGlobalData->isClassicUI()))
 																			&& TheMouse->isCursorInWindow() && !TheObserverCamera.isDriving();
 
 			if (m_isScrolling)
@@ -439,7 +441,7 @@ GameMessageDisposition LookAtTranslator::translateGameMessage(const GameMessage 
 
 				Real angle = FACTOR * (m_currentPos.x - m_anchor.x);
 
-				if (TheGlobalData->m_snapCameraRotateTo45)
+				if (TheGlobalData->m_snapCameraRotateTo45 && !TheGlobalData->isClassicUI())
 				{
 					// discrete heading: the drag turns an angle we keep to ourselves and the camera
 					// jumps to the eighth it is nearest, as the mouse crosses each halfway point.
@@ -494,21 +496,23 @@ GameMessageDisposition LookAtTranslator::translateGameMessage(const GameMessage 
 			// cannot hit an exact eighth of a turn.  Eaten so the same notch does not also zoom.
 			//
 			// Whole notches only: half a touchpad swipe is not a 45 degree turn.
+			// Classic's wheel only ever zooms, as the game shipped, so none of the Ctrl uses below.
+			const Bool classic = TheGlobalData->isClassicUI();
 			const Int rotateSteps = (Int)spin;
-			if (TheKeyboard->isCtrl() && rotateSteps != 0 &&
+			if (!classic && TheKeyboard->isCtrl() && rotateSteps != 0 &&
 					TheInGameUI->rotatePendingPlacement( rotateSteps ))
 				return DESTROY_MESSAGE;
 
 			// ZoomToCursor: the view holds the ground under the cursor while the zoom eases in.  It does
 			// it inside its own update, between the zoom moving and the frame being drawn; held from
 			// here, the correction always landed a frame late.
-			if (TheGlobalData->m_zoomToCursor && TheInGameUI->getInputEnabled())
+			if (TheGlobalData->m_zoomToCursor && !classic && TheInGameUI->getInputEnabled())
 				TheTacticalView->anchorZoomAt( &msg->getArgument( 0 )->pixel );
 
 			// Ctrl+wheel with nothing to place crosses the zoom range in three notches instead of
 			// fifteen.  Ctrl and not Shift: Shift is what lays a row of structures, and the wheel
 			// under it sets that row's gap (PlaceEventTranslator).
-			if (TheKeyboard->isCtrl() && TheInGameUI->getPendingPlaceType() == NULL)
+			if (!classic && TheKeyboard->isCtrl() && TheInGameUI->getPendingPlaceType() == NULL)
 				spin *= CTRL_WHEEL_ZOOM_NOTCHES;
 
 			if (spin > 0.0f)
