@@ -77,15 +77,9 @@ enum HealthBarModeType
 /** The HudScale option's steps, 100/115/130/150% of the bottom HUD's own size (ControlBarHudScale). */
 enum { HUD_SCALE_COUNT = 4 };
 
-/** How a menu laid out at 800x600 meets a screen of another shape (GameWindowManagerScript.cpp's
-	* parseScreenRect).  Stretch is EA's: across by W/800 and down by H/600 apiece, so a 16:10 screen draws
-	* every panel, logo and medal 1.2x wide.  Fit scales by the smaller of the two and centres the
-	* 4:3 area; a full-screen backdrop still fills the screen.  At 4:3 the two are the same. */
-enum { MENU_LAYOUT_STRETCH = 0, MENU_LAYOUT_FIT = 1, MENU_LAYOUT_COUNT = 2 };
-
-/** The InterfaceStyle option: the HUD, mouse and keys of Zero Hour 1.04, or this fork's own.
-	* Client only, read at startup (the key overlay loads once), and never by GameLogic: two players
-	* on different styles are still in the same game. */
+/** The interface: the HUD, mouse and keys of Zero Hour 1.04, or this fork's own.  Picked for each
+	* run by -interface (the launcher passes it), Classic without it; Options.ini has no say.  Client
+	* only, and never read by GameLogic: two players on different styles are still in the same game. */
 enum { INTERFACE_STYLE_CLASSIC = 0, INTERFACE_STYLE_REFORGED = 1, INTERFACE_STYLE_COUNT = 2 };
 
 /** The IncomeRate option: what the income beside the money is counted over.  Automatic is per
@@ -346,13 +340,8 @@ public:
 	Bool m_showObjectHealth;			///< debug display object health
 	Int m_healthBarMode;					///< HealthBarModeType: which units wear a bar at all
 	Int m_hudScale;								///< HUD size step, 0 = 100%; see ControlBarHudScale (client only)
-	Int m_menuLayout;							///< MENU_LAYOUT_STRETCH or MENU_LAYOUT_FIT, for the Menus/ layouts (client only)
-	Int m_interfaceStyle;					///< INTERFACE_STYLE_CLASSIC or INTERFACE_STYLE_REFORGED (client only, never GameLogic)
-	/// the style this run was started in: the row is APPLY_RESTART, but the options menu writes
-	/// m_interfaceStyle on Accept, and half the HUD was already built in the old style by then
-	Int m_interfaceStyleInUse;
-	void latchInterfaceStyle() { m_interfaceStyleInUse = m_interfaceStyle; }	///< GameEngine::init, after the command line
-	Bool isClassicUI() const { return m_interfaceStyleInUse == INTERFACE_STYLE_CLASSIC; }
+	Int m_interfaceStyle;					///< INTERFACE_STYLE_CLASSIC or INTERFACE_STYLE_REFORGED, set by -interface only (client only, never GameLogic)
+	Bool isClassicUI() const { return m_interfaceStyle == INTERFACE_STYLE_CLASSIC; }
 	Int m_playerColorScheme;			///< PlayerColorSchemeType: whose colour the client draws (client only)
 	Int m_textLanguage;						///< TextLanguageType: the translation GameText lays over the CSF, read once at startup (client only)
 	Bool m_showOrderLines;				///< draw a line from each selected unit to where it is going, and its queue (client only)

@@ -1669,8 +1669,8 @@ Int parseTextLanguage(char *args[], int num)
 	return 1;
 }
 
-/* -interface <classic|reforged>: the InterfaceStyle row for this run, over what Options.ini saved,
-	 * so one script can shoot both interfaces without writing the player's file.  Client only. */
+/* -interface <classic|reforged>: the interface for this run, the only way to pick it; the launcher
+	 * passes it, and without it the run is Classic.  Client only. */
 Int parseInterfaceStyle(char *args[], int num)
 {
 	if (TheWritableGlobalData && num > 1)

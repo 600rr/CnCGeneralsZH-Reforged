@@ -14421,8 +14421,8 @@ GUI:OptionsTabControls
 "Steuerung"
 END
 
-GUI:OptionsTabGameplay
-"Spielablauf"
+GUI:OptionsTabInterface
+"Oberfläche"
 END
 
 GUI:OptionsTabNetwork
@@ -14513,8 +14513,16 @@ GUI:OptionsGroupVolume
 "Lautstärke"
 END
 
-GUI:OptionsGroupScrolling
-"Scrollen"
+GUI:OptionsGroupCamera
+"Kamera"
+END
+
+GUI:OptionsGroupPlacement
+"Gebäude platzieren"
+END
+
+GUI:OptionsGroupLighting
+"Licht und Glühen"
 END
 
 GUI:OptionsGroupOrders
@@ -14527,10 +14535,6 @@ END
 
 GUI:OptionsGroupAddresses
 "Adressen"
-END
-
-GUI:OptionsGroupTerrain
-"Gelände"
 END
 
 GUI:OptionsGroupShadows
@@ -14883,38 +14887,6 @@ END
 
 TOOLTIP:HudScale
 "Zeichnet die Befehlsleiste und das übrige untere HUD größer, als deine Auflösung es täte."
-END
-
-GUI:MenuLayout
-"Menülayout"
-END
-
-GUI:MenuLayout0
-"Strecken"
-END
-
-GUI:MenuLayout1
-"Einpassen"
-END
-
-TOOLTIP:MenuLayout
-"Einpassen behält die Menüs in ihrer gezeichneten Form und zentriert sie auf einem breiten Bildschirm. Strecken weitet sie bis an die Bildschirmränder, wie es das Spiel immer tat."
-END
-
-GUI:InterfaceStyle
-"Oberfläche"
-END
-
-GUI:InterfaceStyle0
-"Klassisch"
-END
-
-GUI:InterfaceStyle1
-"Reforged"
-END
-
-TOOLTIP:InterfaceStyle
-"Klassisch ist die Befehlsleiste, Maus und Tastenbelegung von Zero Hour 1.04. Reforged ist die Konsole in der Mitte, Befehle per Rechtsklick und das Tastenraster dieser Version. Gilt ab dem nächsten Spielstart."
 END
 
 GUI:OptionsGroupInput

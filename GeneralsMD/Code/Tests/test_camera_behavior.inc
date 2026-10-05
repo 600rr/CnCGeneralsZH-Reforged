@@ -122,7 +122,7 @@ struct CameraInputFixture
 		TheGameLogic = logic;
 		global->m_saveCameraInReplay = FALSE;
 		// the tests below are Reforged's camera unless they switch to Classic themselves
-		global->m_interfaceStyleInUse = INTERFACE_STYLE_REFORGED;
+		global->m_interfaceStyle = INTERFACE_STYLE_REFORGED;
 	}
 	~CameraInputFixture()
 	{
@@ -225,7 +225,7 @@ TEST(camera_wheel_anchors_zoom_to_cursor_only_with_the_box_ticked)
 
 	// Classic zooms on the screen's middle whatever the box says, as the game shipped
 	f.global->m_zoomToCursor = TRUE;
-	f.global->m_interfaceStyleInUse = INTERFACE_STYLE_CLASSIC;
+	f.global->m_interfaceStyle = INTERFACE_STYLE_CLASSIC;
 	spinWheel();
 	CHECK_EQ(f.view.zoomAnchors, 1);
 }
@@ -256,7 +256,7 @@ TEST(ctrl_wheel_zooms_five_notches_for_one)
 	CHECK_NEAR(1000.0f - heightAfterOneNotch(), plain, 0.01f);
 
 	// Classic's Ctrl is force fire and its wheel is EA's: one notch, ten units, Ctrl or not
-	f.global->m_interfaceStyleInUse = INTERFACE_STYLE_CLASSIC;
+	f.global->m_interfaceStyle = INTERFACE_STYLE_CLASSIC;
 	f.keyboard.modifiers(KEY_STATE_LCONTROL);
 	CHECK_NEAR(1000.0f - heightAfterOneNotch(), 10.0f, 0.01f);
 }
@@ -361,7 +361,7 @@ TEST(right_drag_pans_past_the_drag_tolerance_and_middle_drag_turns)
 	CHECK(!f.camera.isMovingCamera());
 
 	// Classic's right drag is the same retail scroll
-	f.global->m_interfaceStyleInUse = INTERFACE_STYLE_CLASSIC;
+	f.global->m_interfaceStyle = INTERFACE_STYLE_CLASSIC;
 	mouse(GameMessage::MSG_RAW_MOUSE_RIGHT_BUTTON_DOWN, 300, 300);
 	mouse(GameMessage::MSG_RAW_MOUSE_POSITION, 340, 300);
 	CHECK(f.camera.isRightDragPanning());

@@ -1007,9 +1007,6 @@ void GameEngine::init( int argc, char *argv[] )
 		// special-case: parse command-line parameters after loading global data
 		parseCommandLine(argc, argv);
 
-		// Options.ini and -interface have both had their say; the interface stays this until restart
-		TheWritableGlobalData->latchInterfaceStyle();
-
 		// doesn't require resets so just create a single instance here.
 		TheGameLODManager = MSGNEW("GameEngineSubsystem") GameLODManager;
 		TheGameLODManager->init();

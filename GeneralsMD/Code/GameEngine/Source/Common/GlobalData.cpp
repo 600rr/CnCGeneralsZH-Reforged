@@ -952,16 +952,8 @@ GlobalData::GlobalData()
 	// what this fork has always done, so nobody's game changes until they say so
 	m_healthBarMode = HEALTH_BAR_ALWAYS;
 	m_hudScale = 0;
-	// The menus' shape off 4:3: Fit off Windows, where the Deck's 16:10 panel is where it showed;
-	// Windows keeps EA's stretch unless a player picks Fit.
-#if defined(_WIN32)
-	m_menuLayout = MENU_LAYOUT_STRETCH;
-#else
-	m_menuLayout = MENU_LAYOUT_FIT;
-#endif
-	// the game as it shipped until a player picks Reforged
+	// the game as it shipped unless the launcher passes -interface reforged
 	m_interfaceStyle = INTERFACE_STYLE_CLASSIC;
-	m_interfaceStyleInUse = INTERFACE_STYLE_CLASSIC;
 	// the lobby's own colours until somebody asks for something else
 	m_playerColorScheme = PLAYER_COLORS_ORIGINAL;
 	// the words the game shipped with until somebody picks a translation

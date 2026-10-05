@@ -247,13 +247,13 @@ struct MinimapInputFixture
 		ui->enabled = TRUE;
 		TheInGameUI = ui;
 		// Reforged's radar: left looks, right orders.  Classic swaps them, and says so in its own test
-		savedStyle = TheGlobalData->m_interfaceStyleInUse;
-		TheWritableGlobalData->m_interfaceStyleInUse = INTERFACE_STYLE_REFORGED;
+		savedStyle = TheGlobalData->m_interfaceStyle;
+		TheWritableGlobalData->m_interfaceStyle = INTERFACE_STYLE_REFORGED;
 	}
 	Int savedStyle;
 	~MinimapInputFixture()
 	{
-		TheWritableGlobalData->m_interfaceStyleInUse = savedStyle;
+		TheWritableGlobalData->m_interfaceStyle = savedStyle;
 		windows.winDestroyAll();
 		TheRadar = savedRadar;
 		TheTerrainLogic = savedTerrain;
@@ -306,7 +306,7 @@ TEST(minimap_classic_right_button_looks_with_units_selected)
 	MinimapInputFixture f;
 	MinimapMessages messages;
 	messages.stream.attachTranslator(NEW WindowTranslator, 10);
-	TheWritableGlobalData->m_interfaceStyleInUse = INTERFACE_STYLE_CLASSIC;
+	TheWritableGlobalData->m_interfaceStyle = INTERFACE_STYLE_CLASSIC;
 	((MinimapTestUI*)TheInGameUI)->selected.push_back(NULL);
 	f.event(messages, GameMessage::MSG_RAW_MOUSE_RIGHT_BUTTON_DOWN, 120, 220);
 	CHECK(f.engine.view.lookAtCalls == 1);

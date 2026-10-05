@@ -240,7 +240,9 @@ WindowLayout *OptionsLayout = NULL;
 // in the layout, parked off the right edge with HIDDEN set because there was nowhere to put them.
 // The layout now sorts the same controls into seven pages on one grid (Tools/optionsmenu_layout.py);
 // this is the two arrays that name them and the one function that decides which one you are
-// looking at.
+// looking at.  The Classic interface opens OptionsMenuClassic.wnd instead (Shell::getOptionsLayout),
+// the same pages without the settings Classic overrules; their catalog rows find no control there
+// and keep their value.
 //-------------------------------------------------------------------------------------------------
 enum { OPTIONS_PAGE_COUNT = 7 };
 
@@ -251,7 +253,7 @@ static const char *TheOptionsPageNames[ OPTIONS_PAGE_COUNT ] =
 	"OptionsMenu.wnd:PageEffects",
 	"OptionsMenu.wnd:PageAudio",
 	"OptionsMenu.wnd:PageControls",
-	"OptionsMenu.wnd:PageGameplay",
+	"OptionsMenu.wnd:PageInterface",
 	"OptionsMenu.wnd:PageNetwork",
 };
 
@@ -262,7 +264,7 @@ static const char *TheOptionsTabNames[ OPTIONS_PAGE_COUNT ] =
 	"OptionsMenu.wnd:TabEffects",
 	"OptionsMenu.wnd:TabAudio",
 	"OptionsMenu.wnd:TabControls",
-	"OptionsMenu.wnd:TabGameplay",
+	"OptionsMenu.wnd:TabInterface",
 	"OptionsMenu.wnd:TabNetwork",
 };
 

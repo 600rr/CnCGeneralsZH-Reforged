@@ -504,15 +504,17 @@ static Bool parseTooltip( char *token, WinInstanceData *instData,
 	* and adjust to make the screen rect coords relative to any parent
 	* if present */
 //=============================================================================
-// Whether the layout being read is laid out Fit rather than stretched (GlobalData.h, MenuLayout):
+// Whether the layout being read is fitted into the 4:3 box rather than stretched to the screen:
 // set by winCreateFromScript for each file, read by parseScreenRect for each window in it.
 static Bool theLayoutFits = FALSE;
 
-// The menus are Fit's: the shell's screens and the dialogs a match opens over the battlefield, all
-// centred on a 4:3 panel of their own.  The rest of Window/ is the battlefield's own furniture - the
-// command bar, which scales itself (ControlBarUniformScale), and windows that hold a screen edge
-// (the general's powers bar, the build tooltip) or follow the battlefield (chat, diplomacy, the
-// general's promotion screen, replay controls, IME) - and stays stretched.
+// The menus are fitted in both interfaces: the shell's screens and the dialogs a match opens over the
+// battlefield, all centred on a 4:3 panel of their own.  The stretch EA shipped drew every panel, logo
+// and medal 1.33x wide on a 16:9 screen, and the MenuLayout option that once kept it is gone.  In
+// Reforged the rest of Window/ is the battlefield's own furniture - the command bar, which scales
+// itself (ControlBarUniformScale), and windows that hold a screen edge (the general's powers bar, the
+// build tooltip) or follow the battlefield (chat, diplomacy, the general's promotion screen, replay
+// controls, IME) - and stays stretched.
 // Whether a path starts with this folder name (lower case), any case, then '/' or '\\'.
 static Bool startsWithFolder( const char *path, const char *folder )
 {
@@ -543,8 +545,6 @@ static Bool layoutFits( const char *filename )
 		filename += 7;
 	if( TheGlobalData->isClassicUI() )
 		return !barLaysOutItself( filename );
-	if( TheGlobalData->m_menuLayout != MENU_LAYOUT_FIT )
-		return FALSE;
 	return startsWithFolder( filename, "menus" );
 }
 
@@ -583,7 +583,7 @@ static Bool parseScreenRect( char *token, char *buffer,
 	Real yScale = (Real)TheDisplay->getHeight() / (Real)createRes.y;
 
 	//
-	// Fit (MenuLayout): one scale both ways, the smaller, with the layout's 4:3 area centred, so a
+	// Fit: one scale both ways, the smaller, with the layout's 4:3 area centred, so a
 	// panel, a logo or a medal keeps the shape it was drawn in.  A window that covers the whole
 	// layout - within two pixels, as a few parents are drawn - still fills the screen: it is the
 	// backdrop, or the parent everything else sits in.  At 4:3 the scales are equal and the offsets

@@ -7433,19 +7433,13 @@ TEST(player_color_scheme_round_trips_through_options_ini)
 	TheWritableGlobalData = saved;
 }
 
-TEST(interface_style_defaults_to_classic_and_round_trips_through_options_ini)
+TEST(interface_style_is_classic_unless_the_switch_says_otherwise)
 {
-	/* The key overlay is loaded once at startup, so the row asks for a restart; an Options.ini that
-		 never named the key, every one saved before it existed, comes up Classic. */
-	const OptionDef *def = findOptionDef( "InterfaceStyle" );
-	CHECK( def != NULL );
-	if( def == NULL )
-		return;
-	CHECK_EQ( (Int)def->kind, (Int)OPTION_ENUM );
-	CHECK_EQ( (Int)def->apply, (Int)APPLY_RESTART );
-	CHECK_EQ( def->lo, 0 );
-	CHECK_EQ( def->hi, INTERFACE_STYLE_COUNT - 1 );
-	CHECK( def->widgetName != NULL && def->widgetName[ 0 ] != '\0' );
+	/* The launcher picks the interface with -interface; Options.ini has no say, so an InterfaceStyle
+		 key an earlier build saved there cannot turn a run without the switch into Reforged.  MenuLayout
+		 went with it: every menu is fitted now. */
+	CHECK( findOptionDef( "InterfaceStyle" ) == NULL );
+	CHECK( findOptionDef( "MenuLayout" ) == NULL );
 
 	GlobalData *saved = TheWritableGlobalData;
 	TheWritableGlobalData = NEW GlobalData;
@@ -7454,20 +7448,11 @@ TEST(interface_style_defaults_to_classic_and_round_trips_through_options_ini)
 	CHECK( TheGlobalData->isClassicUI() );
 
 	UserPreferences pref;
+	pref[ AsciiString( "InterfaceStyle" ) ] = AsciiString( "1" );
 	loadOptionsFromPreferences( pref );
 	CHECK( TheGlobalData->isClassicUI() );
 
 	TheWritableGlobalData->m_interfaceStyle = INTERFACE_STYLE_REFORGED;
-	saveOptionsToPreferences( pref );
-	CHECK_STR( pref[ AsciiString( "InterfaceStyle" ) ].str(), "1" );
-
-	TheWritableGlobalData->m_interfaceStyle = INTERFACE_STYLE_CLASSIC;
-	loadOptionsFromPreferences( pref );
-	CHECK_EQ( TheGlobalData->m_interfaceStyle, (Int)INTERFACE_STYLE_REFORGED );
-
-	// the HUD keeps the style it started in until the next start: Accept writes the row at once
-	CHECK( TheGlobalData->isClassicUI() );
-	TheWritableGlobalData->latchInterfaceStyle();
 	CHECK( !TheGlobalData->isClassicUI() );
 
 	delete TheWritableGlobalData;
@@ -11953,7 +11938,6 @@ TEST(the_classic_bar_is_one_piece_centred_in_the_4x3_box)
 	GlobalData *saved = TheWritableGlobalData;
 	TheWritableGlobalData = NEW GlobalData;
 	TheWritableGlobalData->m_interfaceStyle = INTERFACE_STYLE_CLASSIC;
-	TheWritableGlobalData->latchInterfaceStyle();
 
 	IRegion2D whole;
 	whole.lo.x = 0;
