@@ -285,6 +285,9 @@ void Radar::clearAllEvents( void )
 //-------------------------------------------------------------------------------------------------
 RadarLandmarkType Radar::landmarkTypeOf( const Object *obj )
 {
+	// Classic's radar is EA's: no money piles, no tech buildings it was not already showing
+	if( TheGlobalData->isClassicUI() )
+		return RADAR_LANDMARK_NONE;
 
 	if( obj->isKindOf( KINDOF_SUPPLY_SOURCE ) )
 		return RADAR_LANDMARK_SUPPLY;

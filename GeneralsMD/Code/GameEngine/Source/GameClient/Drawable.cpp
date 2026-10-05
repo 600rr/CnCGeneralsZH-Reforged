@@ -3125,7 +3125,9 @@ void Drawable::drawIconUI( void )
 
 		drawCaption( healthBarRegion );
 		drawConstructPercent( healthBarRegion );
-		drawSupplyCash( healthBarRegion );
+		// Classic's piles wear no money, as the game shipped
+		if( !TheGlobalData->isClassicUI() )
+			drawSupplyCash( healthBarRegion );
 
 		//All Icons Below only draw on ALIVE things, so  bail here -------------------------
 		if( obj->isEffectivelyDead() || obj->isKindOf( KINDOF_IGNORED_IN_GUI )) // object explicitly wants nothing to do with these icons, so...
@@ -5682,7 +5684,9 @@ Bool Drawable::isSelectable( void ) const
 //-------------------------------------------------------------------------------------------------
 Bool Drawable::isMassSelectable( void ) const
 {
-	return getObject() && getObject()->isMassSelectable();
+	// Classic is the game as shipped, where a structure was only ever selected on its own
+	return getObject() && getObject()->isMassSelectable()
+				 && !( TheGlobalData->isClassicUI() && getObject()->isKindOf( KINDOF_STRUCTURE ) );
 }
 
 //-------------------------------------------------------------------------------------------------

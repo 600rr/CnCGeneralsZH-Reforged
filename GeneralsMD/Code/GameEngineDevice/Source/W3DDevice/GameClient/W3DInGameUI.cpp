@@ -540,7 +540,8 @@ void W3DInGameUI::draw( void )
 	// the one reading you want visible exactly when something is going wrong.
 	//
 	// the peace time clock across the top middle, and the clock plate in the corner beside it
-	if( matchOnScreen )
+	// Classic's screen is EA's, which had neither plate
+	if( matchOnScreen && !TheGlobalData->isClassicUI() )
 	{
 		drawPeaceTimer();
 		drawHudOverlay();

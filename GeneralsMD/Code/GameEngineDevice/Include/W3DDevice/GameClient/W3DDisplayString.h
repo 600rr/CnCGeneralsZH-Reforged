@@ -105,6 +105,9 @@ protected:
 	Bool m_textChanged;  ///< when contents of string change this is TRUE
 	Bool m_fontChanged;  ///< when font has chagned this is TRUE
 	Bool m_useHotKey;		///< '&' hotkey markers are hidden
+	Render2DSentenceClass m_textRendererHotKey;	///< Classic: the hotkey letter again, bold, in HotKeyTextColor over its own
+	ICoord2D m_hotKeyPos;		///< where Build_Sentence found that letter, from the text's corner
+	Bool m_drawHotKey;			///< the sentence was built with a letter to paint over
 	ICoord2D m_textPos;  ///< current text pos set in text renderer
 	Color m_currTextColor,  ///< current color used in text renderer
 				m_currDropColor;  ///< current color used for shadow in text

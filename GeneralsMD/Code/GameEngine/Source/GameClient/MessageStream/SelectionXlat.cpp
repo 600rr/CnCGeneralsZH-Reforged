@@ -816,16 +816,55 @@ GameMessageDisposition SelectionTranslator::translateGameMessage(const GameMessa
 			
 			Bool addToGroup = TheInGameUI->isInPreferSelectionMode();
 
-			if (si.currentCountEnemies > 0 || 
-					si.currentCountCivilians > 0 || 
-					si.currentCountFriends > 0) 
+			const Bool classic = TheGlobalData->isClassicUI();
+			if (si.currentCountEnemies > 0 ||
+					si.currentCountCivilians > 0 ||
+					si.currentCountFriends > 0 ||
+					(classic && si.currentCountMineBuildings > 0))
 			{
 				// force a new group creation
 				addToGroup = FALSE;
 			}
 
+			// Classic is the game as shipped: a structure is only ever selected on its own, when it is the
+			// one thing clicked or the only selectable thing in the box (EA's Firebase case)
+			if (si.newCountMine > 0 && classic)
+			{
+				si.selectMine = TRUE;
+				if ( si.newCountMineBuildings == 1 && si.newCountMine == 1 )
+				{
+					addToGroup = FALSE;
+					si.selectMineBuildings = TRUE;
+				}
+				else if ( si.newCountMineBuildings > 0 )
+				{
+					Bool onlyTheOneBuildingIsSelectableAnyway = TRUE;
+					DrawableID buildingID = INVALID_DRAWABLE_ID;
+					for (DrawableListIt it = drawablesThatWillSelect.begin(); it != drawablesThatWillSelect.end(); ++it)
+					{
+						const Drawable *d = *it;
+						if ( d->isKindOf( KINDOF_STRUCTURE ) )
+						{
+							if ( buildingID == INVALID_DRAWABLE_ID )
+								buildingID = d->getID();
+							else if ( buildingID != d->getID() )
+								onlyTheOneBuildingIsSelectableAnyway = FALSE;
+						}
+						else if ( d->isSelectable() )
+							onlyTheOneBuildingIsSelectableAnyway = FALSE;
+
+						if ( ! onlyTheOneBuildingIsSelectableAnyway )
+							break;
+					}
+					if ( onlyTheOneBuildingIsSelectableAnyway )
+					{
+						addToGroup = FALSE;
+						si.selectMineBuildings = TRUE;
+					}
+				}
+			}
 			// If there are any of my units, then select those.
-			if (si.newCountMine > 0) 
+			else if (si.newCountMine > 0)
 			{
 				si.selectMine = TRUE;
 

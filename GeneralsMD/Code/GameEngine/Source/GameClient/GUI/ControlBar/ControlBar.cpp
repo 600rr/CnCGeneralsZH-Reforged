@@ -3598,7 +3598,8 @@ void ControlBar::update( void )
 														m_currentSelectedDrawable ) ? m_currentSelectedDrawable->getObject()
 																												: NULL;
 		const ExperienceTracker *xp = portraitObj ? portraitObj->getExperienceTracker() : NULL;
-		if( xp && portraitObj->isLocallyControlled() && xp->isTrainable() &&
+		// Classic's portrait is EA's picture alone: the bar stays empty
+		if( xp && !TheGlobalData->isClassicUI() && portraitObj->isLocallyControlled() && xp->isTrainable() &&
 				xp->getVeterancyLevel() < LEVEL_LAST )
 		{
 			const ThingTemplate *tmpl = portraitObj->getTemplate();

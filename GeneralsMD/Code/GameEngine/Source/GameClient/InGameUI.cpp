@@ -307,7 +307,7 @@ static Bool kindOfUnitSelection( Drawable *test, void *userData )
 					&& !object->isContained() 
 					&& !object->getDrawable()->isSelected() 
 					&& !object->isEffectivelyDead()
-					&& object->isMassSelectable()
+					&& object->getDrawable()->isMassSelectable()
 					&& !object->isOffMap()
 				)
 		{
@@ -366,7 +366,7 @@ static Bool similarUnitSelection( Drawable *test, void *userData )
 			  && object->isLocallyControlled() 
 				&& !object->isContained()
 				&& !( object->getDrawable()->isSelected() ) 
-				&& object->isMassSelectable() // And only if they can be multiply selected. (otherwise the drawable will be, but the object will not be)
+				&& object->getDrawable()->isMassSelectable() // And only if they can be multiply selected. (otherwise the drawable will be, but the object will not be)
 				&& !object->isOffMap()
 				)
 		{
@@ -6642,7 +6642,7 @@ void InGameUI::createMouseoverHint( const GameMessage *msg )
 				Int boxes = warehouseModule->getBoxesStored();
 				Int value = boxes * TheGlobalData->m_baseValuePerSupplyBox;
 				Int startingBoxes = warehouseModule->getStartingBoxes();
-				if( startingBoxes > 0 )
+				if( startingBoxes > 0 && !TheGlobalData->isClassicUI() )
 				{
 					// what is left against what the pile began the match with; it can be stocked past that
 					Int percent = min( 100, boxes * 100 / startingBoxes );

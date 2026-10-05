@@ -59,6 +59,7 @@
 #include "W3DDevice/GameClient/W3DDisplayString.h"
 #include "GameClient/GameFont.h"
 #include "GameClient/GlobalLanguage.h"
+#include "Common/GlobalData.h"
 
 // DEFINES ////////////////////////////////////////////////////////////////////
 #ifdef _INTERNAL
@@ -124,6 +125,9 @@ W3DDisplayString::W3DDisplayString( void )
 	m_clipRegion.hi.y = 0;
 	m_lastResourceFrame = 0;
 	m_useHotKey = FALSE;
+	m_hotKeyPos.x = 0;
+	m_hotKeyPos.y = 0;
+	m_drawHotKey = FALSE;
 	
 }  // end W3DDisplayString
 
@@ -198,7 +202,38 @@ void W3DDisplayString::draw( Int x, Int y, Color color, Color dropColor, Int xDr
 	{
 		// Reset() clears the parse flag on every text change, so it is put back here, where it is read
 		m_textRenderer.Set_Hot_Key_Parse( m_useHotKey != FALSE );
-		m_textRenderer.Build_Sentence( getText().str(), NULL, NULL );
+		m_textRenderer.Build_Sentence( getText().str(), &m_hotKeyPos.x, &m_hotKeyPos.y );
+
+		//
+		// Classic paints the hotkey letter again in the hotkey colour, in the bold cut, over the one
+		// the sentence already drew, the way the game shipped.  Over rather than in a gap: a letter
+		// the bold renderer cannot draw still reads in the text's own colour.
+		//
+		m_drawHotKey = FALSE;
+		m_textRendererHotKey.Reset();
+		if( m_useHotKey && TheGlobalData && TheGlobalData->isClassicUI() && m_font )
+		{
+			// the letter after the first '&', by the sentence's own test, kept wide so a Turkish letter
+			// is painted as itself
+			UnicodeString letter;
+			for( const WideChar *c = getText().str(); *c; ++c )
+			{
+				if( c[ 0 ] == L'&' && c[ 1 ] > L' ' && c[ 1 ] != L'\n' )
+				{
+					const WideChar text[ 2 ] = { c[ 1 ], 0 };
+					letter.set( text );
+					break;
+				}
+			}
+			if( !letter.isEmpty() )
+			{
+				GameFont *boldFont = TheFontLibrary->getFont( m_font->nameString, m_font->pointSize, TRUE );
+				m_textRendererHotKey.Set_Font( static_cast<FontCharsClass *>( boldFont ? boldFont->fontData : m_font->fontData ) );
+				m_textRendererHotKey.Build_Sentence( letter.str(), NULL, NULL );
+				m_drawHotKey = TRUE;
+			}
+		}
+
 		m_fontChanged = FALSE;
 		m_textChanged = FALSE;
 		needNewPolys = TRUE;
@@ -237,10 +272,19 @@ void W3DDisplayString::draw( Int x, Int y, Color color, Color dropColor, Int xDr
 		m_textRenderer.Set_Location( Vector2( m_textPos.x, m_textPos.y ) );
 		m_textRenderer.Draw_Sentence( m_currTextColor );
 
+		if( m_drawHotKey )
+		{
+			m_textRendererHotKey.Reset_Polys();
+			m_textRendererHotKey.Set_Location( Vector2( m_textPos.x + m_hotKeyPos.x, m_textPos.y + m_hotKeyPos.y ) );
+			m_textRendererHotKey.Draw_Sentence( TheGlobalData->m_hotKeyTextColor );
+		}
+
 	}  // end if
 
 	// render the text
 	m_textRenderer.Render();
+	if( m_drawHotKey )
+		m_textRendererHotKey.Render();
 
 	// we are for sure using display resources now
 	if( TheGameClient )
@@ -345,6 +389,10 @@ void W3DDisplayString::setClipRegion( IRegion2D *region )
 																								 m_clipRegion.lo.y,
 																								 m_clipRegion.hi.x,
 																								 m_clipRegion.hi.y ) );
+		m_textRendererHotKey.Set_Clipping_Rect( RectClass( m_clipRegion.lo.x,
+																												 m_clipRegion.lo.y,
+																												 m_clipRegion.hi.x,
+																												 m_clipRegion.hi.y ) );
 	}  // end if
 
 }  // end setClipRegion
