@@ -15810,7 +15810,7 @@ TOOLTIP:StatNewWeaponFigures
 END
 
 TOOLTIP:StatShortDamagePerSecond
-"Hasar/sn"
+"DPS"
 END
 
 TOOLTIP:StatVsGuns
@@ -15823,10 +15823,6 @@ END
 
 TOOLTIP:StatVsRockets
 "Roket"
-END
-
-TOOLTIP:StatVsBlast
-"Bomba"
 END
 
 TOOLTIP:Upgrades

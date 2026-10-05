@@ -187,12 +187,16 @@ static void findUpgradeEffects( const ThingTemplate *thing, UpgradeEffects &effe
 
 //-------------------------------------------------------------------------------------------------
 /** A clip fires its shots a delay apart and then reloads in place of the last delay.  A weapon that
-	* does no damage, the dummies that hold a slot until an upgrade fills it, is none. */
+	* does no damage, the dummies that hold a slot until an upgrade fills it, is none, and so is one
+	* that heals, clears or unloads: a dozer's mine disarming "weapon" does 1 damage at a range of 5
+	* so that it can be aimed, and an Ambulance's cleanup is the same. */
 //-------------------------------------------------------------------------------------------------
 WeaponFigures ControlBarWeaponFigures( const WeaponTemplate *weapon, const WeaponBonus &bonus )
 {
 	WeaponFigures figure = {};
-	if( weapon->getDamageType() == DAMAGE_HEALING || !IsHealthDamagingDamage( weapon->getDamageType() ) )
+	const DamageType type = weapon->getDamageType();
+	if( type == DAMAGE_HEALING || type == DAMAGE_DISARM || type == DAMAGE_HAZARD_CLEANUP || type == DAMAGE_DEPLOY
+			|| !IsHealthDamagingDamage( type ) )
 		return figure;
 
 	const Real damage = weapon->getPrimaryDamage( bonus );

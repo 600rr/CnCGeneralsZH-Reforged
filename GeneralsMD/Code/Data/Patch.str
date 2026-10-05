@@ -1234,8 +1234,8 @@ TOOLTIP:StatNewWeaponFigures
 "%d damage, %d range"
 END
 
-// Beside a lone unit's portrait, short enough for a column of a quarter of it: damage a second,
-// and the armour's change to four kinds of damage.
+// Beside a lone unit's portrait, short enough for a column of a third of it: damage a second,
+// and the armour's change to three kinds of damage.
 
 TOOLTIP:StatShortDamagePerSecond
 "DPS"
@@ -1251,10 +1251,6 @@ END
 
 TOOLTIP:StatVsRockets
 "Rocket"
-END
-
-TOOLTIP:StatVsBlast
-"Blast"
 END
 
 // Under the figures: a unit's upgrades, or on an upgrade's card the units it changes.

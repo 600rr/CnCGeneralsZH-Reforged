@@ -59,7 +59,7 @@
                            at {{x}} from the right for each veterancy level, the health bar's dark
                            groove, {{sel.healthshown}} "hidden" for an enemy in disguise, and
                            data-each="selweapon" the main weapon's damage, damage a second and
-                           range and data-each="selarmor" the armour's change to four kinds of
+                           range and data-each="selarmor" the armour's change to three kinds of
                            damage, each at {{x}} with {{label}} over {{value}} and {{state}}
                            "strong", "weak" or nothing; both empty for a disguise, the weapon's
                            for an unarmed unit.  The health's figure and its lit length are
@@ -194,18 +194,20 @@
      its veterancy as gold stars at the right hand end of that figure's line, and then two rows of
      figures, a small grey label over each: its main weapon's, and what its armour does to the damage
      most of the fighting deals, green where it takes less and red where it takes more.  The column
-     beside the portrait is 108 by 70 page pixels, so the name takes two lines and every row is cut to
-     the pixel to fit */
-  .selinfo .name { position: absolute; left: 0; top: 0; height: 20px; line-height: 10px; font-size: 9px; font-weight: bold;
+     beside the portrait is 108 by 78 page pixels from just under the well's top, so the name takes
+     two lines and every row is cut to the pixel to fit.  The game's 9 pixel bold font sets a name's
+     letters 10 high and its 7 pixel font a label's 8, so a name's line is 11, a label's 8, and its
+     figure starts a pixel under that */
+  .selinfo .name { position: absolute; left: 0; top: 0; height: 22px; line-height: 11px; font-size: 9px; font-weight: bold;
                    color: #f1f4f6; }
-  .selinfo .vet { position: absolute; top: 27px; width: 9px; height: 9px; background-size: 100% 100%;
+  .selinfo .vet { position: absolute; top: 29px; width: 9px; height: 9px; background-size: 100% 100%;
                   background-repeat: no-repeat; background-image: url(Icons/RankStar.svg); }
-  .selinfo .health { position: absolute; left: 0; top: 21px; height: 4px; background-color: #0d1512; border-bottom: 1px solid #3f4650; }
-  .selinfo .figure { position: absolute; height: 16px; white-space: nowrap; }
-  .selinfo .weapon { top: 37px; }
-  .selinfo .armor { top: 54px; }
-  .selinfo .figure .label { position: absolute; left: 0; top: 0; height: 7px; line-height: 7px; font-size: 7px; color: #8a949f; }
-  .selinfo .figure .value { position: absolute; left: 0; top: 7px; height: 9px; line-height: 9px; font-size: 8px; font-weight: bold; color: #f1f4f6; }
+  .selinfo .health { position: absolute; left: 0; top: 23px; height: 4px; background-color: #0d1512; border-bottom: 1px solid #3f4650; }
+  .selinfo .figure { position: absolute; height: 18px; white-space: nowrap; }
+  .selinfo .weapon { top: 40px; }
+  .selinfo .armor { top: 60px; }
+  .selinfo .figure .label { position: absolute; left: 0; top: 0; height: 8px; line-height: 8px; font-size: 7px; color: #8a949f; }
+  .selinfo .figure .value { position: absolute; left: 0; top: 9px; height: 9px; line-height: 9px; font-size: 8px; font-weight: bold; color: #f1f4f6; }
   .selinfo .figure.strong .value { color: #7fd36a; }
   .selinfo .figure.weak .value { color: #ef6a4c; }
 

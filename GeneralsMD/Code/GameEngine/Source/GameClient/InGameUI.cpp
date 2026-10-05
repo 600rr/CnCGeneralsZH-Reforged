@@ -11907,23 +11907,27 @@ static void putWell( std::vector< HtmlValues > &wells, size_t &filled, const IRe
 	putPageRect( entry, "header", wellHeader( well, scale ), headed, scale );
 }
 
-/** The damage a lone unit's armour is shown against, what most of the fighting deals, each under its
-	* label in the string table. */
+/** The damage a lone unit's armour is shown against, the three most of the fighting deals, each under
+	* its label in the string table. */
 static const struct { DamageType type; const char *label; } SHOWN_ARMOR[] =
 {
 	{ DAMAGE_SMALL_ARMS, "TOOLTIP:StatVsGuns" },
 	{ DAMAGE_ARMOR_PIERCING, "TOOLTIP:StatVsShells" },
 	{ DAMAGE_INFANTRY_MISSILE, "TOOLTIP:StatVsRockets" },
-	{ DAMAGE_EXPLOSION, "TOOLTIP:StatVsBlast" },
 };
+
+/** Where each column of figures stands in the 108 page pixels beside the portrait.  Not thirds: the
+	* game's 7 pixel font writes "Damage" 37 pixels wide and "Rocket" 31, so the first column takes
+	* what "Damage" needs and a gap of seven, and the last one keeps 32 for "Range", "Rocket" and "+100%". */
+static const Int FIGURE_COLUMN_X[] = { 0, 44, 76 };
 
 /** One column of the figures under a lone unit's health, {{x}} its left in page pixels, {{label}}
 	* over {{value}}, and {{state}} "strong", "weak" or nothing. */
-static void putFigureColumn( std::vector< HtmlValues > &columns, Int column, Int count, Int width, const char *label,
-														 const std::string &value, const char *state )
+static void putFigureColumn( std::vector< HtmlValues > &columns, Int column, const char *label, const std::string &value,
+														 const char *state )
 {
 	HtmlValues &entry = listEntry( columns, column );
-	entry[ "x" ] = std::to_string( column * width / count );
+	entry[ "x" ] = std::to_string( FIGURE_COLUMN_X[ column ] );
 	entry[ "label" ] = WideCharStringToMultiByte( TheGameText->fetch( label ).str() );
 	entry[ "value" ] = value;
 	entry[ "state" ] = state;
@@ -11939,11 +11943,14 @@ static void putFigureColumn( std::vector< HtmlValues > &columns, Int column, Int
 	* its upgrades put on - read through the same const calls the logic makes. */
 static void putSelectedUnit( HtmlValues &values, HtmlLists &lists, const IRegion2D &portrait, const IRegion2D &well, Bool shown )
 {
-	enum { INFO_GAP = 6, HEALTH_YELLOW_PERCENT = 50, HEALTH_RED_PERCENT = 25, STAR_PITCH = 11, WEAPON_FIGURES = 3 };
+	enum { INFO_GAP = 6, INFO_TOP = 4, HEALTH_YELLOW_PERCENT = 50, HEALTH_RED_PERCENT = 25, STAR_PITCH = 11, WEAPON_FIGURES = 3 };
 	const Real scale = ControlBarHudScale();
+	// from just under the well's top rather than the portrait's, which stands a dozen page pixels
+	// lower: a two line name and the two rows of figures need that room to keep clear of each other
 	IRegion2D info = portrait;
 	info.lo.x = portrait.hi.x + REAL_TO_INT( INFO_GAP * scale );
 	info.hi.x = well.hi.x - REAL_TO_INT( INFO_GAP * scale );
+	info.lo.y = well.lo.y + REAL_TO_INT( INFO_TOP * scale );
 	// the drawable the bar's portrait is of, which is the one selected
 	const Drawable *drawable = TheControlBar->getContextDrawable();
 	const Object *object = drawable ? drawable->getObject() : NULL;
@@ -11994,7 +12001,6 @@ static void putSelectedUnit( HtmlValues &values, HtmlLists &lists, const IRegion
 	const Player *local = ThePlayerList->getLocalPlayer();
 	const Bool ours = localPlayerWatching() || object->getControllingPlayer() == local
 										|| local->getRelationship( object->getTeam() ) == ALLIES;
-	const Int width = atoi( values[ "selinfo.w" ].c_str() );
 	UnitFigures figures = {};
 	if( ours )
 	{
@@ -12021,10 +12027,10 @@ static void putSelectedUnit( HtmlValues &values, HtmlLists &lists, const IRegion
 	else
 	{
 		const WeaponFigures &weapon = figures.slots[ main ];
-		putFigureColumn( weaponColumns, 0, WEAPON_FIGURES, width, "TOOLTIP:StatDamage", std::to_string( REAL_TO_INT( weapon.damage ) ), "" );
-		putFigureColumn( weaponColumns, 1, WEAPON_FIGURES, width, "TOOLTIP:StatShortDamagePerSecond",
+		putFigureColumn( weaponColumns, 0, "TOOLTIP:StatDamage", std::to_string( REAL_TO_INT( weapon.damage ) ), "" );
+		putFigureColumn( weaponColumns, 1, "TOOLTIP:StatShortDamagePerSecond",
 										 std::to_string( REAL_TO_INT( weapon.damage * weapon.attacksPerSecond ) ), "" );
-		putFigureColumn( weaponColumns, 2, WEAPON_FIGURES, width, "TOOLTIP:StatRange", std::to_string( REAL_TO_INT( weapon.range ) ), "" );
+		putFigureColumn( weaponColumns, 2, "TOOLTIP:StatRange", std::to_string( REAL_TO_INT( weapon.range ) ), "" );
 		weaponColumns.resize( WEAPON_FIGURES );
 	}
 
@@ -12040,7 +12046,7 @@ static void putSelectedUnit( HtmlValues &values, HtmlLists &lists, const IRegion
 	for( Int each = 0; each < shownArmor; each++ )
 	{
 		const Int change = REAL_TO_INT_FLOOR( armor.adjustDamage( SHOWN_ARMOR[ each ].type, PERCENT ) * scalar + 0.5f ) - PERCENT;
-		putFigureColumn( armorColumns, each, shownArmor, width, SHOWN_ARMOR[ each ].label,
+		putFigureColumn( armorColumns, each, SHOWN_ARMOR[ each ].label,
 										 ( change > 0 ? "+" : "" ) + std::to_string( change ) + "%", change < 0 ? "strong" : change > 0 ? "weak" : "" );
 	}
 	armorColumns.resize( shownArmor );
