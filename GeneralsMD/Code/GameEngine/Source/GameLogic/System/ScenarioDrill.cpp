@@ -219,6 +219,8 @@ static Bool parseActionType( const AsciiString &token, ScenarioActionType *actio
 		*action = SCENARIO_ACTION_STANCE;
 	else if (token == "hunt")
 		*action = SCENARIO_ACTION_HUNT;
+	else if (token == "forceattack")
+		*action = SCENARIO_ACTION_FORCEATTACK;
 	else
 		return FALSE;
 
@@ -304,6 +306,7 @@ static Int tokensNeededFor( ScenarioActionType action )
 		case SCENARIO_ACTION_HUNT:				return SCENARIO_TOKENS_MOVE;
 		case SCENARIO_ACTION_STANCE:			return SCENARIO_TOKENS_STANCE;
 		case SCENARIO_ACTION_SHIFTATTACK:	return SCENARIO_TOKENS_ATTACK;
+		case SCENARIO_ACTION_FORCEATTACK:	return SCENARIO_TOKENS_ATTACK;
 		case SCENARIO_ACTION_SHIFTPOWER:	return SCENARIO_TOKENS_SHIFTPOWER;
 		case SCENARIO_ACTION_SHIFTUPGRADE:	return SCENARIO_TOKENS_SHIFTUPGRADE;
 		case SCENARIO_ACTION_ATTACK:			return SCENARIO_TOKENS_ATTACK;
@@ -404,6 +407,7 @@ ScenarioParseResult ScenarioDrill_parseLine( const char *line, ScenarioAction *a
 		case SCENARIO_ACTION_ENTER:
 		case SCENARIO_ACTION_DOCK:
 		case SCENARIO_ACTION_SHIFTATTACK:
+		case SCENARIO_ACTION_FORCEATTACK:
 		case SCENARIO_ACTION_SHIFTPOWER:
 		{
 			if (!parseWholeNumber( tokens[ 4 ], &action->targetSlot ))
@@ -1322,6 +1326,42 @@ static Bool executeStance( const ScenarioAction &action, Player *player, AIGroup
 	return TRUE;
 }
 
+/** The attack key armed and a left click on one enemy: MSG_DO_FORCE_ATTACK_OBJECT handed to the
+	  dispatcher with the matching units as the selection.  The client only sends it when one of them can
+	  shoot the target, so a seat that could not is refused here the same way rather than ordered. */
+static Bool executeForceAttack( const ScenarioAction &action, Player *player, AIGroup *group, Int taken )
+{
+	Player *targetPlayer = findPlayerForSlot( action.targetSlot );
+	Object *target = (targetPlayer != NULL) ? findFirstMatching( targetPlayer, action.targetSelector ) : NULL;
+	Bool canShoot = FALSE;
+	const VecObjectID ids = group->getAllIDs();
+	for( VecObjectID::const_iterator it = ids.begin(); target != NULL && it != ids.end(); ++it )
+	{
+		const Object *obj = TheGameLogic->findObjectByID( *it );
+		const CanAttackResult result = obj->isAbleToAttack()
+																	 ? obj->getAbleToAttackSpecificObject( ATTACK_NEW_TARGET_FORCED, target, CMD_FROM_PLAYER )
+																	 : ATTACKRESULT_NOT_POSSIBLE;
+		canShoot = canShoot || result == ATTACKRESULT_POSSIBLE || result == ATTACKRESULT_POSSIBLE_AFTER_MOVING;
+	}
+	if (!canShoot)
+	{
+		DEBUG_LOG(("SCENARIO: frame %d forceattack: none of slot %d '%s' x%d can shoot slot %d '%s'; the click sends nothing\n",
+							 action.frame, action.slot, action.selector.str(), taken, action.targetSlot, action.targetSelector.str()));
+		TheAI->destroyGroup( group );
+		return FALSE;
+	}
+
+	GameMessage *msg = newInstance( GameMessage )( GameMessage::MSG_DO_FORCE_ATTACK_OBJECT );
+	msg->friend_setPlayerIndex( player->getPlayerIndex() );
+	msg->appendObjectIDArgument( target->getID() );
+	TheGameLogic->logicMessageDispatcher( msg, group );
+	msg->deleteInstance();
+
+	DEBUG_LOG(("SCENARIO: frame %d forceattack slot %d '%s' x%d -> slot %d '%s'\n",
+						 action.frame, action.slot, action.selector.str(), taken, action.targetSlot, action.targetSelector.str()));
+	return TRUE;
+}
+
 /** The search and destroy key: the ring sweepRoute gives this seat round the point, from where the
 	  units stand, each point handed to the order queue the way the key's messages arrive - the first
 	  fresh, the rest behind it - and then a guard of the whole circle.  Each message gets a group of
@@ -1456,6 +1496,9 @@ static Bool executeOrder( const ScenarioAction &action, Player *player, const Co
 
 		case SCENARIO_ACTION_STANCE:
 			return executeStance( action, player, group, taken );		// the dispatcher destroys the group
+
+		case SCENARIO_ACTION_FORCEATTACK:
+			return executeForceAttack( action, player, group, taken );		// so does this, or it does itself
 
 		case SCENARIO_ACTION_HUNT:
 			return executeSweep( action, player, dest, group, taken );		// and so does this

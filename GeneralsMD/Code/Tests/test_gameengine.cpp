@@ -14890,6 +14890,11 @@ TEST(scenario_parses_the_order_lines)
 	CHECK_EQ( (Int)action.action, (Int)SCENARIO_ACTION_SHIFTATTACK );
 	CHECK_STR( action.targetSelector.str(), "AmericaCommandCenter" );
 	CHECK_EQ( (Int)ScenarioDrill_parseLine( "200 shiftattack 0 * 1", &action ), (Int)SCENARIO_PARSE_MISSING_ARGS );
+	CHECK_EQ( (Int)ScenarioDrill_parseLine( "200 forceattack 0 AmericaVehicleSentryDrone 1 GLAVehicleTechnical*", &action ), (Int)SCENARIO_PARSE_OK );
+	CHECK_EQ( (Int)action.action, (Int)SCENARIO_ACTION_FORCEATTACK );
+	CHECK_EQ( action.targetSlot, 1 );
+	CHECK_STR( action.targetSelector.str(), "GLAVehicleTechnical*" );
+	CHECK_EQ( (Int)ScenarioDrill_parseLine( "200 forceattack 0 * 1", &action ), (Int)SCENARIO_PARSE_MISSING_ARGS );
 
 	CHECK_EQ( (Int)ScenarioDrill_parseLine( "200 shiftpower 0 * 1 AmericaSupplyCenter SpecialAbilityBlackLotusCaptureBuilding",
 																					 &action ), (Int)SCENARIO_PARSE_OK );

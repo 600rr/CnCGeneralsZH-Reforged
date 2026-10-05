@@ -1559,13 +1559,16 @@ GameMessage::Type CommandTranslator::evaluateForceAttack( Drawable *draw, const 
 				TheMessageStream->appendMessage( retVal );
 			}
 		}
-		else if( result == ATTACKRESULT_INVALID_SHOT && type == DO_HINT )
+		// Nobody selected can shoot this at all: a Sentry Drone before its gun is researched has no weapon.
+		// With no hint the attack key's cursor stayed as it was over the target, and the click did nothing
+		// without a word, so it read as a broken key rather than as an unarmed unit.
+		else if( ( result == ATTACKRESULT_INVALID_SHOT || result == ATTACKRESULT_NOT_POSSIBLE ) && type == DO_HINT )
 		{
 			retVal = GameMessage::MSG_IMPOSSIBLE_ATTACK_HINT;
 			TheMessageStream->appendMessage( retVal );
 		}
-	} 
-	else if( pos ) 
+	}
+	else if( pos )
 	{
 		CanAttackResult result = canAnyForceAttack( allSelected, NULL, pos );
 
@@ -1588,7 +1591,7 @@ GameMessage::Type CommandTranslator::evaluateForceAttack( Drawable *draw, const 
 				TheMessageStream->appendMessage( retVal );
 			}
 		}
-		else if( result == ATTACKRESULT_INVALID_SHOT && type == DO_HINT )
+		else if( ( result == ATTACKRESULT_INVALID_SHOT || result == ATTACKRESULT_NOT_POSSIBLE ) && type == DO_HINT )
 		{
 			retVal = GameMessage::MSG_IMPOSSIBLE_ATTACK_HINT;
 			TheMessageStream->appendMessage( retVal );
