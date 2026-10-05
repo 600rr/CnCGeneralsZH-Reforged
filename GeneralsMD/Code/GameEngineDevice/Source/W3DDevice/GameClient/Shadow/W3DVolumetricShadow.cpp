@@ -2108,8 +2108,11 @@ void W3DVolumetricShadow::Update()
  			if (WWMath::Fabs(pos.X - bcX) > (beX + extent) ||
  				WWMath::Fabs(pos.Y - bcY) > (beY + extent) ||
  				WWMath::Fabs(pos.Z - bcZ) > (beZ + extent))
- 				return;	//shadow can't be visible so no point in updating.
- 
+			{
+				if (!volumeShadowCanReachView( *shadowCameraFrustum, m_robj->Get_Bounding_Sphere(), TheTerrainRenderObject->getMinHeight() ))
+					return;	//shadow can't be visible so no point in updating.
+			}
+
 			//this unit is above ground, extend shadow volume to reach lowest point on the terrain plus extra bit to make
 			//sure shadow goes under ground.
    			updateVolumes(fabs(pos.Z - TheTerrainRenderObject->getMinHeight()) + SHADOW_EXTRUSION_BUFFER);
@@ -2118,10 +2121,17 @@ void W3DVolumetricShadow::Update()
  		{	//normal object that is not floating above ground so we don't need to extend the shadow lower than the object's
 			//base since it should be sitting directly at ground level.
 
+			/* The box around the visible terrain plus the caster's own radius is quick, and it is not
+				 enough: a building's shadow under a low sun runs further than the building is wide, and one
+				 standing just past that box laid its shadow in view and lost it all at once.  What fails
+				 the box gets the slower question, whether its shadow can reach the view at all. */
  			if (WWMath::Fabs(pos.X - bcX) > (beX + m_robjExtent) ||
  				WWMath::Fabs(pos.Y - bcY) > (beY + m_robjExtent) ||
  				WWMath::Fabs(pos.Z - bcZ) > (beZ + m_robjExtent))
- 				return;	//shadow can't be visible so no point in updating.
+			{
+				if (!volumeShadowCanReachView( *shadowCameraFrustum, m_robj->Get_Bounding_Sphere(), TheTerrainRenderObject->getMinHeight() ))
+					return;	//shadow can't be visible so no point in updating.
+			}
  
 				//check if this object has never had it's extrusion length updated.  Will only be true for
 				//immobile objects because finding an optimal extrusion length is expensive.
@@ -4079,22 +4089,32 @@ public:
 	}
 };
 
-/** How wide the sun's box has to be to hold the ground the tactical camera sees.  Each edge of the
-		view is followed from the near plane to where it meets the lowest ground on the map, or to the
-		far plane if it never does, and the four points are taken into the sun's frame around the look
-		point: the box is as wide as the furthest of them, rounded up to a step.  Ground higher than the
-		lowest is nearer the camera along the same edge and so inside already. */
-static Real shadowMapHalfWidth( const CameraClass &sceneCamera, const Matrix3D &sunAtFocus, Real lowestGround )
+/** Where an edge of the view crosses the level z, held to the stretch between its near and far
+		planes. */
+static Vector3 viewEdgeAtHeight( const Vector3 &nearPoint, const Vector3 &farPoint, Real z )
+{
+	if (nearPoint.Z <= z)
+		return nearPoint;
+	if (farPoint.Z >= z)
+		return farPoint;
+	return nearPoint + (farPoint - nearPoint) * ((nearPoint.Z - z) / (nearPoint.Z - farPoint.Z));
+}
+
+/** How wide the sun's box has to be to hold the ground the tactical camera sees.  Every ground point
+		in view lies on an edge-bounded stretch of the view between the highest and the lowest ground on
+		the map, so each edge is cut at both heights and the eight points are taken into the sun's frame
+		around the look point: the box is as wide as the furthest of them, rounded up to a step.  The
+		lowest level alone would miss a hill at the bottom of the screen, whose point sits much nearer
+		the camera and can land outside all four low ones in the sun's frame. */
+static Real shadowMapHalfWidth( const CameraClass &sceneCamera, const Matrix3D &sunAtFocus, Real lowestGround,
+	Real highestGround )
 {
 	const Vector3 *corners = sceneCamera.Get_Frustum().Corners;
 	Real needed = 0.0f;
-	for (Int i = 0; i < 4; ++i)
+	for (Int i = 0; i < 8; ++i)
 	{
-		const Vector3 &nearPoint = corners[ i ];
-		const Vector3 &farPoint = corners[ i + 4 ];
-		Vector3 ground = farPoint;
-		if (farPoint.Z < lowestGround)
-			ground = nearPoint + (farPoint - nearPoint) * ((nearPoint.Z - lowestGround) / (nearPoint.Z - farPoint.Z));
+		const Vector3 ground = viewEdgeAtHeight( corners[ i & 3 ], corners[ (i & 3) + 4 ],
+			(i < 4) ? lowestGround : highestGround );
 		Vector3 inSun;
 		Matrix3D::Inverse_Transform_Vector( sunAtFocus, ground, &inSun );
 		needed = WWMath::Max( needed, WWMath::Max( WWMath::Fabs( inSun.X ), WWMath::Fabs( inSun.Y ) ) );
@@ -4153,7 +4173,8 @@ void W3DVolumetricShadowManager::renderShadowMap( CameraClass &sceneCamera )
 	transform.Look_At( focus + toSun * SHADOW_MAP_SUN_DISTANCE, focus, 0.0f );
 
 	const Real lowestReceiver = TheTerrainRenderObject->getMinHeight();
-	const Real halfWidth = shadowMapHalfWidth( sceneCamera, transform, lowestReceiver );
+	const Real halfWidth = shadowMapHalfWidth( sceneCamera, transform, lowestReceiver,
+		TheTerrainRenderObject->getMaxHeight() );
 
 	CameraClass sun;
 	sun.Set_Projection_Type( CameraClass::ORTHO );

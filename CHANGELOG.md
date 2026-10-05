@@ -1236,6 +1236,11 @@ The whole HUD is on the hardware. Four colours carry it, and they mean the same 
   lies well outside it, so buildings, trees and tanks up there stood on bright ground with nothing
   under them. The square now opens to whatever the camera sees, up to two and a half times as wide.
   At a map's normal playing height nothing changes.
+- A shadow stays on the ground when the thing casting it is just off the edge of the screen. A tree
+  standing past the edge was dropped along with its shadow, so scrolling made shadows on the ground
+  in view go out all at once; on Tournament Desert about eleven trees at a time were missing that
+  way. Buildings and units on the older renderer did the same when they stood just past the edge.
+  Now anything whose shadow can land in view keeps casting it.
 - A building stands on the ground instead of sitting on top of it. There is a soft patch under every
   structure's footprint, the darkening a corner traps in daylight, and the shadow it casts starts at
   its own wall rather than a step away from it. The frame's corners and creases get the same
