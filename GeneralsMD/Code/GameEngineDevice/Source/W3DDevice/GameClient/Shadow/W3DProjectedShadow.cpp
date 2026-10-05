@@ -304,32 +304,45 @@ Bool W3DProjectedShadowManager::ReAcquireResources(void)
 	DEBUG_ASSERTCRASH(m_pDev, ("Trying to ReAquireResources on W3DProjectedShadowManager without device"));
 	DEBUG_ASSERTCRASH(shadowDecalIndexBufferD3D == NULL && shadowDecalIndexBufferD3D == NULL, ("ReAquireResources not released in W3DProjectedShadowManager"));
 
-	if (Render_Failed(m_pDev->CreateIndexBuffer
+	//The result is logged because a failure here is what leaves the decal buffers null after a reset,
+	//and which of lost device, video memory or a refused call it was is not something the code can
+	//tell afterwards.
+	RenderResult hr = m_pDev->CreateIndexBuffer
 	(
-		SHADOW_DECAL_INDEX_SIZE*sizeof(WORD), 
-		D3DUSAGE_WRITEONLY|D3DUSAGE_DYNAMIC, 
-		D3DFMT_INDEX16, 
+		SHADOW_DECAL_INDEX_SIZE*sizeof(WORD),
+		D3DUSAGE_WRITEONLY|D3DUSAGE_DYNAMIC,
+		D3DFMT_INDEX16,
 		D3DPOOL_DEFAULT,
 		&shadowDecalIndexBufferD3D,
 		NULL	// pSharedHandle, D3D9's extra parameter, reserved and always null
-	)))
+	);
+	if (Render_Failed(hr))
+	{
+		DEBUG_LOG(("SHADOW DECAL BUFFERS: index buffer refused, 0x%08X, cooperative level 0x%08X\n",
+			(UnsignedInt)hr, (UnsignedInt)m_pDev->TestCooperativeLevel()));
 		return FALSE;
+	}
 
 	shadowDecalIndexTwin = Direct3D11_Twin_Index_Buffer(SHADOW_DECAL_INDEX_SIZE*sizeof(WORD), true);
 
 	if (shadowDecalVertexBufferD3D == NULL)
 	{	// Create vertex buffer
 
-		if (Render_Failed(m_pDev->CreateVertexBuffer
+		hr = m_pDev->CreateVertexBuffer
 		(
 			SHADOW_DECAL_VERTEX_SIZE*sizeof(SHADOW_DECAL_VERTEX),
-			D3DUSAGE_WRITEONLY|D3DUSAGE_DYNAMIC, 
+			D3DUSAGE_WRITEONLY|D3DUSAGE_DYNAMIC,
 			0,
 			D3DPOOL_DEFAULT,
 			&shadowDecalVertexBufferD3D,
 			NULL	// pSharedHandle, D3D9's extra parameter, reserved and always null
-		)))
+		);
+		if (Render_Failed(hr))
+		{
+			DEBUG_LOG(("SHADOW DECAL BUFFERS: vertex buffer refused, 0x%08X, cooperative level 0x%08X\n",
+				(UnsignedInt)hr, (UnsignedInt)m_pDev->TestCooperativeLevel()));
 			return FALSE;
+		}
 
 		shadowDecalVertexTwin = Direct3D11_Twin_Vertex_Buffer(
 			SHADOW_DECAL_VERTEX_SIZE*sizeof(SHADOW_DECAL_VERTEX), true);
@@ -411,6 +424,9 @@ Int W3DProjectedShadowManager::renderProjectedTerrainShadow(W3DProjectedShadow *
 		LPDIRECT3DDEVICE9 m_pDev=DX8Wrapper::_Get_D3D_Device();
 
 		if (!m_pDev)	return 0;
+
+		//the volumetric manager's streaming buffers, null when its ReAcquireResources was refused (see queueDecal)
+		if (shadowVertexBufferD3D == NULL || shadowIndexBufferD3D == NULL)	return 0;
 
 		//Get terrain cell index for area with shadow
 		Int startX=REAL_TO_INT_FLOOR(((cx - dx)*mapScaleInv));
@@ -916,6 +932,12 @@ void W3DProjectedShadowManager::queueDecal(W3DProjectedShadow *shadow, Bool sunC
 	RenderObjClass *robj=shadow->m_robj;
 	Real layerHeight=0;
 
+	//ReAcquireResources leaves these null when the device refuses the allocation after a reset (it
+	//logs SHADOW DECAL BUFFERS with the HRESULT).  A v2.4.0 player locked the null one right after a
+	//resolution change; without them there is no decal to draw this frame.
+	if (shadowDecalVertexBufferD3D == NULL || shadowDecalIndexBufferD3D == NULL)
+		return;
+
 	if (TheTerrainRenderObject)
 	{
 		LPDIRECT3DDEVICE9 m_pDev=DX8Wrapper::_Get_D3D_Device();
@@ -1347,6 +1369,10 @@ void W3DProjectedShadowManager::queueSimpleDecal(W3DProjectedShadow *shadow)
 	Matrix3D   objXform;
 	Vector3 uVector,vVector;
 	Coord3D normal;
+
+	//see queueDecal
+	if (shadowDecalVertexBufferD3D == NULL || shadowDecalIndexBufferD3D == NULL)
+		return;
 
 	if (TheTerrainRenderObject)
 	{

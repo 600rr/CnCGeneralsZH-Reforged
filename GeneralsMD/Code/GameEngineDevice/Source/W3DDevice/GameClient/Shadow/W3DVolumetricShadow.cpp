@@ -1538,6 +1538,12 @@ void W3DVolumetricShadow::RenderVolume(Int meshIndex, Int lightIndex)
 	HLodClass *hlod=(HLodClass *)m_robj;
 	MeshClass *mesh=NULL;
 
+	//RenderDynamicMeshVolume and RenderMeshVolumeBounds lock these, and ReAcquireResources leaves
+	//them null when the device refuses the allocation after a reset (it logs SHADOW VOLUME BUFFERS).
+	//The projected decals locked their own null buffer that way after a resolution change in v2.4.0.
+	if (shadowVertexBufferD3D == NULL || shadowIndexBufferD3D == NULL)
+		return;
+
 	Int meshRobjIndex=m_geometry->getMesh(meshIndex)->m_meshRobjIndex;
 
 	if (meshRobjIndex >= 0)
@@ -4766,32 +4772,43 @@ Bool W3DVolumetricShadowManager::ReAcquireResources(void)
 
 	DEBUG_ASSERTCRASH(m_pDev, ("Trying to ReAquireResources on W3DVolumetricShadowManager without device"));
 
-	if (Render_Failed(m_pDev->CreateIndexBuffer
+	// Logged for the reason W3DProjectedShadowManager::ReAcquireResources gives.
+	RenderResult hr = m_pDev->CreateIndexBuffer
 	(
-		SHADOW_INDEX_SIZE*sizeof(WORD), 
-		D3DUSAGE_WRITEONLY|D3DUSAGE_DYNAMIC, 
-		D3DFMT_INDEX16, 
+		SHADOW_INDEX_SIZE*sizeof(WORD),
+		D3DUSAGE_WRITEONLY|D3DUSAGE_DYNAMIC,
+		D3DFMT_INDEX16,
 		D3DPOOL_DEFAULT,
 		&shadowIndexBufferD3D,
 		NULL	// pSharedHandle, D3D9's extra parameter, reserved and always null
-	)))
+	);
+	if (Render_Failed(hr))
+	{
+		DEBUG_LOG(("SHADOW VOLUME BUFFERS: index buffer refused, 0x%08X, cooperative level 0x%08X\n",
+			(UnsignedInt)hr, (UnsignedInt)m_pDev->TestCooperativeLevel()));
 		return FALSE;
+	}
 
 	shadowIndexTwin = Direct3D11_Twin_Index_Buffer(SHADOW_INDEX_SIZE*sizeof(WORD), true);
 
 	if (shadowVertexBufferD3D == NULL)
 	{	// Create vertex buffer
 
-		if (Render_Failed(m_pDev->CreateVertexBuffer
+		hr = m_pDev->CreateVertexBuffer
 		(
 			SHADOW_VERTEX_SIZE*sizeof(SHADOW_DYNAMIC_VOLUME_VERTEX),
-			D3DUSAGE_WRITEONLY|D3DUSAGE_DYNAMIC, 
+			D3DUSAGE_WRITEONLY|D3DUSAGE_DYNAMIC,
 			0,
 			D3DPOOL_DEFAULT,
 			&shadowVertexBufferD3D,
 			NULL	// pSharedHandle, D3D9's extra parameter, reserved and always null
-		)))
+		);
+		if (Render_Failed(hr))
+		{
+			DEBUG_LOG(("SHADOW VOLUME BUFFERS: vertex buffer refused, 0x%08X, cooperative level 0x%08X\n",
+				(UnsignedInt)hr, (UnsignedInt)m_pDev->TestCooperativeLevel()));
 			return FALSE;
+		}
 
 		shadowVertexTwin = Direct3D11_Twin_Vertex_Buffer(
 			SHADOW_VERTEX_SIZE*sizeof(SHADOW_DYNAMIC_VOLUME_VERTEX), true);
