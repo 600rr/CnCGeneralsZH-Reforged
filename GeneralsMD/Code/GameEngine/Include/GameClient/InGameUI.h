@@ -605,6 +605,7 @@ public:  // ********************************************************************
 	/// in front of it.  The logic keeps the list; see OrderQueue.h.
 	void markNextOrderQueued( OrderQueueMode mode );
 
+	void createMoveHint( const GameMessage *msg );							///< Classic: EA's animated ring where a move order lands
 	virtual void createAttackHint( const GameMessage *msg );		///< An attack command has occurred, start graphical "hint"
 	virtual void createForceAttackHint( const GameMessage *msg );		///< A force attack command has occurred, start graphical "hint"
 
@@ -1446,6 +1447,16 @@ protected:
 	std::list<WindowLayout *>		m_windowLayouts;
 	AsciiString									m_currentlyPlayingMovie;											///< Used to push updates to TheScriptEngine
 	DrawableList								m_selectedDrawables;													///< A list of all selected drawables.
+
+	// Classic's move rings, EA's own: where each move order landed and the client frame it did
+	enum { MAX_MOVE_HINTS = 256 };
+	struct MoveHintStruct
+	{
+		Coord3D pos;						///< World coords of destination point
+		UnsignedInt frame;			///< frame the command was issued on
+	};
+	MoveHintStruct							m_moveHint[ MAX_MOVE_HINTS ];
+	Int													m_nextMoveHint;
 	DrawableList								m_selectedLocalDrawables;											///< A list of all selected drawables owned by the local player
 	std::vector<ObjectID>				m_tunnelTripRiders;														///< selected units inside the tunnel network on a move order, selected again when they come out
 	Bool												m_isDragSelecting;														///< If TRUE, an area selection is in progress

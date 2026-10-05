@@ -300,6 +300,12 @@ W3DInGameUI::W3DInGameUI()
 	for( Int i = 0; i < MAX_ORDER_STEP_NUMBERS; ++i )
 		m_orderStepNumbers[ i ] = NULL;
 
+	for( Int i = 0; i < MAX_MOVE_HINTS; i++ )
+	{
+		m_moveHintRenderObj[ i ] = NULL;
+		m_moveHintAnim[ i ] = NULL;
+	}
+
 }  // end W3DInGameUI
 
 //-------------------------------------------------------------------------------------------------
@@ -322,6 +328,12 @@ W3DInGameUI::~W3DInGameUI()
 			TheDisplayStringManager->freeDisplayString( m_orderStepNumbers[ i ] );
 			m_orderStepNumbers[ i ] = NULL;
 		}
+
+	for( Int i = 0; i < MAX_MOVE_HINTS; i++ )
+	{
+		REF_PTR_RELEASE( m_moveHintRenderObj[ i ] );
+		REF_PTR_RELEASE( m_moveHintAnim[ i ] );
+	}
 
 }  // end ~W3DInGameUI
 
@@ -431,12 +443,14 @@ void W3DInGameUI::draw( void )
 		drawFormationLine();
 
 	// Classic draws what the game as shipped drew: none of the threads, plan numbers, ally pointers
-	// or guard shields below, and its waypoint path is W3DWaypointBuffer's.  It keeps the order
-	// markers, without their threads, in place of EA's ground ring, which is gone from this tree
+	// or guard shields below, and its waypoint path is W3DWaypointBuffer's.  A move order gets
+	// EA's animated ground ring (drawMoveHints) in place of the order markers
 	const Bool classic = TheGlobalData->isClassicUI();
 
-	// and where everything selected is headed, drag or no drag
-	drawOrderHints();
+	// and where everything selected is headed, drag or no drag.  Classic has EA's ring instead,
+	// drawMoveHints below
+	if( !classic )
+		drawOrderHints();
 
 	// and which of the plans each builder puts up next
 	if( !classic )
@@ -478,6 +492,9 @@ void W3DInGameUI::draw( void )
 		{
 
 			// draw attack hints
+			// draw move hints
+			drawMoveHints( view );
+
 			drawAttackHints( view );
 
 			// draw placement angle selection if needed
@@ -1608,6 +1625,75 @@ void W3DInGameUI::drawAllyCursors( void )
 	}
 
 }  // end drawAllyCursors
+
+//-------------------------------------------------------------------------------------------------
+/** Classic: EA's animated ring on the ground where a move order landed, 40 client frames each.
+	* EA's own code, deleted by fec052cc, back for Classic only (InGameUI::createMoveHint fills it). */
+//-------------------------------------------------------------------------------------------------
+void W3DInGameUI::drawMoveHints( View *view )
+{
+	const Bool classic = TheGlobalData->isClassicUI();
+	for( Int i = 0; i < MAX_MOVE_HINTS; i++ )
+	{
+		Int elapsed = TheGameClient->getFrame() - m_moveHint[i].frame;
+
+		if( classic && m_moveHint[ i ].frame != 0 && elapsed <= 40 )
+		{
+			// create render object and add to scene of needed
+			if( m_moveHintRenderObj[ i ] == NULL )
+			{
+				RenderObjClass *hint = W3DDisplay::m_assetManager->Create_Render_Obj(TheGlobalData->m_moveHintName.str());
+
+				AsciiString animName;
+				animName.format("%s.%s", TheGlobalData->m_moveHintName.str(), TheGlobalData->m_moveHintName.str());
+				HAnimClass *anim = W3DDisplay::m_assetManager->Get_HAnim(animName.str());
+
+				if( hint == NULL )
+				{
+					REF_PTR_RELEASE( anim );
+					return;
+				}
+
+				m_moveHintRenderObj[ i ] = hint;
+				// 'anim' comes back from Get_HAnim with an AddRef already
+				REF_PTR_RELEASE(m_moveHintAnim[i]);
+				m_moveHintAnim[i] = anim;
+			}
+
+			// show the render object if hidden
+			if( m_moveHintRenderObj[ i ]->Is_Hidden() == 1 ) {
+				m_moveHintRenderObj[ i ]->Set_Hidden( 0 );
+				W3DDisplay::m_3DScene->Add_Render_Object( m_moveHintRenderObj[ i ] );
+				if (m_moveHintAnim[i])
+					m_moveHintRenderObj[i]->Set_Animation(m_moveHintAnim[i], 0, RenderObjClass::ANIM_MODE_ONCE);
+			}
+
+			// move this hint render object to the position and align with terrain
+			Matrix3D transform;
+			PathfindLayerEnum layer = TheTerrainLogic->alignOnTerrain( 0, m_moveHint[ i ].pos, true, transform );
+
+			Real waterZ;
+			if (layer == LAYER_GROUND && TheTerrainLogic->isUnderwater(m_moveHint[ i ].pos.x, m_moveHint[ i ].pos.y, &waterZ))
+			{
+				Coord3D tmp = m_moveHint[ i ].pos;
+				tmp.z = waterZ;
+				Coord3D normal;
+				normal.x = 0;
+				normal.y = 0;
+				normal.z = 1;
+				makeAlignToNormalMatrix(0, tmp, normal, transform);
+			}
+
+			m_moveHintRenderObj[ i ]->Set_Transform( transform );
+		}
+		else if( m_moveHintRenderObj[ i ] && m_moveHintRenderObj[ i ]->Is_Hidden() == 0 )
+		{
+			// hide hint marker
+			m_moveHintRenderObj[ i ]->Set_Hidden( 1 );
+			W3DDisplay::m_3DScene->Remove_Render_Object( m_moveHintRenderObj[ i ] );
+		}
+	}
+}
 
 //-------------------------------------------------------------------------------------------------
 /** Draw visual back for clicking to attack a unit in the world */

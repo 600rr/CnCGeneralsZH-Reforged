@@ -167,7 +167,8 @@ View *View::prependViewToList( View *list )
 // EA's step was 10 world units.  The reachable band is 90 (MinCameraHeight * CLOSEST_ZOOM_FACTOR)
 // to about 900 (MaxCameraHeight * ZOOM_OUT_LIMIT_FACTOR), so crossing it would take about 80
 // notches - a whole wheel's travel to go from the ground to the whole map.  60 puts it at about 14.
-#define ZOOM_STEP_HEIGHT (60.0f)
+// Classic keeps EA's 10.
+#define ZOOM_STEP_HEIGHT (TheGlobalData->isClassicUI() ? 10.0f : 60.0f)
 
 //-------------------------------------------------------------------------------------------------
 /** The zoom a match opens at.  StartAtMaxZoom opens it as far out as the wheel itself may go rather

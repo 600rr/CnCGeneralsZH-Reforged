@@ -1093,7 +1093,13 @@ InGameUI::InGameUI()
 {
 	Int i;
 
-	
+	for( i = 0; i < MAX_MOVE_HINTS; i++ )
+	{
+		m_moveHint[ i ].pos.zero();
+		m_moveHint[ i ].frame = 0;
+	}
+	m_nextMoveHint = 0;
+
   m_inputEnabled = true;
 	m_isDragSelecting = false;
 	m_isFormationDragging = FALSE;
@@ -4236,6 +4242,13 @@ void InGameUI::unregisterWindowLayout( WindowLayout *layout )
 //-------------------------------------------------------------------------------------------------
 void InGameUI::reset( void )
 {
+	for( Int i = 0; i < MAX_MOVE_HINTS; i++ )
+	{
+		m_moveHint[ i ].pos.zero();
+		m_moveHint[ i ].frame = 0;
+	}
+	m_nextMoveHint = 0;
+
 	m_isQuitMenuVisible = FALSE;
 	m_scoreboardOpen = FALSE;
 	m_scoreboardPageLoaded = FALSE;
@@ -6406,6 +6419,30 @@ void InGameUI::markNextOrderQueued( OrderQueueMode mode )
 
 	GameMessage *msg = TheMessageStream->appendMessage( GameMessage::MSG_QUEUE_NEXT_ORDER );
 	msg->appendIntegerArgument( mode );
+}
+
+//-------------------------------------------------------------------------------------------------
+/** A move command has occurred: Classic starts EA's ring where it lands (W3DInGameUI::drawMoveHints). */
+//-------------------------------------------------------------------------------------------------
+void InGameUI::createMoveHint( const GameMessage *msg )
+{
+	if( getSelectCount() == 1 )
+	{
+		Drawable *draw = getFirstSelectedDrawable();
+		Object *obj = draw ? draw->getObject() : NULL;
+		if( obj && obj->isKindOf( KINDOF_IMMOBILE ) )
+		{
+			//Don't allow move hints to be created if our selected object can't move!
+			return;
+		}
+	}
+
+	m_moveHint[ m_nextMoveHint ].frame = TheGameClient->getFrame();
+	m_moveHint[ m_nextMoveHint ].pos = msg->getArgument( 0 )->location;
+
+	m_nextMoveHint++;
+	if (m_nextMoveHint == InGameUI::MAX_MOVE_HINTS)
+		m_nextMoveHint = 0;
 }
 
 //-------------------------------------------------------------------------------------------------

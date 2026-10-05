@@ -4626,6 +4626,11 @@ void Drawable::drawHealthBar(const IRegion2D* healthBarRegion)
 															(healthBoxWidth - 2) * healthRatio, healthBoxHeight - 2,
 															color );
 
+		// Classic's bar is EA's health alone: none of the production, reload, charge or work bars
+		// and clocks below
+		if( TheGlobalData->isClassicUI() )
+			return;
+
 		// bars stack upwards from just above the health bar, each clearing the seconds written over
 		// the one below it
 		Int stackY = healthBarRegion->lo.y - 3;

@@ -536,6 +536,10 @@ void ControlBar::pressCommandButton( Int place )
 //-------------------------------------------------------------------------------------------------
 void ControlBar::makeBuildPageButtons( void )
 {
+	// Classic's command sets are EA's slot for slot: no pages
+	if( TheGlobalData->isClassicUI() )
+		return;
+
 	AsciiString name;
 	for( Int page = 0; page < BUILD_PAGE_COUNT; page++ )
 	{

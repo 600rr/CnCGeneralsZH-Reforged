@@ -239,7 +239,8 @@ static const UnsignedInt CAMERA_NETWORK_FRAMES = LOGICFRAMES_PER_SECOND / 5;
 	* machines, only from somebody still playing, and only when it moved since the last one went. */
 Bool LookAtTranslator::networkCameraDue( const ViewLocation &view )
 {
-	if( !TheGameLogic->isInMultiplayerGame() || !ThePlayerList->getLocalPlayer()->isPlayerActive() )
+	// Classic sends what the game as shipped sent, and that was no camera in a network game
+	if( TheGlobalData->isClassicUI() || !TheGameLogic->isInMultiplayerGame() || !ThePlayerList->getLocalPlayer()->isPlayerActive() )
 		return FALSE;
 
 	const UnsignedInt frame = TheGameLogic->getFrame();
