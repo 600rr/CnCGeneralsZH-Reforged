@@ -12560,16 +12560,16 @@ TEST(text_language_row_offers_every_language)
 
 TEST(gameplay_conveniences_are_forced_on_and_left_the_catalog)
 {
-	/* The Gameplay page is one control now, health bars, and the eight settings that used to share
-		 it are decided here instead of by the player.  Two halves have to agree or the removal is a
-		 feature switched off by accident: the row must be gone from the catalog, so nothing loads a
-		 stale "no" out of an Options.ini written before this change, and the constructor must say
-		 TRUE, because with the row gone the constructor is the only thing left that says anything. */
+	/* Six settings that used to share the Gameplay page are decided here instead of by the player.
+		 Two halves have to agree or the removal is a feature switched off by accident: the row must
+		 be gone from the catalog, so nothing loads a stale "no" out of an Options.ini written before
+		 this change, and the constructor must say TRUE, because with the row gone the constructor is
+		 the only thing left that says anything.  Grid placement and snap-to-45 building rotation left
+		 with them and came back as Controls check boxes, so they are below with the menu rows. */
 	static const char *const forced[] =
 	{
-		"GridBuildPlacement", "NudgeBuildPlacement", "SnapBuildPlacementTo45",
-		"ShowPlacementRangeRing", "WorkersReturnToSupply", "DetailedBuildTooltips",
-		"ShowHudOverlay", "ArchiveReplays", NULL
+		"NudgeBuildPlacement", "ShowPlacementRangeRing", "WorkersReturnToSupply",
+		"DetailedBuildTooltips", "ShowHudOverlay", "ArchiveReplays", NULL
 	};
 	for( Int i = 0; forced[ i ] != NULL; ++i )
 		CHECK( findOptionDef( forced[ i ] ) == NULL );
@@ -12602,13 +12602,29 @@ TEST(gameplay_conveniences_are_forced_on_and_left_the_catalog)
 		 Options.ini that names one still wins over the default.  ZoomToCursor came back to the menu. */
 	static const char *const hidden[] =
 	{
-		"FormationDrag", "EdgeScrollInWindowedMode", "SnapCameraRotateTo45", NULL
+		"FormationDrag", "EdgeScrollInWindowedMode", NULL
 	};
 	for( Int i = 0; hidden[ i ] != NULL; ++i )
 	{
 		const OptionDef *def = findOptionDef( hidden[ i ] );
 		CHECK( def != NULL );
 		CHECK( def->widgetName == NULL || def->widgetName[ 0 ] == '\0' );
+	}
+
+	/* The two snaps and grid placement are Controls check boxes, on by default. */
+	CHECK( scratch->m_snapCameraRotateTo45 );
+	static const char *const menu[] =
+	{
+		"SnapCameraRotateTo45", "GridBuildPlacement", "SnapBuildPlacementTo45", NULL
+	};
+	for( Int i = 0; menu[ i ] != NULL; ++i )
+	{
+		const OptionDef *def = findOptionDef( menu[ i ] );
+		CHECK( def != NULL );
+		if( def == NULL )
+			continue;
+		CHECK( def->kind == OPTION_BOOL );
+		CHECK( def->widgetName != NULL && def->widgetName[ 0 ] != '\0' );
 	}
 
 	delete scratch;					// while it is the current one: a Debug build's ~GlobalData reads TheWritableGlobalData

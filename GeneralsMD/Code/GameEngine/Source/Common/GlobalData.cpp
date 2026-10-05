@@ -1141,8 +1141,8 @@ GlobalData::GlobalData()
 	// nobody saw them: an Options.ini that predates them simply has no such key, so every one of
 	// them stayed off and the features looked like they had never been added.
 	//
-	// The first four are still catalog rows, so Options.ini can still turn them off by name even
-	// though the menu no longer shows them. The rest are not: they left TheOptionCatalog with the
+	// The camera rows, grid placement and snap-to-45 building rotation are still catalog rows, so
+	// Options.ini (and for some the menu) can turn them off. The rest are not: they left TheOptionCatalog with the
 	// controls that used to set them, and what is written here is what every game gets. GameData.ini
 	// remains the way to change one, because the field table above still names it.
 	//

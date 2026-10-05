@@ -15402,7 +15402,7 @@ GUI:GridBuild
 END
 
 TOOLTIP:GridBuild
-"Yapılar yol bulucunun kendi 10 birimlik ızgarasına oturur; böylece göz kararı yerleştirilen iki bina, arada yürünemeyecek kadar dar bir boşluk bırakmak yerine kenar kenara durur."
+"Yapılar yol bulucunun kendi 10 birimlik ızgarasına oturur, ızgara da yerleştirirken binanın altında çizilir; böylece göz kararı yerleştirilen iki bina, arada yürünemeyecek kadar dar bir boşluk bırakmak yerine kenar kenara durur. Kapalıyken yalnızca bina konamayan hücreler işaretlenir."
 END
 
 GUI:NudgeBuild

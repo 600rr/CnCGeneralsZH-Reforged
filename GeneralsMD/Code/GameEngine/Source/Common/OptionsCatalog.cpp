@@ -58,6 +58,8 @@ static void set_m_cameraBoundaryMargin( Int value )
 }
 OPTION_BOOL_ACCESSORS( m_edgeScrollInWindowedMode )
 OPTION_BOOL_ACCESSORS( m_snapCameraRotateTo45 )
+OPTION_BOOL_ACCESSORS( m_gridBuildPlacement )
+OPTION_BOOL_ACCESSORS( m_snapBuildPlacementTo45 )
 OPTION_BOOL_ACCESSORS( m_zoomToCursor )
 OPTION_BOOL_ACCESSORS( m_isometricCamera )
 OPTION_BOOL_ACCESSORS( m_smoothMotion )
@@ -235,9 +237,20 @@ const OptionDef TheOptionCatalog[] =
 		OPTION_BOOL, APPLY_LIVE, 0, 1,
 		get_m_edgeScrollInWindowedMode, set_m_edgeScrollInWindowedMode },
 
-	{ "SnapCameraRotateTo45",			"", "",
+	// Back on Options > Controls, with the two building placement rows below it.
+	{ "SnapCameraRotateTo45",			OPT_WND( "CheckSnapCamera45" ), "GUI:SnapCamera45",
 		OPTION_BOOL, APPLY_LIVE, 0, 1,
 		get_m_snapCameraRotateTo45, set_m_snapCameraRotateTo45 },
+
+	// Off, a structure goes wherever the cursor is and the white grid lines under the ghost go
+	// with it; the red wash over cells nothing can stand on stays (W3DInGameUI::drawBuildGrid).
+	{ "GridBuildPlacement",				OPT_WND( "CheckGridBuild" ), "GUI:GridBuild",
+		OPTION_BOOL, APPLY_LIVE, 0, 1,
+		get_m_gridBuildPlacement, set_m_gridBuildPlacement },
+
+	{ "SnapBuildPlacementTo45",		OPT_WND( "CheckSnapBuild45" ), "GUI:SnapBuild45",
+		OPTION_BOOL, APPLY_LIVE, 0, 1,
+		get_m_snapBuildPlacementTo45, set_m_snapBuildPlacementTo45 },
 
 	// MiddleMousePans used to sit here.  There is nothing left to choose: a right drag pans and a
 	// middle drag turns the camera.
@@ -317,11 +330,11 @@ const OptionDef TheOptionCatalog[] =
 		OPTION_INT, APPLY_RESTART, 0, 16,
 		get_m_anisotropyLevel, set_m_anisotropyLevel },
 
-	// Eight rows used to sit here: grid and nudge build placement, snap-to-45 building rotation, the
-	// placement range ring, workers returning to supply, detailed build tooltips, the HUD overlay
-	// and replay archiving.  Every one of them is now on for everybody, decided in GlobalData's
-	// constructor, so there is nothing left to load or save.  Gameplay is health bars and nothing
-	// else.
+	// Six rows used to sit here: nudge build placement, the placement range ring, workers returning
+	// to supply, detailed build tooltips, the HUD overlay and replay archiving.  Every one of them is
+	// now on for everybody, decided in GlobalData's constructor, so there is nothing left to load or
+	// save.  Grid placement and snap-to-45 building rotation left with them and came back to
+	// Options > Controls, above.
 
 	// Off, subtle, normal, strong.  Normal (60, the menu's Medium) is the default, set in
 	// GlobalData's constructor: it is the strength the Direct3D 11 frame applied before there was a

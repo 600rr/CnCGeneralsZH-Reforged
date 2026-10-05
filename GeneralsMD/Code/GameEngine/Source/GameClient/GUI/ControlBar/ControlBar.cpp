@@ -1345,18 +1345,22 @@ void CommandSet::parseCommandButton( INI* ini, void *instance, void *store, cons
 
 	// get find the command button from this name
 	const CommandButton *commandButton = TheControlBar->findCommandButton( AsciiString( token ) );
-	if( commandButton == NULL )
-	{
-
-		DEBUG_CRASH(( "[LINE: %d - FILE: '%s'] Unknown command '%s' found in command set\n",
-								  ini->getLineNum(), ini->getFilename().str(), token ));
-		throw INI_INVALID_DATA;
-
-	}  // end if
-
 	// get the index to store the command at, and the command array itself
 	const CommandButton **buttonArray = (const CommandButton **)store;
 	Int buttonIndex = (Int)(intptr_t)userData;
+
+	if( commandButton == NULL )
+	{
+		/* A mod's CommandButton.ini can lack a button the fork's CommandSetReforged.ini names: Contra X
+			 Beta 2 has no Early_Command_ChinaCarpetBomb, and slot 2 of Infa_ChinaCommandCenterCommandSetUpgrade
+			 threw and stopped the game at start.  The slot keeps what it held, which for a patched set is
+			 empty, since parseCommandSetDefinition clears it first, and every reader already passes over an
+			 empty slot.  The outcome depends only on the files, which are in the INI checksum. */
+		DEBUG_LOG(( "[LINE: %d - FILE: '%s'] CommandSet %s slot %d names unknown button '%s'; the slot is skipped.\n",
+								ini->getLineNum(), ini->getFilename().str(), ((CommandSet *)instance)->getName().str(),
+								buttonIndex + 1, token ));
+		return;
+	}  // end if
 
 	// sanity
 	DEBUG_ASSERTCRASH( buttonIndex < MAX_COMMANDS_PER_SET, ("parseCommandButton: button index '%d' out of range\n", 

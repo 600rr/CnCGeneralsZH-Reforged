@@ -14758,7 +14758,7 @@ GUI:GridBuild
 END
 
 TOOLTIP:GridBuild
-"Gebäude landen auf dem eigenen 10er-Raster der Wegfindung, sodass zwei nach Augenmaß gesetzte Gebäude eine Kante teilen, statt eine zu enge Lücke zum Durchgehen zu lassen."
+"Gebäude landen auf dem eigenen 10er-Raster der Wegfindung, das beim Platzieren unter dem Gebäude gezeichnet wird, sodass zwei nach Augenmaß gesetzte Gebäude eine Kante teilen, statt eine zu enge Lücke zum Durchgehen zu lassen. Ist es aus, werden nur die Zellen markiert, auf denen nichts gebaut werden kann."
 END
 
 GUI:NudgeBuild

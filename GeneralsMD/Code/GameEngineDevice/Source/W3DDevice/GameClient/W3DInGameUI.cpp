@@ -675,7 +675,8 @@ static void setGroundOverlayState( void )
 
 //-------------------------------------------------------------------------------------------------
 /** Draw the pathfinder's own cell grid under the structure sitting on the cursor, and cross out
-	* the cells it cannot go on.  GridBuildPlacement snaps a footprint's edges to these very lines
+	* the cells it cannot go on.  The lines only under GridBuildPlacement; the red cells always.
+	* GridBuildPlacement snaps a footprint's edges to these very lines
 	* (see snapPlacementToGrid), so being able to see them is the difference between guessing at a
 	* flush row of buildings and laying one out.
 	*
@@ -696,9 +697,11 @@ static void setGroundOverlayState( void )
 //-------------------------------------------------------------------------------------------------
 void W3DInGameUI::drawBuildGrid( void )
 {
-	// the grid you see is the grid you snap to: with the snap off it would mean nothing
-	if( m_pendingPlaceType == NULL || TheGlobalData->m_gridBuildPlacement == FALSE )
+	if( m_pendingPlaceType == NULL )
 		return;
+	// the grid you see is the grid you snap to: with the snap off the lines would mean nothing, but
+	// the cells nothing can stand on still do
+	const Bool drawLines = TheGlobalData->m_gridBuildPlacement;
 	if( m_placeIcon == NULL || m_placeIcon[ 0 ] == NULL )
 		return;
 	if( TheTerrainLogic == NULL || TheAI == NULL )
@@ -764,7 +767,7 @@ void W3DInGameUI::drawBuildGrid( void )
 
 	// the lines themselves, one quad per cell edge so they follow the ground over every bump
 	const Real LINE_ALPHA = 0x58;
-	for( iy = 0; iy < GRID_POINTS; ++iy )
+	for( iy = 0; drawLines && iy < GRID_POINTS; ++iy )
 	{
 		for( ix = 0; ix < GRID_POINTS; ++ix )
 		{

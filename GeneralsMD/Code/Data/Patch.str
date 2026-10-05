@@ -914,7 +914,7 @@ GUI:GridBuild
 END
 
 TOOLTIP:GridBuild
-"Structures land on the pathfinder's own 10-unit grid, so two buildings put down by eye share an edge instead of leaving a gap too narrow to walk through."
+"Structures land on the pathfinder's own 10-unit grid, drawn under the building while you place it, so two buildings put down by eye share an edge instead of leaving a gap too narrow to walk through. Off, only the cells nothing can be built on are marked."
 END
 
 GUI:NudgeBuild
