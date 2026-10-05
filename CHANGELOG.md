@@ -1000,7 +1000,7 @@ A third pass went through the generals' powers, promotions and unit abilities.
 - It is one box on the network lobby's settings page, Pro Rules, ticked unless the host clears it. The skirmish lobby has no such box. The host's choice goes to everyone in the room and into the replay, and the lobby remembers it for next time. A host on an older build has no box to send, so that game plays without the list.
 - No Particle Cannon and no SCUD Storm. The USA Superweapon General keeps one Particle Cannon, because a general who paid for his superweapons with a weaker army and then may not build any is playing half a faction.
 - The Nuclear Missile silo still goes up, since it is where China buys Nuclear Tanks and Uranium Shells. The missile inside it never launches, it has no fire button, and nobody's screen counts down to it.
-- No Aurora Bomber, the Air Force General's Alpha Aurora included, and no Tactical Nuke upgrade for the Nuke General's MiGs.
+- No Aurora Bomber, the Superweapon General's Alpha Aurora included, and no Tactical Nuke upgrade for the Nuke General's MiGs.
 - No demo bike. A terrorist cannot climb onto a Combat Cycle any more; a rebel, a worker, a hijacker or Jarmen Kell still can.
 - A Microwave Tank cannot freeze a building that is still going up. There is nothing for it to fire at until the scaffold is finished, so parking one beside a half-built base no longer keeps it half built.
 - No foundation goes down closer to an enemy building than 300, a margin past the 225 a Patriot battery or a Stinger Site reaches on the ground. That ends walling somebody's base in with scaffolds nobody means to finish, and it ends building a tower in their yard too. The placement ghost says why it is red.
