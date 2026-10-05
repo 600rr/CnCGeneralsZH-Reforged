@@ -72,7 +72,7 @@ class W3DProjectedShadowManager	: public ProjectedShadowManager
 		TextureClass *getRenderTarget(void)	{ return m_dynamicRenderTarget;}
 		SpecialRenderInfoClass *getRenderContext(void)	{ return m_shadowContext;}
 		void updateRenderTargetTextures(void);	///<render into any textures that need updating.
-		void queueDecal(W3DProjectedShadow *shadow);	///<add shadow decal to render list - decal conforms to terrain.
+		void queueDecal(W3DProjectedShadow *shadow, Bool sunCast = TRUE);	///<add shadow decal to render list - decal conforms to terrain.  sunCast FALSE for a marker, which the sun does not move.
 		void queueSimpleDecal(W3DProjectedShadow *shadow);	///< add shadow decal to render list - decal floats on terrain.
 		void flushDecals(W3DShadowTexture *texture, ShadowType type);	///<empty queue by rendering all decals with given texture
 

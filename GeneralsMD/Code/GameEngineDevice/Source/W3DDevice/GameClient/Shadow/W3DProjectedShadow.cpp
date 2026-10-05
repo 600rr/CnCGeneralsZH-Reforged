@@ -136,6 +136,7 @@ int	nShadowDecalVertsInBatch=0;
 //queueDecal lays the long axis of anything this high above the ground down the sun ray, and lets it
 //grow to at most this many times the decal's own length doing it.
 #define DECAL_AIRBORNE_HEIGHT 1.0f
+#define DECAL_AIRBORNE_BLEND 10.0f
 #define DECAL_MAX_STRETCH 4.0f
 int SHADOW_DECAL_VERTEX_SIZE=32768;
 int SHADOW_DECAL_INDEX_SIZE=65536;
@@ -884,7 +885,7 @@ void testShadowDecal(void)
 up until the buffers fill up.  It will then flush the buffer (draw decals) and be ready for new decals.  This
 is an optimized system that only uses the render objects bounding box to determine shadow visibility.
 */
-void W3DProjectedShadowManager::queueDecal(W3DProjectedShadow *shadow)
+void W3DProjectedShadowManager::queueDecal(W3DProjectedShadow *shadow, Bool sunCast)
 {
 	int i,j,k;
 	Vector3 hmapVertex,objPos;
@@ -952,7 +953,7 @@ void W3DProjectedShadowManager::queueDecal(W3DProjectedShadow *shadow)
 			heightAboveGround = objPos.Z - TheTerrainLogic->getGroundHeight(objPos.X, objPos.Y);
 			toSun = TheW3DShadowManager->getLightPosWorld(0);
 			const Real MIN_SUN_HEIGHT = 0.01f;		// a sun on the horizon casts a shadow of infinite length
-			sunCasts = toSun.Z > MIN_SUN_HEIGHT;
+			sunCasts = sunCast && toSun.Z > MIN_SUN_HEIGHT;	//a marker ring stays under its object
 			if (heightAboveGround > 0.0f && sunCasts)
 			{
 				const Real alongRay = heightAboveGround / toSun.Z;
@@ -973,23 +974,36 @@ void W3DProjectedShadowManager::queueDecal(W3DProjectedShadow *shadow)
 			 streak a pole throws, pointing away from the sun and as long as the sun makes it, and the
 			 shadow of the model's middle rather than of its tail is what sits at the decal's centre.
 			 Only for something in the air: a unit on a slope is pitched as well, and its decal is a
-			 footprint on that slope, not a shadow on a level floor. */
+			 footprint on that slope, not a shadow on a level floor.  The change is eased in over
+			 DECAL_AIRBORNE_BLEND above that height, so a tank bouncing on its suspension or riding over
+			 a crushed car, and a Scud leaving its silo, do not flip between the two from frame to frame.
+
+			 Under a low sun the streak is capped at DECAL_MAX_STRETCH and the centre is pulled in by the
+			 same fraction, so a capped streak still starts at the shadow of the tail rather than
+			 floating off it. */
 		Real stretch = 1.0f;
 		if (sunCasts && heightAboveGround > DECAL_AIRBORNE_HEIGHT)
 		{
+			const Real lift = __min((heightAboveGround - DECAL_AIRBORNE_HEIGHT) / DECAL_AIRBORNE_BLEND, 1.0f);
 			const Real axisLength = uVector.Length();
-			const Real down = uVector.Z / toSun.Z;
-			uVector.X -= toSun.X * down;
-			uVector.Y -= toSun.Y * down;
-			objPos.X -= toSun.X * down * shadow->m_decalCenterU;
-			objPos.Y -= toSun.Y * down * shadow->m_decalCenterU;
-			uVector.Z = 0.0f;
+			const Real fullDown = uVector.Z / toSun.Z;
+			Real down = lift * fullDown;
 			if (axisLength > 0.0f)
 			{
+				const Real projectedX = uVector.X - toSun.X * fullDown;
+				const Real projectedY = uVector.Y - toSun.Y * fullDown;
+				const Real ratio = WWMath::Sqrt(projectedX * projectedX + projectedY * projectedY) / axisLength;
 				//never narrower than the decal is wide, unless it was that already
 				const Real minStretch = __min(1.0f, fabs(shadow->m_decalSizeY) / shadow->m_decalSizeX);
-				stretch = __max(__min(uVector.Length() / axisLength, DECAL_MAX_STRETCH), minStretch);
+				const Real capped = __max(__min(ratio, DECAL_MAX_STRETCH), minStretch);
+				stretch = 1.0f + lift * (capped - 1.0f);
+				const Real centreDown = (ratio > DECAL_MAX_STRETCH) ? down * DECAL_MAX_STRETCH / ratio : down;
+				objPos.X -= toSun.X * centreDown * shadow->m_decalCenterU;
+				objPos.Y -= toSun.Y * centreDown * shadow->m_decalCenterU;
 			}
+			uVector.X -= toSun.X * down;
+			uVector.Y -= toSun.Y * down;
+			uVector.Z = 0.0f;
 		}
 
 		uVector.Z=0.0f;
@@ -1652,7 +1666,7 @@ Int W3DProjectedShadowManager::renderShadows(RenderInfoClass & rinfo)
 				///@todo: may need to fix this if shadows are large enough to be seen while object is not visible
 				if (!(shadow->m_robj && !shadow->m_robj->Is_Really_Visible()))
 				{	//queueSimpleDecal(shadow);
-					queueDecal(shadow);	//only draw shadow if casting object is visible
+					queueDecal(shadow, FALSE);	//a marker (horde ring, crate glow), not a shadow: the sun does not move it
 					projectionCount++;
 				}
 			}//shadow is enabled
