@@ -124,6 +124,7 @@ class W3DProjectedShadow	: public Shadow
 		Bool	m_allowWorldAlign;	/// wrap shadow around world geometry - else align perpendicular to local z-axis.
 		Real	m_decalOffsetU;		/// texture coordinate offset so not centered at object origin.
 		Real	m_decalOffsetV;		/// texture coordinate offset so not centered at object origin.
+		Real	m_decalCenterU;		/// object-space X of the model's box centre, for a decal laid down the sun ray.
 		Int		m_flags;			/// custom rendering flags
 		virtual void release(void)	{TheW3DProjectedShadowManager->removeShadow(this);}	///<release shadow from manager
 };

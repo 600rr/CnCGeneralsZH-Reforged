@@ -133,6 +133,10 @@ int	nShadowDecalVertsInBatch=0;
 //darkness the multiplicative blob was asking for: shadow.dds is 45% grey at its centre with an
 //alpha of about 0.85 there, and 1 - 0.85*160/255 is the same 45%.
 #define DECAL_SHADOW_ALPHA 160
+//queueDecal lays the long axis of anything this high above the ground down the sun ray, and lets it
+//grow to at most this many times the decal's own length doing it.
+#define DECAL_AIRBORNE_HEIGHT 1.0f
+#define DECAL_MAX_STRETCH 4.0f
 int SHADOW_DECAL_VERTEX_SIZE=32768;
 int SHADOW_DECAL_INDEX_SIZE=65536;
 
@@ -940,12 +944,16 @@ void W3DProjectedShadowManager::queueDecal(W3DProjectedShadow *shadow)
 
 			 Not for something on a bridge: that decal is already drawn at the bridge's own height, and
 			 sliding it sideways would drop the shadow in the river. */
+		Bool sunCasts = FALSE;
+		Vector3 toSun(0.0f, 0.0f, 1.0f);
+		Real heightAboveGround = 0.0f;
 		if (layerHeight == 0.0f && TheW3DShadowManager != NULL && TheTerrainLogic != NULL)
 		{
-			const Real heightAboveGround = objPos.Z - TheTerrainLogic->getGroundHeight(objPos.X, objPos.Y);
-			const Vector3 &toSun = TheW3DShadowManager->getLightPosWorld(0);
+			heightAboveGround = objPos.Z - TheTerrainLogic->getGroundHeight(objPos.X, objPos.Y);
+			toSun = TheW3DShadowManager->getLightPosWorld(0);
 			const Real MIN_SUN_HEIGHT = 0.01f;		// a sun on the horizon casts a shadow of infinite length
-			if (heightAboveGround > 0.0f && toSun.Z > MIN_SUN_HEIGHT)
+			sunCasts = toSun.Z > MIN_SUN_HEIGHT;
+			if (heightAboveGround > 0.0f && sunCasts)
 			{
 				const Real alongRay = heightAboveGround / toSun.Z;
 				objPos.X -= toSun.X * alongRay;
@@ -956,6 +964,33 @@ void W3DProjectedShadowManager::queueDecal(W3DProjectedShadow *shadow)
 		objPos.Z=0.0f;	//the decal itself is flat on the terrain
 
 		uVector=objXform.Get_X_Vector();
+
+		/* The decal's long axis goes down the sun ray too, not straight down.  Dropping the axis's
+			 height and normalising what was left laid every shadow down as if its object were level: a
+			 Scud climbing nose up threw a missile lying on its side, and since the level part of an
+			 axis pointing at the sky is nothing but the locomotor's wobble, that lying missile swung
+			 to a new heading every frame.  Projected along the ray, a vertical missile throws the
+			 streak a pole throws, pointing away from the sun and as long as the sun makes it, and the
+			 shadow of the model's middle rather than of its tail is what sits at the decal's centre.
+			 Only for something in the air: a unit on a slope is pitched as well, and its decal is a
+			 footprint on that slope, not a shadow on a level floor. */
+		Real stretch = 1.0f;
+		if (sunCasts && heightAboveGround > DECAL_AIRBORNE_HEIGHT)
+		{
+			const Real axisLength = uVector.Length();
+			const Real down = uVector.Z / toSun.Z;
+			uVector.X -= toSun.X * down;
+			uVector.Y -= toSun.Y * down;
+			objPos.X -= toSun.X * down * shadow->m_decalCenterU;
+			objPos.Y -= toSun.Y * down * shadow->m_decalCenterU;
+			uVector.Z = 0.0f;
+			if (axisLength > 0.0f)
+			{
+				//never narrower than the decal is wide, unless it was that already
+				const Real minStretch = __min(1.0f, fabs(shadow->m_decalSizeY) / shadow->m_decalSizeX);
+				stretch = __max(__min(uVector.Length() / axisLength, DECAL_MAX_STRETCH), minStretch);
+			}
+		}
 
 		uVector.Z=0.0f;
 		vecLength=uVector.Length();
@@ -980,7 +1015,7 @@ void W3DProjectedShadowManager::queueDecal(W3DProjectedShadow *shadow)
 
 		//Compute bounding box of projection
 		Vector3 boxCorners[4];	//top-left, top-right, bottom-right, bottom-left
-		dx = shadow->m_decalSizeX;
+		dx = shadow->m_decalSizeX * stretch;
 		dy = shadow->m_decalSizeY;
 		Vector3 left_x=-dx * (uVector * (0.5f + shadow->m_decalOffsetU));
 		Vector3 right_x = dx * (uVector * (0.5f - shadow->m_decalOffsetU));
@@ -1004,7 +1039,7 @@ void W3DProjectedShadowManager::queueDecal(W3DProjectedShadow *shadow)
 			min_y = __min(min_y,boxCorners[bi].Y);
 		}
 
-		uVector *= shadow->m_oowDecalSizeX;
+		uVector *= shadow->m_oowDecalSizeX / stretch;
 		vVector *= shadow->m_oowDecalSizeY;
 		uOffset = shadow->m_decalOffsetU + 0.5f;
 		vOffset = shadow->m_decalOffsetV + 0.5f;
@@ -2034,6 +2069,7 @@ W3DProjectedShadow* W3DProjectedShadowManager::addShadow(RenderObjClass *robj, S
 
 	shadow->m_decalOffsetU= decalOffsetX;
 	shadow->m_decalOffsetV= decalOffsetY;
+	shadow->m_decalCenterU= box.Center.X;
 
 	shadow->m_flags	= allowSunDirection;
 
@@ -2294,6 +2330,7 @@ W3DProjectedShadow::W3DProjectedShadow(void)
 	m_lastObjPosition.Set(0,0,0);
 	m_type = SHADOW_NONE;		/// type of projection
 	m_allowWorldAlign = FALSE;	/// wrap shadow around world geometry - else align perpendicular to local z-axis.
+	m_decalCenterU = 0.0f;
 	m_isEnabled = TRUE;
 	m_isInvisibleEnabled = FALSE;
 	for (Int i=0; i<MAX_SHADOW_LIGHTS; i++)
