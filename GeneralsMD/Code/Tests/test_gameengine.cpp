@@ -65,6 +65,8 @@
 #include "GameLogic/LogicRandomValue.h"
 #include "GameClient/ClientRandomValue.h"
 #include "Common/ThingTemplate.h"
+#include "Common/ThingFactory.h"
+#include "Common/ModuleFactory.h"
 #include "Common/SimulationMathCrc.h"
 #include "GameLogic/FPUControl.h"
 #include "GameLogic/ExperienceTracker.h"
@@ -649,6 +651,92 @@ TEST(balance_patch_edits_a_weapon_in_place)
 	CHECK( TheWeaponStore->findWeaponTemplate( "BalancePatchProbeGunTypo" ) == NULL );
 
 	remove( TEST_INI );
+}
+
+/* BalanceReforged.ini replaces Tank_ChinaBunker's ModuleTag_05 with a StructureBody.  Under the
+	 Shockwave mod that tag holds another module, and the type check in ThingTemplate::parseModuleName
+	 threw and stopped the game at start.  The block is skipped now: the template keeps the module it
+	 had, and the lines after the block still parse. */
+TEST(replace_module_of_another_type_is_skipped)
+{
+	CHECK( bootOnce() );
+
+	GlobalData *savedGlobals = TheWritableGlobalData;
+	if( savedGlobals == NULL )
+		TheWritableGlobalData = NEW GlobalData;
+	if( TheModuleFactory == NULL )
+	{
+		TheModuleFactory = NEW ModuleFactory;
+		TheModuleFactory->init();
+	}
+	if( TheThingFactory == NULL )
+		TheThingFactory = NEW ThingFactory;
+
+	writeFile( TEST_INI,
+		"Object ReplaceModuleProbe\r\n"
+		"  Body = ActiveBody ModuleTag_01\r\n"
+		"    MaxHealth = 100.0\r\n"
+		"    InitialHealth = 100.0\r\n"
+		"  End\r\n"
+		"  Behavior = DestroyDie ModuleTag_02\r\n"
+		"  End\r\n"
+		"End\r\n" );
+	CHECK( loadIni( TEST_INI ) );
+
+	writeFile( TEST_INI,
+		"Object ReplaceModuleProbe\r\n"
+		"  ReplaceModule ModuleTag_02\r\n"
+		"    Body = StructureBody ModuleTag_02_Override\r\n"
+		"      MaxHealth = 500.0\r\n"
+		"      InitialHealth = 500.0\r\n"
+		"    End\r\n"
+		"  End\r\n"
+		"  ReplaceModule ModuleTag_01\r\n"
+		"    Body = ActiveBody ModuleTag_01_Override\r\n"
+		"      MaxHealth = 250.0\r\n"
+		"      InitialHealth = 250.0\r\n"
+		"    End\r\n"
+		"  End\r\n"
+		"End\r\n" );
+	Bool threw = FALSE;
+	try
+	{
+		INI patch;
+		patch.load( AsciiString( TEST_INI ), INI_LOAD_MULTIFILE, NULL );
+	}
+	catch( ... )
+	{
+		threw = TRUE;
+	}
+	CHECK( threw == FALSE );
+
+	const ThingTemplate *probe = TheThingFactory->findTemplate( "ReplaceModuleProbe" );
+	CHECK( probe != NULL );
+	if( probe != NULL )
+	{
+		const ModuleInfo &modules = probe->getBehaviorModuleInfo();
+		CHECK_EQ( modules.getCount(), 2 );
+		Bool keptDie = FALSE, droppedReplacement = TRUE, replacedBody = FALSE;
+		for( Int i = 0; i < modules.getCount(); ++i )
+		{
+			if( modules.getNthTag( i ) == "ModuleTag_02" && modules.getNthName( i ) == "DestroyDie" )
+				keptDie = TRUE;
+			if( modules.getNthTag( i ) == "ModuleTag_02_Override" )
+				droppedReplacement = FALSE;
+			if( modules.getNthTag( i ) == "ModuleTag_01_Override" && modules.getNthName( i ) == "ActiveBody" )
+				replacedBody = TRUE;
+		}
+		CHECK( keptDie );
+		CHECK( droppedReplacement );
+		CHECK( replacedBody );
+	}
+
+	remove( TEST_INI );
+	if( savedGlobals == NULL )
+	{
+		delete TheWritableGlobalData;
+		TheWritableGlobalData = NULL;
+	}
 }
 
 /* Data\INI\FXListReforged.ini is the fork's own explosion light: 89 of EA's FXLists, each repeated
