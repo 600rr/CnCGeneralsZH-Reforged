@@ -2573,18 +2573,27 @@ void Locomotor::moveTowardsPositionHelicopter(Object* obj, PhysicsBehavior *phys
 	HELICOPTER_VELOCITY_FRAMES, no harder than its Acceleration, or its Braking when that slows the way
 	it is going; and the pull it actually applies moves towards that by at most an
 	HELICOPTER_ACCEL_EASE_FRAMES share of its Acceleration a frame, so a start, a stop or a change
-	of direction builds up and dies away instead of jumping.
+	of direction builds up and dies away instead of jumping. The ask is also never more than the pull
+	can wind down from in the velocity error left, the eased stop of the pull itself: without that a
+	hard stop from full speed (a Comanche whose rocket pods come into range) carried its braking past
+	a standstill and backed 33 the way it came.
 */
 void Locomotor::steerHelicopter(Object* obj, PhysicsBehavior *physics, Real wantX, Real wantY)
 {
 	BodyDamageType bdt = obj->getBodyModule()->getDamageState();
 	Real maxAccel = getMaxAcceleration(bdt);
+	Real jerk = maxAccel / HELICOPTER_ACCEL_EASE_FRAMES;
 	const Coord3D *vel = physics->getVelocity();
 
-	Real ax = (wantX - vel->x) / HELICOPTER_VELOCITY_FRAMES;
-	Real ay = (wantY - vel->y) / HELICOPTER_VELOCITY_FRAMES;
+	Real errX = wantX - vel->x;
+	Real errY = wantY - vel->y;
+	Real ax = errX / HELICOPTER_VELOCITY_FRAMES;
+	Real ay = errY / HELICOPTER_VELOCITY_FRAMES;
 	Real ask = sqrt(ax*ax + ay*ay);
 	Real limit = (ax * vel->x + ay * vel->y < 0.0f) ? getBraking() : maxAccel;
+	Real unwind = sqrt(2.0f * jerk * sqrt(errX*errX + errY*errY));
+	if (limit > unwind)
+		limit = unwind;
 	if (ask > limit)
 	{
 		ax *= limit / ask;
@@ -2594,7 +2603,6 @@ void Locomotor::steerHelicopter(Object* obj, PhysicsBehavior *physics, Real want
 	Real changeX = ax - m_driveAccelX;
 	Real changeY = ay - m_driveAccelY;
 	Real change = sqrt(changeX*changeX + changeY*changeY);
-	Real jerk = maxAccel / HELICOPTER_ACCEL_EASE_FRAMES;
 	if (change > jerk)
 	{
 		changeX *= jerk / change;

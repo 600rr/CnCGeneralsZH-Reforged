@@ -16,6 +16,12 @@
 #   1250 3850, 150 to the side   13-16       10-13
 #   1100 3700, 150 behind        28-31       25-28      the 180 degree turn is the rest
 #
+# On the 800 run each Comanche crosses the edge of range at full speed and brakes from there. It
+# came to rest 57 past the edge and then backed 33 of that up again under its own volley; with the
+# helicopter's pull eased off before a standstill (steerHelicopter) it comes to rest 60 past and
+# moves 0.9 after. helislide and hitrun end every leg where they did, within 0.04; helitypes plays
+# to the same CRC.
+#
 # A Comanche whose pods are reloading (one fired 400 frames earlier) waits out the 30 second clip
 # reload before and after, 617-620 frames, while the three beside it fire on frame 1.
 
