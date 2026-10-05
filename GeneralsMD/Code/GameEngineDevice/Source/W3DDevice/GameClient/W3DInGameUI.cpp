@@ -1654,6 +1654,9 @@ void W3DInGameUI::drawMoveHints( View *view )
 					return;
 				}
 
+				// a fresh render object comes back visible, and the add below only runs for a hidden
+				// one: start it hidden so it reaches the scene
+				hint->Set_Hidden( 1 );
 				m_moveHintRenderObj[ i ] = hint;
 				// 'anim' comes back from Get_HAnim with an AddRef already
 				REF_PTR_RELEASE(m_moveHintAnim[i]);
