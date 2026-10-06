@@ -1291,6 +1291,13 @@ The whole HUD is on the hardware. Four colours carry it, and they mean the same 
 
 ## Bright things can glow
 
+- Explosions open on a white-hot flash. A tank shell, a rocket, a bomb truck or a dying tank now starts with a white core that cools through yellow and orange in a third of a second before EA's fireball takes over, and the core is as big as the blast: about a tank's width for a shell, much wider for a Scud Storm missile, a MOAB or a Daisy Cutter. On the default renderer the core spills into the screen's glow.
+- Big blasts light the ground further and for longer. Every explosion's light is warmer and holds a little longer, and a bomb truck, a Scud, a bunker buster, a carpet bomb or a nuke throws a wide orange glow that fades over one to two seconds. Falling buildings, the Daisy Cutter, the MOAB, nukes, exploding cars and suicide bombers used to light nothing at all.
+- The heaviest blasts leave bigger craters and send a faint ring of heat haze out across the ground, if Heat Effects is on.
+- A Scud Storm or a carpet bomb shakes the screen as hard as it should. The game cut a pile of heavy shakes back to a mild one, so a run of missiles or bombs landing together shook less than one of them alone. Each now shakes a step lighter and the run builds up. Demo traps and Aurora bombs shake now, and a falling building shakes harder the bigger it was.
+- A building that falls throws up a cloud of dust that rolls out from its footprint and hangs for five or six seconds over a scorched patch of ground. A damaged building's fires burn bigger, and its smoke runs darker and longer, the closer it gets to falling.
+- Only the picture changed: damage, timing and what dies are what they were, and a recorded match plays back to the same checksum. In a test fight with a nuke and a Scud Storm the game carried 1631 effect particles where it carried 1610.
+
 - Water reflects what stands over it. The pools on Golden Oasis hold their palms upside down and the
   stone bridge's arches under the bridge, and the lakes on Fortress Avalanche carry the pines on
   their banks. Helicopters hovering by the river show dark and upside down in the water under them;

@@ -749,7 +749,9 @@ TEST(replace_module_of_another_type_is_skipped)
 	 every player who does not have that exact copy.  Since then the file also carries fixes that
 	 are not lights: the Artillery Barrage's sound, with EA's own light, and the Superweapon uplink's
 	 pink death, which has none and is the one block the count leaves out.  The Paladin's and the
-	 Avenger's hard-kill charge added two of the fork's own, its launch and its blast, lit too. */
+	 Avenger's hard-kill charge added two of the fork's own, its launch and its blast, lit too.
+	 The explosion pass added 22 more of EA's, from the structure deaths to the nukes, each with
+	 the light it lacked. */
 static const char *const s_unlitReforgedFXList = "FXList SupW_FX_ParticleUplinkDeathInitial";
 
 TEST(fxlist_reforged_ini_parses_and_keeps_its_light)
@@ -798,7 +800,7 @@ TEST(fxlist_reforged_ini_parses_and_keeps_its_light)
 	}
 	fclose( fp );
 
-	CHECK_EQ( blocks, 90 );
+	CHECK_EQ( blocks, 112 );
 	CHECK_EQ( lit, blocks );
 }
 
