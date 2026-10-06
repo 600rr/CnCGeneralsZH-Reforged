@@ -1015,11 +1015,9 @@ void W3DInGameUI::drawAttackCircle( void )
 }  // end drawAttackCircle
 
 //-------------------------------------------------------------------------------------------------
-/** The thread is coloured by what it is for: anything that ends in a shot is red, an attack move
-	* is pink, a post to be held is blue, a building to be taken is gold, everything else is green.
-	* The marker on the end of it is the plain pointer in the same colour - one shape for every
-	* order, so the colour is the whole message.  A dot and a ring were tried in its place and
-	* players wanted the pointer back. */
+/** An order's colour: anything that ends in a shot is red, an attack move is pink, a post to be
+	* held is blue, a building to be taken is gold, everything else is green.  The line itself is
+	* EA's rally line now; the colour is left on the guard circle and the step numbers. */
 //-------------------------------------------------------------------------------------------------
 static UnsignedInt orderHintLineColor( InGameUI::OrderHintKind kind )
 {
@@ -1265,10 +1263,8 @@ void W3DInGameUI::drawOrderStep( const OrderHint& hint, const ICoord2D& tip, Uns
 }
 
 //-------------------------------------------------------------------------------------------------
-/** One faint line per bunch of selected units going the same way, from where they stand to where
-	* they are going, with the order's own cursor sitting on the destination.  Green for a move, pink
-	* for an attack-move, red for an attack.  The goals are read off the units every frame, so the
-	* lines last as long as the orders do and go when the units arrive or the selection changes. */
+/** The screen-space part of the order hints: a guard's circle and the numbers of a shift list.  The
+	* goals are read off the units every frame, so both last as long as the orders do. */
 //-------------------------------------------------------------------------------------------------
 void W3DInGameUI::drawOrderHints( void )
 {
@@ -1278,18 +1274,10 @@ void W3DInGameUI::drawOrderHints( void )
 
 	const Real width = 1.0f;
 
-	// how far right of the spot an upgrade or an ability stands: past the pointer and the number of
-	// the step that ends there, both of which grow with the screen
+	// how far right of the spot an upgrade or an ability stands: past the number of the step that
+	// ends there, which grows with the screen
 	const Real IN_PLACE_MARKER_OFFSET = 44.0f;
 	const Int inPlaceOffset = REAL_TO_INT( IN_PLACE_MARKER_OFFSET * orderStepScale() );
-
-	// A new marker slides up out of the bottom right and fades in over this long, so an order that
-	// has just been given announces itself instead of appearing fully formed.  Wall clock rather
-	// than frames: the picture is uncapped, so a frame count would run at the frame rate.
-	const UnsignedInt MARKER_SLIDE_MS = 130;
-	const Real MARKER_SLIDE_PIXELS = 13.0f;
-
-	const UnsignedInt nowMs = Clock_Milliseconds();
 
 	// a group on one guard order is one circle, not one per unit stacked into an opaque band
 	std::vector<const OrderHint *> ringsDrawn;
@@ -1310,63 +1298,22 @@ void W3DInGameUI::drawOrderHints( void )
 			}
 		}
 
-		const UnsignedInt ageMs = nowMs - it->bornMs;
-		Real arrival = 1.0f;
-		if( ageMs < MARKER_SLIDE_MS )
-			arrival = (Real)ageMs / (Real)MARKER_SLIDE_MS;
-
-		// eased out, so it comes in fast and settles rather than sliding at one speed and stopping
-		const Real remaining = 1.0f - arrival;
-		const Real eased = 1.0f - remaining * remaining * remaining;
-
-		// a unit off the edge of the screen still has a destination worth seeing, and the line to it
-		// says which way it went.  WTS_OUTSIDE_FRUSTUM still gives usable pixels, so only points
-		// behind the camera are dropped
-		ICoord2D from, to;
-		if( TheTacticalView->worldToScreenTriReturn( &it->from, &from ) == View::WTS_INVALID )
-			continue;
+		// The line, the joint and the flag are EA's rally point art in the 3D scene
+		// (W3DWaypointBuffer::drawWaypoints and InGameUI::updateOrderFlags).  What is left here is
+		// the step number and the art of a step whose kind the line cannot tell apart from a move.
+		// WTS_OUTSIDE_FRUSTUM still gives usable pixels, so only points behind the camera are dropped
+		ICoord2D to;
 		if( TheTacticalView->worldToScreenTriReturn( &it->to, &to ) == View::WTS_INVALID )
 			continue;
 
-		// an upgrade or an ability is used on the spot the step before it ends on, whose marker is
-		// already there, so this one stands beside it rather than on top of it and draws no thread
-		const Bool inPlace = it->kind == ORDER_HINT_UPGRADE || it->kind == ORDER_HINT_ABILITY;
-		if( inPlace )
+		// an upgrade or an ability is used on the spot the step before it ends on, whose number is
+		// already there, so this one stands beside it rather than on top of it
+		if( it->kind == ORDER_HINT_UPGRADE || it->kind == ORDER_HINT_ABILITY )
 			to.x += inPlaceOffset;
 
-		// Order Lines off in the options takes the lines away and leaves the markers: where a unit is
-		// going is still worth a glance when the thread across the map is not
-		if( TheGlobalData->m_showOrderLines && !TheGlobalData->isClassicUI() && !inPlace )
-			TheDisplay->drawLine( from.x, from.y, to.x, to.y, width, lineColor );
-
-		// the marker is the plain pointer, tinted: its white body takes the order colour and the
-		// dark outline stays.  The hot spot is the pixel the player aims with, so that is the pixel
-		// that goes on the destination - a pointer hung by its top left corner points at the wrong
-		// ground
-		ICoord2D hotSpot;
-		const Image *image = orderCursorImage( Mouse::ARROW, &hotSpot );
-		if( image )
-		{
-			const Int w = image->getImageWidth();
-			const Int h = image->getImageHeight();
-			const Int slide = REAL_TO_INT_FLOOR( ( 1.0f - eased ) * MARKER_SLIDE_PIXELS );
-			const Int x = to.x - hotSpot.x + slide;
-			const Int y = to.y - hotSpot.y + slide;
-
-			// the tint carries the fade as well as the order's colour
-			const UnsignedInt markerColor = ( orderHintMarkerColor( it->kind ) & 0x00FFFFFF )
-																			| ( (UnsignedInt)REAL_TO_INT( 255.0f * eased ) << 24 );
-			TheDisplay->drawImage( image, x, y, x + w, y + h, markerColor );
-
-			// a capture carries its cursor even alone: a lone one is the case that looked like a walk
-			if( it->step > 0 || it->icon || it->kind == ORDER_HINT_CAPTURE )
-			{
-				ICoord2D tip;
-				tip.x = to.x + slide;
-				tip.y = to.y + slide;
-				drawOrderStep( *it, tip, markerColor );
-			}
-		}
+		// a capture carries its cursor even alone: a lone one is the case that looked like a walk
+		if( it->step > 0 || it->icon || it->kind == ORDER_HINT_CAPTURE )
+			drawOrderStep( *it, to, orderHintMarkerColor( it->kind ) );
 	}
 
 }  // end drawOrderHints
