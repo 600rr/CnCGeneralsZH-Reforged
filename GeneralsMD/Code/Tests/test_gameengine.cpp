@@ -7329,6 +7329,15 @@ TEST(a_toxin_or_fire_death_puppet_wears_no_health_bar)
 	CHECK( Drawable_kindShowsHealthBar( healthBarKinds( KINDOF_PROJECTILE, KINDOF_SELECTABLE ) ) == FALSE );
 }
 
+/** The Spy Drone is VEHICLE DRONE SELECTABLE INERT NO_SELECT. INERT kept the toxin fields bare and
+	 took the drone's bar with them, so its owner never saw its health. A field stays bare. */
+TEST(the_spy_drone_wears_a_health_bar_and_a_toxin_field_does_not)
+{
+	CHECK( Drawable_kindShowsHealthBar( healthBarKinds( KINDOF_SELECTABLE, KINDOF_INERT, KINDOF_NO_SELECT ) ) == TRUE );
+	CHECK( Drawable_kindShowsHealthBar( healthBarKinds( KINDOF_INERT ) ) == FALSE );
+	CHECK( Drawable_kindShowsHealthBar( healthBarKinds( KINDOF_INERT, KINDOF_SELECTABLE ) ) == FALSE );
+}
+
 /** Being carried is not a malfunction, so a unit inside a transport keeps its owner's colour.
 	 Anything else that disables it turns the bar blue - and the pair together used to fail: the old
 	 test asked `isDisabled() && !isDisabledByType(DISABLED_HELD)`, so a held unit that was then EMP'd

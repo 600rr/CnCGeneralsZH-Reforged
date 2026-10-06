@@ -437,13 +437,20 @@ Bool Drawable_structureShowsHealthBar( Bool isBridge, Bool isUnowned, Bool isGar
 	* over. The ones that matter are the death puppets: a soldier killed by toxin or fire is removed
 	* and a ToxicInfantry or FlamingInfantry takes his place, a live 50 hit point INFANTRY that melts
 	* or runs burning for three seconds, and always-on bars put a full one over every one of them.
-	* Buildings keep their own rule below. */
+	* Buildings keep their own rule below.
+	*
+	* INERT is what the toxin and radiation fields carry, and the Spy Drone too: EA tags it INERT so
+	* nothing targets it and NO_SELECT so it cannot be selected, and NO_SELECT is commented in
+	* KindOf.h as "you can mouse over it to see its health (drones!)". So a NO_SELECT object keeps
+	* its bar whatever else it is; without that the owner never saw his drone's health at all. */
 //-------------------------------------------------------------------------------------------------
 Bool Drawable_kindShowsHealthBar( const KindOfMaskType& kinds )
 {
+	if( TEST_KINDOFMASK( kinds, KINDOF_INERT ) && !TEST_KINDOFMASK( kinds, KINDOF_NO_SELECT ) )
+		return FALSE;
+
 	if( TEST_KINDOFMASK( kinds, KINDOF_PROJECTILE ) ||
 			TEST_KINDOFMASK( kinds, KINDOF_BOOBY_TRAP ) ||
-			TEST_KINDOFMASK( kinds, KINDOF_INERT ) ||
 			TEST_KINDOFMASK( kinds, KINDOF_CLEANUP_HAZARD ) ||
 			TEST_KINDOFMASK( kinds, KINDOF_UNATTACKABLE ) ||
 			TEST_KINDOFMASK( kinds, KINDOF_PARACHUTE ) ||
