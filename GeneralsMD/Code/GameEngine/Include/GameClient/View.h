@@ -191,7 +191,8 @@ public:
 	virtual void anchorZoomAt( const ICoord2D *pixel ) { }											///< ZoomToCursor: hold the ground under this pixel there while the zoom settles
 	virtual void setZoomToDefault( void ) { }														///< Set zoom to default value
 	virtual void setZoomToMax( void ) { }																///< Set zoom as far out as the player may zoom by hand
-	void setZoomToStart( Bool shellMap );																	///< the zoom a match opens at: max under StartAtMaxZoom, else default
+	virtual void setZoomToHeight( Real heightAboveGround ) { }								///< Frame the camera at this height above the terrain
+	void setZoomToStart( Bool shellMap );																	///< the zoom a match opens at: max under StartAtMaxZoom, else START_CAMERA_HEIGHT
 	virtual void setOkToAdjustHeight( Bool val ) { m_okToAdjustHeight = val; }	///< Set this to adjust camera height
 
 	// for debugging

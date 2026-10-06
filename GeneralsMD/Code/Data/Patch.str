@@ -870,7 +870,7 @@ GUI:StartAtMaxZoom
 END
 
 TOOLTIP:StartAtMaxZoom
-"A match opens with the camera as far out as the wheel goes. Off, it opens at the height the map was framed for."
+"A match opens with the camera as far out as the wheel goes. Off, it opens close in, at the height the original game used."
 END
 
 GUI:DragTolerance
@@ -935,6 +935,14 @@ END
 
 TOOLTIP:SnapBuild45
 "Drag-to-rotate clicks to the eight 45 degree headings, which is what walls and defenses along a base edge want."
+END
+
+GUI:SnapBuildNeighbour
+"Snap to Nearby Buildings"
+END
+
+TOOLTIP:SnapBuildNeighbour
+"A structure put down a cell or so short of another one is pulled flush against its edge, so the two leave no gap."
 END
 
 GUI:RangeRing

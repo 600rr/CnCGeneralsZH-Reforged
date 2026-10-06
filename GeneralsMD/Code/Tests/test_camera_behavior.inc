@@ -61,6 +61,10 @@ public:
 	void lookAt(const Coord3D *pos) { ++lookAtCalls; setPosition(pos); }
 	void anchorZoomAt(const ICoord2D *pixel) { zoomAnchor = *pixel; ++zoomAnchors; }
 	void forceCameraConstraintRecalc() { ++constraintRecalcs; }
+	// what the opening zoom asked for: -1 the map's default, -2 as far out as the wheel goes
+	void setZoomToHeight(Real height) { setHeightAboveGround(height); }
+	void setZoomToDefault() { setHeightAboveGround(-1.0f); }
+	void setZoomToMax() { setHeightAboveGround(-2.0f); }
 	void scrollBy(Coord2D *delta) { last = *delta; ++samples; }
 	Drawable *pickDrawable(const ICoord2D*, Bool, PickType) { return NULL; }
 	Int iterateDrawablesInRegion(IRegion2D*, Bool (*)(Drawable*, void*), void*) { return 0; }
@@ -322,6 +326,27 @@ TEST(arrow_keys_scroll_the_camera_and_w_a_s_d_stay_grid_keys)
 	CHECK(f.ui->scrolling);
 	press(KEY_RIGHT, FALSE);
 	CHECK(!f.ui->scrolling);
+}
+
+TEST(a_match_opens_300_over_the_ground_in_both_interfaces)
+{
+	CHECK(bootOnce());
+	CameraInputFixture f;
+	CHECK(!f.global->m_startAtMaxZoom);
+	for (Int style = 0; style < 2; ++style)
+	{
+		f.global->m_interfaceStyle = style ? INTERFACE_STYLE_CLASSIC : INTERFACE_STYLE_REFORGED;
+		f.global->m_startAtMaxZoom = FALSE;
+		f.view.setZoomToStart(FALSE);
+		CHECK_NEAR(f.view.getHeightAboveGround(), 300.0f, 0.001f);
+		// the shell map behind the menus keeps its own framing
+		f.view.setZoomToStart(TRUE);
+		CHECK_NEAR(f.view.getHeightAboveGround(), -1.0f, 0.001f);
+		// the box ticked opens it as far out as the wheel goes, Classic too
+		f.global->m_startAtMaxZoom = TRUE;
+		f.view.setZoomToStart(FALSE);
+		CHECK_NEAR(f.view.getHeightAboveGround(), -2.0f, 0.001f);
+	}
 }
 
 TEST(scroll_speed_follows_the_zoom_in_both_interfaces)

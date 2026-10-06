@@ -170,6 +170,7 @@ NEW_CONTROLS = [
     (CHECK,  "CheckSnapCamera45",      "GUI:SnapCamera45"),
     (CHECK,  "CheckGridBuild",         "GUI:GridBuild"),
     (CHECK,  "CheckSnapBuild45",       "GUI:SnapBuild45"),
+    (CHECK,  "CheckSnapBuildNeighbour", "GUI:SnapBuildNeighbour"),
     (LABEL,  "LabelDragTolerance",     "GUI:DragTolerance"),
     (SLIDER, "SliderDragTolerance",    None),
     (CHECK,  "CheckTreeSway",          "GUI:TreeSway"),
@@ -310,7 +311,8 @@ GROUP_LAYOUT = [
             ("check", "CheckDoubleClickAttackMove")]),
         ("GUI:OptionsGroupPlacement", [
             ("check", "CheckGridBuild"),
-            ("check", "CheckSnapBuild45")]),
+            ("check", "CheckSnapBuild45"),
+            ("check", "CheckSnapBuildNeighbour")]),
         ("GUI:OptionsGroupInput", [
             setting("LabelDragTolerance", "SliderDragTolerance", "ValueDragTolerance"),
             ("check", "CheckChromaLighting")])]),
@@ -342,14 +344,14 @@ GROUP_LAYOUT = [
 
 # Settings the Classic interface overrules whatever Options.ini says, each behind an isClassicUI()
 # gate where the value is read: smooth motion (W3DDisplay.cpp), zoom to cursor (LookAtXlat.cpp), the
-# opening zoom (View.cpp), 45 degree camera snaps (LookAtXlat.cpp, InGameUI.cpp), grid placement and
-# 45 degree building snaps (InGameUI.cpp, W3DInGameUI.cpp), the HUD scale (ControlBar.cpp), the corner
-# net box (InGameUI.cpp, no HTML pages in Classic), the income beside the money (InGameUI.cpp), health bar mode and empty garrison pips
-# (Drawable.cpp) and order lines (W3DInGameUI.cpp).  Every one is a catalog row, whose menu passes
-# skip a control the layout does not carry, so the Classic layout leaves them out and keeps the value.
+# HUD scale (ControlBar.cpp), the corner net box (InGameUI.cpp, no HTML pages in Classic), the income
+# beside the money (InGameUI.cpp), health bar mode and empty garrison pips (Drawable.cpp) and order
+# lines (W3DInGameUI.cpp).  Every one is a catalog row, whose menu passes skip a control the layout
+# does not carry, so the Classic layout leaves them out and keeps the value.  The opening zoom, the
+# camera's 45 degree steps and the three placement snaps are not here: they start off, which is how
+# 1.04 played, and Classic honours them once ticked.
 REFORGED_ONLY = [
-    "CheckSmoothMotion", "CheckZoomToCursor", "CheckStartAtMaxZoom", "CheckSnapCamera45",
-    "CheckGridBuild", "CheckSnapBuild45", "ComboBoxHudScale", "CheckNetBox", "ComboBoxIncomeRate",
+    "CheckSmoothMotion", "CheckZoomToCursor", "ComboBoxHudScale", "CheckNetBox", "ComboBoxIncomeRate",
     "CheckOrderLines",
 ]
 

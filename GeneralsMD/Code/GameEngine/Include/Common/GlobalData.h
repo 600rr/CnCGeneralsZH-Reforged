@@ -195,7 +195,7 @@ public:
 	Bool m_useShadowVolumesForSkins;	// "UseShadowVolumesForSkins": also cast volume shadows off skinned meshes
 	Bool m_useShadowDecals;
 	Bool m_shadowsForProjectiles;	// "ShadowsForProjectiles": missiles and bombs that have no shadow of their own get a decal one
-	Bool m_startAtMaxZoom;					// "StartAtMaxZoom": a game opens as far out as the wheel goes, not at the map's own default
+	Bool m_startAtMaxZoom;					// "OpenAtMaxZoom" in Options.ini: a game opens as far out as the wheel goes, not 300 over the ground
 	Bool m_shadowsForProps;				// "ShadowsForProps": fences, rubbish, shrubs - scenery the art gave no shadow at all
 	Bool m_shadowsForParticles;		// "ShadowsForParticles": big alpha-blended particle clouds drop a soft blob on the ground
 	Bool m_volumetricSmokeShadows;	// "VolumetricSmokeShadows": smoke and dust shade the world and themselves through the sun's map (Direct3D 11)
@@ -421,6 +421,7 @@ public:
 	Bool m_snapBuildPlacementTo45;		///< quantize the drag-to-rotate build placement angle to 45 degrees
 	Bool m_snapCameraRotateTo45;		///< quantize the camera heading to 45 degrees when a middle-drag rotate ends
 	Bool m_gridBuildPlacement;			///< quantize structure placement to the pathfinder's build grid
+	Bool m_snapBuildToNeighbour;		///< pull a structure flush against the edge of one already standing beside it
 	Bool m_nudgeBuildPlacement;			///< slide a blocked structure to the nearest spot it does fit
 	Int m_moneyPerMinute;				///< income every player gets once a minute regardless of supply lines; 0 = off
 	Real m_buildPlacementOpacity;		///< how solid the structure riding the cursor is drawn, 0..1

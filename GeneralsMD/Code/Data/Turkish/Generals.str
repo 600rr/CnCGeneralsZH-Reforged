@@ -15358,7 +15358,7 @@ GUI:StartAtMaxZoom
 END
 
 TOOLTIP:StartAtMaxZoom
-"Maç, kamera tekerleğin gittiği en uzak noktadayken açılır. Kapalıyken haritanın kendisi için ayarlanan yükseklikte açılır."
+"Maç, kamera tekerleğin gittiği en uzak noktadayken açılır. Kapalıyken yakından, oyunun orijinalinde kullanılan yükseklikte açılır."
 END
 
 GUI:DragTolerance
@@ -15423,6 +15423,14 @@ END
 
 TOOLTIP:SnapBuild45
 "Sürükleyerek döndürme sekiz 45 derecelik yönden birine oturur; üssün kenarı boyunca dizilen duvarlar ve savunmalar için gereken de budur."
+END
+
+GUI:SnapBuildNeighbour
+"Yakındaki Binalara Yapıştır"
+END
+
+TOOLTIP:SnapBuildNeighbour
+"Başka bir yapının bir hücre kadar gerisine konan yapı onun kenarına çekilir, iki bina arasında boşluk kalmaz."
 END
 
 GUI:RangeRing

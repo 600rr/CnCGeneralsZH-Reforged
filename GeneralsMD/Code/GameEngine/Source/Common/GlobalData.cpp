@@ -689,7 +689,7 @@ GlobalData::GlobalData()
 	m_useShadowVolumesForSkins = TRUE;	//on by default: the shipped INI has no entry for it
 	m_useShadowDecals = FALSE;
 	m_shadowsForProjectiles = TRUE;	//on by default: the shipped INI has no entry for it
-	m_startAtMaxZoom = TRUE;		//open a game framed as wide as the player could zoom by hand
+	m_startAtMaxZoom = FALSE;		//off, a match opens at START_CAMERA_HEIGHT (View.cpp); on, as far out as the wheel goes
 	m_shadowsForProps = TRUE;				//likewise: scenery with no shadow of its own gets one
 	m_shadowsForParticles = TRUE;	//on by default: the shipped INI has no entry for it
 	m_volumetricSmokeShadows = TRUE;
@@ -1141,10 +1141,13 @@ GlobalData::GlobalData()
 	// controls that used to set them, and what is written here is what every game gets. GameData.ini
 	// remains the way to change one, because the field table above still names it.
 	//
+	// The snaps are the exception: the camera's and a building's 45 degree steps, grid placement and
+	// the snap to a neighbour's edge start off, ticked on Options > Controls by whoever wants them.
+	//
 	m_useCameraConstraints = TRUE;
 	m_cameraBoundaryMargin = 200;
 	m_edgeScrollInWindowedMode = TRUE;
-	m_snapCameraRotateTo45 = TRUE;
+	m_snapCameraRotateTo45 = FALSE;
 	m_zoomToCursor = TRUE;
 	m_isometricCamera = FALSE;
 	// R1, smooth motion: the picture only, one logic tick behind, and never the game (W3DSmoothMotion.h).
@@ -1164,8 +1167,9 @@ GlobalData::GlobalData()
 	m_textureFilterMode = 2;	// anisotropic; retail shipped bilinear on a 2003 fill-rate budget
 	m_anisotropyLevel = 0;		// whatever the card offers, capped at 16 in _Init_Filters
 
-	m_snapBuildPlacementTo45 = TRUE;
-	m_gridBuildPlacement = TRUE;
+	m_snapBuildPlacementTo45 = FALSE;
+	m_gridBuildPlacement = FALSE;
+	m_snapBuildToNeighbour = FALSE;
 	m_nudgeBuildPlacement = TRUE;
 	m_moneyPerMinute = 0;
 	m_buildPlacementOpacity = PLACEMENT_SILHOUETTE_OPACITY;

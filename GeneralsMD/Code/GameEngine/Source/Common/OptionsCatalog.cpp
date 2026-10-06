@@ -60,6 +60,7 @@ OPTION_BOOL_ACCESSORS( m_edgeScrollInWindowedMode )
 OPTION_BOOL_ACCESSORS( m_snapCameraRotateTo45 )
 OPTION_BOOL_ACCESSORS( m_gridBuildPlacement )
 OPTION_BOOL_ACCESSORS( m_snapBuildPlacementTo45 )
+OPTION_BOOL_ACCESSORS( m_snapBuildToNeighbour )
 OPTION_BOOL_ACCESSORS( m_zoomToCursor )
 OPTION_BOOL_ACCESSORS( m_isometricCamera )
 OPTION_BOOL_ACCESSORS( m_smoothMotion )
@@ -236,20 +237,29 @@ const OptionDef TheOptionCatalog[] =
 		OPTION_BOOL, APPLY_LIVE, 0, 1,
 		get_m_edgeScrollInWindowedMode, set_m_edgeScrollInWindowedMode },
 
-	// Back on Options > Controls, with the two building placement rows below it.
-	{ "SnapCameraRotateTo45",			OPT_WND( "CheckSnapCamera45" ), "GUI:SnapCamera45",
+	// On Options > Controls in both interfaces, with the three building placement rows below it, and
+	// all four off until ticked.  Their keys are new: the old ones (SnapCameraRotateTo45,
+	// GridBuildPlacement, SnapBuildPlacementTo45) sit in every Options.ini saved while they defaulted
+	// on, as a "yes" nobody chose, and would have kept the snaps on.  GameData.ini keeps the old names.
+	{ "CameraSnapTo45",						OPT_WND( "CheckSnapCamera45" ), "GUI:SnapCamera45",
 		OPTION_BOOL, APPLY_LIVE, 0, 1,
 		get_m_snapCameraRotateTo45, set_m_snapCameraRotateTo45 },
 
 	// Off, a structure goes wherever the cursor is and the white grid lines under the ghost go
 	// with it; the red wash over cells nothing can stand on stays (W3DInGameUI::drawBuildGrid).
-	{ "GridBuildPlacement",				OPT_WND( "CheckGridBuild" ), "GUI:GridBuild",
+	{ "BuildGrid",								OPT_WND( "CheckGridBuild" ), "GUI:GridBuild",
 		OPTION_BOOL, APPLY_LIVE, 0, 1,
 		get_m_gridBuildPlacement, set_m_gridBuildPlacement },
 
-	{ "SnapBuildPlacementTo45",		OPT_WND( "CheckSnapBuild45" ), "GUI:SnapBuild45",
+	{ "BuildSnapTo45",						OPT_WND( "CheckSnapBuild45" ), "GUI:SnapBuild45",
 		OPTION_BOOL, APPLY_LIVE, 0, 1,
 		get_m_snapBuildPlacementTo45, set_m_snapBuildPlacementTo45 },
+
+	// InGameUI::snapPlacementToNeighbour: a structure dropped within a few cells of another lands
+	// flush against its edge.
+	{ "BuildSnapToNeighbour",			OPT_WND( "CheckSnapBuildNeighbour" ), "GUI:SnapBuildNeighbour",
+		OPTION_BOOL, APPLY_LIVE, 0, 1,
+		get_m_snapBuildToNeighbour, set_m_snapBuildToNeighbour },
 
 	// MiddleMousePans used to sit here.  There is nothing left to choose: a right drag pans and a
 	// middle drag turns the camera.
@@ -271,9 +281,10 @@ const OptionDef TheOptionCatalog[] =
 	{ "SmoothMotion",							OPT_WND( "CheckSmoothMotion" ), "GUI:SmoothMotion",
 		OPTION_BOOL, APPLY_LIVE, 0, 1,
 		get_m_smoothMotion, set_m_smoothMotion },
-	// A match opens as far out as the wheel goes, or at the height the map's author framed it for.
-	// Read when the map loads, so it counts from the next match.  On Options > Controls.
-	{ "StartAtMaxZoom",						OPT_WND( "CheckStartAtMaxZoom" ), "GUI:StartAtMaxZoom",
+	// A match opens as far out as the wheel goes, or 300 over the ground (View::setZoomToStart).
+	// Read when the map loads, so it counts from the next match.  On Options > Controls in both
+	// interfaces.  A new key for the snaps' reason above: StartAtMaxZoom is a "yes" in old files.
+	{ "OpenAtMaxZoom",						OPT_WND( "CheckStartAtMaxZoom" ), "GUI:StartAtMaxZoom",
 		OPTION_BOOL, APPLY_LIVE, 0, 1,
 		get_m_startAtMaxZoom, set_m_startAtMaxZoom },
 

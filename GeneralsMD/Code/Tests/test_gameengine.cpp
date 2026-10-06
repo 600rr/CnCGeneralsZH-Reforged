@@ -12680,9 +12680,7 @@ TEST(gameplay_conveniences_are_forced_on_and_left_the_catalog)
 	GlobalData *scratch = NEW GlobalData;
 	TheWritableGlobalData = scratch;
 
-	CHECK( scratch->m_gridBuildPlacement );
 	CHECK( scratch->m_nudgeBuildPlacement );
-	CHECK( scratch->m_snapBuildPlacementTo45 );
 	CHECK( scratch->m_showPlacementRangeRing );
 	CHECK( scratch->m_workersReturnToSupply );
 	CHECK( scratch->m_detailedBuildTooltips );
@@ -12713,11 +12711,11 @@ TEST(gameplay_conveniences_are_forced_on_and_left_the_catalog)
 		CHECK( def->widgetName == NULL || def->widgetName[ 0 ] == '\0' );
 	}
 
-	/* The two snaps and grid placement are Controls check boxes, on by default. */
-	CHECK( scratch->m_snapCameraRotateTo45 );
+	/* The snaps, grid placement and the opening zoom are Controls check boxes, off by default, under
+		 keys of their own: the old ones are a "yes" in every Options.ini saved while they defaulted on. */
 	static const char *const menu[] =
 	{
-		"SnapCameraRotateTo45", "GridBuildPlacement", "SnapBuildPlacementTo45", NULL
+		"CameraSnapTo45", "BuildGrid", "BuildSnapTo45", "BuildSnapToNeighbour", "OpenAtMaxZoom", NULL
 	};
 	for( Int i = 0; menu[ i ] != NULL; ++i )
 	{
@@ -12727,7 +12725,14 @@ TEST(gameplay_conveniences_are_forced_on_and_left_the_catalog)
 			continue;
 		CHECK( def->kind == OPTION_BOOL );
 		CHECK( def->widgetName != NULL && def->widgetName[ 0 ] != '\0' );
+		CHECK_EQ( def->get(), 0 );
 	}
+	static const char *const retired[] =
+	{
+		"SnapCameraRotateTo45", "GridBuildPlacement", "SnapBuildPlacementTo45", "StartAtMaxZoom", NULL
+	};
+	for( Int i = 0; retired[ i ] != NULL; ++i )
+		CHECK( findOptionDef( retired[ i ] ) == NULL );
 
 	delete scratch;					// while it is the current one: a Debug build's ~GlobalData reads TheWritableGlobalData
 	TheWritableGlobalData = saved;
@@ -13053,7 +13058,7 @@ TEST(texture_filter_defaults_to_anisotropic)
 	 check and the far one is how much of the map a player sees. */
 TEST(start_zoom_and_drag_threshold_are_rows_that_change_nothing_until_asked)
 {
-	const OptionDef *start = findOptionDef( "StartAtMaxZoom" );
+	const OptionDef *start = findOptionDef( "OpenAtMaxZoom" );
 	const OptionDef *drag = findOptionDef( "DragTolerance" );
 	CHECK( start != NULL && drag != NULL );
 	if( start == NULL || drag == NULL )
@@ -13068,13 +13073,13 @@ TEST(start_zoom_and_drag_threshold_are_rows_that_change_nothing_until_asked)
 	GlobalData *scratch = NEW GlobalData;
 	TheWritableGlobalData = scratch;
 
-	// an Options.ini with neither key plays the way the last version did
-	CHECK_EQ( start->get(), 1 );
+	// an Options.ini with neither key opens close in and drags at Mouse.ini's tolerance
+	CHECK_EQ( start->get(), 0 );
 	CHECK_EQ( drag->get(), 25 );	// DragTolerance in INIZH.big's Mouse.ini
 	CHECK( drag->lo > 0 && drag->lo <= 25 && drag->hi >= 25 );
 
-	start->set( 0 );
-	CHECK_EQ( (Int)scratch->m_startAtMaxZoom, 0 );
+	start->set( 1 );
+	CHECK_EQ( (Int)scratch->m_startAtMaxZoom, 1 );
 	drag->set( 8 );
 	CHECK_EQ( scratch->m_dragTolerance, 8 );
 

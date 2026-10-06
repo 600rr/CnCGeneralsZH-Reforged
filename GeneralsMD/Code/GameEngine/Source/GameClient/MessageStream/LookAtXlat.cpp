@@ -442,7 +442,7 @@ GameMessageDisposition LookAtTranslator::translateGameMessage(const GameMessage 
 
 				Real angle = FACTOR * (m_currentPos.x - m_anchor.x);
 
-				if (TheGlobalData->m_snapCameraRotateTo45 && !TheGlobalData->isClassicUI())
+				if (TheGlobalData->m_snapCameraRotateTo45)
 				{
 					// discrete heading: the drag turns an angle we keep to ourselves and the camera
 					// jumps to the eighth it is nearest, as the mouse crosses each halfway point.

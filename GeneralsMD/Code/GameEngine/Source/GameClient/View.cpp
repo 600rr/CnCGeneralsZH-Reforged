@@ -171,17 +171,22 @@ View *View::prependViewToList( View *list )
 #define ZOOM_STEP_HEIGHT (TheGlobalData->isClassicUI() ? 10.0f : 60.0f)
 
 //-------------------------------------------------------------------------------------------------
-/** The zoom a match opens at.  StartAtMaxZoom opens it as far out as the wheel itself may go rather
-	* than at the map's own default height; Classic and the shell map behind the menus keep the map's
-	* framing.  Here rather than in GameLogic, which calls it, because both answers are client
-	* settings. */
+/** The zoom a match opens at: START_CAMERA_HEIGHT over the ground in either interface, a little
+	* inside GameData.ini's MaxCameraHeight of 310, the map default a Classic match opened at before.
+	* StartAtMaxZoom opens it as far out as the wheel itself may go instead.  The shell map behind the
+	* menus keeps the map's framing.  Here rather than in GameLogic, which calls it, because both
+	* answers are client settings. */
 //-------------------------------------------------------------------------------------------------
+#define START_CAMERA_HEIGHT (300.0f)
 void View::setZoomToStart( Bool shellMap )
 {
-	if( TheGlobalData->m_startAtMaxZoom && !TheGlobalData->isClassicUI() && !shellMap )
+	if( shellMap )
+		setZoomToDefault();
+	else if( TheGlobalData->m_startAtMaxZoom )
 		setZoomToMax();
 	else
-		setZoomToDefault();
+		setZoomToHeight( START_CAMERA_HEIGHT );
+	DEBUG_LOG(( "CAMERA START height %.1f\n", getHeightAboveGround() ));
 }
 
 void View::zoomIn( Real steps )

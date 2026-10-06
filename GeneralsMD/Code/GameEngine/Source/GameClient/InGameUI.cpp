@@ -4175,7 +4175,7 @@ void InGameUI::update( void )
 	// interval, which is what the rotate keys do in Stronghold.
 	//
 	const UnsignedInt CAMERA_SNAP_REPEAT_MS = 250;
-	if( TheGlobalData->m_snapCameraRotateTo45 && !TheGlobalData->isClassicUI() )
+	if( TheGlobalData->m_snapCameraRotateTo45 )
 	{
 		if( (m_cameraRotatingLeft || m_cameraRotatingRight) && m_cameraRotatingLeft != m_cameraRotatingRight
 				&& cameraNowMs - m_cameraSnapRepeatMs >= CAMERA_SNAP_REPEAT_MS )
@@ -7553,9 +7553,9 @@ Real InGameUI::computePlacementAngle( const ICoord2D *start, const ICoord2D *end
 
 	Real angle = v.toAngle();
 
-	// optional 45 degree snap (SnapBuildPlacementTo45 in Options.ini) - lines walls and
+	// optional 45 degree snap (BuildSnapTo45 in Options.ini) - lines walls and
 	// defenses up with the base instead of leaving them at whatever the drag produced.
-	if( TheGlobalData->m_snapBuildPlacementTo45 && !TheGlobalData->isClassicUI() )
+	if( TheGlobalData->m_snapBuildPlacementTo45 )
 		angle = snapAngleTo45( angle );
 
 	return angle;
@@ -7605,7 +7605,7 @@ static void placementHalfExtents( const ThingTemplate *what, Real angle, Real *h
 
 void InGameUI::snapPlacementToGrid( Coord3D *world, const ThingTemplate *what, Real angle ) const
 {
-	if( world == NULL || what == NULL || TheGlobalData->m_gridBuildPlacement == FALSE || TheGlobalData->isClassicUI() )
+	if( world == NULL || what == NULL || TheGlobalData->m_gridBuildPlacement == FALSE )
 		return;
 
 	Real halfX, halfY;
@@ -7980,7 +7980,7 @@ Bool InGameUI::overlapsPendingPlacement( const Coord3D *world, const ThingTempla
 //-------------------------------------------------------------------------------------------------
 void InGameUI::snapPlacementToNeighbour( Coord3D *world, const ThingTemplate *what, Real angle ) const
 {
-	if( TheBuildAssistant->isLineBuildTemplate( what ) || TheGlobalData->isClassicUI() )
+	if( !TheGlobalData->m_snapBuildToNeighbour || TheBuildAssistant->isLineBuildTemplate( what ) )
 		return;
 
 	const Real largestFootprint = 150.0f;		// half-diagonal of the biggest structure it may lean on

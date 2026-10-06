@@ -14714,7 +14714,7 @@ GUI:StartAtMaxZoom
 END
 
 TOOLTIP:StartAtMaxZoom
-"Ein Spiel beginnt mit der Kamera so weit draußen, wie das Rad reicht. Aus beginnt es in der Höhe, für die die Karte gerahmt wurde."
+"Ein Spiel beginnt mit der Kamera so weit draußen, wie das Rad reicht. Aus beginnt es nah dran, in der Höhe des Originalspiels."
 END
 
 GUI:DragTolerance
@@ -14779,6 +14779,14 @@ END
 
 TOOLTIP:SnapBuild45
 "Drehen per Ziehen rastet auf den acht 45-Grad-Richtungen ein, was Mauern und Verteidigung am Basisrand brauchen."
+END
+
+GUI:SnapBuildNeighbour
+"An Nachbargebäude anlegen"
+END
+
+TOOLTIP:SnapBuildNeighbour
+"Ein Gebäude, das etwa eine Zelle vor einem anderen abgesetzt wird, wird bündig an dessen Kante gezogen, sodass keine Lücke bleibt."
 END
 
 GUI:RangeRing
