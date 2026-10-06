@@ -11999,7 +11999,7 @@ TEST(the_classic_bar_is_three_plates_on_the_screen_edges_at_one_scale)
 
 	static const Int screens[][ 2 ] =
 	{
-		{ 1024, 768 }, { 1280, 1024 }, { 1680, 1050 }, { 1920, 1080 }, { 2560, 1440 },
+		{ 1024, 768 }, { 1280, 1024 }, { 1680, 1050 }, { 1920, 1080 }, { 1920, 1200 }, { 2560, 1440 },
 		{ 3840, 2160 }, { 2560, 1080 }, { 3440, 1440 }, { 5120, 1440 }
 	};
 	const IRegion2D *radar = &ControlBarPlateForSide( "America", ControlBar::CB_PANEL_LEFT )->design;
