@@ -75,7 +75,6 @@
 #include "GameClient/GameText.h"
 #include "GameClient/HeaderTemplate.h"
 #include "GameClient/GlobalLanguage.h"
-#include "GameClient/Shell.h"
 #include "GameLogic/GameLogic.h"
 
 #ifdef _INTERNAL
@@ -584,9 +583,8 @@ static Bool layoutIsShellScreen( const char *filename )
 	for( const char *c = filename; *c; c++ )
 		if( strnicmp( c, "loadscreen", 10 ) == 0 || strnicmp( c, "scorescreen", 11 ) == 0 )
 			return TRUE;
-	const Bool inMatch = TheGameLogic && TheGameLogic->isInGame() && !TheGameLogic->isInShellGame() &&
-		!( TheShell && TheShell->isShellActive() );
-	return !inMatch;
+	// not the shell's own flag: a match's options screen is pushed onto the shell, over the battlefield
+	return !( TheGameLogic && TheGameLogic->isInGame() && !TheGameLogic->isInShellGame() );
 }
 
 static LayoutPlacement layoutPlacement( const char *filename )
