@@ -2957,7 +2957,7 @@ void GameEngine::execute( void )
 				// I'm disabling this in internal because many people need alt-tab capability.  If you happen to be
 				// doing performance tuning, please just change this on your local system. -MDC
 				if (TheTacticalView->getTimeMultiplier()<=1 && !TheScriptEngine->isTimeFast())
-					::Sleep(1); // give everyone else a tiny time slice.
+					sleepMilliseconds(1); // give everyone else a tiny time slice.
 		#endif
 			}
 

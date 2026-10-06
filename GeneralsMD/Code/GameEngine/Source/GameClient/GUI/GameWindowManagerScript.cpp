@@ -538,7 +538,7 @@ static Bool barLaysOutItself( const char *filename )
 {
 	static const char *const own[] = { "controlbar.wnd", "generalsexppoints.wnd", "genpowersshortcutbar" };
 	for( Int i = 0; i < (Int)ARRAY_SIZE( own ); i++ )
-		if( strnicmp( filename, own[ i ], strlen( own[ i ] ) ) == 0 )
+		if( strncasecmp( filename, own[ i ], strlen( own[ i ] ) ) == 0 )
 			return TRUE;
 	return FALSE;
 }
@@ -564,7 +564,7 @@ static Coord2D classicLayoutAnchor( const char *filename )
 	};
 	Coord2D anchor = { 0.5f, 0.5f };
 	for( Int i = 0; i < (Int)ARRAY_SIZE( anchors ); i++ )
-		if( stricmp( name, anchors[ i ].name ) == 0 )
+		if( strcasecmp( name, anchors[ i ].name ) == 0 )
 		{
 			anchor.x = anchors[ i ].x;
 			anchor.y = anchors[ i ].y;
@@ -582,7 +582,7 @@ static Bool layoutIsShellScreen( const char *filename )
 	if( !startsWithFolder( filename, "menus" ) )
 		return FALSE;
 	for( const char *c = filename; *c; c++ )
-		if( strnicmp( c, "loadscreen", 10 ) == 0 || strnicmp( c, "scorescreen", 11 ) == 0 )
+		if( strncasecmp( c, "loadscreen", 10 ) == 0 || strncasecmp( c, "scorescreen", 11 ) == 0 )
 			return TRUE;
 	// not the shell's own flag: a match's options screen is pushed onto the shell, over the battlefield
 	return !( TheGameLogic && TheGameLogic->isInGame() && !TheGameLogic->isInShellGame() );
