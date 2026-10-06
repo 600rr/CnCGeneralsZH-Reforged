@@ -418,6 +418,55 @@ Bool Drawable_structureShowsHealthBar( Bool isBridge, Bool isUnowned, Bool isGar
 }
 
 //-------------------------------------------------------------------------------------------------
+/** Health bars are always on in this fork, so anything with a body would draw one. Effect objects
+	* (projectiles in flight, toxin and radiation fields, parachutes, fire walls, wrecked hulks,
+	* subobject turrets) are not things the player commands or targets, so their bars are pure
+	* clutter.
+	*
+	* So is the scenery: street lamps, phone boxes, barrels, planters, fire hydrants, rocks, bushes
+	* and the odd tree all carry a BodyModule. The rule is fixed-in-place-and-not-a-building, not a
+	* list of scenery kinds: the shipped data does not tag that furniture as PROP or SHRUBBERY at all
+	* (`KindOf = IMMOBILE CLEARED_BY_BUILD` is the whole of a street lamp), while every real target
+	* is either mobile or a STRUCTURE.
+	*
+	* A booby trap has one hit point and cannot be shot, so its bar was a full green line forever.
+	* Everything force-attackable is a civilian fence with one hit point.
+	*
+	* And a unit the cursor cannot reach at all - no SELECTABLE, which in EA's data means "the mouse
+	* can interact with it" - never wore a bar in retail, where a bar needed a selection or a mouse
+	* over. The ones that matter are the death puppets: a soldier killed by toxin or fire is removed
+	* and a ToxicInfantry or FlamingInfantry takes his place, a live 50 hit point INFANTRY that melts
+	* or runs burning for three seconds, and always-on bars put a full one over every one of them.
+	* Buildings keep their own rule below.
+	*
+	* INERT is what the toxin and radiation fields carry, and the Spy Drone too: EA tags it INERT so
+	* nothing targets it and NO_SELECT so it cannot be selected, and NO_SELECT is commented in
+	* KindOf.h as "you can mouse over it to see its health (drones!)". So a NO_SELECT object keeps
+	* its bar whatever else it is; without that the owner never saw his drone's health at all. */
+//-------------------------------------------------------------------------------------------------
+Bool Drawable_kindShowsHealthBar( const KindOfMaskType& kinds )
+{
+	if( TEST_KINDOFMASK( kinds, KINDOF_INERT ) && !TEST_KINDOFMASK( kinds, KINDOF_NO_SELECT ) )
+		return FALSE;
+
+	if( TEST_KINDOFMASK( kinds, KINDOF_PROJECTILE ) ||
+			TEST_KINDOFMASK( kinds, KINDOF_BOOBY_TRAP ) ||
+			TEST_KINDOFMASK( kinds, KINDOF_CLEANUP_HAZARD ) ||
+			TEST_KINDOFMASK( kinds, KINDOF_UNATTACKABLE ) ||
+			TEST_KINDOFMASK( kinds, KINDOF_PARACHUTE ) ||
+			TEST_KINDOFMASK( kinds, KINDOF_HULK ) ||
+			TEST_KINDOFMASK( kinds, KINDOF_CLICK_THROUGH ) ||
+			TEST_KINDOFMASK( kinds, KINDOF_CRATE ) ||
+			TEST_KINDOFMASK( kinds, KINDOF_FORCEATTACKABLE ) )
+		return FALSE;
+
+	if( TEST_KINDOFMASK( kinds, KINDOF_STRUCTURE ) )
+		return TRUE;
+
+	return !TEST_KINDOFMASK( kinds, KINDOF_IMMOBILE ) && TEST_KINDOFMASK( kinds, KINDOF_SELECTABLE );
+}
+
+//-------------------------------------------------------------------------------------------------
 /** The health bar setting, applied to one object.
 	*
 	* Smart is the mode worth explaining.  A bar over a unit at full health tells you nothing you did
@@ -4395,41 +4444,88 @@ static Int drawOwnCountdown( DisplayString *&countdown, Int seconds, Int x, Int 
 }
 
 //-------------------------------------------------------------------------------------------------
-/** How far the slowest long reload on this object has come, 0 to 1, or -1 when none is running.
+/** Whether a weapon is slow enough to earn a reload bar, from its data alone: the time a full clip
+	* takes to fire and reload, divided by the shots in it, has to come to more than three seconds a
+	* shot. A clip of 0 is endless and its delay between shots is the whole wait.
 	*
-	* Only a wait longer than three seconds counts. Every direct-fire tank gun in the game waits two
-	* (the Laser General's Crusader 2.3), so a lower line would hang a bar on every main battle tank
-	* that fires and empty it again before it could be read. Above it sit the weapons whose wait is
-	* the whole decision: the Nuke Cannon's ten seconds, artillery, the Inferno Cannon, SCUD and
-	* Tomahawk launchers, the Scorpion's and the Comanche's missiles, the rocket buggy's clip.
+	* Every direct-fire tank gun in the game waits two (the Laser General's Crusader 2.3). Above the
+	* line sit the guns whose wait is the decision: the Nuke Cannon's ten seconds, the Inferno Cannon,
+	* the artillery platform, the SCUD and Tomahawk launchers, the Scorpion's missile and the
+	* Comanche's anti-tank missiles. Below it go the weapons that empty a quick clip and then reload
+	* it - the Rocket Buggy's six rockets, the Comanche's rocket pods, the Paladin's point defence
+	* laser - which fire about as often as a tank does. The old test was the
+	* length of whichever wait was running, and those clip reloads all ran past three seconds, so a
+	* Paladin that touched an infantryman with its laser wore an amber bar for the next four. */
+//-------------------------------------------------------------------------------------------------
+Bool Drawable_weaponWearsReloadBar( Int clipSize, UnsignedInt delayFrames, UnsignedInt clipReloadFrames )
+{
+	const UnsignedInt RELOAD_BAR_MIN_FRAMES = 3 * LOGICFRAMES_PER_SECOND;
+	if( clipSize <= 0 )
+		return delayFrames > RELOAD_BAR_MIN_FRAMES;
+
+	return clipSize * delayFrames + clipReloadFrames > (UnsignedInt)clipSize * RELOAD_BAR_MIN_FRAMES;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** How far a wait from `started` to `ready` has come at `now`, 0 to 1, or -1 when it is not one
+	* worth a bar. `longest` is the longest wait the weapon's data allows. The start frame is only
+	* written when this weapon fires or reloads, so a launcher sharing its reload with another slot,
+	* or a Combat Bike handing its gun to a new rider, is told when it can fire next and keeps an old
+	* start - a wait that looked a minute long. The span is held to what the data allows. */
+//-------------------------------------------------------------------------------------------------
+Real Drawable_reloadBarFraction( UnsignedInt now, UnsignedInt started, UnsignedInt ready, UnsignedInt longest )
+{
+	const UnsignedInt RELOAD_BAR_MIN_FRAMES = 3 * LOGICFRAMES_PER_SECOND;
+
+	// 0x7fffffff is an empty clip that does not reload itself (a jet waiting for its airfield)
+	if( ready <= now || ready == 0x7fffffff )
+		return -1.0f;
+
+	UnsignedInt span = ready > started ? ready - started : longest;
+	if( span > longest )
+		span = longest;
+	if( span < ready - now )
+		span = ready - now;
+	if( span <= RELOAD_BAR_MIN_FRAMES )
+		return -1.0f;
+
+	return 1.0f - INT_TO_REAL( ready - now ) / INT_TO_REAL( span );
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The slowest long reload on this object, 0 to 1, or -1 when none is running.
 	*
 	* A weapon that does less than one point of damage is a dummy that only drives an animation
 	* (the Battle Bus and Troop Crawler passengers' ten-second one, the angry mob's) and the SCUD
 	* Storm's, whose launch already has its own charge bar; none of those is a reload anyone waits on.
 	*
-	* This reads the two frame numbers and nothing else. Weapon::getStatus() writes m_status, which
-	* the logic CRC covers, so calling it from a draw would be the client writing logic state. */
+	* This reads frame numbers and template values and nothing else. Weapon::getStatus() writes
+	* m_status and WeaponTemplate::getDelayBetweenShots() draws from the logic random stream, so
+	* calling either from a draw would be the client writing logic state. */
 //-------------------------------------------------------------------------------------------------
 static Real reloadBarFraction( const Object *obj )
 {
-	const UnsignedInt RELOAD_BAR_MIN_FRAMES = 3 * LOGICFRAMES_PER_SECOND;
 	const UnsignedInt now = TheGameLogic->getFrame();
 	Real least = -1.0f;
 
 	for( Int i = 0; i < WEAPONSLOT_COUNT; ++i )
 	{
 		const Weapon *weapon = obj->getWeaponInWeaponSlot( (WeaponSlotType)i );
-		if( weapon == NULL || weapon->getTemplate()->getPrimaryDamage( WeaponBonus() ) < 1.0f )
+		if( weapon == NULL )
+			continue;
+		const WeaponTemplate *tmpl = weapon->getTemplate();
+		if( tmpl->getPrimaryDamage( WeaponBonus() ) < 1.0f )
 			continue;
 
-		// 0x7fffffff is an empty clip that does not reload itself (a jet waiting for its airfield)
-		const UnsignedInt ready = weapon->getPossibleNextShotFrame();
-		const UnsignedInt started = weapon->getLastReloadStartedFrame();
-		if( ready <= now || ready == 0x7fffffff || ready - started <= RELOAD_BAR_MIN_FRAMES )
+		const UnsignedInt delay = (UnsignedInt)tmpl->getMaxDelayBetweenShots();
+		const UnsignedInt clipReload = (UnsignedInt)tmpl->getClipReloadTime( WeaponBonus() );
+		if( !Drawable_weaponWearsReloadBar( tmpl->getClipSize(), delay, clipReload ) )
 			continue;
 
-		Real fraction = INT_TO_REAL( now - started ) / INT_TO_REAL( ready - started );
-		if( least < 0.0f || fraction < least )
+		const UnsignedInt longest = tmpl->getClipSize() > 0 && clipReload > delay ? clipReload : delay;
+		const Real fraction = Drawable_reloadBarFraction( now, weapon->getLastReloadStartedFrame(),
+																											weapon->getPossibleNextShotFrame(), longest );
+		if( fraction >= 0.0f && ( least < 0.0f || fraction < least ) )
 			least = fraction;
 	}
 
@@ -4452,36 +4548,8 @@ void Drawable::drawHealthBar(const IRegion2D* healthBarRegion)
 		if( obj == NULL )
 			return;
 
-		//
-		// health bars are always on in this fork, so anything with a body draws one. Effect
-		// objects (projectiles in flight, toxin and radiation fields, parachutes, fire walls,
-		// wrecked hulks, subobject turrets) are not things the player commands or targets, so
-		// their bars are pure clutter.
-		//
-		// So is the scenery: street lamps, phone boxes, barrels, planters, fire hydrants, rocks,
-		// bushes and the odd tree all carry a BodyModule and so all drew a bar, and a built-up map
-		// came up wearing hundreds of them over things nobody fights.
-		//
-		// The rule is fixed-in-place-and-not-a-building, not a list of scenery kinds: the shipped
-		// data does not tag that furniture as PROP or SHRUBBERY at all (`KindOf = IMMOBILE
-		// CLEARED_BY_BUILD` is the whole of a street lamp, and `IMMOBILE` the whole of a rock), so
-		// a kind list catches almost none of it, while every real target is either mobile or a
-		// STRUCTURE. Buildings keep their bars - a civilian building is cover to garrison, a tech
-		// building is worth capturing, bridges are STRUCTURE too - and so does anything that can
-		// move.
-		//
-		// A booby trap has one hit point and cannot be shot, so its bar was a full green line
-		// forever, over something that is meant to be hidden.
-		if( obj->isKindOf( KINDOF_PROJECTILE ) ||
-				obj->isKindOf( KINDOF_BOOBY_TRAP ) ||
-				obj->isKindOf( KINDOF_INERT ) ||
-				obj->isKindOf( KINDOF_CLEANUP_HAZARD ) ||
-				obj->isKindOf( KINDOF_UNATTACKABLE ) ||
-				obj->isKindOf( KINDOF_PARACHUTE ) ||
-				obj->isKindOf( KINDOF_HULK ) ||
-				obj->isKindOf( KINDOF_CLICK_THROUGH ) ||
-				obj->isKindOf( KINDOF_CRATE ) ||
-				( obj->isKindOf( KINDOF_IMMOBILE ) && !obj->isKindOf( KINDOF_STRUCTURE ) ) )
+		// effect objects, scenery and death puppets wear none (Drawable_kindShowsHealthBar)
+		if( !Drawable_kindShowsHealthBar( obj->getTemplate()->getKindOfMask() ) )
 			return;
 
 		if( obj->isKindOf( KINDOF_STRUCTURE ) )
@@ -4503,15 +4571,6 @@ void Drawable::drawHealthBar(const IRegion2D* healthBarRegion)
 																						 contain != NULL && contain->isGarrisonable(),
 																						 obj->isKindOf( KINDOF_CAPTURABLE ) ) )
 				return;
-		}
-
-		if( obj->isKindOf( KINDOF_FORCEATTACKABLE ) )
-		{
-			//Currently (Nov 2002), everything that is forceattackable are civ fences, and they all have a
-			//single hit point and they aren't selectable. However, a bug is when you force attack it, it shows
-			//the healthbar. Well, this stops it, however, should force attackable kindofs change, then this
-			//will require reevaluation.
-			return;
 		}
 
 		// get body module of object
