@@ -98,6 +98,9 @@ private:
 
 extern GameConsole *TheGameConsole;
 
+/// -freecam x y z heading tilt: the console's "freecam" with that pose, run once the match is up
+void GameConsole_setStartupFreeCamera( const char *pose );
+
 /**
  * Sits ahead of the window system on the message stream so the console gets the key above Tab
  * before anything bound in CommandMap.ini does, and swallows every key while it is open.

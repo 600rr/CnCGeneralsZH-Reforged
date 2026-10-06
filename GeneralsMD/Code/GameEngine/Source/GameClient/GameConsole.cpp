@@ -51,6 +51,7 @@
 #include "GameClient/KeyDefs.h"
 #include "GameClient/Keyboard.h"
 #include "GameClient/Mouse.h"
+#include "GameClient/View.h"
 
 GameConsole *TheGameConsole = NULL;
 
@@ -232,6 +233,75 @@ static AsciiString runSetOption( AsciiString arguments )
 }
 
 //-------------------------------------------------------------------------------------------------
+/** The freecam, a photo mode: the tactical view flies free and draws the whole map, the interface
+	* goes, and the keys and the mouse belong to the camera until it lands.  Nothing of it reaches the
+	* logic, so it is offered in every match, network games and replays included. */
+//-------------------------------------------------------------------------------------------------
+static const char *const FREECAM_HELP =
+	"freecam on: W/S forward and back, A/D left and right, R up, F down, mouse turns, Shift faster; Esc or 'freecam' lands";
+static const UnsignedInt FREECAM_STARTUP_FRAME = 2;	///< -freecam waits for the map's own opening view to land
+
+static AsciiString theStartupFreeCamera;		///< -freecam's console line, run once the match is up
+
+void GameConsole_setStartupFreeCamera( const char *pose )
+{
+	theStartupFreeCamera.format( "freecam %s", pose );
+}
+
+static AsciiString describeFreeCameraPose( void )
+{
+	Coord3D eye;
+	Real heading, tilt;
+	TheTacticalView->getFreeCameraPose( &eye, &heading, &tilt );
+	AsciiString result;
+	result.format( "%.0f %.0f %.0f %.1f %.1f", eye.x, eye.y, eye.z, heading * 180.0f / PI, tilt * 180.0f / PI );
+	return result;
+}
+
+static AsciiString runFreeCamera( AsciiString arguments )
+{
+	AsciiString result;
+	if( TheTacticalView == NULL || !TheGameLogic->isInGame() || TheGameLogic->isInShellGame() )
+	{
+		result = "freecam: in a match or a replay only";
+		return result;
+	}
+
+	Real pose[ 5 ];
+	const Int given = arguments.isEmpty() ? 0
+		: sscanf( arguments.str(), "%f %f %f %f %f", &pose[ 0 ], &pose[ 1 ], &pose[ 2 ], &pose[ 3 ], &pose[ 4 ] );
+	if( !arguments.isEmpty() && given != 5 )
+	{
+		result = "freecam: takes nothing, or x y z heading tilt with the angles in degrees";
+		return result;
+	}
+
+	if( given == 5 )
+	{
+		TheTacticalView->setFreeCamera( TRUE );
+		Coord3D eye;
+		eye.set( pose[ 0 ], pose[ 1 ], pose[ 2 ] );
+		TheTacticalView->setFreeCameraPose( &eye, pose[ 3 ] * PI / 180.0f, pose[ 4 ] * PI / 180.0f );
+	}
+	else if( TheTacticalView->isFreeCamera() )
+	{
+		// where it landed, in the form 'freecam x y z heading tilt' takes back
+		result.format( "freecam off, was at %s", describeFreeCameraPose().str() );
+		TheTacticalView->setFreeCamera( FALSE );
+		return result;
+	}
+	else
+	{
+		TheTacticalView->setFreeCamera( TRUE );
+	}
+
+	if( TheGameConsole )
+		TheGameConsole->closeCheatPanel();	// it would be in every picture
+	result = FREECAM_HELP;
+	return result;
+}
+
+//-------------------------------------------------------------------------------------------------
 GameConsole::GameConsole()
 	: m_isOpen( FALSE ),
 		m_historyCursor( 0 ),
@@ -404,6 +474,10 @@ void GameConsole::runCommand( AsciiString commandLine )
 		printLine( AsciiString( "get [key]     a setting by its Options.ini key; no key lists them all" ) );
 		printLine( AsciiString( "set <key> <v> change a setting and save it, e.g. 'set ShowNetBox no' hides the" ) );
 		printLine( AsciiString( "              top right info box, 'set ShowSuperweaponStrip no' the superweapon timers" ) );
+		printLine( AsciiString( "freecam       photo mode: fly the camera anywhere, the whole map drawn, no interface." ) );
+		printLine( AsciiString( "              W/S forward and back, A/D left and right, R up, F down, mouse turns," ) );
+		printLine( AsciiString( "              Shift faster; Esc or 'freecam' again lands.  'freecam x y z heading tilt'" ) );
+		printLine( AsciiString( "              flies to a pose, angles in degrees" ) );
 		if( areCheatsAvailable() )
 		{
 			printLine( AsciiString( "cheats        single-player cheats" ) );
@@ -458,6 +532,15 @@ void GameConsole::runCommand( AsciiString commandLine )
 		return;
 	}
 
+	if( command == "freecam" )
+	{
+		printLine( runFreeCamera( arguments ) );
+		// out of the way of the picture, and of the keys the camera now takes
+		if( TheTacticalView && TheTacticalView->isFreeCamera() )
+			close();
+		return;
+	}
+
 	if( command == "get" )
 	{
 		if( arguments.isEmpty() )
@@ -487,6 +570,15 @@ void GameConsole::runCommand( AsciiString commandLine )
 //-------------------------------------------------------------------------------------------------
 void GameConsole::render( void )
 {
+	if( !theStartupFreeCamera.isEmpty() && TheGameLogic->isInGame() && !TheGameLogic->isInShellGame()
+			&& TheGameLogic->getFrame() >= FREECAM_STARTUP_FRAME )
+	{
+		const AsciiString line = theStartupFreeCamera;
+		theStartupFreeCamera.clear();
+		runCommand( line );
+		DEBUG_LOG(( "-freecam: %s\n", line.str() ));
+	}
+
 	renderCheatPanel();		// under the console, which covers it when it drops
 
 	if( !m_isOpen )
@@ -689,10 +781,57 @@ Bool GameConsole::handleCheatPanelMouse( const ICoord2D &mouse, Bool act )
 }
 
 //-------------------------------------------------------------------------------------------------
+/** While the freecam flies every key is the camera's, so nothing reaches a hotkey or an order:
+	* W/A/S/D/R/F are held for the flight, Esc lands on its release (the press is eaten too, so the
+	* quit menu never sees either half), and F12 still takes a picture. */
+//-------------------------------------------------------------------------------------------------
+static UnsignedInt theFreeCameraKeys = 0;
+
+static GameMessageDisposition translateFreeCameraKey( UnsignedByte key, UnsignedShort keyState )
+{
+	const Bool down = BitTest( keyState, KEY_STATE_DOWN );
+	UnsignedInt bit = 0;
+	switch( key )
+	{
+		case KEY_W: bit = View::FREECAM_FORWARD; break;
+		case KEY_S: bit = View::FREECAM_BACK; break;
+		case KEY_A: bit = View::FREECAM_LEFT; break;
+		case KEY_D: bit = View::FREECAM_RIGHT; break;
+		case KEY_R: bit = View::FREECAM_UP; break;
+		case KEY_F: bit = View::FREECAM_DOWN; break;
+
+		case KEY_ESC:
+			if( !down )
+			{
+				TheGameConsole->printLine( runFreeCamera( AsciiString::TheEmptyString ) );
+				theFreeCameraKeys = 0;
+			}
+			return DESTROY_MESSAGE;
+
+		case KEY_F12:
+			return KEEP_MESSAGE;
+	}
+
+	if( bit != 0 )
+	{
+		if( down )
+			theFreeCameraKeys |= bit;
+		else
+			theFreeCameraKeys &= ~bit;
+		TheTacticalView->setFreeCameraKeys( theFreeCameraKeys );
+	}
+	return DESTROY_MESSAGE;
+}
+
+//-------------------------------------------------------------------------------------------------
 GameMessageDisposition GameConsoleTranslator::translateGameMessage( const GameMessage *msg )
 {
 	if( TheGameConsole == NULL )
 		return KEEP_MESSAGE;
+
+	const Bool freeCamera = TheTacticalView && TheTacticalView->isFreeCamera();
+	if( !freeCamera )
+		theFreeCameraKeys = 0;
 
 	switch( msg->getType() )
 	{
@@ -712,9 +851,18 @@ GameMessageDisposition GameConsoleTranslator::translateGameMessage( const GameMe
 
 			if( TheGameConsole->isOpen() )
 			{
+				// a flight key let go while the console had it would otherwise stay held
+				if( freeCamera && theFreeCameraKeys != 0 )
+				{
+					theFreeCameraKeys = 0;
+					TheTacticalView->setFreeCameraKeys( 0 );
+				}
 				TheGameConsole->handleKey( key, keyState );
 				return DESTROY_MESSAGE;
 			}
+
+			if( freeCamera )
+				return translateFreeCameraKey( key, keyState );
 
 			// Esc shuts the cheat panel rather than opening the quit menu: the press is eaten, and the
 			// release shuts it so that release is not left to open the menu either
@@ -730,8 +878,13 @@ GameMessageDisposition GameConsoleTranslator::translateGameMessage( const GameMe
 		// the wheel carries no position, and the cursor's moves are everybody's
 		case GameMessage::MSG_RAW_MOUSE_POSITION:
 		case GameMessage::MSG_RAW_MOUSE_WHEEL:
-			return KEEP_MESSAGE;
+			return freeCamera ? DESTROY_MESSAGE : KEEP_MESSAGE;
 	}
+
+	// the freecam's mouse only turns the view (W3DView reads the pointer itself): no click selects,
+	// orders or scrolls anything while it flies
+	if( freeCamera && msg->getType() > GameMessage::MSG_RAW_MOUSE_BEGIN && msg->getType() < GameMessage::MSG_RAW_MOUSE_END )
+		return DESTROY_MESSAGE;
 
 	// A press on the cheat panel is the panel's, and so is everything that button does until it is
 	// let go, wherever the pointer has gone by then: nothing after this sees a press it never saw

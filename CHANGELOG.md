@@ -1052,6 +1052,14 @@ A third pass went through the generals' powers, promotions and unit abilities.
 - One press is one letter. Holding a key repeats it, and the game timed that wait in frames: a third of a second at the 30 frames a second it was written for, 70 milliseconds on a 144 Hz screen, which is shorter than an ordinary keypress. It waits 0.4 seconds now whatever the frame rate, in the console, the chat box and every text field.
 - On a UK keyboard, AltGr+4 types the euro sign. It used to type the wrong character.
 
+## A photo mode, from the console
+
+- Type `freecam` and the camera comes off its rails. W and S fly it forward and back along wherever you are looking, A and D slide it sideways, R lifts it and F drops it, and the mouse turns it with no button held. Shift flies four times as fast. It tilts to straight up and straight down, and there is no ceiling, no floor and no edge of the map to stop at: put it on the ground behind a tank and look up at a Comanche, or climb until the whole map fits on the screen. Escape or `freecam` again puts you back where you left off.
+- The interface goes while it flies, so the picture is only the battlefield: no command bar, no cursor, no health bars. F12 still takes the screenshot. Every key belongs to the camera in the meantime, so W does not select a unit and F does not build anything.
+- The whole map is drawn out to its edges from wherever the camera is. The usual view draws the ground and the shadows the camera can see from above; aimed at the horizon, the old limits cut the world off a short way out and left the far half of a map dark and shadowless. In the freecam the shadows cover the whole map, with a shadow map four times as wide so the far ones are as sharp as the near ones.
+- The match carries on underneath, and the fog of war stays as it is: the camera sees what you could already see. It changes nothing in the battle, so it works in replays and in multiplayer too.
+- `freecam 1200 900 600 45 -30` flies straight to a spot: the position, then the heading and the tilt in degrees. Leaving the freecam prints where it was in that same form, so a good angle can be found again.
+
 ## A scoreboard on Tab
 
 - Hold Tab and a scoreboard opens in the top left corner of the screen, beside the menu key; let go and it is gone. All eight seats of a full game fit in the top half of a 720 line screen. It is built from your command bar's steel, grey, red or sand for your side, with the match clock in its corner. Each side sits under a band edged green for yours and red for the enemy, and the band says how many of that side are still in the game, 4/4 down to 0/4. Watching, there is a band for every team. With a group selected, Tab still steps through the units in it as before, so the scoreboard wants one unit or none selected.
