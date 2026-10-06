@@ -1206,6 +1206,30 @@ static void updateResolutionEnabled( void )
 	comboBoxResolution->winEnable( value != WINDOW_MODE_BORDERLESS );
 }
 
+//-------------------------------------------------------------------------------------------------
+/** The line under the resolution list: "the monitor supports this mode" when the picked size is one
+	* of the modes Windows lists for the picked monitor, nothing when it is not.  Asked of the monitor
+	* again rather than of the list, so the line stays honest whatever the list comes to hold. */
+//-------------------------------------------------------------------------------------------------
+static void updateResolutionNote( void )
+{
+	GameWindow *note = TheWindowManager->winGetWindowFromId( NULL, NAMEKEY( "OptionsMenu.wnd:ResolutionNote" ) );
+	if( note == NULL || comboBoxResolution == NULL )
+		return;
+
+	Int index = -1;
+	GadgetComboBoxGetSelectedPos( comboBoxResolution, &index );
+	Bool supported = FALSE;
+	if( index >= 0 && index < menuModeCount )
+	{
+		DisplayModeEntry modes[ MAX_DISPLAY_MODE_ENTRIES ];
+		const Int count = listDisplayModes( selectedMonitor().device, modes, MAX_DISPLAY_MODE_ENTRIES );
+		for( Int i = 0; i < count && !supported; ++i )
+			supported = ( modes[ i ].width == menuModes[ index ].width && modes[ i ].height == menuModes[ index ].height );
+	}
+	GadgetStaticTextSetText( note, supported ? TheGameText->fetch( "GUI:ResolutionNote0" ) : UnicodeString::TheEmptyString );
+}
+
 static void saveOptions( void )
 {
 	Int index;
@@ -2640,6 +2664,7 @@ void OptionsMenuInit( WindowLayout *layout, void *userData )
 
 	// borderless owns the resolution; the list is grey while it is picked
 	updateResolutionEnabled();
+	updateResolutionNote();
 
 	TheWindowManager->winSetModal(parent);
 	ignoreSelected = FALSE;
@@ -2809,6 +2834,7 @@ WindowMsgHandledType OptionsMenuSystem( GameWindow *window, UnsignedInt msg,
 
 				// picking borderless greys the resolution list out, the other two hand it back
 				updateResolutionEnabled();
+				updateResolutionNote();
 			break;
 		}
 

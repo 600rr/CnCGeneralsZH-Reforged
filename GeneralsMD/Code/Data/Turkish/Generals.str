@@ -15197,6 +15197,10 @@ TOOLTIP:WindowMode
 "Tam ekran, monitörü yukarıdaki çözünürlükte kaplar, küçükse ekrana büyütür, alt-tab'da kenara çekilir. Kenarlıksız her zaman monitörün kendi çözünürlüğünde çizer ve diğer pencerelerin arkasında yerinde durur."
 END
 
+GUI:ResolutionNote0
+"Monitör bu modu destekliyor"
+END
+
 GUI:FullscreenScaling
 "Tam Ekran Sığdırma"
 END

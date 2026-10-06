@@ -693,6 +693,10 @@ TOOLTIP:WindowMode
 "Fullscreen covers the monitor at the resolution above, scaled up to it when smaller, and steps aside on alt-tab. Borderless always draws at the monitor's own resolution and stays put behind other windows."
 END
 
+GUI:ResolutionNote0
+"Monitor supports this mode"
+END
+
 GUI:FullscreenScaling
 "Fullscreen Fit"
 END

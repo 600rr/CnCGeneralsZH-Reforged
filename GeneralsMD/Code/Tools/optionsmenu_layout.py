@@ -203,8 +203,14 @@ READOUTS = [
 # OptionsMenu.cpp.  The detail preset is the one that needs it: picking Ultra only fills in the boxes,
 # and nothing on the shipped screen said that Accept is what applies them.
 #   (name, label key whose entries 0..count-1 it shows, count)
-NOTES = [("DetailNote", "GUI:DetailNote", 5)]
+# The resolution's line is one short sentence, shown only when the monitor lists the picked size.
+NOTES = [("DetailNote", "GUI:DetailNote", 5), ("ResolutionNote", "GUI:ResolutionNote", 1)]
 NOTE_HEIGHT = 80
+NOTE_HEIGHTS = {"ResolutionNote": 20}
+
+
+def note_height(name):
+    return NOTE_HEIGHTS.get(name, NOTE_HEIGHT)
 NOTE_FONT = 'NAME: "Arial", SIZE: 10, BOLD: 0'
 NOTE_COLOR = ("ENABLED:  192 192 192 255, ENABLEDBORDER:  0 0 0 255, "
               "DISABLED: 192 192 192 255, DISABLEDBORDER: 0 0 0 255, "
@@ -265,6 +271,7 @@ GROUP_LAYOUT = [
         ("GUI:OptionsGroupScreen", [
             setting("LabelMonitor", "ComboBoxMonitor"),
             setting("ResolutionLabel", "ComboBoxResolution"),
+            ("note", "ResolutionNote"),
             setting("LabelWindowMode", "ComboBoxWindowMode"),
             setting("LabelFullscreenScaling", "ComboBoxFullscreenScaling"),
             ("check", "CheckVSync")]),
@@ -368,8 +375,9 @@ REFORGED_ONLY = [
 
 
 def item_height(item):
-    return {"setting": SETTING_PITCH, "check": CHECK_PITCH, "note": NOTE_HEIGHT + 4,
-            "button": BUTTON_PITCH}[item[0]]
+    if item[0] == "note":
+        return note_height(item[1]) + 4
+    return {"setting": SETTING_PITCH, "check": CHECK_PITCH, "button": BUTTON_PITCH}[item[0]]
 
 
 def group_height(group):
@@ -648,7 +656,7 @@ def build(layout, classic=False):
                     elif item[0] == "check":
                         put(page_name, item[1], left, top, COLUMN_WIDTH, ROW_HEIGHT, CHECK)
                     elif item[0] == "note":
-                        put(page_name, item[1], left - TEXT_NUDGE, top, COLUMN_WIDTH, NOTE_HEIGHT)
+                        put(page_name, item[1], left - TEXT_NUDGE, top, COLUMN_WIDTH, note_height(item[1]))
                     else:
                         put(page_name, item[1], left, top, 160, ROW_HEIGHT)
                     top += item_height(item)
