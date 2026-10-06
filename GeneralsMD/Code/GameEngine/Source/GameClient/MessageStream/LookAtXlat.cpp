@@ -152,7 +152,7 @@ void LookAtTranslator::setScrolling(Int x)
 	TheTacticalView->setMouseLock( TRUE );
 	m_scrollType = x;
 	// A manual pan restores map constraints widened by scripted camera paths.
-	if (TheGlobalData->m_useCameraConstraints && TheGlobalData->m_cameraBoundaryMargin > 0 && !TheGlobalData->isClassicUI())
+	if ((TheGlobalData->m_useCameraConstraints || TheGlobalData->isClassicUI()) && TheGlobalData->m_cameraBoundaryMargin > 0)
 		TheTacticalView->forceCameraConstraintRecalc();
 	if(TheStatsCollector)
 		TheStatsCollector->startScrollTime();
@@ -622,6 +622,15 @@ GameMessageDisposition LookAtTranslator::translateGameMessage(const GameMessage 
 			}
 			else	//not scrolling so reset amount
 				TheInGameUI->setScrollAmount(offset);
+
+			// The view turns this into the same number of world units at any height, so a pan crossed
+			// the screen ten times faster right down on the ground than from the farthest zoom, and
+			// zoomed out no setting of the scroll speed made it feel like it moved.  Scaled by the
+			// height against MaxCameraHeight, where maps open, it crosses the screen at one pace at
+			// every zoom: the pace it always had at that height.
+			const Real zoomScale = TheTacticalView->getHeightAboveGround() / TheGlobalData->m_maxCameraHeight;
+			offset.x *= zoomScale;
+			offset.y *= zoomScale;
 
 			// Advance the pan clock even while stationary, so restarting does not include idle time.
 			TheTacticalView->scrollBy( &offset );

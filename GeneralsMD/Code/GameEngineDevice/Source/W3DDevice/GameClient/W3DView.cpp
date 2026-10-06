@@ -575,7 +575,7 @@ void W3DView::calcCameraConstraints()
 	{
 		Region3D mapRegion;
 		TheTerrainLogic->getExtent( &mapRegion );
-		if (TheGlobalData->m_cameraBoundaryMargin > 0 && !TheGlobalData->isClassicUI())
+		if (TheGlobalData->m_cameraBoundaryMargin > 0)
 		{
 			// A fixed margin follows the map rather than shrinking with zoom or camera angle.
 			m_cameraConstraint = cameraBoundaryFromMap(mapRegion, (Real)TheGlobalData->m_cameraBoundaryMargin);

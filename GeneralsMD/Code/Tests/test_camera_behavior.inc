@@ -188,6 +188,18 @@ TEST(camera_margin_preferences_load_and_rebuild_constraints)
 	CHECK(f.global->m_useCameraConstraints);
 	CHECK_EQ(f.global->m_cameraBoundaryMargin, 300);
 	CHECK_EQ(f.view.constraintRecalcs, 1);
+
+	// Classic keeps the constraint on whatever the box says, and runs past the edge as far: a pan
+	// puts the margin back the way it does in Reforged
+	f.global->m_interfaceStyle = INTERFACE_STYLE_CLASSIC;
+	f.global->m_useCameraConstraints = FALSE;
+	GameMessage *key = newInstance(GameMessage)(GameMessage::MSG_RAW_KEY_DOWN);
+	key->appendIntegerArgument(KEY_RIGHT);
+	key->appendIntegerArgument(KEY_STATE_DOWN);
+	f.camera.translateGameMessage(key);
+	key->deleteInstance();
+	CHECK(f.ui->scrolling);
+	CHECK_EQ(f.view.constraintRecalcs, 2);
 }
 
 TEST(camera_wheel_anchors_zoom_to_cursor_only_with_the_box_ticked)
@@ -310,6 +322,42 @@ TEST(arrow_keys_scroll_the_camera_and_w_a_s_d_stay_grid_keys)
 	CHECK(f.ui->scrolling);
 	press(KEY_RIGHT, FALSE);
 	CHECK(!f.ui->scrolling);
+}
+
+TEST(scroll_speed_follows_the_zoom_in_both_interfaces)
+{
+	CHECK(bootOnce());
+	CameraInputFixture f;
+	const auto stepAt = [&f](Real height)
+	{
+		f.view.setHeightAboveGround(height);
+		GameMessage *message = newInstance(GameMessage)(GameMessage::MSG_FRAME_TICK);
+		f.camera.translateGameMessage(message);
+		message->deleteInstance();
+		return f.view.last.x;
+	};
+	GameMessage *key = newInstance(GameMessage)(GameMessage::MSG_RAW_KEY_DOWN);
+	key->appendIntegerArgument(KEY_RIGHT);
+	key->appendIntegerArgument(KEY_STATE_DOWN);
+	f.camera.translateGameMessage(key);
+	key->deleteInstance();
+	CHECK(f.ui->scrolling);
+
+	const Real maxHeight = f.global->m_maxCameraHeight;
+	for (Int style = 0; style < 2; ++style)
+	{
+		f.global->m_interfaceStyle = style ? INTERFACE_STYLE_CLASSIC : INTERFACE_STYLE_REFORGED;
+		f.global->m_keyboardScrollFactor = 0.5f;
+		// where a map opens, the step the arrow keys always took: SCROLL_AMT 100 times the speed
+		const Real opening = stepAt(maxHeight);
+		CHECK_NEAR(opening, f.global->m_horizontalScrollSpeedFactor * 100.0f * 0.5f, 0.001f);
+		// from the farthest zoom it is 2.9 times that, so the ground crosses the screen as fast
+		CHECK_NEAR(stepAt(maxHeight * 2.9f), 2.9f * opening, 0.001f);
+		// and the scroll speed still sets the pace at every height
+		f.global->m_keyboardScrollFactor = 1.0f;
+		CHECK_NEAR(stepAt(maxHeight * 2.9f), 2.0f * 2.9f * opening, 0.001f);
+		CHECK_NEAR(stepAt(maxHeight * 0.3f), 2.0f * 0.3f * opening, 0.001f);
+	}
 }
 
 TEST(right_drag_pans_past_the_drag_tolerance_and_middle_drag_turns)
