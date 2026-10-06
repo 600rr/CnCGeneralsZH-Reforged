@@ -1143,6 +1143,7 @@ public:
 
 	/// top edge of the highest visible window the bar owns, and where MoneyDisplay is; see -uidrill
 	void forEachPlacedWindow( Int *topOut, Int *moneyOut );
+	ControlBarContext getCurrentContext( void ) const { return m_currContext; }	///< for -uidrill's log
 
 	/// the window every other one on the bar hangs off, so -uidrill can walk it looking for a button
 	GameWindow *getMasterParent( void ) { return m_contextParent[ CP_MASTER ]; }

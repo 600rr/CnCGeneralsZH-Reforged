@@ -2649,10 +2649,13 @@ void ControlBar_logPlacement( const char *tag, Int frame )
 			tip->hide( TRUE );
 	}
 
-	DEBUG_LOG(("UIDRILL: frame %d %s top %d money %d origin (%d,%d) marker (%d,%d) live (%d,%d) tip (%d,%d %dx%d) screen %dx%d\n",
+	// what the bar shows against what is selected: an empty selection showing a command set is a
+	// builder standing in, which only Reforged has
+	DEBUG_LOG(("UIDRILL: frame %d %s top %d money %d origin (%d,%d) marker (%d,%d) live (%d,%d) tip (%d,%d %dx%d) screen %dx%d selected %d context %d\n",
 		frame, tag, top, money, origin->x, origin->y, markX, markY, liveX, liveY,
 		tipX, tipY, tipW, tipH,
-		TheDisplay->getWidth(), TheDisplay->getHeight()));
+		TheDisplay->getWidth(), TheDisplay->getHeight(),
+		TheInGameUI ? TheInGameUI->getSelectCount() : -1, (Int)TheControlBar->getCurrentContext()));
 }
 
 void ControlBar::forEachPlacedWindow( Int *topOut, Int *moneyOut )
@@ -4383,6 +4386,11 @@ static void findStandInBuilderProc( Object *obj, void *userData )
 
 Drawable *ControlBar::findStandInBuilder( Bool freeOnly )
 {
+	// Classic's bar is 1.04's: nothing selected is an empty bar, and a build needs a selected worker.
+	// A stand-in kept the dozer's build menu up after the dozer was let go.
+	if( barIsClassic() )
+		return NULL;
+
 	Player *player = ThePlayerList ? ThePlayerList->getLocalPlayer() : NULL;
 	if( player == NULL )
 		return NULL;
@@ -5663,6 +5671,9 @@ void ControlBar::setControlBarSchemeByPlayer(Player *p)
 	{
 		switchToContext( CB_CONTEXT_NONE, NULL );
 		m_isObserverCommandBar = FALSE;
+		// what was showing is gone, and no selection event will bring it back: the selection's or
+		// the stand-in builder's command set has to be evaluated again
+		markUIDirty();
 
 		if (buttonIdleWorker)
 			buttonIdleWorker->winHide(FALSE);
@@ -5712,6 +5723,9 @@ void ControlBar::setControlBarSchemeByPlayerTemplate( const PlayerTemplate *pt)
 	{
 		switchToContext( CB_CONTEXT_NONE, NULL );
 		m_isObserverCommandBar = FALSE;
+		// what was showing is gone, and no selection event will bring it back: the selection's or
+		// the stand-in builder's command set has to be evaluated again
+		markUIDirty();
 
 		if (buttonIdleWorker)
 			buttonIdleWorker->winHide(FALSE);
