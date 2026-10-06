@@ -210,6 +210,7 @@ Data/Scenarios/v240_heli.txt
 Data/Scenarios/v240_hook.txt
 Data/Scenarios/v240_md.txt
 Data/Scenarios/v240_tank.txt
+Data/Scenarios/vehicleaccel.txt
 Data/Scenarios/vehiclelean.txt
 Data/Scenarios/vision.txt
 Data/Scenarios/wreckcheck.txt
