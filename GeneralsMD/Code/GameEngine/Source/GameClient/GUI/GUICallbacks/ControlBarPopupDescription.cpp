@@ -787,7 +787,7 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 						  commandButton->getCommandType() == GUI_COMMAND_OBJECT_UPGRADE )
 					{
 						ProductionUpdateInterface *pui = selectedObject->getProductionUpdateInterface();
-						if( pui && pui->getProductionCount() >= pui->getMaxQueueEntries() )
+						if( pui && pui->getProductionCount() >= getQueueCap( pui ) )
 						{
 							card.warning = TheGameText->fetch( "TOOLTIP:TooltipCannotPurchaseBecauseQueueFull" );
 						}

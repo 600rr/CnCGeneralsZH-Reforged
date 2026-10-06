@@ -63,6 +63,7 @@ class PlayerTemplate;
 class AudioEventRTS;
 class ControlBarSchemeManager;
 class UpgradeTemplate;
+class ProductionUpdateInterface;
 class GameWindowTransitionsHandler;
 class DisplayString;
 
@@ -424,6 +425,10 @@ enum { CTRL_SHIFT_BUILD_QUEUE_COUNT = 100 };
 
 // the count the modifiers currently held ask for; 1 with nothing held
 Int getBuildBatchCount( void );
+
+// how deep a producer's queue may go from the bar: its own MaxQueueEntries, and in Classic no
+// deeper than the nine queue buttons that show it
+UnsignedInt getQueueCap( const ProductionUpdateInterface *pu );
 
 enum { MAX_COMMANDS_PER_SET = 18 };  // user interface max is 14 (but internally it's 18 for script only buttons!)
 
@@ -1256,6 +1261,8 @@ protected:
 	void resetContainData( void );			/// reset container data we use to tie controls to objects IDs for containment
 	void resetBuildQueueData( void );			/// reset the build queue data we use to die queue entires to control
 	void resetBuildQueueButtons( void );	/// attach the queue button windows and wipe them to empty
+	void populateBuildQueue( Object *producer );	///< Classic: the producer's queue into the queue buttons
+	void updateClassicBuildQueue( Object *obj, ProductionUpdateInterface *pu );	///< Classic: queue over the portrait while it holds anything
 
 	// the following methods are for populating the context GUI controls for a particular context
 	static void populateButtonProc( Object *obj, void *userData );

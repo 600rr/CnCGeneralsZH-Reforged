@@ -59,6 +59,7 @@
 #include "GameClient/Display.h"
 #include "GameClient/DisplayStringManager.h"
 #include "GameClient/InGameUI.h"		// HudReadout_draw, the plate every corner marking stands on
+#include "Common/GlobalData.h"
 #include "W3DDevice/GameClient/W3DGameWindow.h"
 #include "W3DDevice/GameClient/W3DDisplay.h"
 #include "W3DDevice/GameClient/W3DGadget.h"
@@ -106,6 +107,9 @@ static const Int BADGE_LEAST_POINTS = 6;
 	* many more of these are still coming - and at seven points against a busy cameo it was a smudge
 	* nobody found without looking for it.  It gets its own size, and an opaque plate under it. */
 static const Real COUNT_BADGE_DESIGN_POINTS = 11.0f;
+
+/** Classic's key letter, the only place its keys are shown. */
+static const Real CLASSIC_KEY_BADGE_DESIGN_POINTS = 10.0f;
 
 // getBadgeFont ===============================================================
 /** The font the corner markings wear.
@@ -185,6 +189,15 @@ static void drawButtonText( GameWindow *window, WinInstanceData *instData )
 	// left corner, which the button's own art could be any colour under
 	if( BitTest( window->winGetStatus(), WIN_STATUS_SHORTCUT_BUTTON ) )
 	{
+		// Classic has no grid places to learn the keys from, so the letter is the one way in: set
+		// larger, and in gold while the button can be pressed
+		if( TheGlobalData->isClassicUI() )
+		{
+			const Bool enabled = BitTest( window->winGetStatus(), WIN_STATUS_ENABLED );
+			drawBadge( window, text->getText(), CLASSIC_KEY_BADGE_DESIGN_POINTS, HUD_READOUT_TOP_LEFT,
+								 enabled ? GameMakeColor( 255, 210, 60, 255 ) : textColor );
+			return;
+		}
 		drawBadge( window, text->getText(), BADGE_DESIGN_POINTS, HUD_READOUT_TOP_LEFT, textColor );
 		return;
 	}

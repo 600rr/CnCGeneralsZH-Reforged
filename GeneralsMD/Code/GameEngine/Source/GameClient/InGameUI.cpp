@@ -1280,10 +1280,12 @@ InGameUI::InGameUI()
 	m_promotionPageLoaded = FALSE;
 	m_promotionShownMs = 0;
 	m_promotionDrawnAt = 0;
+	m_promotionClosing = FALSE;
 	m_quitMenuOverlay = NULL;
 	m_quitMenuPageLoaded = FALSE;
 	m_quitMenuShownMs = 0;
 	m_quitMenuDrawnAt = 0;
+	m_quitMenuClosingMs = -1;
 	m_controlBarPageShown = FALSE;
 	m_tooltipOverlay = NULL;
 	m_tooltipPageLoaded = FALSE;
@@ -13443,7 +13445,11 @@ static const Int PROMOTION_NOT_DRAWN = -1;
 
 void InGameUI::openPromotionPage( void )
 {
-	m_promotionShownMs = PROMOTION_NOT_DRAWN;
+	// opened again while it was still going, it comes back up from where the going had got to
+	if( m_promotionClosing )
+		m_promotionClosing = FALSE;
+	else
+		m_promotionShownMs = TheGlobalData->m_animateWindows ? PROMOTION_NOT_DRAWN : PROMOTION_FADE_MS;
 }
 
 void InGameUI::drawPromotionPage( GameWindow *parent, Bool front )
@@ -13477,16 +13483,26 @@ void InGameUI::drawPromotionPage( GameWindow *parent, Bool front )
 	screen.hi.y = TheDisplay->getHeight();
 	putPageRect( values, "screen", screen, TRUE );
 
-	// the back draws first each picture and moves the coming up on for both layers
+	// the back draws first each picture and moves the coming up, or the going, on for both layers;
+	// gone, the screen is hidden and draws no more
 	if( !front )
 	{
 		const UnsignedInt now = Clock_Milliseconds();
-		if( m_promotionShownMs == PROMOTION_NOT_DRAWN )
+		const Int step = min( (Int)( now - m_promotionDrawnAt ), PROMOTION_MOST_MS_A_PICTURE );
+		if( m_promotionClosing )
+			m_promotionShownMs = max( 0, m_promotionShownMs ) - step;
+		else if( m_promotionShownMs == PROMOTION_NOT_DRAWN )
 			m_promotionShownMs = 0;
 		else
-			m_promotionShownMs = min( m_promotionShownMs + min( (Int)( now - m_promotionDrawnAt ), PROMOTION_MOST_MS_A_PICTURE ),
-																PROMOTION_FADE_MS );
+			m_promotionShownMs = min( m_promotionShownMs + step, PROMOTION_FADE_MS );
 		m_promotionDrawnAt = now;
+		if( m_promotionClosing && m_promotionShownMs <= 0 )
+		{
+			m_promotionClosing = FALSE;
+			m_promotionShownMs = 0;
+			parent->winHide( TRUE );
+			return;
+		}
 	}
 	overlay->setAlpha( max( 0, m_promotionShownMs ) * OPAQUE_PAGE / PROMOTION_FADE_MS );
 
@@ -13591,6 +13607,9 @@ enum
 	* keys had all come in within four pictures: they seemed to pop up with no fade at all. */
 static const Int QUIT_MENU_MOST_MS_A_PICTURE = 25;
 static const Int QUIT_MENU_NOT_DRAWN = -1;	///< m_quitMenuShownMs until the menu's first picture
+static const Int QUIT_MENU_NOT_CLOSING = -1;	///< m_quitMenuClosingMs while the menu is not going
+/** Far enough into the coming up that every one of the five keys is in and done flashing. */
+static const Int QUIT_MENU_WHOLE_MS = QUIT_MENU_KEY_FIRST_MS + 4 * QUIT_MENU_KEY_STEP_MS + QUIT_MENU_KEY_FLASH_MS;
 
 /** A window of the same layout as `parent`, by its name there. */
 static GameWindow *quitMenuWindow( GameWindow *parent, const char *name )
@@ -13615,7 +13634,9 @@ void InGameUI::themeQuitMenu( GameWindow *parent )
 	if( m_quitMenuPage.empty() )
 		return;
 
-	m_quitMenuShownMs = QUIT_MENU_NOT_DRAWN;
+	// with window animation off the menu is simply there, every key already in
+	m_quitMenuShownMs = TheGlobalData->m_animateWindows ? QUIT_MENU_NOT_DRAWN : QUIT_MENU_WHOLE_MS;
+	m_quitMenuClosingMs = QUIT_MENU_NOT_CLOSING;
 	parent->winSetDrawFunc( drawQuitMenu );
 	for( Int key = 0; key < (Int)ARRAY_SIZE( QUIT_MENU_KEYS ); key++ )
 	{
@@ -13699,14 +13720,27 @@ void InGameUI::drawQuitMenuPage( GameWindow *parent )
 
 	// the coming up starts on the menu's first picture and moves on with the wall clock, but never
 	// by more than QUIT_MENU_MOST_MS_A_PICTURE a picture
+	// The going is the page fading out over QUIT_MENU_FADE_MS from wherever the coming up had got
+	// to, and the menu hidden at the end of it
 	const UnsignedInt now = Clock_Milliseconds();
-	if( m_quitMenuShownMs == QUIT_MENU_NOT_DRAWN )
+	const Int step = min( (Int)( now - m_quitMenuDrawnAt ), QUIT_MENU_MOST_MS_A_PICTURE );
+	if( m_quitMenuClosingMs != QUIT_MENU_NOT_CLOSING )
+		m_quitMenuClosingMs += step;
+	else if( m_quitMenuShownMs == QUIT_MENU_NOT_DRAWN )
 		m_quitMenuShownMs = 0;
 	else
-		m_quitMenuShownMs += min( (Int)( now - m_quitMenuDrawnAt ), QUIT_MENU_MOST_MS_A_PICTURE );
+		m_quitMenuShownMs += step;
 	m_quitMenuDrawnAt = now;
-	const Int openMs = m_quitMenuShownMs;
-	const Int pageAlpha = min( 255, openMs * 255 / QUIT_MENU_FADE_MS );
+	if( m_quitMenuClosingMs >= QUIT_MENU_FADE_MS )
+	{
+		m_quitMenuClosingMs = QUIT_MENU_NOT_CLOSING;
+		parent->winHide( TRUE );
+		return;
+	}
+	const Int openMs = max( 0, m_quitMenuShownMs );
+	Int pageAlpha = min( 255, openMs * 255 / QUIT_MENU_FADE_MS );
+	if( m_quitMenuClosingMs != QUIT_MENU_NOT_CLOSING )
+		pageAlpha = pageAlpha * ( QUIT_MENU_FADE_MS - m_quitMenuClosingMs ) / QUIT_MENU_FADE_MS;
 
 	// a key still fading in is drawn alone on the same page with the rest of it bare, the page having
 	// no opacity of its own for one element; the keys already whole are on the menu's page

@@ -484,10 +484,16 @@ public:  // ********************************************************************
 	Bool isPromotionPageShown( void ) const { return m_promotionPageLoaded && !m_promotionPage.empty(); }
 	/** The promotion screen is coming up: its page and the dimmed screen under it fade in from now. */
 	void openPromotionPage( void );
+	/** The promotion screen is going: the page fades out and hides its window when it is gone. */
+	void closePromotionPage( void ) { m_promotionClosing = TRUE; }
 	/** The Esc menu hands its look to Window/Html/QuitMenu.html: `parent` draws the page and its keys
 		* draw nothing and keep their clicks.  Left as it is when there is no page. */
 	void themeQuitMenu( GameWindow *parent );
 	void drawQuitMenuPage( GameWindow *parent );
+	/** TRUE once the Esc menu is the page's, so the layout's own transitions stay off. */
+	Bool isQuitMenuPageShown( void ) const { return m_quitMenuPageLoaded && !m_quitMenuPage.empty(); }
+	/** The Esc menu is going: the page fades out and hides its window when it is gone. */
+	void closeQuitMenuPage( void ) { m_quitMenuClosingMs = 0; }
 	/** The command bar's grids of buttons whose cells the page frames in front of the buttons. */
 	enum CellGrid { CELL_GRID_COMMAND, CELL_GRID_QUEUE, CELL_GRID_POWERS, CELL_GRID_COUNT };
 	/** The steel frames over one grid's buttons, from Window/Html/ControlBar.html, drawn after them. */
@@ -1632,12 +1638,14 @@ protected:
 	std::string									m_promotionPage;
 	Int													m_promotionShownMs;				///< how far the promotion screen has come up, -1 before its first picture
 	UnsignedInt									m_promotionDrawnAt;				///< the wall clock at its last picture
+	Bool												m_promotionClosing;				///< fading out, m_promotionShownMs running back to 0
 	HtmlOverlay *								m_quitMenuOverlay;
 	std::vector< HtmlOverlay * >	m_quitMenuKeyOverlays;	///< one for each of the menu's keys, each fading in on its own
 	Bool												m_quitMenuPageLoaded;
 	std::string									m_quitMenuPage;
 	Int													m_quitMenuShownMs;			///< how far the menu's coming up has run, -1 until its first picture
 	UnsignedInt									m_quitMenuDrawnAt;			///< the wall clock at its last picture: the game is paused under it
+	Int													m_quitMenuClosingMs;		///< how far the menu's going has run, -1 while it is not going
 	Bool												m_signalsWereShown;				///< the smoke signal column was up last frame
 	UnsignedInt									m_signalsRiseStartMs;			///< when it last came up, the start of its buttons' rise
 

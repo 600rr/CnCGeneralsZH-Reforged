@@ -68,6 +68,7 @@
 #include "GameLogic/Module/AutoDepositUpdate.h"
 #include "GameLogic/Module/HackInternetAIUpdate.h"
 #include "GameLogic/Module/SupplyTruckAIUpdate.h"
+#include "GameLogic/Module/SupplyWarehouseDockUpdate.h"
 #include "Common/Upgrade.h"
 #include "GameLogic/Module/StealthUpdate.h"
 #include "GameLogic/Module/StickyBombUpdate.h"
@@ -90,6 +91,7 @@
 #include "GameClient/ParticleSys.h"
 #include "GameClient/PlayerColorScheme.h"
 #include "GameClient/LanguageFilter.h"
+#include "GameClient/Mouse.h"
 #include "GameClient/Shadow.h"
 #include "GameClient/GameText.h"
 
@@ -3125,9 +3127,7 @@ void Drawable::drawIconUI( void )
 
 		drawCaption( healthBarRegion );
 		drawConstructPercent( healthBarRegion );
-		// Classic's piles wear no money, as the game shipped
-		if( !TheGlobalData->isClassicUI() )
-			drawSupplyCash( healthBarRegion );
+		drawSupplyCash( healthBarRegion );
 
 		//All Icons Below only draw on ALIVE things, so  bail here -------------------------
 		if( obj->isEffectivelyDead() || obj->isKindOf( KINDOF_IGNORED_IN_GUI )) // object explicitly wants nothing to do with these icons, so...
@@ -4133,7 +4133,10 @@ void Drawable::drawConstructPercent( const IRegion2D *healthBarRegion )
 /** How much money is still in a supply pile, written over it.  The piles were readable only as
 	* art - a full one and a nearly-empty one differ by a few boxes on the model - so deciding which
 	* one to send workers to, or whether an expansion is worth taking, meant guessing.  Written as
-	* cash rather than as boxes because cash is the number the decision is actually about. */
+	* cash rather than as boxes because cash is the number the decision is actually about.
+	* Docks and warehouses (400 boxes at the start) show it all the time; the small piles (150 and
+	* 50) litter the map and show it, smaller, only while the cursor is on or near them.  The class
+	* comes from the starting box count, so a big source does not turn small as it drains. */
 //-------------------------------------------------------------------------------------------------
 void Drawable::drawSupplyCash( const IRegion2D *healthBarRegion )
 {
@@ -4157,11 +4160,36 @@ void Drawable::drawSupplyCash( const IRegion2D *healthBarRegion )
 	if( obj->getShroudedStatus( TheObserverCamera.getShroudPlayerIndex() ) != OBJECTSHROUD_CLEAR )
 		return;
 
+	// only a SupplyWarehouseDockUpdate answers getSupplyCashValue with cash, so this finds one
+	static const NameKeyType warehouseModuleKey = TheNameKeyGenerator->nameToKey( "SupplyWarehouseDockUpdate" );
+	const SupplyWarehouseDockUpdate *warehouse = (const SupplyWarehouseDockUpdate *)obj->findUpdateModule( warehouseModuleKey );
+	const Bool largeSource = warehouse->getStartingBoxes() >= 300;
+
+	Coord3D pos;
+	obj->getHealthBoxPosition( pos );
+	ICoord2D screen;
+	if( !TheTacticalView->worldToScreen( &pos, &screen ) )
+		return;
+
+	if( !largeSource && TheInGameUI->getMousedOverDrawableID() != getID() )
+	{
+		// near enough counts too: a small pile's model is a narrow target to land the cursor on
+		const ICoord2D &mouse = TheMouse->getMouseStatus()->pos;
+		Int dx = mouse.x - screen.x;
+		Int dy = mouse.y - screen.y;
+		const Int nearPixels = 60;
+		if( dx * dx + dy * dy > nearPixels * nearPixels )
+			return;
+	}
+
 	if( m_supplyCashDisplayString == NULL )
 	{
+		Int pointSize = TheInGameUI->getDrawableCaptionPointSize();
+		if( !largeSource )
+			pointSize -= 2;
 		m_supplyCashDisplayString = TheDisplayStringManager->newDisplayString();
 		m_supplyCashDisplayString->setFont( TheFontLibrary->getFont( TheInGameUI->getDrawableCaptionFontName(),
-											TheGlobalLanguageData->adjustFontSize( TheInGameUI->getDrawableCaptionPointSize() ),
+											TheGlobalLanguageData->adjustFontSize( pointSize ),
 											TheInGameUI->isDrawableCaptionBold() ) );
 	}
 
@@ -4172,12 +4200,6 @@ void Drawable::drawSupplyCash( const IRegion2D *healthBarRegion )
 		m_supplyCashDisplayString->setText( buffer );
 		m_lastSupplyCashDisplayed = cash;
 	}
-
-	Coord3D pos;
-	obj->getHealthBoxPosition( pos );
-	ICoord2D screen;
-	if( !TheTacticalView->worldToScreen( &pos, &screen ) )
-		return;
 
 	Int width, height;
 	m_supplyCashDisplayString->getSize( &width, &height );

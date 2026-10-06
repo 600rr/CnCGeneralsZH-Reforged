@@ -5865,7 +5865,11 @@ void ControlBar::showPurchaseScience( void )
 	// the fade holds the screen hidden for nine frames and draws the side's old painting of it fading
 	// in, which the page has replaced
 	if (TheGlobalData->m_animateWindows && !TheInGameUI->isPromotionPageShown())
+	{
+		// a fade still running out is ended first, or it would hide the screen it just showed
+		TheTransitionHandler->remove("GenExpFade");
 		TheTransitionHandler->setGroup("GenExpFade");
+	}
 		//m_generalsScreenAnimate->registerGameWindow( m_contextParent[ CP_PURCHASE_SCIENCE ], WIN_ANIMATION_SLIDE_TOP, TRUE, 200 );
 
 }
@@ -5874,7 +5878,28 @@ void ControlBar::hidePurchaseScience( void )
 {
 	clearPurchaseScienceColumn();
 
+	const Bool wasOpen = m_purchaseScienceOpen;
 	m_purchaseScienceOpen = FALSE;
+
+	//
+	// Closing plays the opening backwards.  The page fades itself out and hides the window when it
+	// is gone; Classic's painted screen runs its fade in reverse, which hides it at the end.  The
+	// window stays up meanwhile, which is why the open state is ours and not its hidden flag.
+	//
+	GameWindow *screen = m_contextParent[ CP_PURCHASE_SCIENCE ];
+	if( wasOpen && screen && TheGlobalData->m_animateWindows )
+	{
+		if( !TheInGameUI->isPromotionPageShown() )
+		{
+			TheTransitionHandler->reverse( "GenExpFade" );
+			return;
+		}
+		if( !screen->winIsHidden() )
+		{
+			TheInGameUI->closePromotionPage();
+			return;
+		}
+	}
 
 	//
 	// The fade drives winHide on this window itself, frame by frame, and it holds the window hidden
@@ -5890,20 +5915,6 @@ void ControlBar::hidePurchaseScience( void )
 	{
 		m_contextParent[ CP_PURCHASE_SCIENCE ]->winHide( TRUE );
 	}
-//	if (!TheGlobalData->m_animateWindows)
-//		{
-//			if( m_contextParent[ CP_PURCHASE_SCIENCE ] )
-//			{
-//				m_contextParent[ CP_PURCHASE_SCIENCE ]->winHide( TRUE );
-//			}
-//		}
-//		else
-//		{
-//			//if (m_generalsScreenAnimate->isFinished())
-//			if(TheTransitionHandler->isFinished())
-//				TheTransitionHandler->reverse("GenExpFade");
-//				//m_generalsScreenAnimate->reverseAnimateWindow();
-//		}
 }
 
 Bool ControlBar::isPurchaseScienceVisible( void )
@@ -6460,7 +6471,17 @@ void ControlBar::arrangeSpecialPowerShortcutGrid( void )
 	if( getSpecialPowerTrayLayout( NULL, &cameoSize, &cameoOffset, &columnStep ) == FALSE )
 		return;
 
-	const Int columns = MIN( m_currentlyUsedSpecialPowersButtons, (Int)SPECIAL_POWER_SHORTCUT_COLS );
+	//
+	// Classic keeps every power on the one row the first stands on, growing to the left, each slot
+	// a third under the one to its right so the row reads as a fanned stack and eleven powers do
+	// not run halfway across the screen.  The cover is the right hand third, so the corner the
+	// count is drawn in stays clear on every slot
+	//
+	const Bool classic = barIsClassic();
+	if( classic )
+		columnStep = columnStep * 2 / 3;
+	const Int columns = classic ? m_currentlyUsedSpecialPowersButtons
+															: MIN( m_currentlyUsedSpecialPowersButtons, (Int)SPECIAL_POWER_SHORTCUT_COLS );
 	const Int widen = ( columns - 1 ) * columnStep;
 
 	//
@@ -6485,8 +6506,8 @@ void ControlBar::arrangeSpecialPowerShortcutGrid( void )
 		if( slot == NULL || button == NULL )
 			continue;
 
-		const Int column = i % SPECIAL_POWER_SHORTCUT_COLS;
-		const Int row = i / SPECIAL_POWER_SHORTCUT_COLS;
+		const Int column = classic ? i : i % SPECIAL_POWER_SHORTCUT_COLS;
+		const Int row = classic ? 0 : i / SPECIAL_POWER_SHORTCUT_COLS;
 
 		slot->winSetPosition( firstX + widen - column * columnStep, firstY - row * rowStep );
 
@@ -7055,8 +7076,12 @@ void ControlBar::drawSpecialPowerShortcutMultiplierText()
 		// Which key a slot number means is up to CommandMap.ini - getMetaKeyLabel returns
 		// nothing for an unbound one.
 		//
+		// Classic's powers wear no key, only how many are ready, as the game shipped
 		Int keySlot = -1;
-		if( m_specialPowerShortcutRow < 0 )
+		if( barIsClassic() )
+		{
+		}
+		else if( m_specialPowerShortcutRow < 0 )
 		{
 			if( i % SPECIAL_POWER_SHORTCUT_COLS == 0 )
 				keySlot = i / SPECIAL_POWER_SHORTCUT_COLS;
