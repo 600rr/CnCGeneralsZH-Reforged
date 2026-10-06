@@ -1964,6 +1964,7 @@ Libraries/Source/WWVegas/WW3D2/font3d.h
 Libraries/Source/WWVegas/WW3D2/formconv.cpp
 Libraries/Source/WWVegas/WW3D2/formconv.h
 Libraries/Source/WWVegas/WW3D2/framgrab.h
+Libraries/Source/WWVegas/WW3D2/fullscreenfit.h
 Libraries/Source/WWVegas/WW3D2/gdifontmetrics.h
 Libraries/Source/WWVegas/WW3D2/glyphrasteriser.cpp
 Libraries/Source/WWVegas/WW3D2/glyphrasteriser.h

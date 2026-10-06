@@ -29,6 +29,7 @@
 #include "vector4.h"
 #include "quat.h"
 #include "render2dsentence.h"
+#include "fullscreenfit.h"
 
 /*
  * W3DMPO_GLUE gives every pooled class an operator new that routes through
@@ -76,6 +77,32 @@ void freeFromW3DMemPool(void * /*pool*/, void *p)
 		return;
 	}
 	::operator delete(raw);
+}
+
+/*=========================================================================
+   fullscreenfit - where a scaled fullscreen picture goes on its monitor
+  =========================================================================*/
+
+TEST(fullscreen_fit_stretch_covers_the_whole_monitor)
+{
+	const FullscreenFitRect fit = Fullscreen_Fit(1920, 1200, 1280, 720, false);
+	CHECK_EQ(fit.x, 0); CHECK_EQ(fit.y, 0);
+	CHECK_EQ(fit.width, 1920); CHECK_EQ(fit.height, 1200);
+}
+
+TEST(fullscreen_fit_keeps_the_pictures_shape_with_bars)
+{
+	/* 16:9 on 16:10: bars above and below, 60 each */
+	FullscreenFitRect fit = Fullscreen_Fit(1920, 1200, 1920, 1080, true);
+	CHECK_EQ(fit.x, 0); CHECK_EQ(fit.y, 60); CHECK_EQ(fit.width, 1920); CHECK_EQ(fit.height, 1080);
+	/* 4:3 on 16:9: bars left and right */
+	fit = Fullscreen_Fit(1920, 1080, 1024, 768, true);
+	CHECK_EQ(fit.x, 240); CHECK_EQ(fit.y, 0); CHECK_EQ(fit.width, 1440); CHECK_EQ(fit.height, 1080);
+	/* the monitor's own shape at a smaller size needs no bars */
+	fit = Fullscreen_Fit(1920, 1200, 1680, 1050, true);
+	CHECK_EQ(fit.x, 0); CHECK_EQ(fit.y, 0); CHECK_EQ(fit.width, 1920); CHECK_EQ(fit.height, 1200);
+	fit = Fullscreen_Fit(1920, 1080, 1280, 720, true);
+	CHECK_EQ(fit.width, 1920); CHECK_EQ(fit.height, 1080);
 }
 
 /*=========================================================================

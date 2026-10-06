@@ -831,11 +831,15 @@ public:
 	static WW3DFormat	getBackBufferFormat( void );
 	static bool Reset_Device(bool reload_assets=true);
 
-	// While Direct3D 11 presents, the Direct3D 9 device is always windowed and a fullscreen game is a
-	// display mode plus a window covering it, both set here.  shown false gives the desktop its own
-	// mode and gamma back and minimises the window, which is what leaving the game does; true puts
-	// the game's back.  A windowed game, or one Direct3D 9 presents, only gets the desktop restored.
+	// The Direct3D 9 device is always windowed, and a fullscreen game is a topmost window over its
+	// monitor, placed here.  The monitor keeps its own mode: a picture smaller than it is scaled up
+	// onto all of it, or onto the largest part of its own shape with black either side.  shown false
+	// gives the desktop its gamma back and minimises the window, which is what leaving the game does;
+	// true puts the game's back.  A windowed game only gets the desktop's gamma restored.
 	static void Apply_Fullscreen_Display(bool shown);
+	// Stretch a fullscreen picture whose shape is not the monitor's (false), or keep its shape with
+	// black bars (true).  Pushed in from the app layer like the monitor below.
+	static void Set_Requested_Fullscreen_Keep_Aspect(bool keep);
 	// The monitor that display mode and window go on, as its GDI device name.  WW3D2 cannot see
 	// GlobalData, so the app layer pushes it in before the device is made or reset, like the vsync.
 	static void Set_Requested_Monitor(const char * device);
