@@ -1722,7 +1722,8 @@ CommandAvailability ControlBar::getCommandAvailability( const CommandButton *com
 				if( frames <= 0.0f && spTemplate )
 					frames = (Real)spTemplate->getReloadTime();
 
-				GadgetButtonSetSeconds( applyToWin, ControlBar_secondsFromFrames( frames ) );
+				// Classic's power buttons are EA's pictures alone, like its build buttons
+				GadgetButtonSetSeconds( applyToWin, TheGlobalData->isClassicUI() ? 0 : ControlBar_secondsFromFrames( frames ) );
 			}
 
 			// Pro Rules: the power is there and the button stays dead

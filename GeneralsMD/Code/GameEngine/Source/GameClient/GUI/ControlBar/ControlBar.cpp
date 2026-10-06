@@ -6481,13 +6481,13 @@ void ControlBar::arrangeSpecialPowerShortcutGrid( void )
 
 	//
 	// Classic keeps every power on the one row the first stands on, growing to the left, each slot
-	// a third under the one to its right so the row reads as a fanned stack and eleven powers do
-	// not run halfway across the screen.  The cover is the right hand third, so the corner the
-	// count is drawn in stays clear on every slot
+	// tucked under the one to its right.  Only the tray's frame right of the cameo is covered: the
+	// cameo's hole ends 49 pixels into the 60 pixel art, so the next tray starts there and every
+	// picture stays whole
 	//
 	const Bool classic = barIsClassic();
 	if( classic )
-		columnStep = columnStep * 2 / 3;
+		columnStep = ( columnStep * 49 + 30 ) / 60;
 
 	//
 	// Classic's bar keeps the authored height, 3..420 of the 800x600 screen, and widened for the
