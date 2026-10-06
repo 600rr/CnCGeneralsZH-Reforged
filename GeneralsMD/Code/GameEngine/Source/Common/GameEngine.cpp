@@ -1753,11 +1753,28 @@ void GameEngine_noteFrameTime( Real ms, UnsignedInt logicFrame )
 	theFrameTimes.note( ms, logicFrame );
 }
 
+/* The world's object count once a logic tick, debris and dying objects included, so a data change
+	 that adds objects (more wreckage, more projectiles) is argued with a number.  Read-only, and only
+	 in an unattended run that started counting. */
+static UnsignedInt theObjectPeak = 0;
+static UnsignedInt theObjectPeakFrame = 0;
+static double theObjectSum = 0.0;
+static Int theObjectTicks = 0;
+
 void GameEngine_noteLogicTime( Real ms, UnsignedInt logicFrame )
 {
 	if( !theFrameTimesStarted )
 		return;
 	theLogicTimes.note( ms, logicFrame );
+
+	const UnsignedInt objects = TheGameLogic ? TheGameLogic->getObjectCount() : 0;
+	theObjectSum += objects;
+	++theObjectTicks;
+	if( objects > theObjectPeak )
+	{
+		theObjectPeak = objects;
+		theObjectPeakFrame = logicFrame;
+	}
 }
 
 /** Start counting.  Called when an unattended run actually begins, so the map load, the first
@@ -1767,6 +1784,10 @@ static void startFrameTimeStats( void )
 {
 	theFrameTimes.reset();
 	theLogicTimes.reset();
+	theObjectPeak = 0;
+	theObjectPeakFrame = 0;
+	theObjectSum = 0.0;
+	theObjectTicks = 0;
 	theFrameTimesStarted = TRUE;
 #ifdef DEBUG_LOGGING
 	memset( &theParticleCost, 0, sizeof(theParticleCost) );
@@ -1831,6 +1852,12 @@ static void reportFrameTimeStats( void )
 							 theLogicTimes.percentileMS( 0.99f ), theLogicTimes.percentileMS( 0.999f ),
 							 theLogicTimes.worstMS(), theLogicTimes.worstAtFrame(),
 							 theLogicTimes.countOver( 33.3f )));
+	}
+
+	if( theObjectTicks > 0 )
+	{
+		DEBUG_LOG(("HEADLESS OBJECTS: peak %u (frame %u) | mean %.0f over %d ticks\n",
+							 theObjectPeak, theObjectPeakFrame, theObjectSum / theObjectTicks, theObjectTicks));
 	}
 }
 
