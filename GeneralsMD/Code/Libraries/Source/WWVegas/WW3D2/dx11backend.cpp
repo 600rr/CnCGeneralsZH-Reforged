@@ -621,11 +621,14 @@ static const unsigned SMOKE_MOST_CASTERS = 16384;
 static const float SMOKE_SELF_SHADOW_GAIN = 0.8f;
 static const float SMOKE_SELF_SHADOW_CURVE = 16.0f;
 // How far in front of what is behind it a particle sprite has fully faded in, in world units.  A
-// tank is about thirty long; a smoke puff is ten to forty across.  A toxin cloud is a carpet of
-// puffs hovering a few units over the ground: at twelve, and still at five, the fade took most of
-// each one away and left their tops as hard-rimmed green islands.  Two hides the line where a
-// sprite cuts a surface and leaves the carpet whole.
-static const float SOFT_PARTICLE_FADE_UNITS = 2.0f;
+// tank is about thirty long; a smoke puff is ten to forty across.  At two, a sprite still met the
+// ground over a pixel or two at the default zoom: a nuke's haze and the Scud's grey smoke came out as
+// stacked stair-stepped terraces and every toxin puff as a hard-rimmed island, the posterized
+// blastcheck frames of 2026-10-06, and at zero it is the unfaded game's cut lines outright.  Twelve
+// on the smoothstep (SOFT_PARTICLE_SAMPLING) is smooth in both and keeps the toxin carpet whole; the
+// islands once blamed on twelve were the straight ramp's creases, which the smoothstep took away.
+// Twenty starts to thin the carpet.
+static const float SOFT_PARTICLE_FADE_UNITS = 12.0f;
 
 // Each caster is a disc facing the sun, drawn as a four corner strip whose corners come from the
 // vertex number, so the only buffer is the one holding the casters.
