@@ -66,12 +66,12 @@
 // across the width that reaches zero at the edge, so the halo has no visible border. The core
 // stacks past white on top of EA's layers, which the Direct3D 11 bloom then picks up; under -d3d9
 // the halo alone is the glow. Draw side only: nothing here is read by GameLogic or parsed from INI.
-static const Real GLOW_HALO_WIDTH_SCALE	= 1.6f;		// halo width over the beam's widest layer
-static const Real GLOW_HALO_MIN_WIDTH		= 8.0f;
-static const Real GLOW_HALO_INTENSITY		= 0.45f;
-static const Real GLOW_CORE_WIDTH_SCALE	= 0.15f;
-static const Real GLOW_CORE_MIN_WIDTH		= 1.5f;
-static const Real GLOW_CORE_WHITEN			= 0.6f;		// how far the core's hue is run toward white
+static const Real GLOW_HALO_WIDTH_SCALE	= 2.8f;		// halo width over the beam's widest layer
+static const Real GLOW_HALO_MIN_WIDTH		= 16.0f;
+static const Real GLOW_HALO_INTENSITY		= 0.75f;
+static const Real GLOW_CORE_WIDTH_SCALE	= 0.3f;
+static const Real GLOW_CORE_MIN_WIDTH		= 3.0f;
+static const Real GLOW_CORE_WHITEN			= 0.7f;		// how far the core's hue is run toward white
 static const Int GLOW_LAYERS						= 2;			// [0] halo, [1] core
 static const Int GLOW_TEXTURE_SIZE			= 64;
 
