@@ -4460,7 +4460,8 @@ void InGameUI::drawClassicMessages( void )
 	if( !m_messagesOn )
 		return;
 
-	const UIRect box = TheUIRect();
+	// in the HUD's 16:9 frame with the bar, not the menus' 4:3 box
+	const UIRect box = TheHudRect();
 	const Int x = box.x + m_messagePosition.x;
 	Int y = box.y + m_messagePosition.y;
 	for( Int i = CLASSIC_MESSAGES - 1; i >= 0; i-- )
@@ -8532,9 +8533,10 @@ void InGameUI::postDraw( void )
 		m_superweaponIconCount = 0;
 		m_spectatorSuperweapons.clear();
 
-		// the Classic interface writes EA's column of names and clocks instead, inside the 4:3 box
+		// the Classic interface writes EA's column of names and clocks instead, inside the HUD's
+		// 16:9 frame beside the bar
 		const Bool classic = TheGlobalData->isClassicUI();
-		const UIRect box = TheUIRect();
+		const UIRect box = TheHudRect();
 		const Int classicX = box.x + REAL_TO_INT( m_superweaponPosition.x * box.w );
 		Int classicY = box.y + REAL_TO_INT( m_superweaponPosition.y * box.h );
 		const Int classicBottom = box.y + REAL_TO_INT( box.h * 0.8f * 0.82f );	// EA's: the view above its bar
@@ -8703,7 +8705,7 @@ void InGameUI::postDraw( void )
 	{
 //		Int namedTimerCount = 0;
 		Bool reverseXDir = (m_namedTimerPosition.x >= 0.5f);
-		const UIRect box = TheUIRect();
+		const UIRect box = TheHudRect();
 		Int startX = box.x + (Int)(m_namedTimerPosition.x * box.w);
 		Int startY = box.y + (Int)(m_namedTimerPosition.y * box.h);
 		Color bgColor = GameMakeColor( 0, 0, 0, 255 );

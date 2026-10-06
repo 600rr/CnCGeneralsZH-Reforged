@@ -185,6 +185,8 @@ public:
 #endif
 	virtual void preloadModelAssets( AsciiString model ) = 0;	///< preload model asset
 	virtual void preloadTextureAssets( AsciiString texture ) = 0;	///< preload texture asset
+	/// preload a texture drawImage draws: one level, never reduced, the way drawImage asks for it
+	virtual void preloadImageTexture( AsciiString texture ) {}
 
 	virtual void takeScreenShot(void) = 0;										///< saves screenshot to a file
 	virtual void toggleMovieCapture(void) = 0;							///< starts saving frames to an avi or frame sequence
@@ -290,6 +292,26 @@ inline UIRect UIRectForScreen( Int screenWidth, Int screenHeight )
 
 /// Where the 2D interface lives: the 4:3 box in the Classic interface, the whole screen in Reforged.
 UIRect TheUIRect( void );
+
+//-------------------------------------------------------------------------------------------------
+/** The Classic interface's in-match HUD frame: the command bar, the powers beside it, the promotion
+	* screen, the superweapon clocks and the messages are laid out for 16:9.  On anything wider the
+	* 16:9 frame stands in the middle at full height; on anything narrower it is the whole screen. */
+//-------------------------------------------------------------------------------------------------
+inline UIRect HudRectForScreen( Int screenWidth, Int screenHeight )
+{
+	UIRect r = { 0, 0, screenWidth, screenHeight };
+	const Int wide = (Int)( screenHeight * 16.0f / 9.0f + 0.5f );
+	if( screenWidth > wide )
+	{
+		r.w = wide;
+		r.x = ( screenWidth - wide ) / 2;
+	}
+	return r;
+}
+
+/// The HUD frame: HudRectForScreen in the Classic interface, the whole screen in Reforged.
+UIRect TheHudRect( void );
 
 //-------------------------------------------------------------------------------------------------
 inline Real TheUIScale( void )

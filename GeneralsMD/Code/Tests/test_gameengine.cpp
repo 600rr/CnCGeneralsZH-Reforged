@@ -11925,10 +11925,20 @@ TEST(the_three_panels_are_one_bar_at_4x3_and_pull_apart_on_a_wide_screen)
 	CHECK( ControlBarPanelDesignToScreen( ControlBar::CB_PANEL_LEFT, &whole, 0, 0, &left ) == FALSE );
 }
 
-TEST(the_classic_bar_is_one_piece_centred_in_the_4x3_box)
+TEST(the_classic_bar_is_one_piece_across_the_16x9_hud_frame)
 {
-	/* The Classic interface puts EA's bar back together, and on a wide screen it stands in the
-		 middle of the 4:3 box with the world showing down both sides, not pulled apart to the edges. */
+	/* The menus keep the 4:3 box.  The Classic bar is EA's in one piece stretched across the HUD's
+		 16:9 frame: the whole screen up to 16:9, a centred 16:9 with the world down both sides past it. */
+	CHECK_EQ( HudRectForScreen( 1920, 1080 ).x, 0 );
+	CHECK_EQ( HudRectForScreen( 1920, 1080 ).w, 1920 );
+	CHECK_EQ( HudRectForScreen( 2560, 1080 ).x, 320 );
+	CHECK_EQ( HudRectForScreen( 2560, 1080 ).w, 1920 );
+	CHECK_EQ( HudRectForScreen( 5120, 1440 ).x, 1280 );
+	CHECK_EQ( HudRectForScreen( 5120, 1440 ).w, 2560 );
+	CHECK_EQ( HudRectForScreen( 1680, 1050 ).x, 0 );		// 16:10 is narrower: the whole screen
+	CHECK_EQ( HudRectForScreen( 1680, 1050 ).w, 1680 );
+	CHECK_EQ( HudRectForScreen( 1024, 768 ).w, 1024 );
+
 	CHECK_EQ( UIRectForScreen( 1920, 1080 ).x, 240 );
 	CHECK_EQ( UIRectForScreen( 1920, 1080 ).w, 1440 );
 	CHECK_EQ( UIRectForScreen( 1920, 1080 ).h, 1080 );
@@ -11949,7 +11959,7 @@ TEST(the_classic_bar_is_one_piece_centred_in_the_4x3_box)
 	for( Int screen = 0; screen < 2; screen++ )
 	{
 		const Int w = screen ? 2560 : 1920;
-		const UIRect box = UIRectForScreen( w, 1080 );
+		const UIRect box = HudRectForScreen( w, 1080 );
 		for( Int p = 0; p < ControlBar::CB_PANEL_COUNT; p++ )
 		{
 			IRegion2D rect;

@@ -440,6 +440,28 @@ void ControlBarScheme::validate(void) const
 	}
 }
 
+Int ControlBarScheme::getOverhangX( void ) const
+{
+	return ( m_ScreenCreationRes.x - m_ScreenCreationRes.y * 4 / 3 ) / 2;
+}
+
+//
+// Put one of the windows the scheme owns at its UL/LR, in the .wnd loader's own stretched space.
+//
+static void placeSchemeWindow( GameWindow *win, const ICoord2D& ul, const ICoord2D& lr,
+															 const Coord2D& resMultiplier, Int overhangX )
+{
+	Int parX = 0, parY = 0;
+	GameWindow *parent = win->winGetParent();
+	if( parent )
+		parent->winGetScreenPosition( &parX, &parY );
+	const Int x = ( ul.x - overhangX ) * resMultiplier.x - parX;
+	const Int y = ul.y * resMultiplier.y - parY;
+	win->winSetPosition( x, y );
+	win->winSetSize( ( lr.x - ul.x ) * resMultiplier.x + COMMAND_BAR_SIZE_OFFSET,
+									 ( lr.y - ul.y ) * resMultiplier.y + COMMAND_BAR_SIZE_OFFSET );
+}
+
 void ControlBarScheme::init(void)
 {
 	if(TheControlBar)
@@ -464,8 +486,15 @@ void ControlBarScheme::init(void)
 		TheControlBar->setArrowImage( m_genArrow);
 	}
 	GameWindow *win = NULL;
+
+	//
+	// A scheme wider than 4:3 - the Classic interface's 16:9 bar, 1066x600 - is EA's 800x600 with
+	// 133 more on either side, so its x 133 is EA's 0.  Its windows go where the .wnd loader would
+	// have stretched EA's 800x600 to, which is the space layoutPanels reads them back out of.
+	//
+	const Int overhangX = getOverhangX();
 	Coord2D resMultiplier;
-	resMultiplier.x = TheDisplay->getWidth()/INT_TO_REAL(m_ScreenCreationRes.x) ;
+	resMultiplier.x = TheDisplay->getWidth()/INT_TO_REAL(m_ScreenCreationRes.x - 2 * overhangX) ;
 	resMultiplier.y = TheDisplay->getHeight()/INT_TO_REAL(m_ScreenCreationRes.y);
 
 	win= TheWindowManager->winGetWindowFromId( NULL, TheNameKeyGenerator->nameToKey( "ControlBar.wnd:PopupCommunicator" ) );
@@ -478,23 +507,7 @@ void ControlBarScheme::init(void)
 		GadgetButtonSetHiliteImage(win, m_buddyButtonHightlited);
 		GadgetButtonSetHiliteSelectedImage(win, m_buddyButtonPushed);
 		GadgetButtonSetDisabledImage(win, m_buddyButtonDisabled);
-		
-		Int x, y;
-		GameWindow* parent =win->winGetParent();
-		if(parent)
-		{
-			Int parX, parY;
-			parent->winGetScreenPosition(&parX, &parY);
-			x = m_chatUL.x * resMultiplier.x - parX;
-			y = m_chatUL.y * resMultiplier.y - parY;
-		}
-		else
-		{
-			x = m_chatUL.x * resMultiplier.x;
-			y = m_chatUL.y * resMultiplier.y;
-		}
-		win->winSetPosition(x,y );
-		win->winSetSize((m_chatLR.x - m_chatUL.x)*resMultiplier.x + COMMAND_BAR_SIZE_OFFSET,(m_chatLR.y - m_chatUL.y)*resMultiplier.y+ COMMAND_BAR_SIZE_OFFSET);
+		placeSchemeWindow( win, m_chatUL, m_chatLR, resMultiplier, overhangX );
 	}
 	win= TheWindowManager->winGetWindowFromId( NULL, TheNameKeyGenerator->nameToKey( "ControlBar.wnd:ButtonIdleWorker" ) );
 	if(win)	
@@ -503,25 +516,7 @@ void ControlBarScheme::init(void)
 		GadgetButtonSetHiliteImage(win, m_idleWorkerButtonHightlited);
 		GadgetButtonSetHiliteSelectedImage(win, m_idleWorkerButtonPushed);
 		GadgetButtonSetDisabledImage(win, m_idleWorkerButtonDisabled);
-		
-		Int x, y;
-		GameWindow* parent =win->winGetParent();
-		if(parent)
-		{
-			Int parX, parY;
-			parent->winGetScreenPosition(&parX, &parY);
-			x = m_workerUL.x * resMultiplier.x - parX;
-			y = m_workerUL.y * resMultiplier.y - parY;
-		}
-		else
-		{
-			x = m_workerUL.x * resMultiplier.x;
-			y = m_workerUL.y * resMultiplier.y;
-		}
-		win->winSetPosition(x,y );
-		
-		win->winSetSize((m_workerLR.x - m_workerUL.x)*resMultiplier.x+ COMMAND_BAR_SIZE_OFFSET,(m_workerLR.y - m_workerUL.y)*resMultiplier.y+ COMMAND_BAR_SIZE_OFFSET);
-
+		placeSchemeWindow( win, m_workerUL, m_workerLR, resMultiplier, overhangX );
 	}
 	win= TheWindowManager->winGetWindowFromId( NULL, TheNameKeyGenerator->nameToKey( "ControlBar.wnd:ExpBarForeground" ) );
 	if(win)	
@@ -535,22 +530,7 @@ void ControlBarScheme::init(void)
 		GadgetButtonSetHiliteImage(win, m_optionsButtonHightlited);
 		GadgetButtonSetHiliteSelectedImage(win, m_optionsButtonPushed);
 		GadgetButtonSetDisabledImage(win, m_optionsButtonDisabled);
-		Int x, y;
-		GameWindow* parent =win->winGetParent();
-		if(parent)
-		{
-			Int parX, parY;
-			parent->winGetScreenPosition(&parX, &parY);
-			x = m_optionsUL.x * resMultiplier.x - parX;
-			y = m_optionsUL.y * resMultiplier.y - parY;
-		}
-		else
-		{
-			x = m_optionsUL.x * resMultiplier.x;
-			y = m_optionsUL.y * resMultiplier.y;
-		}
-		win->winSetPosition(x,y );
-		win->winSetSize((m_optionsLR.x - m_optionsUL.x)*resMultiplier.x+ COMMAND_BAR_SIZE_OFFSET,(m_optionsLR.y - m_optionsUL.y)*resMultiplier.y+ COMMAND_BAR_SIZE_OFFSET);
+		placeSchemeWindow( win, m_optionsUL, m_optionsLR, resMultiplier, overhangX );
 	}
 	win= TheWindowManager->winGetWindowFromId( NULL, TheNameKeyGenerator->nameToKey( "ControlBar.wnd:ButtonPlaceBeacon" ) );
 	if(win)	
@@ -559,69 +539,16 @@ void ControlBarScheme::init(void)
 		GadgetButtonSetHiliteImage(win, m_beaconButtonHightlited);
 		GadgetButtonSetHiliteSelectedImage(win, m_beaconButtonPushed);
 		GadgetButtonSetDisabledImage(win, m_beaconButtonDisabled);
-
-		Int x, y;
-		GameWindow* parent =win->winGetParent();
-		if(parent)
-		{
-			Int parX, parY;
-			parent->winGetScreenPosition(&parX, &parY);
-			x = m_beaconUL.x * resMultiplier.x - parX;
-			y = m_beaconUL.y * resMultiplier.y - parY;
-		}
-		else
-		{
-			x = m_beaconUL.x * resMultiplier.x;
-			y = m_beaconUL.y * resMultiplier.y;
-		}
-		win->winSetPosition(x,y );
-		win->winSetSize((m_beaconLR.x - m_beaconUL.x)*resMultiplier.x+ COMMAND_BAR_SIZE_OFFSET,(m_beaconLR.y - m_beaconUL.y)*resMultiplier.y+ COMMAND_BAR_SIZE_OFFSET);
+		placeSchemeWindow( win, m_beaconUL, m_beaconLR, resMultiplier, overhangX );
 	}
-	
+
 	win= TheWindowManager->winGetWindowFromId( NULL, TheNameKeyGenerator->nameToKey( "ControlBar.wnd:MoneyDisplay" ) );
-	if(win)	
-	{
-
-		Int x, y;
-		GameWindow* parent =win->winGetParent();
-		if(parent)
-		{
-			Int parX, parY;
-			parent->winGetScreenPosition(&parX, &parY);
-			x = m_moneyUL.x * resMultiplier.x - parX;
-			y = m_moneyUL.y * resMultiplier.y - parY;
-		}
-		else
-		{
-			x = m_moneyUL.x * resMultiplier.x;
-			y = m_moneyUL.y * resMultiplier.y;
-		}
-		win->winSetPosition(x,y );
-		win->winSetSize((m_moneyLR.x - m_moneyUL.x)*resMultiplier.x+ COMMAND_BAR_SIZE_OFFSET,(m_moneyLR.y - m_moneyUL.y)*resMultiplier.y+ COMMAND_BAR_SIZE_OFFSET);
-	}
+	if(win)
+		placeSchemeWindow( win, m_moneyUL, m_moneyLR, resMultiplier, overhangX );
 
 	win= TheWindowManager->winGetWindowFromId( NULL, TheNameKeyGenerator->nameToKey( "ControlBar.wnd:PowerWindow" ) );
-	if(win)	
-	{
-
-		Int x, y;
-		GameWindow* parent =win->winGetParent();
-		if(parent)
-		{
-			Int parX, parY;
-			parent->winGetScreenPosition(&parX, &parY);
-			x = m_powerBarUL.x * resMultiplier.x - parX;
-			y = m_powerBarUL.y * resMultiplier.y - parY;
-		}
-		else
-		{
-			x = m_powerBarUL.x * resMultiplier.x;
-			y = m_powerBarUL.y * resMultiplier.y;
-		}
-		win->winSetPosition(x,y );
-		win->winSetSize((m_powerBarLR.x - m_powerBarUL.x)*resMultiplier.x+ COMMAND_BAR_SIZE_OFFSET,(m_powerBarLR.y - m_powerBarUL.y)*resMultiplier.y+ COMMAND_BAR_SIZE_OFFSET);
-		DEBUG_LOG(("Power Bar UL X:%d Y:%d LR X:%d Y:%d size X:%d Y:%d\n",m_powerBarUL.x, m_powerBarUL.y,m_powerBarLR.x, m_powerBarLR.y, (m_powerBarLR.x - m_powerBarUL.x)*resMultiplier.x+ COMMAND_BAR_SIZE_OFFSET,(m_powerBarLR.y - m_powerBarUL.y)*resMultiplier.y+ COMMAND_BAR_SIZE_OFFSET  ));
-	}	
+	if(win)
+		placeSchemeWindow( win, m_powerBarUL, m_powerBarLR, resMultiplier, overhangX );
 
 	win= TheWindowManager->winGetWindowFromId( NULL, TheNameKeyGenerator->nameToKey( "ControlBar.wnd:ButtonGeneral" ) );
 	if(win)	
@@ -631,23 +558,7 @@ void ControlBarScheme::init(void)
 		GadgetButtonSetHiliteImage(win, m_generalButtonHightlited);
 		GadgetButtonSetHiliteSelectedImage(win, m_generalButtonPushed);
 		GadgetButtonSetDisabledImage(win, m_generalButtonDisabled);
-
-				Int x, y;
-		GameWindow* parent =win->winGetParent();
-		if(parent)
-		{
-			Int parX, parY;
-			parent->winGetScreenPosition(&parX, &parY);
-			x = m_generalUL.x * resMultiplier.x - parX;
-			y = m_generalUL.y * resMultiplier.y - parY;
-		}
-		else
-		{
-			x = m_generalUL.x * resMultiplier.x;
-			y = m_generalUL.y * resMultiplier.y;
-		}
-		win->winSetPosition(x,y );
-		win->winSetSize((m_generalLR.x - m_generalUL.x)*resMultiplier.x+ COMMAND_BAR_SIZE_OFFSET,(m_generalLR.y - m_generalUL.y)*resMultiplier.y+ COMMAND_BAR_SIZE_OFFSET);
+		placeSchemeWindow( win, m_generalUL, m_generalLR, resMultiplier, overhangX );
 	}
 	
 	win= TheWindowManager->winGetWindowFromId( NULL, TheNameKeyGenerator->nameToKey( "ControlBar.wnd:ButtonLarge" ) );
@@ -657,23 +568,7 @@ void ControlBarScheme::init(void)
 //		GadgetButtonSetEnabledImage(win, m_minMaxButtonEnable);
 //		GadgetButtonSetHiliteImage(win, m_minMaxButtonHightlited);
 //		GadgetButtonSetHiliteSelectedImage(win, m_minMaxButtonPushed);
-	
-				Int x, y;
-		GameWindow* parent =win->winGetParent();
-		if(parent)
-		{
-			Int parX, parY;
-			parent->winGetScreenPosition(&parX, &parY);
-			x = m_minMaxUL.x * resMultiplier.x - parX;
-			y = m_minMaxUL.y * resMultiplier.y - parY;
-		}
-		else
-		{
-			x = m_minMaxUL.x * resMultiplier.x;
-			y = m_minMaxUL.y * resMultiplier.y;
-		}
-		win->winSetPosition(x,y );
-		win->winSetSize((m_minMaxLR.x - m_minMaxUL.x)*resMultiplier.x + COMMAND_BAR_SIZE_OFFSET,(m_minMaxLR.y - m_minMaxUL.y)*resMultiplier.y + COMMAND_BAR_SIZE_OFFSET);
+		placeSchemeWindow( win, m_minMaxUL, m_minMaxLR, resMultiplier, overhangX );
 	}
 	
 	win= TheWindowManager->winGetWindowFromId( NULL, TheNameKeyGenerator->nameToKey( "ControlBar.wnd:WinUAttack" ) );
@@ -681,30 +576,15 @@ void ControlBarScheme::init(void)
 	{
 		win->winSetEnabledImage(0,m_uAttackButtonEnable);
 		win->winSetDisabledImage(0,m_uAttackButtonHightlited);
-		
-		Int x, y;
-		GameWindow* parent =win->winGetParent();
-		if(parent)
-		{
-			Int parX, parY;
-			parent->winGetScreenPosition(&parX, &parY);
-			x = m_uAttackUL.x * resMultiplier.x - parX;
-			y = m_uAttackUL.y * resMultiplier.y - parY;
-		}
-		else
-		{
-			x = m_uAttackUL.x * resMultiplier.x;
-			y = m_uAttackUL.y * resMultiplier.y;
-		}
-		win->winSetPosition(x,y );
-		win->winSetSize((m_uAttackLR.x - m_uAttackUL.x)*resMultiplier.x+ COMMAND_BAR_SIZE_OFFSET,(m_uAttackLR.y - m_uAttackUL.y)*resMultiplier.y+ COMMAND_BAR_SIZE_OFFSET);
+		placeSchemeWindow( win, m_uAttackUL, m_uAttackLR, resMultiplier, overhangX );
 	}
 
 	win = TheWindowManager->winGetWindowFromId( NULL, TheNameKeyGenerator->nameToKey( "GeneralsExpPoints.wnd:GenExpParent" ) );
 	if(win)
 	{
 		win->winSetEnabledImage(0,m_powerPurchaseImage);
-		if( m_powerPurchaseImage )
+		// Classic keeps the loader's stretch, as the game shipped, over the HUD frame (ControlBarLayoutUniform)
+		if( m_powerPurchaseImage && !TheGlobalData->isClassicUI() )
 		{
 			//
 			// The rank screen is one painting, and this line is what decides how big it is drawn -
@@ -836,11 +716,13 @@ void ControlBarScheme::drawForeground( Coord2D multi, ICoord2D offset )
 				continue;
 			}
 			
-			// draw the image
-			TheDisplay->drawImage(schemeImage->m_image, schemeImage->m_position.x * multi.x + offset.x,
-														schemeImage->m_position.y * multi.y + offset.y, 
-														(schemeImage->m_position.x + schemeImage->m_size.x) * multi.x + offset.x,
-														(schemeImage->m_position.y + schemeImage->m_size.y) * multi.y + offset.y);
+			// draw the image, its far edges rounded out: 1066 * (1920 / 1066.0f) truncated to 1919 and left
+			// the screen's last column of battlefield showing past the bar
+			TheDisplay->drawImage(schemeImage->m_image,
+														REAL_TO_INT_FLOOR( schemeImage->m_position.x * multi.x ) + offset.x,
+														REAL_TO_INT_FLOOR( schemeImage->m_position.y * multi.y ) + offset.y,
+														REAL_TO_INT_CEIL( ( schemeImage->m_position.x + schemeImage->m_size.x ) * multi.x - 0.01f ) + offset.x,
+														REAL_TO_INT_CEIL( ( schemeImage->m_position.y + schemeImage->m_size.y ) * multi.y - 0.01f ) + offset.y);
 			
 			it ++;	
 		}
@@ -873,11 +755,12 @@ void ControlBarScheme::drawBackground( Coord2D multi, ICoord2D offset )
 				continue;
 			}
 			
-			// draw it
-			TheDisplay->drawImage(schemeImage->m_image, schemeImage->m_position.x * multi.x + offset.x,
-														schemeImage->m_position.y * multi.y + offset.y, 
-														(schemeImage->m_position.x + schemeImage->m_size.x) * multi.x + offset.x,
-														(schemeImage->m_position.y + schemeImage->m_size.y) * multi.y + offset.y);
+			// draw it, rounded out as drawForeground does
+			TheDisplay->drawImage(schemeImage->m_image,
+														REAL_TO_INT_FLOOR( schemeImage->m_position.x * multi.x ) + offset.x,
+														REAL_TO_INT_FLOOR( schemeImage->m_position.y * multi.y ) + offset.y,
+														REAL_TO_INT_CEIL( ( schemeImage->m_position.x + schemeImage->m_size.x ) * multi.x - 0.01f ) + offset.x,
+														REAL_TO_INT_CEIL( ( schemeImage->m_position.y + schemeImage->m_size.y ) * multi.y - 0.01f ) + offset.y);
 			
 			it ++;	
 		}
@@ -1047,6 +930,10 @@ void ControlBarSchemeManager::preloadAssets( TimeOfDay timeOfDay )
 			DEBUG_ASSERTCRASH(FALSE,("There's no ControlBarScheme in the ControlBarSchemeList:m_schemeList"));
 			continue;
 		}
+		// a 16:9 painting is 4096 texels across, and only Classic ever wears it.  Classic loads it on a
+		// narrow screen too, so a change to a wide resolution mid-match does not stop to read it
+		if( CBScheme->getOverhangX() > 0 && !TheGlobalData->isClassicUI() )
+			continue;
 
 		if (CBScheme->m_buttonQueueImage)
 		{
@@ -1070,7 +957,7 @@ void ControlBarSchemeManager::preloadAssets( TimeOfDay timeOfDay )
 					const Image *image = TheMappedImageCollection->findImageByName( cbImage->m_name );
 					if (image)
 					{
-						TheDisplay->preloadTextureAssets(image->getFilename());
+						TheDisplay->preloadImageTexture(image->getFilename());
 					}
 				}
 			}
@@ -1088,6 +975,8 @@ void ControlBarSchemeManager::init( void )
 	// Read from INI all the ControlBarSchemes
 	ini.load( AsciiString( "Data\\INI\\Default\\ControlBarScheme.ini" ), INI_LOAD_OVERWRITE, NULL );
 	ini.load( AsciiString( "Data\\INI\\ControlBarScheme.ini" ), INI_LOAD_OVERWRITE, NULL );
+	// the Classic interface's 16:9 bar, one scheme per side beside EA's; see findSchemeForSide
+	ini.load( AsciiString( "Data\\INI\\ControlBarSchemeClassicWide.ini" ), INI_LOAD_OVERWRITE, NULL );
 
 //	//Load the user modified control bar schemes
 //	WIN32_FIND_DATA findData;
@@ -1118,7 +1007,7 @@ void ControlBarSchemeManager::setControlBarScheme(AsciiString schemeName)
 		// setup the multiplyer value
 		// (cast like the sibling below: this was an Int/Int divide, so any resolution that is not
 		// an exact multiple of the scheme's authoring resolution scaled by 1.0 or 0.)
-		m_multiplyer.x = TheDisplay->getWidth() / (Real)tempScheme->m_ScreenCreationRes.x;
+		m_multiplyer.x = TheHudRect().w / (Real)tempScheme->m_ScreenCreationRes.x;
 		m_multiplyer.y = TheDisplay->getHeight() / (Real)tempScheme->m_ScreenCreationRes.y;
 		m_currentScheme = tempScheme;
 	}
@@ -1153,36 +1042,22 @@ void ControlBarSchemeManager::update( void )
 }
 
 //-----------------------------------------------------------------------------
-/** The Classic interface lays EA's bar out at one scale, centred and standing on the bottom of the
-	* screen (layoutPanels, ControlBarPanelDesignToScreen), so its painting goes through that same
-	* transform instead of the loader's two-way stretch. */
+/** The painting is stretched the way the game shipped it, the scheme's width across the HUD's 16:9
+	* frame (TheHudRect, the whole screen in Reforged and up to 16:9) and its height down the screen,
+	* which is also how Classic lays the bar's windows out (layoutPanels). */
 //-----------------------------------------------------------------------------
-static Coord2D paintTransform( Coord2D stretch, ICoord2D *offset )
-{
-	if( TheGlobalData == NULL || !TheGlobalData->isClassicUI() || TheDisplay == NULL )
-		return stretch;
-
-	const Real s = ControlBarUniformScale();
-	offset->x += REAL_TO_INT_FLOOR( TheDisplay->getWidth() * 0.5f - 400.0f * s );
-	offset->y += REAL_TO_INT_FLOOR( TheDisplay->getHeight() - 600.0f * s );
-	Coord2D uniform;
-	uniform.x = uniform.y = s;
-	return uniform;
-}
-
 void ControlBarSchemeManager::drawForeground( ICoord2D offset )
 {
-	// two statements: paintTransform moves `offset`, and argument order is the compiler's choice
-	const Coord2D multi = paintTransform( m_multiplyer, &offset );
+	offset.x += TheHudRect().x;
 	if(m_currentScheme)
-		m_currentScheme->drawForeground( multi, offset );
+		m_currentScheme->drawForeground( m_multiplyer, offset );
 }
 //-----------------------------------------------------------------------------
 void ControlBarSchemeManager::drawBackground( ICoord2D offset )
 {
-	const Coord2D multi = paintTransform( m_multiplyer, &offset );
+	offset.x += TheHudRect().x;
 	if(m_currentScheme)
-		m_currentScheme->drawBackground( multi, offset );
+		m_currentScheme->drawBackground( m_multiplyer, offset );
 }
 
 //-----------------------------------------------------------------------------
@@ -1213,6 +1088,33 @@ AsciiString ControlBarSchemeManager::getCurrentArtTwinSide( void ) const
 }
 
 //-----------------------------------------------------------------------------
+/** Classic stretches its bar over the whole screen, so it wears the side's scheme whose shape is
+	* nearest the screen's: EA's 800x600 on 4:3 and 5:4, the 16:9 bar's 1066x600 on 16:10 and anything
+	* wider.  Reforged never draws a scheme's painting and keeps EA's, the widest of them as EA picked. */
+//-----------------------------------------------------------------------------
+ControlBarScheme *ControlBarSchemeManager::findSchemeForSide( const AsciiString& side ) const
+{
+	const Bool classic = TheGlobalData->isClassicUI();
+	const Real screenAspect = (Real)TheDisplay->getWidth() / (Real)TheDisplay->getHeight();
+	ControlBarScheme *best = NULL;
+	Real bestScore = 0.0f;
+	for( ControlBarSchemeList::const_iterator it = m_schemeList.begin(); it != m_schemeList.end(); ++it )
+	{
+		ControlBarScheme *scheme = *it;
+		if( scheme->m_side.compareNoCase( side ) != 0 || ( scheme->getOverhangX() > 0 && !classic ) )
+			continue;
+		const Real aspectMiss = (Real)scheme->m_ScreenCreationRes.x / scheme->m_ScreenCreationRes.y - screenAspect;
+		const Real score = classic ? aspectMiss * aspectMiss : -(Real)scheme->m_ScreenCreationRes.x;
+		if( best == NULL || score < bestScore )
+		{
+			best = scheme;
+			bestScore = score;
+		}
+	}
+	return best;
+}
+
+//-----------------------------------------------------------------------------
 void ControlBarSchemeManager::setControlBarSchemeByPlayerTemplate( const PlayerTemplate *pt, Bool useSmall)
 {
 	if(!pt)
@@ -1220,46 +1122,19 @@ void ControlBarSchemeManager::setControlBarSchemeByPlayerTemplate( const PlayerT
 	AsciiString side = pt->getSide();
 	if(useSmall)
 		side.concat("Small");
-	if(m_currentScheme && (m_currentScheme->m_side.compare(side) == 0))
-	{
-		m_currentScheme->init();
-
-		DEBUG_LOG(("setControlBarSchemeByPlayer already is using %s as its side\n", side.str()));
-		return;
-	}
 
 	// if we don't have a side, set it to Observer shell
 	if(side.isEmpty())
 		side.set("Observer");
+	// picked again every time, even for the side on screen: a new resolution can want a different
+	// scheme for it (findSchemeForSide), and the multiplier below is the screen's
+	ControlBarScheme *tempScheme = findSchemeForSide( side );
 	DEBUG_LOG(("setControlBarSchemeByPlayer used %s as its side\n", side.str()));
-	ControlBarScheme *tempScheme = NULL;
 
-	ControlBarSchemeList::iterator it = m_schemeList.begin();
-	
-	// iterate through the list and return the scheme that we're looking for
-	while (it != m_schemeList.end())
-	{
-		ControlBarScheme *CBScheme = *it;
-		if( !CBScheme )
-		{
-			DEBUG_ASSERTCRASH(FALSE,("There's no ControlBarScheme in the ControlBarSchemeList:m_schemeList"));
-			it++;
-			continue;
-		}
-		// find the scheme that best matches our resolution
-		if(CBScheme->m_side.compareNoCase( side ) == 0)
-		{
-		
-			if((!tempScheme || tempScheme->m_ScreenCreationRes.x < CBScheme->m_ScreenCreationRes.x) )//&& TheDisplay->getWidth() >= CBScheme->m_ScreenCreationRes.x )
-				tempScheme = CBScheme;
-		}
-		it ++;	
-	}
-	
 	if(tempScheme)
 	{
 		// setup the multiplyer value
- 		m_multiplyer.x = TheDisplay->getWidth() / (Real)tempScheme->m_ScreenCreationRes.x;
+ 		m_multiplyer.x = TheHudRect().w / (Real)tempScheme->m_ScreenCreationRes.x;
 		m_multiplyer.y = TheDisplay->getHeight() / (Real)tempScheme->m_ScreenCreationRes.y;
 		m_currentScheme = tempScheme;
 	}
@@ -1288,46 +1163,19 @@ void ControlBarSchemeManager::setControlBarSchemeByPlayer(Player *p)
 	if(!p)
 		return;
 	AsciiString side = p->getSide();
-	if(m_currentScheme && (m_currentScheme->m_side.compare(side) == 0))
-	{
-		m_currentScheme->init();
-
-		DEBUG_LOG(("setControlBarSchemeByPlayer already is using %s as its side\n", side.str()));
-		return;
-	}
 
 	// if we don't have a side, set it to Observer shell
 	if(side.isEmpty())
 		side.set("Observer");
+	// picked again every time, even for the side on screen: a new resolution can want a different
+	// scheme for it (findSchemeForSide), and the multiplier below is the screen's
+	ControlBarScheme *tempScheme = findSchemeForSide( side );
 	DEBUG_LOG(("setControlBarSchemeByPlayer used %s as its side\n", side.str()));
-	ControlBarScheme *tempScheme = NULL;
 
-	ControlBarSchemeList::iterator it = m_schemeList.begin();
-	
-	// iterate through the list and return the scheme that we're looking for
-	while (it != m_schemeList.end())
-	{
-		ControlBarScheme *CBScheme = *it;
-		if( !CBScheme )
-		{
-			DEBUG_ASSERTCRASH(FALSE,("There's no ControlBarScheme in the ControlBarSchemeList:m_schemeList"));
-			it++;
-			continue;
-		}
-		// find the scheme that best matches our resolution
-		if(CBScheme->m_side.compareNoCase( side ) == 0)
-		{
-		
-			if((!tempScheme || tempScheme->m_ScreenCreationRes.x < CBScheme->m_ScreenCreationRes.x) )//&& TheDisplay->getWidth() >= CBScheme->m_ScreenCreationRes.x )
-				tempScheme = CBScheme;
-		}
-		it ++;	
-	}
-	
 	if(tempScheme)
 	{
 		// setup the multiplyer value
- 		m_multiplyer.x = TheDisplay->getWidth() / (Real)tempScheme->m_ScreenCreationRes.x;
+ 		m_multiplyer.x = TheHudRect().w / (Real)tempScheme->m_ScreenCreationRes.x;
 		m_multiplyer.y = TheDisplay->getHeight() / (Real)tempScheme->m_ScreenCreationRes.y;
 		m_currentScheme = tempScheme;
 	}

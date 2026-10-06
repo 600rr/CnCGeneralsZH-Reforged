@@ -57,6 +57,19 @@ UIRect TheUIRect( void )
 	return screen;
 }
 
+UIRect TheHudRect( void )
+{
+	if( TheDisplay == NULL )
+	{
+		UIRect none = { 0, 0, 800, 600 };
+		return none;
+	}
+	if( TheGlobalData && TheGlobalData->isClassicUI() )
+		return HudRectForScreen( TheDisplay->getWidth(), TheDisplay->getHeight() );
+	UIRect screen = { 0, 0, (Int)TheDisplay->getWidth(), (Int)TheDisplay->getHeight() };
+	return screen;
+}
+
 
 Display::Display()
 {

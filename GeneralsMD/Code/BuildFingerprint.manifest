@@ -1,4 +1,7 @@
 CMakeLists.txt
+Data/Art/Textures/ClassicWideBarAmerica.tga
+Data/Art/Textures/ClassicWideBarChina.tga
+Data/Art/Textures/ClassicWideBarGLA.tga
 Data/Art/Textures/ReforgedBarAmericaCenter.tga
 Data/Art/Textures/ReforgedBarAmericaLeft.tga
 Data/Art/Textures/ReforgedBarAmericaRight.tga
@@ -76,8 +79,10 @@ Data/German/Generals.str
 Data/INI/BalanceReforged.ini
 Data/INI/CommandMapReforged.ini
 Data/INI/CommandSetReforged.ini
+Data/INI/ControlBarSchemeClassicWide.ini
 Data/INI/FXListReforged.ini
 Data/INI/FixesReforged.ini
+Data/INI/MappedImages/HandCreated/ClassicWideBar.ini
 Data/INI/MappedImages/HandCreated/ReforgedOrders.ini
 Data/INI/ObjectCreationListReforged.ini
 Data/INI/ParticleSystemReforged.ini

@@ -43,6 +43,10 @@ right to use them (LICENSE.md, additional terms). They appear here only to say w
   their added lines are marked, and hunks backported from upstream SDL are named in each patch's header.
 - **FreeType** is used under the GNU GPL (version 2 or later) option of its dual licence.
 - **FFmpeg** is built under LGPL-2.1-or-later only: its build scripts refuse GPL or non-free configurations.
+- **The Classic interface's 16:9 command bar** (`GeneralsMD/Code/Data/Art/Textures/ClassicWideBar*.tga`, and the
+  window positions in `GeneralsMD/Code/Data/INI/ControlBarSchemeClassicWide.ini`) comes from "C&C Generals HD User
+  Interface" by moddb_dev on ModDB, which builds on pWn3d_1337's Operation Firestorm interface. It is included with
+  its author's permission.
 
 ## Game data
 

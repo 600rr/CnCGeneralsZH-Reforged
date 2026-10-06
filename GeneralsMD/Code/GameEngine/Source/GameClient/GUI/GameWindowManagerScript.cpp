@@ -525,8 +525,9 @@ static Bool startsWithFolder( const char *path, const char *folder )
 }
 
 // The Classic interface puts everything in the 4:3 box (UIRectForScreen), battlefield furniture and
-// all, except the layouts the command bar takes back out of the loader's stretch itself
-// (layoutPanels, ControlBarLayoutUniform): they divide the stretch back out, so they must be given it.
+// all, except the command bar's own layouts.  Classic stretches those as the game shipped them, over
+// the HUD's 16:9 frame (TheHudRect), and layoutPanels and ControlBarLayoutUniform divide the loader's
+// stretch back out, so they must be given it.
 static Bool barLaysOutItself( const char *filename )
 {
 	static const char *const own[] = { "controlbar.wnd", "generalsexppoints.wnd", "genpowersshortcutbar" };

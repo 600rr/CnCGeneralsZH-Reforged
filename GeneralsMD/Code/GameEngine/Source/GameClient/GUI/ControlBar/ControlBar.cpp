@@ -1649,19 +1649,40 @@ static const IRegion2D thePanelDesignRect[ ControlBar::CB_PANEL_COUNT ] =
 	{ { 609, 421 }, { 800, 600 } },		// CB_PANEL_RIGHT  - selection portrait and the general's tabs
 };
 
+//
+// The Classic interface's 16:9 bar paints its command grid field at 94..595 of EA's design units,
+// centred 68 left of where EA's seven columns stand, with a terminal panel of its own to the right.
+// The grid and every pane sharing its field (beacon, observer, construction, timer) move over with it.
+//
+static const Real CLASSIC_WIDE_GRID_SHIFT_X = -68.0f;
+
 /// where each panel is pinned: the fraction of the screen its anchor lands on...
 static const Real thePanelAnchorFraction[ ControlBar::CB_PANEL_COUNT ] = { 0.0f, 0.5f, 1.0f };
 /// ...and which authored x that anchor is, so at 4:3 the three plates reassemble the shipped bar
 static const Real thePanelAnchorDesignX[ ControlBar::CB_PANEL_COUNT ] = { 0.0f, 400.0f, 800.0f };
 
-/// The Classic interface: EA's bar in one piece, all three panels pinned on the screen's centre at
-/// the design's centre, which is the shipped layout at one scale inside the 4:3 box (UIRectForScreen).
+/// The Classic interface: EA's bar in one piece, all three panels sharing one origin and stretched
+/// across the HUD's 16:9 frame (HudRectForScreen) as the game shipped it stretched (classicScales).
 static Bool barIsClassic( void )
 {
 	return TheGlobalData != NULL && TheGlobalData->isClassicUI();
 }
 
-/// Where a panel's design x 0 lands on screen.
+/** Classic draws the bar EA's way, stretched: the scheme's own width across the HUD frame and its 600
+	* down the screen.  The frame is the screen up to 16:9 and a centred 16:9 beyond it.  The scheme is
+	* EA's 800, or the 16:9 bar's 1066, which hangs its overhang of 133 off either side of EA's 800
+	* (ControlBarScheme::getOverhangX).  Reforged keeps its one uniform scale. */
+static void classicScales( Real dispW, Real dispH, Real *sx, Real *sy )
+{
+	const ControlBarSchemeManager *man = TheControlBar ? TheControlBar->getControlBarSchemeManager() : NULL;
+	const Int overhang = man ? man->getCurrentOverhangX() : 0;
+	*sx = HudRectForScreen( REAL_TO_INT( dispW ), REAL_TO_INT( dispH ) ).w / ( CONTROL_BAR_DESIGN_W + 2 * overhang );
+	*sy = dispH / CONTROL_BAR_DESIGN_H;
+}
+
+/// Where a panel's design x 0 lands on screen.  In Classic, with s the stretch across, that is the
+/// overhang in from the HUD frame's left edge, since the scheme's width is the frame's, and the frame
+/// is centred.
 static Real panelOriginX( Int panel, Real dispW, Real s )
 {
 	if( barIsClassic() )
@@ -1734,7 +1755,7 @@ Real ControlBarHudScaleFit( Real scale, Int displayWidth )
 	* Positions are relative to the parent, so both the parent's old and its new screen origin travel
 	* down the recursion - the same walk placeInPanel does, without the panels and the plate art. */
 //-------------------------------------------------------------------------------------------------
-static void layoutUniformWindow( GameWindow *win, Real originX, Real originY, Real s,
+static void layoutUniformWindow( GameWindow *win, Real originX, Real originY, Real s, Real sy,
 																 Real loadScaleX, Real loadScaleY,
 																 Int oldParentX, Int oldParentY,
 																 Int newParentX, Int newParentY )
@@ -1753,13 +1774,13 @@ static void layoutUniformWindow( GameWindow *win, Real originX, Real originY, Re
 	const Real designH = size.y / loadScaleY;
 
 	const Int newX = REAL_TO_INT_FLOOR( originX + designX * s );
-	const Int newY = REAL_TO_INT_FLOOR( originY + designY * s );
+	const Int newY = REAL_TO_INT_FLOOR( originY + designY * sy );
 
 	win->winSetPosition( newX - newParentX, newY - newParentY );
-	win->winSetSize( REAL_TO_INT_CEIL( designW * s ), REAL_TO_INT_CEIL( designH * s ) );
+	win->winSetSize( REAL_TO_INT_CEIL( designW * s ), REAL_TO_INT_CEIL( designH * sy ) );
 
 	for( GameWindow *child = win->winGetChild(); child; child = child->winGetNext() )
-		layoutUniformWindow( child, originX, originY, s, loadScaleX, loadScaleY,
+		layoutUniformWindow( child, originX, originY, s, sy, loadScaleX, loadScaleY,
 												 oldX, oldY, newX, newY );
 }
 
@@ -1777,17 +1798,29 @@ void ControlBarLayoutUniform( GameWindow *root, Real anchorFracX, Real anchorFra
 	// what the loader already multiplied every coordinate by, so it can be divided back out
 	const Real loadScaleX = dispW / CONTROL_BAR_DESIGN_W;
 	const Real loadScaleY = dispH / CONTROL_BAR_DESIGN_H;
-	const Real s = ControlBarUniformScale();
+	Real s = ControlBarUniformScale();
+	Real sy = s;
 
 	//
-	// The anchor is a point that does not move: the same fraction of the interface's rectangle and
-	// of the design space.  (1,1) keeps the bottom right corner where it was however wide the
-	// screen is, which is what a bar hanging off the right edge above the command bar wants.  In
-	// the Classic interface the rectangle is the 4:3 box, so every anchor lands on the box itself.
+	// The anchor is a point that does not move: the same fraction of the screen and of the design
+	// space.  (1,1) keeps the bottom right corner where it was however wide the screen is, which is
+	// what a bar hanging off the right edge above the command bar wants.
 	//
-	const UIRect box = TheUIRect();
-	const Real originX = box.x + box.w * anchorFracX - CONTROL_BAR_DESIGN_W * anchorFracX * s;
-	const Real originY = box.y + box.h * anchorFracY - CONTROL_BAR_DESIGN_H * anchorFracY * s;
+	Real originX = dispW * anchorFracX - CONTROL_BAR_DESIGN_W * anchorFracX * s;
+	Real originY = dispH * anchorFracY - CONTROL_BAR_DESIGN_H * anchorFracY * s;
+
+	//
+	// Classic keeps the loader's stretch, as the game shipped, inside the HUD's 16:9 frame: the powers'
+	// column down the frame's right edge beside the bar, the promotion screen over the frame
+	//
+	if( barIsClassic() )
+	{
+		const UIRect hud = TheHudRect();
+		originX = (Real)hud.x;
+		originY = 0.0f;
+		s = hud.w / CONTROL_BAR_DESIGN_W;
+		sy = loadScaleY;
+	}
 
 	ICoord2D rootOrigin;
 	root->winGetScreenPosition( &rootOrigin.x, &rootOrigin.y );
@@ -1802,7 +1835,7 @@ void ControlBarLayoutUniform( GameWindow *root, Real anchorFracX, Real anchorFra
 	if( parent )
 		parent->winGetScreenPosition( &parentPos.x, &parentPos.y );
 
-	layoutUniformWindow( root, originX, originY, s, loadScaleX, loadScaleY,
+	layoutUniformWindow( root, originX, originY, s, sy, loadScaleX, loadScaleY,
 											 parentPos.x, parentPos.y, parentPos.x, parentPos.y );
 }
 
@@ -1827,16 +1860,19 @@ Bool ControlBarPanelDesignToScreen( Int panel, const IRegion2D *design,
 	//
 	const Real loadScaleX = dispW / CONTROL_BAR_DESIGN_W;
 	const Real loadScaleY = dispH / CONTROL_BAR_DESIGN_H;
-	const Real s = loadScaleX < loadScaleY ? loadScaleX : loadScaleY;
+	Real s = loadScaleX < loadScaleY ? loadScaleX : loadScaleY;
+	Real sy = s;
+	if( barIsClassic() )
+		classicScales( dispW, dispH, &s, &sy );
 
 	const Real originX = panelOriginX( panel, dispW, s );
 
 	rectOut->lo.x = REAL_TO_INT_FLOOR( originX + design->lo.x * s );
 	rectOut->hi.x = REAL_TO_INT_CEIL ( originX + design->hi.x * s );
-	rectOut->lo.y = REAL_TO_INT_FLOOR( dispH - ( CONTROL_BAR_DESIGN_H - design->lo.y ) * s );
-	rectOut->hi.y = REAL_TO_INT_CEIL ( dispH - ( CONTROL_BAR_DESIGN_H - design->hi.y ) * s );
+	rectOut->lo.y = REAL_TO_INT_FLOOR( dispH - ( CONTROL_BAR_DESIGN_H - design->lo.y ) * sy );
+	rectOut->hi.y = REAL_TO_INT_CEIL ( dispH - ( CONTROL_BAR_DESIGN_H - design->hi.y ) * sy );
 
-	// the Classic bar is EA's one piece, centred in the 4:3 box, and touches no screen edge but the bottom
+	// the Classic bar is EA's one piece, stretched as it shipped, and its rectangles are the arithmetic's
 	if( barIsClassic() )
 		return TRUE;
 
@@ -1928,6 +1964,23 @@ static Int panelForWindow( const char *shortName, Real designCenterX )
 			return ControlBar::CB_PANEL_RIGHT;
 
 	return ControlBar::CB_PANEL_CENTER;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The windows ControlBarScheme::init places itself from its UL/LR pairs.  A scheme authored for the
+	* Classic 16:9 bar already puts them in the wide bar, so layoutPanels must not move them again. */
+//-------------------------------------------------------------------------------------------------
+static Bool isSchemePlaced( const char *shortName )
+{
+	static const char *names[] =
+	{
+		"PopupCommunicator", "ButtonIdleWorker", "ButtonOptions", "ButtonPlaceBeacon", "MoneyDisplay",
+		"PowerWindow", "ButtonGeneral", "ButtonLarge", "WinUAttack", NULL
+	};
+	for( const char **n = names; *n; n++ )
+		if( strcmp( shortName, *n ) == 0 )
+			return TRUE;
+	return FALSE;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2260,7 +2313,10 @@ void ControlBar::placeInPanel( GameWindow *win, Int panel,
 	const Real dispH = (Real)TheDisplay->getHeight();
 	const Real loadScaleX = dispW / CONTROL_BAR_DESIGN_W;
 	const Real loadScaleY = dispH / CONTROL_BAR_DESIGN_H;
-	const Real s = ControlBarUniformScale();
+	Real s = ControlBarUniformScale();		// across; sy down
+	Real sy = s;
+	if( barIsClassic() )
+		classicScales( dispW, dispH, &s, &sy );
 	const Real originX = panelOriginX( panel, dispW, s );
 
 	ICoord2D rel, size;
@@ -2282,9 +2338,9 @@ void ControlBar::placeInPanel( GameWindow *win, Int panel,
 	}
 
 	Int newX = REAL_TO_INT_FLOOR( originX + place.designX * s );
-	Int newY = REAL_TO_INT_FLOOR( dispH - ( CONTROL_BAR_DESIGN_H - place.designY ) * s );
+	Int newY = REAL_TO_INT_FLOOR( dispH - ( CONTROL_BAR_DESIGN_H - place.designY ) * sy );
 	Int newW = REAL_TO_INT_CEIL( place.designW * s );
-	Int newH = REAL_TO_INT_CEIL( place.designH * s );
+	Int newH = REAL_TO_INT_CEIL( place.designH * sy );
 
 	const char *shortName = shortWindowName( win );
 
@@ -2313,7 +2369,11 @@ void ControlBar::placeInPanel( GameWindow *win, Int panel,
 	// the grid shift starts at CenterBackground and is inherited by everything under it
 	Int childShiftX = shiftX;
 	if( strcmp( shortName, "CenterBackground" ) == 0 )
-		childShiftX = plate ? REAL_TO_INT_FLOOR( plate->gridShiftX * s ) : 0;
+	{
+		const Bool classicWide = m_controlBarSchemeManager && m_controlBarSchemeManager->getCurrentOverhangX() > 0;
+		const Real gridShiftX = plate ? plate->gridShiftX : ( classicWide ? CLASSIC_WIDE_GRID_SHIFT_X : 0.0f );
+		childShiftX = REAL_TO_INT_FLOOR( gridShiftX * s );
+	}
 
 	//
 	// The unnamed children are the GameWinBlockInput panes: their only job is to keep clicks on the
@@ -2764,14 +2824,30 @@ void ControlBar::layoutPanels( void )
 	// One scale for both axes, the smaller of the two so the three panels always fit side by side.
 	// At 4:3 that is exactly the old scale and the panels still meet; at anything wider they shrink
 	// together and leave the middle of the screen bottom open instead of stretching to fill it.
+	// Classic stretches as EA's did, s across and sy down (classicScales).
 	//
-	const Real s = ControlBarUniformScale();
+	Real s = ControlBarUniformScale();
+	Real sy = s;
+	if( barIsClassic() )
+		classicScales( dispW, dispH, &s, &sy );
+
+	//
+	// The Classic interface's 16:9 bar is EA's with 133 design units more on either side: the radar
+	// moves out by that much, the selection panel too, and the centre grows by both (see
+	// ControlBarSchemeClassicWide.ini).  EA's 4:3 bar has none.
+	//
+	const Int overhang = m_controlBarSchemeManager ? m_controlBarSchemeManager->getCurrentOverhangX() : 0;
+	static const Int panelSide[ CB_PANEL_COUNT ] = { -1, 0, 1 };
 
 	Int p;
 	for( p = 0; p < CB_PANEL_COUNT; p++ )
-		ControlBarPanelDesignToScreen( p, &thePanelDesignRect[ p ],
-																	 TheDisplay->getWidth(), TheDisplay->getHeight(),
+	{
+		IRegion2D design = thePanelDesignRect[ p ];
+		design.lo.x += panelSide[ p ] ? panelSide[ p ] * overhang : -overhang;
+		design.hi.x += panelSide[ p ] ? panelSide[ p ] * overhang : overhang;
+		ControlBarPanelDesignToScreen( p, &design, TheDisplay->getWidth(), TheDisplay->getHeight(),
 																	 &m_panelRect[ p ] );
+	}
 
 	// the children's positions are relative to the frame, so grab where it is before moving it
 	ICoord2D barOrigin;
@@ -2779,7 +2855,7 @@ void ControlBar::layoutPanels( void )
 
 	// the frame itself stays full width - it draws nothing and passes input through
 	const Int parentTop =
-		REAL_TO_INT_FLOOR( dispH - ( CONTROL_BAR_DESIGN_H - CONTROL_BAR_DESIGN_TOP ) * s );
+		REAL_TO_INT_FLOOR( dispH - ( CONTROL_BAR_DESIGN_H - CONTROL_BAR_DESIGN_TOP ) * sy );
 	parent->winSetPosition( 0, parentTop );
 	parent->winSetSize( REAL_TO_INT_CEIL( dispW ), REAL_TO_INT_CEIL( dispH ) - parentTop );
 
@@ -2827,8 +2903,11 @@ void ControlBar::layoutPanels( void )
 			designCenterX = ( barOrigin.x + rel.x + size.x * 0.5f ) / loadScaleX;
 		}
 
-		placeInPanel( child, panelForWindow( shortWindowName( child ), designCenterX ),
-									barOrigin.x, barOrigin.y, 0, parentTop );
+		// the scheme already put its own windows in the wide bar, so only the .wnd's travel out with their panel
+		const char *shortName = shortWindowName( child );
+		const Int panel = panelForWindow( shortName, designCenterX );
+		const Int shiftX = isSchemePlaced( shortName ) ? 0 : REAL_TO_INT_FLOOR( panelSide[ panel ] * overhang * s );
+		placeInPanel( child, panel, barOrigin.x, barOrigin.y, 0, parentTop, shiftX );
 	}
 
 	// whatever was away before is away again, without being watched leaving a second time
@@ -6458,7 +6537,21 @@ void ControlBar::initSpecialPowershortcutBar( Player *player)
 //-------------------------------------------------------------------------------------------------
 void ControlBar::arrangeSpecialPowerShortcutGrid( void )
 {
-	if( m_specialPowerShortcutParent == NULL || m_currentlyUsedSpecialPowersButtons < 2 )
+	if( m_specialPowerShortcutParent == NULL )
+		return;
+
+	//
+	// Classic keeps the shipped column, stretched with the bar, on the right edge of the screen and
+	// climbing from the top of the bar as 1.04's did.  Its frame runs most of the screen's height and
+	// took every click over the battlefield and the promotion screen beside the powers; the frame
+	// takes none now, its slots and buttons still do
+	//
+	if( barIsClassic() )
+	{
+		m_specialPowerShortcutParent->winSetStatus( WIN_STATUS_NO_INPUT );
+		return;
+	}
+	if( m_currentlyUsedSpecialPowersButtons < 2 )
 		return;
 
 	//
@@ -6479,26 +6572,7 @@ void ControlBar::arrangeSpecialPowerShortcutGrid( void )
 	if( getSpecialPowerTrayLayout( NULL, &cameoSize, &cameoOffset, &columnStep ) == FALSE )
 		return;
 
-	//
-	// Classic keeps every power on the one row the first stands on, growing to the left, each slot
-	// tucked under the one to its right.  Only the tray's frame right of the cameo is covered: the
-	// cameo's hole ends 49 pixels into the 60 pixel art, so the next tray starts there and every
-	// picture stays whole
-	//
-	const Bool classic = barIsClassic();
-	if( classic )
-		columnStep = ( columnStep * 49 + 30 ) / 60;
-
-	//
-	// Classic's bar keeps the authored height, 3..420 of the 800x600 screen, and widened for the
-	// row it stood over the right half of the promotion screen and the battlefield beside the
-	// powers.  An empty stretch of it took every click there and did nothing with it.  The bar
-	// itself takes none now; its slots and buttons still do
-	//
-	if( classic )
-		m_specialPowerShortcutParent->winSetStatus( WIN_STATUS_NO_INPUT );
-	const Int columns = classic ? m_currentlyUsedSpecialPowersButtons
-															: MIN( m_currentlyUsedSpecialPowersButtons, (Int)SPECIAL_POWER_SHORTCUT_COLS );
+	const Int columns = MIN( m_currentlyUsedSpecialPowersButtons, (Int)SPECIAL_POWER_SHORTCUT_COLS );
 	const Int widen = ( columns - 1 ) * columnStep;
 
 	//
@@ -6523,8 +6597,8 @@ void ControlBar::arrangeSpecialPowerShortcutGrid( void )
 		if( slot == NULL || button == NULL )
 			continue;
 
-		const Int column = classic ? i : i % SPECIAL_POWER_SHORTCUT_COLS;
-		const Int row = classic ? 0 : i / SPECIAL_POWER_SHORTCUT_COLS;
+		const Int column = i % SPECIAL_POWER_SHORTCUT_COLS;
+		const Int row = i / SPECIAL_POWER_SHORTCUT_COLS;
 
 		slot->winSetPosition( firstX + widen - column * columnStep, firstY - row * rowStep );
 

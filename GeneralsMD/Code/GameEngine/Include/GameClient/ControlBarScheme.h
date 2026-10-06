@@ -132,6 +132,9 @@ public:
 	~ControlBarScheme( void );
 
 	void validate( void ) const;
+	/** How far this scheme reaches past a 4:3 box of its own height on either side, in its own units.
+		* EA's schemes are 800x600 and say 0; the Classic interface's 16:9 bar is 1066x600 and says 133. */
+	Int getOverhangX( void ) const;
 	void init( void );
 	void update( void );
 	void drawForeground( Coord2D multi, ICoord2D offset );	///< draw function to be called within a w3d draw procedure for the foreground 
@@ -276,6 +279,10 @@ public:
 		* is really showing.  Empty when nothing else shares it. */
 	AsciiString getCurrentArtTwinSide( void ) const;
 
+	/// the scheme on screen's ControlBarScheme::getOverhangX, 0 with none up
+	Int getCurrentOverhangX( void ) const
+	{ return m_currentScheme ? m_currentScheme->getOverhangX() : 0; }
+
 
 	// parse Functions for the INI file
 	const FieldParse *getFieldParse() const { return m_controlBarSchemeFieldParseTable; }								///< returns the parsing fields
@@ -290,6 +297,8 @@ public:
 	void preloadAssets( TimeOfDay timeOfDay );									///< preload the assets
 
 private:
+	ControlBarScheme *findSchemeForSide( const AsciiString& side ) const;	///< the widest of that side's schemes the screen can wear
+
 	ControlBarScheme *m_currentScheme;													///< the current scheme that everythign uses
 	Coord2D m_multiplyer;																	
 	

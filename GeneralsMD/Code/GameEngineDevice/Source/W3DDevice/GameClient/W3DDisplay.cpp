@@ -4391,6 +4391,21 @@ void W3DDisplay::preloadTextureAssets( AsciiString texture )
 }  // end preloadModelAssets
 
 //-------------------------------------------------------------------------------------------------
+/** The asset manager keeps the first TextureClass made under a name, and Render2D's Set_Texture
+	* reuses it.  Preloaded with Get_Texture's defaults it had every mip level and went through the
+	* Texture Quality reduction, so a 4096 wide bar painting was drawn at 2048 below the top setting.
+	* Asked for the way Render2D asks, one level, which the loader never reduces. */
+//-------------------------------------------------------------------------------------------------
+void W3DDisplay::preloadImageTexture( AsciiString texture )
+{
+	if( m_assetManager )
+	{
+		TextureClass *theTexture = m_assetManager->Get_Texture( texture.str(), MIP_LEVELS_1 );
+		theTexture->Release_Ref();
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 void W3DDisplay::doSmartAssetPurgeAndPreload(const char* usageFileName)
 {

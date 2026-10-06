@@ -690,7 +690,7 @@ static const Image *plateImage( const ControlBarPlate *plate )
 //-------------------------------------------------------------------------------------------------
 /** The Classic interface's bar wears EA's one-piece painting, the scheme's own layers, offset by
 	* however far the bar's frame has travelled from where layoutPanels put it (the minimised bar drops
-	* it), the same measure the plates use.  ControlBarSchemeManager::drawBackground puts the painting where the windows are, in the 4:3 box. */
+	* it), the same measure the plates use.  ControlBarSchemeManager::drawBackground puts the painting where the windows are, in the HUD's 16:9 frame. */
 //-------------------------------------------------------------------------------------------------
 static void drawSchemeLayers( GameWindow *window, ControlBarSchemeManager *man, Bool foreground )
 {

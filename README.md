@@ -391,7 +391,8 @@ is open for anything that is not an issue yet.
 Electronic Arts released the source in 2025. İlyas Akın (ilyasakin) wrote the macOS, Linux and Windows
 ARM64 port. Fixes taken from [TheSuperHackers/GeneralsGameCode](https://github.com/TheSuperHackers/GeneralsGameCode),
 the community's CMake port of the same source, are credited where they landed, in the code and in the
-commits. Third-party libraries are fetched at pinned versions and keep their own licences;
+commits. The Classic interface's 16:9 command bar is moddb_dev's, from the "C&C Generals HD User Interface"
+mod on ModDB, which builds on pWn3d_1337's Operation Firestorm interface, and is here with its author's permission. Third-party libraries are fetched at pinned versions and keep their own licences;
 [NOTICE.md](NOTICE.md) lists who wrote what and under which licence.
 
 ---
