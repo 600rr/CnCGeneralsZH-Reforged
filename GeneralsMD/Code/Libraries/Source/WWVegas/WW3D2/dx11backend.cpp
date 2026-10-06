@@ -621,8 +621,11 @@ static const unsigned SMOKE_MOST_CASTERS = 16384;
 static const float SMOKE_SELF_SHADOW_GAIN = 0.8f;
 static const float SMOKE_SELF_SHADOW_CURVE = 16.0f;
 // How far in front of what is behind it a particle sprite has fully faded in, in world units.  A
-// tank is about thirty long; a smoke puff is ten to forty across.
-static const float SOFT_PARTICLE_FADE_UNITS = 12.0f;
+// tank is about thirty long; a smoke puff is ten to forty across.  A toxin cloud is a carpet of
+// puffs hovering a few units over the ground: at twelve, and still at five, the fade took most of
+// each one away and left their tops as hard-rimmed green islands.  Two hides the line where a
+// sprite cuts a surface and leaves the carpet whole.
+static const float SOFT_PARTICLE_FADE_UNITS = 2.0f;
 
 // Each caster is a disc facing the sun, drawn as a four corner strip whose corners come from the
 // vertex number, so the only buffer is the one holding the casters.

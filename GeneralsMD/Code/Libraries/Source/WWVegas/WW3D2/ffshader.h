@@ -399,7 +399,14 @@ const unsigned NORMAL_MAPPED_LIGHTS = 4;
 	"        float shade = saturate(dot(surface, to / max(dist, 0.001)));\n" \
 	"        light += fall * (shade * BlastLightDiffuse[i].rgb + BlastLightAmbient[i].rgb);\n" \
 	"    }\n" \
-	"    return light;\n" \
+	"    // Straight up to a half, then a knee towards three quarters, so the lit pixel at most\n" \
+	"    // brightens by 1.75: the terrain relight clamped its sum at white, and a nuke's light\n" \
+	"    // uncapped took the ground to white in a few frames.  The knee is taken on the brightest\n" \
+	"    // channel and the colour scaled by it, so a fire's orange stays orange as it grows.\n" \
+	"    float peak = max(light.r, max(light.g, light.b));\n" \
+	"    float over = max(peak - 0.5, 0.0);\n" \
+	"    float held = min(peak, 0.5) + 0.25 * over / (0.25 + over);\n" \
+	"    return light * (held / max(peak, 1e-4));\n" \
 	"}\n" \
 	"\n"
 
@@ -408,7 +415,9 @@ const unsigned NORMAL_MAPPED_LIGHTS = 4;
 // texel at the pixel's own position, so the viewport's half pixel shift applies to both alike.  Both
 // depths go back to the distance from the eye through the projection the particles are drawn with,
 // w = SoftParticleDepth.x / (z * SoftParticleDepth.y - SoftParticleDepth.z), which is the same
-// matrix the world was drawn with; .w is one over the distance the fade takes, in world units.
+// matrix the world was drawn with; .w is one over the distance the fade takes, in world units.  The
+// ramp is a smoothstep: a straight one left a crease at both ends of every sprite's fade, and a
+// toxin cloud is hundreds of sprites lying on the ground, whose creases stacked into contour lines.
 #define SOFT_PARTICLE_SAMPLING \
 	"Texture2D SceneDepth : register(t7);\n" \
 	"\n" \
@@ -417,7 +426,8 @@ const unsigned NORMAL_MAPPED_LIGHTS = 4;
 	"    float scene = SceneDepth.Load(int3(position.xy, 0)).r;\n" \
 	"    float behind = SoftParticleDepth.x / (scene * SoftParticleDepth.y - SoftParticleDepth.z);\n" \
 	"    float here = SoftParticleDepth.x / (position.z * SoftParticleDepth.y - SoftParticleDepth.z);\n" \
-	"    return saturate((behind - here) * SoftParticleDepth.w);\n" \
+	"    float fade = saturate((behind - here) * SoftParticleDepth.w);\n" \
+	"    return fade * fade * (3.0 - 2.0 * fade);\n" \
 	"}\n" \
 	"\n"
 
