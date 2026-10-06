@@ -4477,11 +4477,18 @@ static Int drawOwnCountdown( DisplayString *&countdown, Int seconds, Int x, Int 
 	* it - the Rocket Buggy's six rockets, the Comanche's rocket pods, the Paladin's point defence
 	* laser - which fire about as often as a tank does. The old test was the
 	* length of whichever wait was running, and those clip reloads all ran past three seconds, so a
-	* Paladin that touched an infantryman with its laser wore an amber bar for the next four. */
+	* Paladin that touched an infantryman with its laser wore an amber bar for the next four.
+	*
+	* A weapon of DamageType DISARM is not a gun at all. The Dozer's mine-clearing scoop is one shot
+	* and a four-second reload, so the Dozer wore an amber bar after every mine it lifted. The
+	* Worker's clearing weapon is DISARM too, and those two are the only DISARM weapons in the data. */
 //-------------------------------------------------------------------------------------------------
-Bool Drawable_weaponWearsReloadBar( Int clipSize, UnsignedInt delayFrames, UnsignedInt clipReloadFrames )
+Bool Drawable_weaponWearsReloadBar( Int clipSize, UnsignedInt delayFrames, UnsignedInt clipReloadFrames, Bool disarms )
 {
 	const UnsignedInt RELOAD_BAR_MIN_FRAMES = 3 * LOGICFRAMES_PER_SECOND;
+	if( disarms )
+		return FALSE;
+
 	if( clipSize <= 0 )
 		return delayFrames > RELOAD_BAR_MIN_FRAMES;
 
@@ -4541,7 +4548,7 @@ static Real reloadBarFraction( const Object *obj )
 
 		const UnsignedInt delay = (UnsignedInt)tmpl->getMaxDelayBetweenShots();
 		const UnsignedInt clipReload = (UnsignedInt)tmpl->getClipReloadTime( WeaponBonus() );
-		if( !Drawable_weaponWearsReloadBar( tmpl->getClipSize(), delay, clipReload ) )
+		if( !Drawable_weaponWearsReloadBar( tmpl->getClipSize(), delay, clipReload, tmpl->getDamageType() == DAMAGE_DISARM ) )
 			continue;
 
 		const UnsignedInt longest = tmpl->getClipSize() > 0 && clipReload > delay ? clipReload : delay;

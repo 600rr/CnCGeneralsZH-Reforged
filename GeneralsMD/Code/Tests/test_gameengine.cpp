@@ -7355,15 +7355,24 @@ TEST(a_strike_or_cargo_plane_wears_a_health_bar)
 	 over the shots in it. Frames, at 30 a second. */
 TEST(only_a_slow_firing_weapon_wears_a_reload_bar)
 {
-	CHECK( Drawable_weaponWearsReloadBar( 0, 300, 0 ) == TRUE );		// Nuke Cannon, 10 s
-	CHECK( Drawable_weaponWearsReloadBar( 0, 120, 0 ) == TRUE );		// Inferno Cannon, 4 s
-	CHECK( Drawable_weaponWearsReloadBar( 1, 0, 300 ) == TRUE );		// SCUD, one missile and a 10 s reload
-	CHECK( Drawable_weaponWearsReloadBar( 2, 6, 450 ) == TRUE );		// Scorpion's two missiles, 15 s reload
-	CHECK( Drawable_weaponWearsReloadBar( 0, 60, 0 ) == FALSE );		// a tank gun, 2 s
-	CHECK( Drawable_weaponWearsReloadBar( 0, 90, 0 ) == FALSE );		// exactly three seconds is not over three
-	CHECK( Drawable_weaponWearsReloadBar( 6, 6, 180 ) == FALSE );		// Rocket Buggy, six rockets, 6 s reload
-	CHECK( Drawable_weaponWearsReloadBar( 2, 7, 120 ) == FALSE );		// Paladin's point defence laser
-	CHECK( Drawable_weaponWearsReloadBar( 20, 6, 900 ) == FALSE );	// Comanche rocket pods
+	CHECK( Drawable_weaponWearsReloadBar( 0, 300, 0, FALSE ) == TRUE );		// Nuke Cannon, 10 s
+	CHECK( Drawable_weaponWearsReloadBar( 0, 120, 0, FALSE ) == TRUE );		// Inferno Cannon, 4 s
+	CHECK( Drawable_weaponWearsReloadBar( 1, 0, 300, FALSE ) == TRUE );		// SCUD, one missile and a 10 s reload
+	CHECK( Drawable_weaponWearsReloadBar( 2, 6, 450, FALSE ) == TRUE );		// Scorpion's two missiles, 15 s reload
+	CHECK( Drawable_weaponWearsReloadBar( 0, 60, 0, FALSE ) == FALSE );		// a tank gun, 2 s
+	CHECK( Drawable_weaponWearsReloadBar( 0, 90, 0, FALSE ) == FALSE );		// exactly three seconds is not over three
+	CHECK( Drawable_weaponWearsReloadBar( 6, 6, 180, FALSE ) == FALSE );		// Rocket Buggy, six rockets, 6 s reload
+	CHECK( Drawable_weaponWearsReloadBar( 2, 7, 120, FALSE ) == FALSE );		// Paladin's point defence laser
+	CHECK( Drawable_weaponWearsReloadBar( 20, 6, 900, FALSE ) == FALSE );	// Comanche rocket pods
+}
+
+/** The Dozer's mine-clearing scoop is one shot and a 4 s reload, slow enough for the bar on the
+	 numbers alone, and the Dozer wore it after every mine. A DISARM weapon is not a gun. */
+TEST(a_mine_clearing_weapon_wears_no_reload_bar)
+{
+	CHECK( Drawable_weaponWearsReloadBar( 1, 0, 120, FALSE ) == TRUE );		// the same numbers on a gun
+	CHECK( Drawable_weaponWearsReloadBar( 1, 0, 120, TRUE ) == FALSE );		// DozerMineDisarmingWeapon
+	CHECK( Drawable_weaponWearsReloadBar( 0, 30, 0, TRUE ) == FALSE );		// WorkerMineDisarmingWeapon
 }
 
 /** A launcher that shares its reload is told when it can fire next and keeps an old start frame;
