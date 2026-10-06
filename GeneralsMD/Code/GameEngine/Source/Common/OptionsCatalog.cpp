@@ -264,8 +264,10 @@ const OptionDef TheOptionCatalog[] =
 	// MiddleMousePans used to sit here.  There is nothing left to choose: a right drag pans and a
 	// middle drag turns the camera.
 
-	// Back on Options > Controls: players split on whether the wheel should chase the cursor.
-	{ "ZoomToCursor",							OPT_WND( "CheckZoomToCursor" ), "GUI:ZoomToCursor",
+	// On Options > Controls in both interfaces, off until ticked: players split on whether the wheel
+	// should chase the cursor.  A new key for the snaps' reason above: ZoomToCursor is a "yes" in
+	// every Options.ini saved while it defaulted on.
+	{ "WheelZoomToCursor",				OPT_WND( "CheckZoomToCursor" ), "GUI:ZoomToCursor",
 		OPTION_BOOL, APPLY_LIVE, 0, 1,
 		get_m_zoomToCursor, set_m_zoomToCursor },
 

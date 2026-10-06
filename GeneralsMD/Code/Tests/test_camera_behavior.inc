@@ -209,7 +209,7 @@ TEST(camera_margin_preferences_load_and_rebuild_constraints)
 TEST(camera_wheel_anchors_zoom_to_cursor_only_with_the_box_ticked)
 {
 	// Pull request 5 asked for zoom to cursor to go; it stayed as a menu box instead.
-	const OptionDef *def = findOptionDef("ZoomToCursor");
+	const OptionDef *def = findOptionDef("WheelZoomToCursor");
 	CHECK(def != NULL);
 	if (def == NULL)
 		return;
@@ -229,21 +229,24 @@ TEST(camera_wheel_anchors_zoom_to_cursor_only_with_the_box_ticked)
 		message->deleteInstance();
 	};
 
-	CHECK(f.global->m_zoomToCursor);
+	// off by default: the wheel zooms on the middle of the screen, as the game shipped
+	CHECK(!f.global->m_zoomToCursor);
+	spinWheel();
+	CHECK_EQ(f.view.zoomAnchors, 0);
+
+	f.global->m_zoomToCursor = TRUE;
 	spinWheel();
 	CHECK_EQ(f.view.zoomAnchors, 1);
 	CHECK_EQ(f.view.zoomAnchor.x, cursor.x);
 	CHECK_EQ(f.view.zoomAnchor.y, cursor.y);
 
-	f.global->m_zoomToCursor = FALSE;
-	spinWheel();
-	CHECK_EQ(f.view.zoomAnchors, 1);
-
-	// Classic zooms on the screen's middle whatever the box says, as the game shipped
-	f.global->m_zoomToCursor = TRUE;
+	// Classic honours the box too
 	f.global->m_interfaceStyle = INTERFACE_STYLE_CLASSIC;
 	spinWheel();
-	CHECK_EQ(f.view.zoomAnchors, 1);
+	CHECK_EQ(f.view.zoomAnchors, 2);
+	f.global->m_zoomToCursor = FALSE;
+	spinWheel();
+	CHECK_EQ(f.view.zoomAnchors, 2);
 }
 
 TEST(ctrl_wheel_zooms_five_notches_for_one)

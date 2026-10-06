@@ -12715,7 +12715,8 @@ TEST(gameplay_conveniences_are_forced_on_and_left_the_catalog)
 		 keys of their own: the old ones are a "yes" in every Options.ini saved while they defaulted on. */
 	static const char *const menu[] =
 	{
-		"CameraSnapTo45", "BuildGrid", "BuildSnapTo45", "BuildSnapToNeighbour", "OpenAtMaxZoom", NULL
+		"CameraSnapTo45", "BuildGrid", "BuildSnapTo45", "BuildSnapToNeighbour", "OpenAtMaxZoom",
+		"WheelZoomToCursor", NULL
 	};
 	for( Int i = 0; menu[ i ] != NULL; ++i )
 	{
@@ -12729,7 +12730,8 @@ TEST(gameplay_conveniences_are_forced_on_and_left_the_catalog)
 	}
 	static const char *const retired[] =
 	{
-		"SnapCameraRotateTo45", "GridBuildPlacement", "SnapBuildPlacementTo45", "StartAtMaxZoom", NULL
+		"SnapCameraRotateTo45", "GridBuildPlacement", "SnapBuildPlacementTo45", "StartAtMaxZoom",
+		"ZoomToCursor", NULL
 	};
 	for( Int i = 0; retired[ i ] != NULL; ++i )
 		CHECK( findOptionDef( retired[ i ] ) == NULL );
@@ -12752,7 +12754,7 @@ TEST(an_options_ini_naming_the_removed_input_scheme_and_wasd_keys_still_loads)
 	TheWritableGlobalData = scratch;
 
 	const OptionDef *orderLines = findOptionDef( "OrderLines" );
-	const OptionDef *zoom = findOptionDef( "ZoomToCursor" );
+	const OptionDef *zoom = findOptionDef( "WheelZoomToCursor" );
 	CHECK( orderLines != NULL && zoom != NULL );
 	orderLines->set( 1 );
 	zoom->set( 1 );
@@ -12761,7 +12763,7 @@ TEST(an_options_ini_naming_the_removed_input_scheme_and_wasd_keys_still_loads)
 	pref[ AsciiString( "InputScheme" ) ] = AsciiString( "1" );
 	pref[ AsciiString( "WasdCamera" ) ] = AsciiString( "yes" );
 	pref[ AsciiString( "OrderLines" ) ] = AsciiString( "no" );
-	pref[ AsciiString( "ZoomToCursor" ) ] = AsciiString( "no" );
+	pref[ AsciiString( "WheelZoomToCursor" ) ] = AsciiString( "no" );
 	loadOptionsFromPreferences( pref );
 
 	CHECK_EQ( orderLines->get(), 0 );
@@ -12844,30 +12846,30 @@ TEST(option_catalog_writes_bools_as_yes_and_no)
 	TheWritableGlobalData = scratch;
 
 	UserPreferences pref;
-	const OptionDef *zoom = findOptionDef( "ZoomToCursor" );
+	const OptionDef *zoom = findOptionDef( "WheelZoomToCursor" );
 	CHECK( zoom != NULL );
 
 	zoom->set( 1 );
 	saveOptionsToPreferences( pref );
-	CHECK_STR( pref[ AsciiString( "ZoomToCursor" ) ].str(), "yes" );
+	CHECK_STR( pref[ AsciiString( "WheelZoomToCursor" ) ].str(), "yes" );
 
 	zoom->set( 0 );
 	saveOptionsToPreferences( pref );
-	CHECK_STR( pref[ AsciiString( "ZoomToCursor" ) ].str(), "no" );
+	CHECK_STR( pref[ AsciiString( "WheelZoomToCursor" ) ].str(), "no" );
 
 	/* Reading is deliberately more forgiving than writing.  The getters this replaces accepted the
 		 single string "yes", so a file hand-edited to "true" read as off - which looks like the
 		 setting not working rather than like the file being spelled wrong. */
-	pref[ AsciiString( "ZoomToCursor" ) ] = AsciiString( "true" );
+	pref[ AsciiString( "WheelZoomToCursor" ) ] = AsciiString( "true" );
 	loadOptionsFromPreferences( pref );
 	CHECK_EQ( zoom->get(), 1 );
 
 	zoom->set( 0 );
-	pref[ AsciiString( "ZoomToCursor" ) ] = AsciiString( "1" );
+	pref[ AsciiString( "WheelZoomToCursor" ) ] = AsciiString( "1" );
 	loadOptionsFromPreferences( pref );
 	CHECK_EQ( zoom->get(), 1 );
 
-	pref[ AsciiString( "ZoomToCursor" ) ] = AsciiString( "no" );
+	pref[ AsciiString( "WheelZoomToCursor" ) ] = AsciiString( "no" );
 	loadOptionsFromPreferences( pref );
 	CHECK_EQ( zoom->get(), 0 );
 

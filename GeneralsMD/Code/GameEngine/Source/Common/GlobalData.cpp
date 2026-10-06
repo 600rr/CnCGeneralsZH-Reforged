@@ -1148,7 +1148,7 @@ GlobalData::GlobalData()
 	m_cameraBoundaryMargin = 200;
 	m_edgeScrollInWindowedMode = TRUE;
 	m_snapCameraRotateTo45 = FALSE;
-	m_zoomToCursor = TRUE;
+	m_zoomToCursor = FALSE;		// the wheel zooms on the middle of the screen, as 1.04 did, until ticked
 	m_isometricCamera = FALSE;
 	// R1, smooth motion: the picture only, one logic tick behind, and never the game (W3DSmoothMotion.h).
 	// On by default off Windows, where 120 and 144 Hz panels are the common case; Windows keeps its

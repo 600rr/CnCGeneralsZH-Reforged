@@ -343,16 +343,15 @@ GROUP_LAYOUT = [
 ]
 
 # Settings the Classic interface overrules whatever Options.ini says, each behind an isClassicUI()
-# gate where the value is read: smooth motion (W3DDisplay.cpp), zoom to cursor (LookAtXlat.cpp), the
-# HUD scale (ControlBar.cpp), the corner net box (InGameUI.cpp, no HTML pages in Classic), the income
-# beside the money (InGameUI.cpp), health bar mode and empty garrison pips (Drawable.cpp) and order
-# lines (W3DInGameUI.cpp).  Every one is a catalog row, whose menu passes skip a control the layout
-# does not carry, so the Classic layout leaves them out and keeps the value.  The opening zoom, the
-# camera's 45 degree steps and the three placement snaps are not here: they start off, which is how
-# 1.04 played, and Classic honours them once ticked.
+# gate where the value is read: smooth motion (W3DDisplay.cpp), the HUD scale (ControlBar.cpp), the
+# corner net box (InGameUI.cpp, no HTML pages in Classic), the income beside the money (InGameUI.cpp),
+# health bar mode and empty garrison pips (Drawable.cpp) and order lines (W3DInGameUI.cpp).  Every one
+# is a catalog row, whose menu passes skip a control the layout does not carry, so the Classic layout
+# leaves them out and keeps the value.  Zoom to cursor, the opening zoom, the camera's 45 degree steps
+# and the three placement snaps are not here: they start off, which is how 1.04 played, and Classic
+# honours them once ticked.
 REFORGED_ONLY = [
-    "CheckSmoothMotion", "CheckZoomToCursor", "ComboBoxHudScale", "CheckNetBox", "ComboBoxIncomeRate",
-    "CheckOrderLines",
+    "CheckSmoothMotion", "ComboBoxHudScale", "CheckNetBox", "ComboBoxIncomeRate", "CheckOrderLines",
 ]
 
 

@@ -507,7 +507,7 @@ GameMessageDisposition LookAtTranslator::translateGameMessage(const GameMessage 
 			// ZoomToCursor: the view holds the ground under the cursor while the zoom eases in.  It does
 			// it inside its own update, between the zoom moving and the frame being drawn; held from
 			// here, the correction always landed a frame late.
-			if (TheGlobalData->m_zoomToCursor && !classic && TheInGameUI->getInputEnabled())
+			if (TheGlobalData->m_zoomToCursor && TheInGameUI->getInputEnabled())
 				TheTacticalView->anchorZoomAt( &msg->getArgument( 0 )->pixel );
 
 			// Ctrl+wheel with nothing to place crosses the zoom range in three notches instead of
