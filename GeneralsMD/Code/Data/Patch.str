@@ -1535,6 +1535,10 @@ GUI:CheatPanelTitle
 "Cheats"
 END
 
+GUI:CheatPanelClose
+"Close"
+END
+
 GUI:CheatMoney
 "Cash"
 END

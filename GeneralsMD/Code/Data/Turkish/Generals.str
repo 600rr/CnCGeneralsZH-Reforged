@@ -15937,6 +15937,10 @@ GUI:CheatPanelTitle
 "Hileler"
 END
 
+GUI:CheatPanelClose
+"Kapat"
+END
+
 GUI:CheatMoney
 "Para"
 END

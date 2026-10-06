@@ -81,6 +81,7 @@
 #include "GameClient/Drawable.h"
 #include "GameClient/GadgetPushButton.h"
 #include "GameClient/GameClient.h"
+#include "GameClient/GameConsole.h"
 #include "GameClient/GameWindowGlobal.h"
 #include "GameClient/GameWindowID.h"
 #include "GameClient/GUICallbacks.h"
@@ -15495,6 +15496,8 @@ void InGameUI::notifyResolutionChange( void )
 
 	ResetDiplomacy();
 	ResetInGameChat();
+	if( TheGameConsole )
+		TheGameConsole->resetCheatWindow();
 
 	if( m_replayWindow )
 	{

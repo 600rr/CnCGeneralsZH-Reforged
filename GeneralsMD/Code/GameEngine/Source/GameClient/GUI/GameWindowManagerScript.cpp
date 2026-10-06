@@ -559,6 +559,7 @@ static Coord2D classicLayoutAnchor( const char *filename )
 		{ "controlbarpopupdescription.wnd", 0.0f, 1.0f },
 		{ "ingamechat.wnd", 0.0f, 1.0f },
 		{ "diplomacy.wnd", 0.0f, 0.0f },
+		{ "trainer.wnd", 0.0f, 0.0f },	// the console's cheat panel, drawn as diplomacy is
 		{ "replaycontrol.wnd", 0.5f, 1.0f },
 	};
 	Coord2D anchor = { 0.5f, 0.5f };
