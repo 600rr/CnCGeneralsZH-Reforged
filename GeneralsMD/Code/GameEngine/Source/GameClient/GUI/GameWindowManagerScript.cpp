@@ -504,9 +504,15 @@ static Bool parseTooltip( char *token, WinInstanceData *instData,
 	* and adjust to make the screen rect coords relative to any parent
 	* if present */
 //=============================================================================
-// Whether the layout being read is fitted into the 4:3 box rather than stretched to the screen:
-// set by winCreateFromScript for each file, read by parseScreenRect for each window in it.
-static Bool theLayoutFits = FALSE;
+// How the layout being read is put on the screen: set by winCreateFromScript for each file, read by
+// parseScreenRect for each window in it.
+enum LayoutPlacement
+{
+	LAYOUT_STRETCH,		///< stretched to the whole screen, x and y apart, as EA shipped every layout
+	LAYOUT_FIT,				///< one scale, centred in the 4:3 box
+	LAYOUT_HUD				///< stretched as EA shipped it, over the Classic HUD's 16:9 frame (TheHudRect)
+};
+static LayoutPlacement theLayoutPlacement = LAYOUT_STRETCH;
 
 // The menus are fitted in both interfaces: the shell's screens and the dialogs a match opens over the
 // battlefield, all centred on a 4:3 panel of their own.  The stretch EA shipped drew every panel, logo
@@ -537,16 +543,39 @@ static Bool barLaysOutItself( const char *filename )
 	return FALSE;
 }
 
-static Bool layoutFits( const char *filename )
+// The Classic interface's in-match furniture that stands with the command bar, in its 16:9 frame:
+// the build tooltip over the bar, the chat line, the quit menu and diplomacy.  Matched on the file's
+// own name, whatever folder it was asked for under.
+static Bool classicHudLayout( const char *filename )
+{
+	const char *name = filename;
+	for( const char *c = filename; *c; c++ )
+		if( *c == '/' || *c == '\\' )
+			name = c + 1;
+	static const char *const hud[] =
+	{
+		"controlbarpopupdescription.wnd", "ingamechat.wnd", "quitmenu.wnd", "quitnosave.wnd", "diplomacy.wnd"
+	};
+	for( Int i = 0; i < (Int)ARRAY_SIZE( hud ); i++ )
+		if( stricmp( name, hud[ i ] ) == 0 )
+			return TRUE;
+	return FALSE;
+}
+
+static LayoutPlacement layoutPlacement( const char *filename )
 {
 	if( TheGlobalData == NULL || filename == NULL )
-		return FALSE;
+		return LAYOUT_STRETCH;
 	// "Menus/X.wnd" as the shell names them, or the whole "Window\\Menus\\X.wnd"
 	if( startsWithFolder( filename, "window" ) )
 		filename += 7;
 	if( TheGlobalData->isClassicUI() )
-		return !barLaysOutItself( filename );
-	return startsWithFolder( filename, "menus" );
+	{
+		if( barLaysOutItself( filename ) )
+			return LAYOUT_STRETCH;
+		return classicHudLayout( filename ) ? LAYOUT_HUD : LAYOUT_FIT;
+	}
+	return startsWithFolder( filename, "menus" ) ? LAYOUT_FIT : LAYOUT_STRETCH;
 }
 
 static Bool parseScreenRect( char *token, char *buffer,
@@ -586,13 +615,23 @@ static Bool parseScreenRect( char *token, char *buffer,
 	//
 	// Fit: one scale both ways, the smaller, with the layout's 4:3 area centred, so a
 	// panel, a logo or a medal keeps the shape it was drawn in.  A window that covers the whole
-	// layout - within two pixels, as a few parents are drawn - still fills the screen: it is the
-	// backdrop, or the parent everything else sits in.  At 4:3 the scales are equal and the offsets
-	// nothing, and this is the stretch to the pixel.
+	// layout - within two pixels, as a few parents are drawn - still fills the screen in Reforged: it
+	// is the backdrop, or the parent everything else sits in.  Classic keeps the backdrop in the box
+	// with the rest, black down both sides (W3DDisplay::draw).  At 4:3 the scales are equal and the
+	// offsets nothing, and this is the stretch to the pixel.
 	//
 	const Bool fullScreen = screenRegion.lo.x <= 2 && screenRegion.lo.y <= 2 &&
 		screenRegion.hi.x >= createRes.x - 2 && screenRegion.hi.y >= createRes.y - 2;
-	if( theLayoutFits && !fullScreen )
+	if( theLayoutPlacement == LAYOUT_HUD )
+	{
+		const UIRect hud = TheHudRect();
+		const Real hudScaleX = (Real)hud.w / (Real)createRes.x;
+		screenRegion.lo.x = (Int)((Real)screenRegion.lo.x * hudScaleX) + hud.x;
+		screenRegion.lo.y = (Int)((Real)screenRegion.lo.y * yScale);
+		screenRegion.hi.x = (Int)((Real)screenRegion.hi.x * hudScaleX) + hud.x;
+		screenRegion.hi.y = (Int)((Real)screenRegion.hi.y * yScale);
+	}
+	else if( theLayoutPlacement == LAYOUT_FIT && ( !fullScreen || TheGlobalData->isClassicUI() ) )
 	{
 		const Real scale = min( xScale, yScale );
 		const Real left = ((Real)TheDisplay->getWidth() - (Real)createRes.x * scale) / 2.0f;
@@ -2806,7 +2845,7 @@ GameWindow *GameWindowManager::winCreateFromScript( AsciiString filenameString,
   // Reset the window stack
   resetWindowStack();
 	resetWindowDefaults();
-	theLayoutFits = layoutFits( filename );
+	theLayoutPlacement = layoutPlacement( filename );
 
 	//
 	// get the filename from the parameter, if it doesn't contain a '\' it is

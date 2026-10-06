@@ -56,6 +56,7 @@
 #include "GameClient/ControlBar.h"
 #include "GameClient/Image.h"
 #include "GameClient/Mouse.h"
+#include "GameClient/Shell.h"
 #include "W3DDevice/GameClient/W3DAssetManager.h"
 #include "W3DDevice/GameClient/W3DGUICallbacks.h"
 #include "W3DDevice/GameClient/W3DInGameUI.h"
@@ -539,6 +540,26 @@ void W3DInGameUI::draw( void )
 #endif
 
 	TheWindowManager->winRepaint();
+
+	//
+	// The Classic interface's shell screens and load screens stand in the 4:3 box, backdrop and all,
+	// and the screen past it on a wide display is black, as a 4:3 game shown on it is.  The shell map
+	// behind the main menu is cut off there too.
+	//
+	if( TheGlobalData->isClassicUI() && ( ( TheShell && TheShell->isShellActive() ) || !matchOnScreen ) )
+	{
+		const UIRect box = TheUIRect();
+		const Int screenW = TheDisplay->getWidth();
+		const Int screenH = TheDisplay->getHeight();
+		const Color black = GameMakeColor( 0, 0, 0, 255 );
+		if( box.x > 0 )
+		{
+			TheDisplay->drawFillRect( 0, 0, box.x, screenH, black );
+			TheDisplay->drawFillRect( box.x + box.w, 0, screenW - box.x - box.w, screenH, black );
+		}
+		if( box.y > 0 )
+			TheDisplay->drawFillRect( 0, 0, screenW, box.y, black );
+	}
 
 #ifdef DEBUG_LOGGING
 	tWinEnd = Clock_Ticks();
