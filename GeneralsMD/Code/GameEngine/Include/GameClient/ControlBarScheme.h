@@ -283,6 +283,11 @@ public:
 	Int getCurrentOverhangX( void ) const
 	{ return m_currentScheme ? m_currentScheme->getOverhangX() : 0; }
 
+	/** Whether the painting on screen is solid at this screen point, its layers placed the way
+		* drawBackground and drawForeground put them with the same offset.  A texture that is not a
+		* 32-bit targa counts as solid all over its part. */
+	Bool isPaintedAt( Int x, Int y, ICoord2D offset ) const;
+
 
 	// parse Functions for the INI file
 	const FieldParse *getFieldParse() const { return m_controlBarSchemeFieldParseTable; }								///< returns the parsing fields

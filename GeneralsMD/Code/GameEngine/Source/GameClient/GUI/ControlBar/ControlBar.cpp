@@ -1810,16 +1810,18 @@ void ControlBarLayoutUniform( GameWindow *root, Real anchorFracX, Real anchorFra
 	Real originY = dispH * anchorFracY - CONTROL_BAR_DESIGN_H * anchorFracY * s;
 
 	//
-	// Classic keeps the loader's stretch, as the game shipped, inside the HUD's 16:9 frame: the powers'
-	// column down the frame's right edge beside the bar, the promotion screen over the frame
+	// Classic keeps the bar's own stretch inside the HUD's 16:9 frame (classicScales): the powers'
+	// column down the frame's right edge beside the bar, the promotion screen over the frame.  Under
+	// EA's 4:3 bar that is the loader's stretch, as the game shipped it.  Under the 16:9 bar it is the
+	// wide painting's, which is nearly square at 16:9; stretching EA's 800 across the frame drew the
+	// general's powers a third wider than tall beside a bar that is not stretched at all.
 	//
 	if( barIsClassic() )
 	{
 		const UIRect hud = TheHudRect();
-		originX = (Real)hud.x;
+		classicScales( dispW, dispH, &s, &sy );
+		originX = hud.x + hud.w * anchorFracX - CONTROL_BAR_DESIGN_W * anchorFracX * s;
 		originY = 0.0f;
-		s = hud.w / CONTROL_BAR_DESIGN_W;
-		sy = loadScaleY;
 	}
 
 	ICoord2D rootOrigin;
@@ -2224,12 +2226,12 @@ void ControlBar::triggerRadarAttackGlow( void )
 //-------------------------------------------------------------------------------------------------
 Bool ControlBar::letsClickThrough( GameWindow *window, Int x, Int y )
 {
-	// EA's bar: its input-blocking panes are the shape of the bar, and they keep their clicks
-	if( barIsClassic() )
-		return FALSE;
-
 	GameWindow *frame = window->winGetParent();
 	if( frame == NULL || m_controlBarSchemeManager == NULL || TheDisplay == NULL )
+		return FALSE;
+
+	// EA's 4:3 bar: its input-blocking panes are the shape of the bar, and they keep their clicks
+	if( barIsClassic() && m_controlBarSchemeManager->getCurrentOverhangX() == 0 )
 		return FALSE;
 	if( frame->winGetWindowId() != (Int)TheNameKeyGenerator->nameToKey( "ControlBar.wnd:ControlBarParent" ) )
 		return FALSE;
@@ -2237,6 +2239,23 @@ Bool ControlBar::letsClickThrough( GameWindow *window, Int x, Int y )
 	const char *shortName = shortWindowName( window );
 	if( shortName[ 0 ] != 0 && strcmp( shortName, "CenterBackground" ) != 0 )
 		return FALSE;
+
+	//
+	// The Classic 16:9 bar's panes are EA's panel rectangles widened by the overhang, and its painting
+	// starts up to 46 design units below their tops over the command grid's shoulders, so the painting
+	// itself decides: transparent there is battlefield.
+	//
+	if( barIsClassic() )
+	{
+		if( window->winPointInChild( x, y, TRUE ) != window )
+			return FALSE;
+
+		ICoord2D now, offset;
+		frame->winGetScreenPosition( &now.x, &now.y );
+		offset.x = now.x - m_panelOrigin.x;
+		offset.y = now.y - m_panelOrigin.y;
+		return m_controlBarSchemeManager->isPaintedAt( x, y, offset ) == FALSE;
+	}
 
 	// the CSS page is what is drawn, so what it drew solid is what is solid.  Asked before the
 	// children, because a see-through child the page does not draw - the observer's info window

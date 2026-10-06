@@ -56,6 +56,10 @@
 #include "PreRTS.h"	// This must go first in EVERY cpp file int the GameEngine
 #include "Lib/Clock.h"
 
+#include <map>
+
+#include "Common/file.h"
+#include "Common/FileSystem.h"
 #include "Common/Player.h"
 #include "Common/PlayerTemplate.h"
 #include "Common/Recorder.h"
@@ -1058,6 +1062,84 @@ void ControlBarSchemeManager::drawBackground( ICoord2D offset )
 	offset.x += TheHudRect().x;
 	if(m_currentScheme)
 		m_currentScheme->drawBackground( m_multiplyer, offset );
+}
+
+//
+// A painting's mask is read off its whole texture the first time a click lands over it, and kept for
+// the session; ControlBarPlateMaskFromTarga is the reader the Reforged plates use.  A texture that
+// does not read leaves the mask empty, and an empty mask is solid everywhere.
+//
+typedef std::map< const Image *, std::vector<UnsignedByte> > SchemeImageMaskMap;
+static SchemeImageMaskMap theSchemeImageMasks;
+
+static const std::vector<UnsignedByte> &schemeImageMask( const Image *image )
+{
+	SchemeImageMaskMap::iterator it = theSchemeImageMasks.find( image );
+	if( it != theSchemeImageMasks.end() )
+		return it->second;
+
+	std::vector<UnsignedByte> &mask = theSchemeImageMasks[ image ];
+	AsciiString path;
+	path.format( "Art\\Textures\\%s", image->getFilename().str() );
+	File *file = TheFileSystem->openFile( path.str(), File::READ | File::BINARY );
+	if( file == NULL )
+	{
+		DEBUG_LOG(( "CONTROLBAR SCHEME MASK %s did not open, its part catches every click\n", path.str() ));
+		return mask;
+	}
+
+	const Int length = file->size();
+	char *bytes = file->readEntireAndClose();
+	const ICoord2D *texture = image->getTextureSize();
+	if( ControlBarPlateMaskFromTarga( (const UnsignedByte *)bytes, length, texture->x, texture->y, mask ) == FALSE )
+	{
+		DEBUG_LOG(( "CONTROLBAR SCHEME MASK %s is not a 32-bit targa of %dx%d, its part catches every click\n",
+								path.str(), texture->x, texture->y ));
+		mask.clear();
+	}
+	delete [] bytes;
+	return mask;
+}
+
+//-----------------------------------------------------------------------------
+Bool ControlBarSchemeManager::isPaintedAt( Int x, Int y, ICoord2D offset ) const
+{
+	if( m_currentScheme == NULL )
+		return FALSE;
+
+	offset.x += TheHudRect().x;
+	for( Int i = 0; i < MAX_CONTROL_BAR_SCHEME_IMAGE_LAYERS; i++ )
+	{
+		for( ControlBarScheme::ControlBarSchemeImageList::const_iterator it = m_currentScheme->m_layer[ i ].begin();
+				 it != m_currentScheme->m_layer[ i ].end(); ++it )
+		{
+			const ControlBarSchemeImage *part = *it;
+			if( part->m_image == NULL )
+				continue;
+
+			// the rectangle drawForeground and drawBackground draw it into
+			const Int left = REAL_TO_INT_FLOOR( part->m_position.x * m_multiplyer.x ) + offset.x;
+			const Int top = REAL_TO_INT_FLOOR( part->m_position.y * m_multiplyer.y ) + offset.y;
+			const Int right = REAL_TO_INT_CEIL( ( part->m_position.x + part->m_size.x ) * m_multiplyer.x - 0.01f ) + offset.x;
+			const Int bottom = REAL_TO_INT_CEIL( ( part->m_position.y + part->m_size.y ) * m_multiplyer.y - 0.01f ) + offset.y;
+			if( x < left || y < top || x >= right || y >= bottom )
+				continue;
+
+			const std::vector<UnsignedByte> &mask = schemeImageMask( part->m_image );
+			if( mask.empty() )
+				return TRUE;
+
+			const Region2D *uv = part->m_image->getUV();
+			const ICoord2D *texture = part->m_image->getTextureSize();
+			const Real u = uv->lo.x + ( uv->hi.x - uv->lo.x ) * ( x - left + 0.5f ) / ( right - left );
+			const Real v = uv->lo.y + ( uv->hi.y - uv->lo.y ) * ( y - top + 0.5f ) / ( bottom - top );
+			const Int texelX = REAL_TO_INT_FLOOR( u * texture->x );
+			const Int texelY = REAL_TO_INT_FLOOR( v * texture->y );
+			if( mask[ texelY * texture->x + texelX ] )
+				return TRUE;
+		}
+	}
+	return FALSE;
 }
 
 //-----------------------------------------------------------------------------
