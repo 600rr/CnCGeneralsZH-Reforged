@@ -564,9 +564,21 @@ public:  // ********************************************************************
 		ORDER_HINT_ABILITY,					///< use an ability where it stands, from a shift list
 		ORDER_HINT_UPGRADE					///< buy an upgrade where it stands, from a shift list
 	};
+	// What stands on the end of an order's line, in EA's rally point art: the flag on the last bit of
+	// ground a unit is sent to, the line's joint on everything else - a unit or building it is sent
+	// at (which the joint then follows), and every point of a shift list short of the last
+	enum OrderHintMark
+	{
+		ORDER_MARK_NONE = 0,				///< nothing of its own: an upgrade or ability used where the step before ends
+		ORDER_MARK_JOINT,						///< EA's waypoint node
+		ORDER_MARK_FLAG							///< EA's rally flag
+	};
+	static OrderHintMark markForOrderHint( OrderHintKind kind, Bool onObject, Bool lastPoint );
+
 	struct OrderHint
 	{
-		OrderHint( void ) : kind( ORDER_HINT_MOVE ), owner( INVALID_ID ), bornMs( 0 ), step( 0 ), icon( NULL ), radius( 0.0f ) {}
+		OrderHint( void ) : kind( ORDER_HINT_MOVE ), owner( INVALID_ID ), bornMs( 0 ), step( 0 ), icon( NULL ), radius( 0.0f ),
+			onObject( FALSE ), mark( ORDER_MARK_NONE ) {}
 
 		Coord3D from;						///< where the unit is now
 		Coord3D to;							///< where it is going
@@ -576,6 +588,8 @@ public:  // ********************************************************************
 		Int step;								///< its place in the order the unit will get to its points, from 1; 0 when it has only the one
 		const Image *icon;			///< the upgrade's own button art on an upgrade step, NULL otherwise
 		Real radius;						///< the circle a guard holds round 'to', 0 for every other kind
+		Bool onObject;					///< 'to' is a unit or building, read off it every frame
+		OrderHintMark mark;			///< what stands on 'to'
 	};
 	const std::vector<OrderHint>& getOrderHints( void ) const { return m_drawnOrderHints; }
 
@@ -1493,10 +1507,13 @@ protected:
 	void collectOrderHints( void );															///< one hint per selected unit and queued point
 	void bunchOrderHints( void );																///< merge the hints of units going the same way
 	void addOrderHint( OrderHint& hint, const std::vector<OrderHint>& previous );	///< keep a marker's age across the frame the list is rebuilt on
-	Bool getHeldAircraftOrder( const Object *obj, OrderHintKind& kind, Coord3D& to ) const;	///< the order an aircraft is sitting on until it is airborne
+	Bool getHeldAircraftOrder( const Object *obj, OrderHintKind& kind, Coord3D& to, Bool& onObject ) const;	///< the order an aircraft is sitting on until it is airborne
 	void addQueuedOrderTail( OrderHint& hint, const OrderChain& chain, const std::vector<OrderHint>& previous );	///< every order still owed, drawn on from where the hint leaves off
 	Bool getQueuedOrderHint( const QueuedOrder& order, OrderHint& hint ) const;	///< the marker a queued order draws, FALSE for none
 	void numberOrderHints( void );															///< a unit with more than one place to go numbers them
+	void markOrderHints( void );																///< flag or joint on each hint's end
+	void updateOrderFlags( void );															///< stand a rally flag on every flagged hint
+	std::vector<DrawableID>			m_orderFlagIDs;																///< the rally flags updateOrderFlags stands, reused frame to frame
 	Bool isHiddenByShroud( const Object *obj ) const;						///< is the shroud over this, for the player at this machine
 	Bool												m_displayedMaxWarning;                        ///< keeps the warning from being shown over and over
 	const CommandButton *				m_pendingGUICommand;										///< GUI command that needs additional interaction from the user

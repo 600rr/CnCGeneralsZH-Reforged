@@ -71,6 +71,7 @@
 #include "GameClient/InGameUI.h"
 
 #include "GameLogic/Object.h"
+#include "GameLogic/TerrainLogic.h"
 
 #include "GameLogic/Module/AIUpdate.h"
 
@@ -242,6 +243,43 @@ void W3DWaypointBuffer::drawWaypoints(RenderInfoClass &rinfo)
 					//Now render the lines in one pass!
 					queueLine( numPoints, points );
 				}
+			}
+		}
+		renderQueuedLines( localRinfo );
+	}
+
+	// Reforged draws every order the selection is on the way a building's rally point is drawn: this
+	// line, the puck on each point short of the end and on any unit or building it is aimed at, and
+	// the rally flag on the last bit of ground (a drawable of its own, InGameUI::updateOrderFlags).
+	// The hints are rebuilt off the units every frame, so a puck on a target follows it.
+	if( !TheGlobalData->isClassicUI() && !TheInGameUI->getOrderHints().empty() )
+	{
+		LightEnvironmentClass lightEnv;
+		lightEnv.Reset(Vector3(0,0,0), Vector3(1.0f,1.0f,1.0f));
+		lightEnv.Pre_Render_Update(rinfo.Camera.Get_Transform());
+		RenderInfoClass localRinfo(rinfo.Camera);
+		localRinfo.light_environment=&lightEnv;
+
+		const std::vector<InGameUI::OrderHint>& hints = TheInGameUI->getOrderHints();
+		for( std::vector<InGameUI::OrderHint>::const_iterator it = hints.begin(); it != hints.end(); ++it )
+		{
+			if( it->mark == InGameUI::ORDER_MARK_NONE )
+				continue;		// an upgrade or ability bought where the step before ends: no line, no point
+
+			// an order's point can carry a zero height; nothing goes under the ground, and an aircraft
+			// at either end keeps its own height
+			Vector3 points[ 2 ];
+			points[ 0 ].Set( it->from.x, it->from.y, max( it->from.z, TheTerrainLogic->getGroundHeight( it->from.x, it->from.y ) ) );
+			points[ 1 ].Set( it->to.x, it->to.y, max( it->to.z, TheTerrainLogic->getGroundHeight( it->to.x, it->to.y ) ) );
+
+			// Order Lines off in the options takes the lines away and leaves the points
+			if( TheGlobalData->m_showOrderLines )
+				queueLine( 2, points );
+
+			if( it->mark == InGameUI::ORDER_MARK_JOINT )
+			{
+				m_waypointNodeRobj->Set_Position( points[ 1 ] );
+				WW3D::Render( *m_waypointNodeRobj, localRinfo );		// the little hockey puck
 			}
 		}
 		renderQueuedLines( localRinfo );

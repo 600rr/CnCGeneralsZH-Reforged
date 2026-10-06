@@ -4255,6 +4255,9 @@ void InGameUI::reset( void )
 	}
 	m_nextMoveHint = 0;
 
+	// the flags went with the match's drawables, and their ids are handed out again from the start
+	m_orderFlagIDs.clear();
+
 	m_isQuitMenuVisible = FALSE;
 	m_scoreboardOpen = FALSE;
 	m_scoreboardPageLoaded = FALSE;
@@ -5402,7 +5405,20 @@ void InGameUI::updateFormationHints( void )
 	* attack by handing its state machine to the takeoff sequence and putting the order aside, so
 	* neither the state id nor the goal names the thing the player pointed at until it is flying. */
 //-------------------------------------------------------------------------------------------------
-Bool InGameUI::getHeldAircraftOrder( const Object *obj, OrderHintKind& kind, Coord3D& to ) const
+//-------------------------------------------------------------------------------------------------
+/** Where an order aimed at a unit or building ends: just over the top of it.  The joint EA's rally
+	* line puts on the ground sits inside the model there and the model hides it, and at the top of
+	* the geometry a turret still covers it. */
+//-------------------------------------------------------------------------------------------------
+static Coord3D orderTargetSpot( const Object *target )
+{
+	const Real CLEARANCE = 8.0f;
+	Coord3D spot = *target->getPosition();
+	spot.z += target->getGeometryInfo().getMaxHeightAbovePosition() + CLEARANCE;
+	return spot;
+}
+
+Bool InGameUI::getHeldAircraftOrder( const Object *obj, OrderHintKind& kind, Coord3D& to, Bool& onObject ) const
 {
 	const AIUpdateInterface *ai = obj->getAIUpdateInterface();
 	const JetAIUpdate *jet = ai->getJetAIUpdate();
@@ -5450,12 +5466,13 @@ Bool InGameUI::getHeldAircraftOrder( const Object *obj, OrderHintKind& kind, Coo
 			return FALSE;
 	}
 
-	if( targetID != INVALID_ID )
+	onObject = ( targetID != INVALID_ID );
+	if( onObject )
 	{
 		const Object *target = TheGameLogic->findObjectByID( targetID );
 		if( target == NULL )
 			return FALSE;
-		to = *target->getPosition();
+		to = orderTargetSpot( target );
 	}
 	else
 	{
@@ -5470,8 +5487,9 @@ Bool InGameUI::getHeldAircraftOrder( const Object *obj, OrderHintKind& kind, Coo
 	* so the machine's goal position is the origin and reading it drew every guard marker in the
 	* bottom left corner of the map.  What the unit is guarding is kept on the AI itself. */
 //-------------------------------------------------------------------------------------------------
-static Bool getGuardedSpot( const AIUpdateInterface *ai, Coord3D& spot )
+static Bool getGuardedSpot( const AIUpdateInterface *ai, Coord3D& spot, Bool& onObject )
 {
+	onObject = ( ai->getGuardTargetType() == GUARDTARGET_OBJECT );
 	switch( ai->getGuardTargetType() )
 	{
 		case GUARDTARGET_LOCATION:
@@ -5483,7 +5501,7 @@ static Bool getGuardedSpot( const AIUpdateInterface *ai, Coord3D& spot )
 			const Object *guarded = TheGameLogic->findObjectByID( ai->getGuardObject() );
 			if( guarded == NULL )
 				return FALSE;
-			spot = *guarded->getPosition();
+			spot = orderTargetSpot( guarded );
 			return TRUE;
 		}
 
@@ -5512,13 +5530,106 @@ void InGameUI::updateOrderHints( void )
 	if( m_isFormationDragging )
 	{
 		updateFormationHints();
+		markOrderHints();
 		m_drawnOrderHints = m_orderHints;
-		return;
+	}
+	else
+	{
+		collectOrderHints();
+		numberOrderHints();
+		markOrderHints();
+		bunchOrderHints();
 	}
 
-	collectOrderHints();
-	numberOrderHints();
-	bunchOrderHints();
+	updateOrderFlags();
+}
+
+//-------------------------------------------------------------------------------------------------
+/** EA's rally point says "go here" with a flag and marks every bend of its line with a joint.  An
+	* order reads the same way: the flag goes on the last bit of ground a unit is sent to, and a unit
+	* or building it is sent at gets the joint instead, so a flag never stands on a tank. */
+//-------------------------------------------------------------------------------------------------
+InGameUI::OrderHintMark InGameUI::markForOrderHint( OrderHintKind kind, Bool onObject, Bool lastPoint )
+{
+	if( kind == ORDER_HINT_ABILITY || kind == ORDER_HINT_UPGRADE )
+		return ORDER_MARK_NONE;
+	return ( lastPoint && !onObject ) ? ORDER_MARK_FLAG : ORDER_MARK_JOINT;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** A unit's hints sit together, in the order it gets to them.  The flag goes on the last of them
+	* that is ground, even when an attack on something is queued after it. */
+//-------------------------------------------------------------------------------------------------
+void InGameUI::markOrderHints( void )
+{
+	size_t first = 0;
+	while( first < m_orderHints.size() )
+	{
+		size_t end = first + 1;
+		while( end < m_orderHints.size() && m_orderHints[ end ].owner == m_orderHints[ first ].owner )
+			++end;
+
+		size_t last = end;
+		for( size_t i = first; i < end; ++i )
+			if( markForOrderHint( m_orderHints[ i ].kind, m_orderHints[ i ].onObject, TRUE ) == ORDER_MARK_FLAG )
+				last = i;
+
+		for( size_t i = first; i < end; ++i )
+			m_orderHints[ i ].mark = markForOrderHint( m_orderHints[ i ].kind, m_orderHints[ i ].onObject, i == last );
+
+		first = end;
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+/** EA's rally flag (the RallyPointMarker the control bar stands on a building's rally point) on
+	* every flagged destination.  Client-only drawables, kept from frame to frame and moved, so the
+	* flag's flutter does not restart every frame.  Reforged only; Classic has EA's move ring. */
+//-------------------------------------------------------------------------------------------------
+void InGameUI::updateOrderFlags( void )
+{
+	size_t used = 0;
+	const ThingTemplate *flagTemplate = TheGlobalData->isClassicUI() ? NULL : TheThingFactory->findTemplate( "RallyPointMarker" );
+	Player *player = ThePlayerList ? ThePlayerList->getLocalPlayer() : NULL;
+	if( flagTemplate && player )
+	{
+		const Color color = ( TheGlobalData->m_timeOfDay == TIME_OF_DAY_NIGHT ) ? player->getPlayerNightColor() : player->getPlayerColor();
+		for( std::vector<OrderHint>::const_iterator it = m_drawnOrderHints.begin(); it != m_drawnOrderHints.end(); ++it )
+		{
+			if( it->mark != ORDER_MARK_FLAG )
+				continue;
+
+			Drawable *flag = NULL;
+			if( used < m_orderFlagIDs.size() )
+				flag = TheGameClient->findDrawableByID( m_orderFlagIDs[ used ] );
+			if( flag == NULL )
+			{
+				flag = TheThingFactory->newDrawable( flagTemplate );
+				if( flag == NULL )
+					break;
+				flag->setDrawableStatus( DRAWABLE_STATUS_NO_SAVE );
+				if( used < m_orderFlagIDs.size() )
+					m_orderFlagIDs[ used ] = flag->getID();
+				else
+					m_orderFlagIDs.push_back( flag->getID() );
+			}
+
+			Coord3D spot = it->to;
+			spot.z = TheTerrainLogic->getGroundHeight( spot.x, spot.y );
+			flag->setPosition( &spot );
+			flag->setOrientation( TheGlobalData->m_downwindAngle );
+			flag->setIndicatorColor( color );
+			++used;
+		}
+	}
+
+	while( m_orderFlagIDs.size() > used )
+	{
+		Drawable *flag = TheGameClient->findDrawableByID( m_orderFlagIDs.back() );
+		if( flag )
+			TheGameClient->destroyDrawable( flag );
+		m_orderFlagIDs.pop_back();
+	}
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -5551,6 +5662,7 @@ void InGameUI::collectOrderHints( void )
 		hint.owner = obj->getID();
 		Coord3D resolvedGoal;
 		Bool goalResolved = FALSE;
+		Bool resolvedOnObject = FALSE;		// the resolved goal is a unit or building, not ground
 		Bool legsDrawn = FALSE;		// the order drew its own threads, and the shift list follows on from them
 
 		// a capture walks its man to the door with a plain move of its own and then stands him idle
@@ -5628,12 +5740,14 @@ void InGameUI::collectOrderHints( void )
 				{
 					hint.kind = ( ai->getTunnelTripEnd() == TUNNEL_TRIP_ATTACK_MOVE ) ? ORDER_HINT_ATTACK_MOVE : ORDER_HINT_MOVE;
 					hint.from = *obj->getPosition();
-					hint.to = *entrance->getPosition();
+					hint.to = orderTargetSpot( entrance );
+					hint.onObject = TRUE;
 					addOrderHint( hint, previous );
 
 					const Object *exit = local->getTunnelSystem()->findQuietTunnelNear( ai->getTunnelTripGoal() );
 					hint.from = ( exit != NULL ) ? *exit->getPosition() : hint.to;
 					hint.to = *ai->getTunnelTripGoal();
+					hint.onObject = FALSE;
 					addOrderHint( hint, previous );
 					legsDrawn = TRUE;
 					break;
@@ -5667,7 +5781,7 @@ void InGameUI::collectOrderHints( void )
 				// behind is the origin - and the marker landed in the bottom left corner of the map
 				// every time.  The spot being guarded lives on the AI itself, so ask it there.
 				hint.kind = ORDER_HINT_GUARD;
-				if( !getGuardedSpot( ai, resolvedGoal ) )
+				if( !getGuardedSpot( ai, resolvedGoal, resolvedOnObject ) )
 					continue;
 				goalResolved = TRUE;
 				// and the circle it holds there
@@ -5681,7 +5795,7 @@ void InGameUI::collectOrderHints( void )
 				// gave it, and that order is held out of reach of the goal until the wheels are up.
 				// Ask for it, or an air strike shows nothing at all during the seconds the plane spends
 				// taxiing, which is exactly when the player wants to see where it is going
-				if( captured == NULL && !getHeldAircraftOrder( obj, hint.kind, resolvedGoal ) )
+				if( captured == NULL && !getHeldAircraftOrder( obj, hint.kind, resolvedGoal, resolvedOnObject ) )
 					continue;
 				goalResolved = TRUE;
 				break;
@@ -5690,8 +5804,9 @@ void InGameUI::collectOrderHints( void )
 		if( captured )
 		{
 			hint.kind = ORDER_HINT_CAPTURE;
-			resolvedGoal = *captured->getPosition();
+			resolvedGoal = orderTargetSpot( captured );
 			goalResolved = TRUE;
+			resolvedOnObject = TRUE;
 		}
 
 		if( !legsDrawn )
@@ -5703,9 +5818,11 @@ void InGameUI::collectOrderHints( void )
 			// stays there after the key is let go
 			const Int pathSize = ai->friend_getWaypointGoalPathSize();
 			const Int pathIndex = ai->friend_getCurrentGoalPathIndex();
+			hint.onObject = FALSE;
 			if( goalResolved )
 			{
 				hint.to = resolvedGoal;
+				hint.onObject = resolvedOnObject;
 			}
 			else if( pathSize > 0 && pathIndex >= 0 && pathIndex < pathSize )
 			{
@@ -5726,8 +5843,9 @@ void InGameUI::collectOrderHints( void )
 				// waiting for its path has only the order's point to show
 				Object *goalObj = ai->getGoalObject();
 				Path *path = ai->getPath();
+				hint.onObject = ( goalObj != NULL );
 				if( goalObj )
-					hint.to = *goalObj->getPosition();
+					hint.to = orderTargetSpot( goalObj );
 				else if( path )
 					hint.to = *path->getLastNode()->getPosition();
 				else
@@ -5834,7 +5952,7 @@ void InGameUI::bunchOrderHints( void )
 		for( size_t i = 0; i < m_drawnOrderHints.size(); ++i )
 		{
 			OrderHint& bunch = m_drawnOrderHints[ i ];
-			if( bunch.kind != hint->kind || bunch.step != hint->step || bunch.icon != hint->icon )
+			if( bunch.kind != hint->kind || bunch.step != hint->step || bunch.icon != hint->icon || bunch.mark != hint->mark )
 				continue;
 			const Real fromX = bunch.from.x - hint->from.x;
 			const Real fromY = bunch.from.y - hint->from.y;
@@ -5898,6 +6016,7 @@ void InGameUI::addQueuedOrderTail( OrderHint& hint, const OrderChain& chain, con
 Bool InGameUI::getQueuedOrderHint( const QueuedOrder& order, OrderHint& hint ) const
 {
 	hint.icon = NULL;
+	hint.onObject = FALSE;
 
 	switch( order.getType() )
 	{
@@ -6008,7 +6127,8 @@ Bool InGameUI::getQueuedOrderHint( const QueuedOrder& order, OrderHint& hint ) c
 	if( target == NULL || target->isEffectivelyDead() || isHiddenByShroud( target ) )
 		return FALSE;
 
-	hint.to = *target->getPosition();
+	hint.to = orderTargetSpot( target );
+	hint.onObject = TRUE;
 	return TRUE;
 }
 

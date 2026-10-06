@@ -13227,6 +13227,28 @@ TEST(build_plans_are_numbered_in_the_order_their_builder_takes_them)
 	CHECK_EQ( plans[ 3 ].step, 3 );
 }
 
+TEST(an_order_ends_in_a_flag_on_ground_and_a_joint_on_a_target)
+{
+	// the last ground point of a move, an attack move, a shot at the ground or a guarded spot: flag
+	CHECK_EQ( (Int)InGameUI::markForOrderHint( InGameUI::ORDER_HINT_MOVE, FALSE, TRUE ), (Int)InGameUI::ORDER_MARK_FLAG );
+	CHECK_EQ( (Int)InGameUI::markForOrderHint( InGameUI::ORDER_HINT_ATTACK_MOVE, FALSE, TRUE ), (Int)InGameUI::ORDER_MARK_FLAG );
+	CHECK_EQ( (Int)InGameUI::markForOrderHint( InGameUI::ORDER_HINT_ATTACK_GROUND, FALSE, TRUE ), (Int)InGameUI::ORDER_MARK_FLAG );
+	CHECK_EQ( (Int)InGameUI::markForOrderHint( InGameUI::ORDER_HINT_GUARD, FALSE, TRUE ), (Int)InGameUI::ORDER_MARK_FLAG );
+
+	// a unit or building it is sent at: the joint, never a flag
+	CHECK_EQ( (Int)InGameUI::markForOrderHint( InGameUI::ORDER_HINT_ATTACK, TRUE, TRUE ), (Int)InGameUI::ORDER_MARK_JOINT );
+	CHECK_EQ( (Int)InGameUI::markForOrderHint( InGameUI::ORDER_HINT_ENTER, TRUE, TRUE ), (Int)InGameUI::ORDER_MARK_JOINT );
+	CHECK_EQ( (Int)InGameUI::markForOrderHint( InGameUI::ORDER_HINT_CAPTURE, TRUE, TRUE ), (Int)InGameUI::ORDER_MARK_JOINT );
+	CHECK_EQ( (Int)InGameUI::markForOrderHint( InGameUI::ORDER_HINT_GUARD, TRUE, TRUE ), (Int)InGameUI::ORDER_MARK_JOINT );
+
+	// a shift list's points short of the last: joints
+	CHECK_EQ( (Int)InGameUI::markForOrderHint( InGameUI::ORDER_HINT_MOVE, FALSE, FALSE ), (Int)InGameUI::ORDER_MARK_JOINT );
+
+	// an upgrade or ability bought where the step before ends draws nothing of its own
+	CHECK_EQ( (Int)InGameUI::markForOrderHint( InGameUI::ORDER_HINT_UPGRADE, FALSE, TRUE ), (Int)InGameUI::ORDER_MARK_NONE );
+	CHECK_EQ( (Int)InGameUI::markForOrderHint( InGameUI::ORDER_HINT_ABILITY, FALSE, FALSE ), (Int)InGameUI::ORDER_MARK_NONE );
+}
+
 TEST(empty_building_slots_are_a_check_box_that_starts_on)
 {
 	const OptionDef *def = findOptionDef( "EmptyBuildingPips" );
