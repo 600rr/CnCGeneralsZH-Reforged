@@ -7309,6 +7309,26 @@ TEST(an_owned_structure_always_wears_a_health_bar)
 	CHECK( Drawable_structureShowsHealthBar( FALSE, FALSE, TRUE, FALSE ) == TRUE );
 }
 
+static KindOfMaskType healthBarKinds( KindOfType a, KindOfType b = KINDOF_INVALID, KindOfType c = KINDOF_INVALID )
+{
+	KindOfMaskType m = MAKE_KINDOF_MASK( a );
+	if( b != KINDOF_INVALID ) m.set( b );
+	if( c != KINDOF_INVALID ) m.set( c );
+	return m;
+}
+
+/** A soldier killed by toxin or fire is replaced by a ToxicInfantry or FlamingInfantry, a live
+	 50 hit point INFANTRY with no SELECTABLE that melts or burns for three seconds. It wore a full bar
+	 the whole time. A unit the cursor can reach keeps its bar, and so does a building. */
+TEST(a_toxin_or_fire_death_puppet_wears_no_health_bar)
+{
+	CHECK( Drawable_kindShowsHealthBar( healthBarKinds( KINDOF_CAN_CAST_REFLECTIONS, KINDOF_INFANTRY ) ) == FALSE );
+	CHECK( Drawable_kindShowsHealthBar( healthBarKinds( KINDOF_INFANTRY, KINDOF_SELECTABLE ) ) == TRUE );
+	CHECK( Drawable_kindShowsHealthBar( healthBarKinds( KINDOF_STRUCTURE ) ) == TRUE );
+	CHECK( Drawable_kindShowsHealthBar( healthBarKinds( KINDOF_IMMOBILE, KINDOF_SELECTABLE ) ) == FALSE );
+	CHECK( Drawable_kindShowsHealthBar( healthBarKinds( KINDOF_PROJECTILE, KINDOF_SELECTABLE ) ) == FALSE );
+}
+
 /** Being carried is not a malfunction, so a unit inside a transport keeps its owner's colour.
 	 Anything else that disables it turns the bar blue - and the pair together used to fail: the old
 	 test asked `isDisabled() && !isDisabledByType(DISABLED_HELD)`, so a held unit that was then EMP'd

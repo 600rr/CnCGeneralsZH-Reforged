@@ -412,6 +412,8 @@ public:
 	{
 		return TEST_KINDOFMASK_ANY(m_kindof, anyKindOf);
 	}
+
+	inline const KindOfMaskType& getKindOfMask() const { return m_kindof; }
 	
 	/// set the display name
 	const UnicodeString& getDisplayName() const { return m_displayName; }  ///< return display name

@@ -85,6 +85,9 @@ extern Real Drawable_effectiveOpacity( Real explicitOpacity, Real stealthOpacity
 extern Bool Drawable_structureShowsHealthBar( Bool isBridge, Bool isUnowned, Bool isGarrisonable,
 																							Bool isCapturable );
 
+///< whether an object of these kinds is a thing that wears a health bar at all
+extern Bool Drawable_kindShowsHealthBar( const KindOfMaskType& kinds );
+
 ///< whether the health bar setting lets this object show one right now
 extern Bool Drawable_healthBarModeShows( Int healthBarMode, Bool isSelected, Bool isMousedOver,
 																				 Bool isDamaged );

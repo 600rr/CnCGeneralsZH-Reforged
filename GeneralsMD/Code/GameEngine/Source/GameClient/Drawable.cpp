@@ -418,6 +418,48 @@ Bool Drawable_structureShowsHealthBar( Bool isBridge, Bool isUnowned, Bool isGar
 }
 
 //-------------------------------------------------------------------------------------------------
+/** Health bars are always on in this fork, so anything with a body would draw one. Effect objects
+	* (projectiles in flight, toxin and radiation fields, parachutes, fire walls, wrecked hulks,
+	* subobject turrets) are not things the player commands or targets, so their bars are pure
+	* clutter.
+	*
+	* So is the scenery: street lamps, phone boxes, barrels, planters, fire hydrants, rocks, bushes
+	* and the odd tree all carry a BodyModule. The rule is fixed-in-place-and-not-a-building, not a
+	* list of scenery kinds: the shipped data does not tag that furniture as PROP or SHRUBBERY at all
+	* (`KindOf = IMMOBILE CLEARED_BY_BUILD` is the whole of a street lamp), while every real target
+	* is either mobile or a STRUCTURE.
+	*
+	* A booby trap has one hit point and cannot be shot, so its bar was a full green line forever.
+	* Everything force-attackable is a civilian fence with one hit point.
+	*
+	* And a unit the cursor cannot reach at all - no SELECTABLE, which in EA's data means "the mouse
+	* can interact with it" - never wore a bar in retail, where a bar needed a selection or a mouse
+	* over. The ones that matter are the death puppets: a soldier killed by toxin or fire is removed
+	* and a ToxicInfantry or FlamingInfantry takes his place, a live 50 hit point INFANTRY that melts
+	* or runs burning for three seconds, and always-on bars put a full one over every one of them.
+	* Buildings keep their own rule below. */
+//-------------------------------------------------------------------------------------------------
+Bool Drawable_kindShowsHealthBar( const KindOfMaskType& kinds )
+{
+	if( TEST_KINDOFMASK( kinds, KINDOF_PROJECTILE ) ||
+			TEST_KINDOFMASK( kinds, KINDOF_BOOBY_TRAP ) ||
+			TEST_KINDOFMASK( kinds, KINDOF_INERT ) ||
+			TEST_KINDOFMASK( kinds, KINDOF_CLEANUP_HAZARD ) ||
+			TEST_KINDOFMASK( kinds, KINDOF_UNATTACKABLE ) ||
+			TEST_KINDOFMASK( kinds, KINDOF_PARACHUTE ) ||
+			TEST_KINDOFMASK( kinds, KINDOF_HULK ) ||
+			TEST_KINDOFMASK( kinds, KINDOF_CLICK_THROUGH ) ||
+			TEST_KINDOFMASK( kinds, KINDOF_CRATE ) ||
+			TEST_KINDOFMASK( kinds, KINDOF_FORCEATTACKABLE ) )
+		return FALSE;
+
+	if( TEST_KINDOFMASK( kinds, KINDOF_STRUCTURE ) )
+		return TRUE;
+
+	return !TEST_KINDOFMASK( kinds, KINDOF_IMMOBILE ) && TEST_KINDOFMASK( kinds, KINDOF_SELECTABLE );
+}
+
+//-------------------------------------------------------------------------------------------------
 /** The health bar setting, applied to one object.
 	*
 	* Smart is the mode worth explaining.  A bar over a unit at full health tells you nothing you did
@@ -4452,36 +4494,8 @@ void Drawable::drawHealthBar(const IRegion2D* healthBarRegion)
 		if( obj == NULL )
 			return;
 
-		//
-		// health bars are always on in this fork, so anything with a body draws one. Effect
-		// objects (projectiles in flight, toxin and radiation fields, parachutes, fire walls,
-		// wrecked hulks, subobject turrets) are not things the player commands or targets, so
-		// their bars are pure clutter.
-		//
-		// So is the scenery: street lamps, phone boxes, barrels, planters, fire hydrants, rocks,
-		// bushes and the odd tree all carry a BodyModule and so all drew a bar, and a built-up map
-		// came up wearing hundreds of them over things nobody fights.
-		//
-		// The rule is fixed-in-place-and-not-a-building, not a list of scenery kinds: the shipped
-		// data does not tag that furniture as PROP or SHRUBBERY at all (`KindOf = IMMOBILE
-		// CLEARED_BY_BUILD` is the whole of a street lamp, and `IMMOBILE` the whole of a rock), so
-		// a kind list catches almost none of it, while every real target is either mobile or a
-		// STRUCTURE. Buildings keep their bars - a civilian building is cover to garrison, a tech
-		// building is worth capturing, bridges are STRUCTURE too - and so does anything that can
-		// move.
-		//
-		// A booby trap has one hit point and cannot be shot, so its bar was a full green line
-		// forever, over something that is meant to be hidden.
-		if( obj->isKindOf( KINDOF_PROJECTILE ) ||
-				obj->isKindOf( KINDOF_BOOBY_TRAP ) ||
-				obj->isKindOf( KINDOF_INERT ) ||
-				obj->isKindOf( KINDOF_CLEANUP_HAZARD ) ||
-				obj->isKindOf( KINDOF_UNATTACKABLE ) ||
-				obj->isKindOf( KINDOF_PARACHUTE ) ||
-				obj->isKindOf( KINDOF_HULK ) ||
-				obj->isKindOf( KINDOF_CLICK_THROUGH ) ||
-				obj->isKindOf( KINDOF_CRATE ) ||
-				( obj->isKindOf( KINDOF_IMMOBILE ) && !obj->isKindOf( KINDOF_STRUCTURE ) ) )
+		// effect objects, scenery and death puppets wear none (Drawable_kindShowsHealthBar)
+		if( !Drawable_kindShowsHealthBar( obj->getTemplate()->getKindOfMask() ) )
 			return;
 
 		if( obj->isKindOf( KINDOF_STRUCTURE ) )
@@ -4503,15 +4517,6 @@ void Drawable::drawHealthBar(const IRegion2D* healthBarRegion)
 																						 contain != NULL && contain->isGarrisonable(),
 																						 obj->isKindOf( KINDOF_CAPTURABLE ) ) )
 				return;
-		}
-
-		if( obj->isKindOf( KINDOF_FORCEATTACKABLE ) )
-		{
-			//Currently (Nov 2002), everything that is forceattackable are civ fences, and they all have a
-			//single hit point and they aren't selectable. However, a bug is when you force attack it, it shows
-			//the healthbar. Well, this stops it, however, should force attackable kindofs change, then this
-			//will require reevaluation.
-			return;
 		}
 
 		// get body module of object
