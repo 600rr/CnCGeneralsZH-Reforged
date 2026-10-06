@@ -57,6 +57,7 @@
 #include "GameClient/MetaEvent.h"
 #include "GameClient/HotKey.h"
 #include "GameClient/ClickTolerance.h"
+#include "Common/version.h"
 #include "GameClient/HtmlTemplate.h"
 #include "GameClient/KeyDownInfo.h"
 #include "GameClient/GameWindowTransitions.h"
@@ -340,6 +341,17 @@ TEST(bittest_macro_is_the_games_not_the_intrinsics)
 	CHECK( BitTest( flags, 0x04 ) == 0 );
 	/* the intrinsic takes a bit *index*, the macro takes a mask - 0x0A & 0x0A */
 	CHECK( BitTest( flags, 0x0A ) );
+}
+
+/* The options screen shows this; it has to read the way the release tags do, minor unpadded. */
+TEST(release_version_matches_the_tag_form)
+{
+	CHECK( bootOnce() );
+	Version v;
+	v.setVersion( 2, 6, 0, 0, "cmake", "Windows", "", "" );
+	CHECK_STR( v.getReleaseVersion().str(), "v2.6.0" );
+	v.setVersion( 2, 10, 3, 7, "cmake", "Windows", "", "" );
+	CHECK_STR( v.getReleaseVersion().str(), "v2.10.3" );
 }
 
 TEST(name_key_generator_round_trips)

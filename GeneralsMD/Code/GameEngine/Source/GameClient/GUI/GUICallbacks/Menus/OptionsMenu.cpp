@@ -2336,9 +2336,12 @@ void OptionsMenuInit( WindowLayout *layout, void *userData )
 
 	NameKeyType versionID = TheNameKeyGenerator->nameToKey( AsciiString("OptionsMenu.wnd:LabelVersion") );
 	GameWindow *labelVersion = TheWindowManager->winGetWindowFromId( NULL, versionID );
-	UnicodeString versionString;
-	versionString.format(TheGameText->fetch("Version:Format2").str(), (GetRegistryVersion() >> 16), (GetRegistryVersion() & 0xffff));
-	
+	// The fork's release number rather than EA's registry "Version 1.04".
+	UnicodeString versionString( u"Reforged " );
+	UnicodeString releaseVersion;
+	releaseVersion.translate( TheVersion->getReleaseVersion() );
+	versionString.concat( releaseVersion );
+
 	if (TheVersion->showFullVersion())
 	{
 		if (TheVersion)
