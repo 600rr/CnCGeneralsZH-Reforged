@@ -45,6 +45,12 @@
 #include "GameClient/DisplayString.h"
 #include "GameClient/DisplayStringManager.h"
 #include "GameClient/GameFont.h"
+#include "GameClient/Gadget.h"
+#include "GameClient/GadgetListBox.h"
+#include "GameClient/GameWindowManager.h"
+#include "GameClient/WindowLayout.h"
+#include "Common/GlobalData.h"
+#include "Common/NameKeyGenerator.h"
 #include "GameClient/GameText.h"
 #include "GameClient/HtmlOverlay.h"
 #include "GameClient/HtmlTemplate.h"
@@ -74,6 +80,8 @@ static const WideChar CONSOLE_FIRST_PRINTABLE_CHAR = u' ';
 
 static const Color CONSOLE_PANEL_COLOR = GameMakeColor( 0, 0, 0, 225 );
 static const Color CONSOLE_EDGE_COLOR = GameMakeColor( 90, 90, 90, 255 );
+static const Color CONSOLE_CLASSIC_PANEL_COLOR = GameMakeColor( 0, 0, 0, 190 );	///< Diplomacy.wnd's parent
+static const Color CONSOLE_CLASSIC_EDGE_COLOR = GameMakeColor( 47, 55, 168, 255 );
 static const Color CONSOLE_INPUT_COLOR = GameMakeColor( 255, 255, 255, 255 );
 static const Color CONSOLE_TEXT_COLOR = GameMakeColor( 190, 190, 190, 255 );
 static const Color CONSOLE_SHADOW_COLOR = GameMakeColor( 0, 0, 0, 0 );
@@ -311,7 +319,10 @@ GameConsole::GameConsole()
 		m_cheatPanelOpen( FALSE ),
 		m_cheatPanelShown( FALSE ),
 		m_cheatPanelLogged( FALSE ),
-		m_cheatOverlay( NULL )
+		m_cheatOverlay( NULL ),
+		m_cheatLayout( NULL ),
+		m_cheatList( NULL ),
+		m_cheatListState( -1 )
 {
 	m_font = TheFontLibrary->getFont( AsciiString( CONSOLE_FONT_NAME ),
 																		CONSOLE_FONT_POINT_SIZE,
@@ -348,6 +359,7 @@ void GameConsole::toggle( void )
 	m_isOpen = !m_isOpen;
 	if( !m_isOpen )
 		m_inputLine.clear();
+	DEBUG_LOG(( "Console: %s\n", m_isOpen ? "open" : "shut" ));
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -588,9 +600,11 @@ void GameConsole::render( void )
 	const Int panelHeight = REAL_TO_INT( TheDisplay->getHeight() * CONSOLE_HEIGHT_FRACTION );
 	const Int lineHeight = m_font->height + CONSOLE_LINE_GAP;
 
-	TheDisplay->drawFillRect( 0, 0, screenWidth, panelHeight, CONSOLE_PANEL_COLOR );
+	// Classic wears EA's diplomacy and chat frame: its see-through black over a blue edge
+	const Bool classic = TheGlobalData->isClassicUI();
+	TheDisplay->drawFillRect( 0, 0, screenWidth, panelHeight, classic ? CONSOLE_CLASSIC_PANEL_COLOR : CONSOLE_PANEL_COLOR );
 	TheDisplay->drawFillRect( 0, panelHeight - CONSOLE_EDGE_THICKNESS,
-														screenWidth, CONSOLE_EDGE_THICKNESS, CONSOLE_EDGE_COLOR );
+														screenWidth, CONSOLE_EDGE_THICKNESS, classic ? CONSOLE_CLASSIC_EDGE_COLOR : CONSOLE_EDGE_COLOR );
 
 	Int y = panelHeight - CONSOLE_EDGE_THICKNESS - CONSOLE_PADDING - lineHeight;
 
@@ -698,13 +712,15 @@ static void fillCheatPanelCells( std::vector< HtmlValues > &cells, std::vector< 
 void GameConsole::renderCheatPanel( void )
 {
 	m_cheatPanelShown = FALSE;
-	if( !m_cheatPanelOpen )
-		return;
-	if( !areCheatsAvailable() )
-	{
+	if( m_cheatPanelOpen && !areCheatsAvailable() )
 		m_cheatPanelOpen = FALSE;
+	if( TheGlobalData->isClassicUI() )
+	{
+		updateCheatWindow();
 		return;
 	}
+	if( !m_cheatPanelOpen )
+		return;
 
 	if( m_cheatPage.empty() )
 	{
@@ -757,11 +773,17 @@ Bool GameConsole::handleCheatPanelMouse( const ICoord2D &mouse, Bool act )
 	if( !act )
 		return TRUE;
 
-	const std::string action = m_cheatOverlay->click( mouse );
+	runCheatPanelAction( m_cheatOverlay->click( mouse ) );
+	return TRUE;
+}
+
+//-------------------------------------------------------------------------------------------------
+void GameConsole::runCheatPanelAction( const std::string &action )
+{
 	if( action == CHEAT_PANEL_CLOSE )
 	{
 		closeCheatPanel();
-		return TRUE;
+		return;
 	}
 
 	AsciiString arguments( action.c_str() );
@@ -777,7 +799,164 @@ Bool GameConsole::handleCheatPanelMouse( const ICoord2D &mouse, Bool act )
 			DEBUG_LOG(( "Cheat panel: %s\n", result.str() ));
 		}
 	}
-	return TRUE;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The Classic panel's rows: a toggle is one row, an amount cheat one row for each ready amount. */
+//-------------------------------------------------------------------------------------------------
+struct CheatWindowRow
+{
+	Int cheat;
+	Int amount;		///< zero for a toggle
+};
+
+static const Int CHEAT_WINDOW_MAX_ROWS = CONSOLE_CHEAT_COUNT * CHEAT_PANEL_AMOUNTS;
+
+static Int cheatWindowRows( CheatWindowRow *rows )
+{
+	Int count = 0;
+	for( Int i = 0; i < CONSOLE_CHEAT_COUNT; ++i )
+	{
+		const ConsoleCheat &cheat = CONSOLE_CHEATS[ i ];
+		for( Int each = 0; each < CHEAT_PANEL_AMOUNTS && ( each == 0 || cheat.amounts[ each ] != 0 ); ++each )
+		{
+			rows[ count ].cheat = i;
+			rows[ count ].amount = cheat.amounts[ each ];
+			++count;
+			if( cheat.defaultAmount == 0 )
+				break;
+		}
+	}
+	return count;
+}
+
+static std::string cheatWindowAction( const CheatWindowRow &row )
+{
+	const ConsoleCheat &cheat = CONSOLE_CHEATS[ row.cheat ];
+	if( row.amount == 0 )
+		return cheat.name;
+	char text[ 64 ];
+	sprintf( text, "%s %d", cheat.name, row.amount );
+	return text;
+}
+
+/// EA's diplomacy text colours: white, and the green its rows light in
+static const Color CHEAT_WINDOW_TEXT_COLOR = GameMakeColor( 254, 254, 254, 255 );
+static const Color CHEAT_WINDOW_ON_COLOR = GameMakeColor( 3, 196, 0, 255 );
+
+static WindowMsgHandledType cheatWindowSystem( GameWindow *window, UnsignedInt msg, WindowMsgData mData1, WindowMsgData mData2 )
+{
+	static const NameKeyType buttonHideID = NAMEKEY( "Trainer.wnd:ButtonHide" );
+	switch( msg )
+	{
+		case GBM_SELECTED:
+			if( ((GameWindow *)mData1)->winGetWindowId() == buttonHideID )
+				TheGameConsole->closeCheatPanel();
+			return MSG_HANDLED;
+		case GLM_SELECTED:
+			TheGameConsole->runCheatWindowRow( (Int)mData2 );
+			return MSG_HANDLED;
+	}
+	return MSG_IGNORED;
+}
+
+//-------------------------------------------------------------------------------------------------
+void GameConsole::runCheatWindowRow( Int row )
+{
+	CheatWindowRow rows[ CHEAT_WINDOW_MAX_ROWS ];
+	if( row < 0 || row >= cheatWindowRows( rows ) )
+		return;
+	runCheatPanelAction( cheatWindowAction( rows[ row ] ) );
+	GadgetListBoxSetSelected( m_cheatList, -1 );	// so a second click on the same row runs it again
+}
+
+//-------------------------------------------------------------------------------------------------
+void GameConsole::resetCheatWindow( void )
+{
+	if( m_cheatLayout )
+	{
+		m_cheatLayout->destroyWindows();
+		m_cheatLayout->deleteInstance();
+	}
+	m_cheatLayout = NULL;
+	m_cheatList = NULL;
+	m_cheatListState = -1;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The Classic interface's panel: Window/Trainer.wnd, EA's diplomacy frame with one list row for
+	* each click, and a toggle's row green while it is on.  The windows are thrown away when it
+	* shuts, never from inside their own callback. */
+//-------------------------------------------------------------------------------------------------
+void GameConsole::updateCheatWindow( void )
+{
+	if( !m_cheatPanelOpen )
+	{
+		resetCheatWindow();
+		return;
+	}
+
+	CheatWindowRow rows[ CHEAT_WINDOW_MAX_ROWS ];
+	const Int rowCount = cheatWindowRows( rows );
+	if( m_cheatLayout == NULL )
+	{
+		m_cheatLayout = TheWindowManager->winCreateLayout( AsciiString( "Trainer.wnd" ) );
+		GameWindow *parent = m_cheatLayout ? m_cheatLayout->getFirstWindow() : NULL;
+		m_cheatList = parent ? TheWindowManager->winGetWindowFromId( parent, NAMEKEY( "Trainer.wnd:ListboxCheats" ) ) : NULL;
+		if( m_cheatList == NULL )
+		{
+			printLine( AsciiString( "trainer: Window/Trainer.wnd is missing" ) );
+			resetCheatWindow();
+			m_cheatPanelOpen = FALSE;
+			return;
+		}
+		parent->winSetSystemFunc( cheatWindowSystem );
+		for( Int row = 0; row < rowCount; ++row )
+			GadgetListBoxAddEntryText( m_cheatList, TheGameText->fetch( CONSOLE_CHEATS[ rows[ row ].cheat ].label ),
+																 CHEAT_WINDOW_TEXT_COLOR, -1, 0 );
+		m_cheatLayout->hide( FALSE );
+	}
+
+	const Player *local = ThePlayerList->getLocalPlayer();
+	Int state = 0;
+	for( Int i = 0; i < CONSOLE_CHEAT_COUNT; ++i )
+		if( CONSOLE_CHEATS[ i ].defaultAmount == 0 && local->hasCheat( CONSOLE_CHEATS[ i ].kind ) )
+			state |= 1 << i;
+	if( state == m_cheatListState )
+		return;
+	const Bool firstFill = m_cheatListState < 0;
+	m_cheatListState = state;
+
+	for( Int row = 0; row < rowCount; ++row )
+	{
+		const ConsoleCheat &cheat = CONSOLE_CHEATS[ rows[ row ].cheat ];
+		const Bool on = rows[ row ].amount == 0 && ( state & ( 1 << rows[ row ].cheat ) ) != 0;
+		UnicodeString text;
+		if( rows[ row ].amount == 0 )
+			text = TheGameText->fetch( on ? "GUI:CheatOn" : "GUI:CheatOff" );
+		else if( cheat.amounts[ 1 ] == 0 )
+			text = TheGameText->fetch( "GUI:CheatApply" );
+		else
+			text.format( u"+%d", rows[ row ].amount );
+		const Color color = on ? CHEAT_WINDOW_ON_COLOR : CHEAT_WINDOW_TEXT_COLOR;
+		GadgetListBoxAddEntryText( m_cheatList, TheGameText->fetch( cheat.label ), color, row, 0 );
+		GadgetListBoxAddEntryText( m_cheatList, text, color, row, 1 );
+	}
+
+	// where each row landed, so a script driving the game over -control knows where to click
+	if( firstFill )
+	{
+		const ListboxData *list = (const ListboxData *)m_cheatList->winGetUserData();
+		Int x, y, width, height;
+		m_cheatList->winGetScreenPosition( &x, &y );
+		m_cheatList->winGetSize( &width, &height );
+		for( Int row = 0; list && row < rowCount && row < list->endPos; ++row )
+		{
+			const Int top = row > 0 ? list->listData[ row - 1 ].listHeight : 0;
+			DEBUG_LOG(( "Cheat window: \"%s\" at %d %d\n", cheatWindowAction( rows[ row ] ).c_str(),
+									x + width / 2, y + ( top + list->listData[ row ].listHeight ) / 2 ));
+		}
+	}
 }
 
 //-------------------------------------------------------------------------------------------------
