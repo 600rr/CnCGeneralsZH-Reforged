@@ -8076,7 +8076,7 @@ void InGameUI::forgetPendingPlacements( void )
 Bool InGameUI::nudgePlacementToLegal( Coord3D *world, const ThingTemplate *what, Real angle,
 																			Object *builderObject ) const
 {
-	if( world == NULL || what == NULL || TheGlobalData->m_nudgeBuildPlacement == FALSE || TheGlobalData->isClassicUI() )
+	if( world == NULL || what == NULL || TheGlobalData->m_nudgeBuildPlacement == FALSE )
 		return FALSE;
 
 	// a wall tiles from the two points you dragged between; sliding one end off that line is not help

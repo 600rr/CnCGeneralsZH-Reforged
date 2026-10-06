@@ -12662,12 +12662,13 @@ TEST(text_language_row_offers_every_language)
 
 TEST(gameplay_conveniences_are_forced_on_and_left_the_catalog)
 {
-	/* Six settings that used to share the Gameplay page are decided here instead of by the player.
+	/* Five settings that used to share the Gameplay page are decided here instead of by the player.
 		 Two halves have to agree or the removal is a feature switched off by accident: the row must
 		 be gone from the catalog, so nothing loads a stale "no" out of an Options.ini written before
 		 this change, and the constructor must say TRUE, because with the row gone the constructor is
-		 the only thing left that says anything.  Grid placement and snap-to-45 building rotation left
-		 with them and came back as Controls check boxes, so they are below with the menu rows. */
+		 the only thing left that says anything.  Grid placement, snap-to-45 building rotation and the
+		 nudge left with them and came back as Controls check boxes under new keys, so they are below
+		 with the menu rows; their old keys stay out of the catalog. */
 	static const char *const forced[] =
 	{
 		"NudgeBuildPlacement", "ShowPlacementRangeRing", "WorkersReturnToSupply",
@@ -12680,7 +12681,6 @@ TEST(gameplay_conveniences_are_forced_on_and_left_the_catalog)
 	GlobalData *scratch = NEW GlobalData;
 	TheWritableGlobalData = scratch;
 
-	CHECK( scratch->m_nudgeBuildPlacement );
 	CHECK( scratch->m_showPlacementRangeRing );
 	CHECK( scratch->m_workersReturnToSupply );
 	CHECK( scratch->m_detailedBuildTooltips );
@@ -12716,7 +12716,7 @@ TEST(gameplay_conveniences_are_forced_on_and_left_the_catalog)
 	static const char *const menu[] =
 	{
 		"CameraSnapTo45", "BuildGrid", "BuildSnapTo45", "BuildSnapToNeighbour", "OpenAtMaxZoom",
-		"WheelZoomToCursor", NULL
+		"WheelZoomToCursor", "BuildNudge", NULL
 	};
 	for( Int i = 0; menu[ i ] != NULL; ++i )
 	{

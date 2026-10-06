@@ -171,6 +171,7 @@ NEW_CONTROLS = [
     (CHECK,  "CheckGridBuild",         "GUI:GridBuild"),
     (CHECK,  "CheckSnapBuild45",       "GUI:SnapBuild45"),
     (CHECK,  "CheckSnapBuildNeighbour", "GUI:SnapBuildNeighbour"),
+    (CHECK,  "CheckNudgeBuild",        "GUI:NudgeBuild"),
     (LABEL,  "LabelDragTolerance",     "GUI:DragTolerance"),
     (SLIDER, "SliderDragTolerance",    None),
     (CHECK,  "CheckTreeSway",          "GUI:TreeSway"),
@@ -312,7 +313,8 @@ GROUP_LAYOUT = [
         ("GUI:OptionsGroupPlacement", [
             ("check", "CheckGridBuild"),
             ("check", "CheckSnapBuild45"),
-            ("check", "CheckSnapBuildNeighbour")]),
+            ("check", "CheckSnapBuildNeighbour"),
+            ("check", "CheckNudgeBuild")]),
         ("GUI:OptionsGroupInput", [
             setting("LabelDragTolerance", "SliderDragTolerance", "ValueDragTolerance"),
             ("check", "CheckChromaLighting")])]),
@@ -348,7 +350,7 @@ GROUP_LAYOUT = [
 # health bar mode and empty garrison pips (Drawable.cpp) and order lines (W3DInGameUI.cpp).  Every one
 # is a catalog row, whose menu passes skip a control the layout does not carry, so the Classic layout
 # leaves them out and keeps the value.  Zoom to cursor, the opening zoom, the camera's 45 degree steps
-# and the three placement snaps are not here: they start off, which is how 1.04 played, and Classic
+# the three placement snaps and the nudge are not here: they start off, which is how 1.04 played, and Classic
 # honours them once ticked.
 REFORGED_ONLY = [
     "CheckSmoothMotion", "ComboBoxHudScale", "CheckNetBox", "ComboBoxIncomeRate", "CheckOrderLines",

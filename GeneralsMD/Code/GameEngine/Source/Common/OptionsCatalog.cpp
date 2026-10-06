@@ -61,6 +61,7 @@ OPTION_BOOL_ACCESSORS( m_snapCameraRotateTo45 )
 OPTION_BOOL_ACCESSORS( m_gridBuildPlacement )
 OPTION_BOOL_ACCESSORS( m_snapBuildPlacementTo45 )
 OPTION_BOOL_ACCESSORS( m_snapBuildToNeighbour )
+OPTION_BOOL_ACCESSORS( m_nudgeBuildPlacement )
 OPTION_BOOL_ACCESSORS( m_zoomToCursor )
 OPTION_BOOL_ACCESSORS( m_isometricCamera )
 OPTION_BOOL_ACCESSORS( m_smoothMotion )
@@ -261,6 +262,13 @@ const OptionDef TheOptionCatalog[] =
 		OPTION_BOOL, APPLY_LIVE, 0, 1,
 		get_m_snapBuildToNeighbour, set_m_snapBuildToNeighbour },
 
+	// InGameUI::nudgePlacementToLegal: a structure whose spot is blocked slides to the nearest one it
+	// fits.  A key of its own: NudgeBuildPlacement, the one it had before it was forced on, can still
+	// be a "yes" in an Options.ini saved back then.
+	{ "BuildNudge",								OPT_WND( "CheckNudgeBuild" ), "GUI:NudgeBuild",
+		OPTION_BOOL, APPLY_LIVE, 0, 1,
+		get_m_nudgeBuildPlacement, set_m_nudgeBuildPlacement },
+
 	// MiddleMousePans used to sit here.  There is nothing left to choose: a right drag pans and a
 	// middle drag turns the camera.
 
@@ -342,11 +350,11 @@ const OptionDef TheOptionCatalog[] =
 		OPTION_INT, APPLY_RESTART, 0, 16,
 		get_m_anisotropyLevel, set_m_anisotropyLevel },
 
-	// Six rows used to sit here: nudge build placement, the placement range ring, workers returning
-	// to supply, detailed build tooltips, the HUD overlay and replay archiving.  Every one of them is
-	// now on for everybody, decided in GlobalData's constructor, so there is nothing left to load or
-	// save.  Grid placement and snap-to-45 building rotation left with them and came back to
-	// Options > Controls, above.
+	// Five rows used to sit here: the placement range ring, workers returning to supply, detailed
+	// build tooltips, the HUD overlay and replay archiving.  Every one of them is now on for
+	// everybody, decided in GlobalData's constructor, so there is nothing left to load or save.
+	// Grid placement, snap-to-45 building rotation and the nudge left with them and came back to
+	// Options > Controls, above, off until ticked.
 
 	// Off, subtle, normal, strong.  Normal (60, the menu's Medium) is the default, set in
 	// GlobalData's constructor: it is the strength the Direct3D 11 frame applied before there was a

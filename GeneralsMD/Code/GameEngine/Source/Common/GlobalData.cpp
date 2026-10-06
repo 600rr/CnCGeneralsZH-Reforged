@@ -1141,8 +1141,9 @@ GlobalData::GlobalData()
 	// controls that used to set them, and what is written here is what every game gets. GameData.ini
 	// remains the way to change one, because the field table above still names it.
 	//
-	// The snaps are the exception: the camera's and a building's 45 degree steps, grid placement and
-	// the snap to a neighbour's edge start off, ticked on Options > Controls by whoever wants them.
+	// The snaps are the exception: the camera's and a building's 45 degree steps, grid placement, the
+	// snap to a neighbour's edge, the nudge off a blocked spot and zoom to cursor start off, ticked on
+	// Options > Controls by whoever wants them.
 	//
 	m_useCameraConstraints = TRUE;
 	m_cameraBoundaryMargin = 200;
@@ -1170,7 +1171,7 @@ GlobalData::GlobalData()
 	m_snapBuildPlacementTo45 = FALSE;
 	m_gridBuildPlacement = FALSE;
 	m_snapBuildToNeighbour = FALSE;
-	m_nudgeBuildPlacement = TRUE;
+	m_nudgeBuildPlacement = FALSE;
 	m_moneyPerMinute = 0;
 	m_buildPlacementOpacity = PLACEMENT_SILHOUETTE_OPACITY;
 	m_buildPlacementShadows = TRUE;
