@@ -278,6 +278,53 @@ TEST(ctrl_wheel_zooms_five_notches_for_one)
 	f.global->m_interfaceStyle = INTERFACE_STYLE_CLASSIC;
 	f.keyboard.modifiers(KEY_STATE_LCONTROL);
 	CHECK_NEAR(1000.0f - heightAfterOneNotch(), plain, 0.01f);
+
+	// Zoom Speed scales the notch in both interfaces, and the scroll speed does not touch it
+	f.keyboard.modifiers(0);
+	CHECK_EQ(f.global->m_zoomSpeed, 100);
+	f.global->m_zoomSpeed = 200;
+	CHECK_NEAR(1000.0f - heightAfterOneNotch(), 2.0f * plain, 0.01f);
+	f.global->m_zoomSpeed = 100;
+	f.global->m_keyboardScrollFactor = 1.0f;
+	CHECK_NEAR(1000.0f - heightAfterOneNotch(), plain, 0.01f);
+}
+
+TEST(right_drag_follows_the_scroll_speed)
+{
+	CHECK(bootOnce());
+	CameraInputFixture f;
+	GameClient *savedClient = TheGameClient;
+	TheGameClient = getTestGameClient();
+	f.global->m_windowed = TRUE;
+	f.global->m_edgeScrollInWindowedMode = FALSE;
+	f.mouse.m_dragTolerance = 4;
+	f.view.setHeightAboveGround(f.global->m_maxCameraHeight);
+	const auto mouse = [&f](GameMessage::Type type, Int x, Int y)
+	{
+		GameMessage *message = newInstance(GameMessage)(type);
+		const ICoord2D pixel = {x, y};
+		message->appendPixelArgument(pixel);
+		f.camera.translateGameMessage(message);
+		message->deleteInstance();
+	};
+	const auto dragStep = [&f, &mouse](Real speed)
+	{
+		f.global->m_keyboardScrollFactor = speed;
+		mouse(GameMessage::MSG_RAW_MOUSE_RIGHT_BUTTON_DOWN, 300, 300);
+		mouse(GameMessage::MSG_RAW_MOUSE_POSITION, 340, 300);
+		GameMessage *tick = newInstance(GameMessage)(GameMessage::MSG_FRAME_TICK);
+		f.camera.translateGameMessage(tick);
+		tick->deleteInstance();
+		mouse(GameMessage::MSG_RAW_MOUSE_RIGHT_BUTTON_UP, 340, 300);
+		return f.view.last.x;
+	};
+
+	const Real normal = dragStep(f.global->m_keyboardDefaultScrollFactor);
+	CHECK(normal > 0.0f);
+	// the drag's own pull doubled with the slider; before, only the small floor under it moved
+	const Real doubled = dragStep(2.0f * f.global->m_keyboardDefaultScrollFactor);
+	CHECK(doubled > 1.9f * normal);
+	TheGameClient = savedClient;
 }
 
 TEST(edge_scroll_ramps_from_the_band_to_the_old_three_pixels)

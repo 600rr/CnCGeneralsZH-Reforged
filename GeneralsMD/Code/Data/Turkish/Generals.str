@@ -962,7 +962,7 @@ GUI:3DSound
 END
 
 GUI:ScrollSpeed
-"Kaydırma Hızı"
+"Kamera Kaydırma Hızı"
 END
 
 GUI:Resolution
@@ -7642,7 +7642,7 @@ TOOLTIP:Brightness
 END
 
 TOOLTIP:ScrollSpeed
-"Harita kaydırma hızını ayarlayın"
+"Kameranın kayma hızı: ekran kenarında, ok tuşlarıyla ve sağ fare tuşuyla sürüklerken. Fare tekerleğinin kendi Yakınlaştırma Hızı var. Kabul ile uygulanır."
 END
 
 TOOLTIP:SendDelay
@@ -15361,12 +15361,28 @@ TOOLTIP:StartAtMaxZoom
 "Maç, kamera tekerleğin gittiği en uzak noktadayken açılır. Kapalıyken yakından, oyunun orijinalinde kullanılan yükseklikte açılır."
 END
 
+GUI:ZoomSpeed
+"Yakınlaştırma Hızı"
+END
+
+TOOLTIP:ZoomSpeed
+"Fare tekerleğinin bir çentiği kamerayı ne kadar yaklaştırıp uzaklaştırır. 100'de oyunun orijinalindeki kadar gider. Kabul ile uygulanır."
+END
+
 GUI:DragTolerance
 "Sürükleme Eşiği"
 END
 
 TOOLTIP:DragTolerance
 "Bir tuş basılıyken fare kaç piksel oynarsa tıklamanın sürüklemeye döneceği. Seçim kutuları yanlışlıkla açılıyorsa yükseltin, sürüklemeler tıklama sayılıyorsa düşürün."
+END
+
+GUI:AmbientVolume
+"Ortam Sesi"
+END
+
+TOOLTIP:AmbientVolume
+"Kuşlar, rüzgâr, su ve kasabanın uğultusu. Efekt Sesi artık bunları değiştirmez; çatışma yüksek kalırken çevresi sessiz kalabilir."
 END
 
 GUI:IsometricCamera

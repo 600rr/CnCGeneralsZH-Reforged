@@ -1124,6 +1124,9 @@ GlobalData::GlobalData()
   m_musicVolumeFactor = 0.5f;
  	m_SFXVolumeFactor = 0.5f;
   m_voiceVolumeFactor = 0.5f;
+	// Half the effects slider's 80: birds, wind and water used to play at the battle's volume and
+	// covered the replies and the guns.
+	m_ambientVolume = 40;
   m_3DSoundPref = false;
 
 	m_keyboardDefaultScrollFactor = m_keyboardScrollFactor = 0.5f;
@@ -1150,6 +1153,7 @@ GlobalData::GlobalData()
 	m_edgeScrollInWindowedMode = TRUE;
 	m_snapCameraRotateTo45 = FALSE;
 	m_zoomToCursor = FALSE;		// the wheel zooms on the middle of the screen, as 1.04 did, until ticked
+	m_zoomSpeed = 100;				// a notch moves the camera the 60 units it always did
 	m_isometricCamera = FALSE;
 	// R1, smooth motion: the picture only, one logic tick behind, and never the game (W3DSmoothMotion.h).
 	// On by default off Windows, where 120 and 144 Hz panels are the common case; Windows keeps its

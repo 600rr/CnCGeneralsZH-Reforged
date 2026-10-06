@@ -516,6 +516,9 @@ GameMessageDisposition LookAtTranslator::translateGameMessage(const GameMessage 
 			if (!classic && TheKeyboard->isCtrl() && TheInGameUI->getPendingPlaceType() == NULL)
 				spin *= CTRL_WHEEL_ZOOM_NOTCHES;
 
+			// Zoom Speed on Options > Controls, in percent of the notch the game always took.
+			spin *= TheGlobalData->m_zoomSpeed / 100.0f;
+
 			if (spin > 0.0f)
 				TheTacticalView->zoomIn( spin );
 			else if (spin < 0.0f)
@@ -576,8 +579,12 @@ GameMessageDisposition LookAtTranslator::translateGameMessage(const GameMessage 
 								m_anchor.y = m_currentPos.y - maxY;
 						}
 
-						offset.x = TheGlobalData->m_horizontalScrollSpeedFactor * (m_currentPos.x - m_anchor.x);
-						offset.y = TheGlobalData->m_verticalScrollSpeedFactor * (m_currentPos.y - m_anchor.y);
+						// The drag's own pull did not follow the scroll speed slider at all; only the
+						// floor added below did.  Scaled against the default so the default drags as it did.
+						const Real dragSpeed = TheGlobalData->m_keyboardDefaultScrollFactor > 0.0f
+							? TheGlobalData->m_keyboardScrollFactor / TheGlobalData->m_keyboardDefaultScrollFactor : 1.0f;
+						offset.x = TheGlobalData->m_horizontalScrollSpeedFactor * (m_currentPos.x - m_anchor.x) * dragSpeed;
+						offset.y = TheGlobalData->m_verticalScrollSpeedFactor * (m_currentPos.y - m_anchor.y) * dragSpeed;
 						Coord2D vec;
 						vec.x = offset.x;
 						vec.y = offset.y;

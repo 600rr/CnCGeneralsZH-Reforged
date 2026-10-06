@@ -873,12 +873,36 @@ TOOLTIP:StartAtMaxZoom
 "A match opens with the camera as far out as the wheel goes. Off, it opens close in, at the height the original game used."
 END
 
+GUI:ScrollSpeed
+"Camera Scroll Speed"
+END
+
+TOOLTIP:ScrollSpeed
+"How fast the camera pans: at the screen edge, on the arrow keys and while you drag with the right mouse button. The mouse wheel has its own Zoom Speed. Takes effect on Accept."
+END
+
+GUI:ZoomSpeed
+"Zoom Speed"
+END
+
+TOOLTIP:ZoomSpeed
+"How far one turn of the mouse wheel moves the camera in or out. At 100 it moves as far as in the original game. Takes effect on Accept."
+END
+
 GUI:DragTolerance
 "Drag Threshold"
 END
 
 TOOLTIP:DragTolerance
 "How many pixels the mouse may move with a button held before a click becomes a drag. Raise it if selection boxes start by accident, lower it if drags read as clicks."
+END
+
+GUI:AmbientVolume
+"Ambient Volume"
+END
+
+TOOLTIP:AmbientVolume
+"Birds, wind, water and the hum of a town. Sound FX no longer moves these, so the battle can stay loud while the world around it stays quiet."
 END
 
 GUI:IsometricCamera
