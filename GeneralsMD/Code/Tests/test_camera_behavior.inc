@@ -274,10 +274,10 @@ TEST(ctrl_wheel_zooms_five_notches_for_one)
 	f.keyboard.modifiers(KEY_STATE_LSHIFT);
 	CHECK_NEAR(1000.0f - heightAfterOneNotch(), plain, 0.01f);
 
-	// Classic's Ctrl is force fire and its wheel is EA's: one notch, ten units, Ctrl or not
+	// Classic's Ctrl is force fire, so its notch is the plain one, Ctrl or not, as fast as Reforged's
 	f.global->m_interfaceStyle = INTERFACE_STYLE_CLASSIC;
 	f.keyboard.modifiers(KEY_STATE_LCONTROL);
-	CHECK_NEAR(1000.0f - heightAfterOneNotch(), 10.0f, 0.01f);
+	CHECK_NEAR(1000.0f - heightAfterOneNotch(), plain, 0.01f);
 }
 
 TEST(edge_scroll_ramps_from_the_band_to_the_old_three_pixels)

@@ -137,7 +137,7 @@ void View::init( void )
 	
 	m_zoom = 1.0f;
 	m_maxHeightAboveGround = TheGlobalData->m_maxCameraHeight;
-	// the same in both interfaces; Classic keeps only EA's step (ZOOM_STEP_HEIGHT)
+	// the same in both interfaces, and so is the step (ZOOM_STEP_HEIGHT)
 	m_minHeightAboveGround = TheGlobalData->m_minCameraHeight * CLOSEST_ZOOM_FACTOR;
 	m_okToAdjustHeight = FALSE;
 
@@ -166,9 +166,9 @@ View *View::prependViewToList( View *list )
 //
 // EA's step was 10 world units.  The reachable band is 90 (MinCameraHeight * CLOSEST_ZOOM_FACTOR)
 // to about 900 (MaxCameraHeight * ZOOM_OUT_LIMIT_FACTOR), so crossing it would take about 80
-// notches - a whole wheel's travel to go from the ground to the whole map.  60 puts it at about 14.
-// Classic keeps EA's 10.
-#define ZOOM_STEP_HEIGHT (TheGlobalData->isClassicUI() ? 10.0f : 60.0f)
+// notches - a whole wheel's travel to go from the ground to the whole map.  60 puts it at about 14,
+// in both interfaces: Classic kept EA's 10 and its owner found it slow.
+#define ZOOM_STEP_HEIGHT (60.0f)
 
 //-------------------------------------------------------------------------------------------------
 /** The zoom a match opens at: START_CAMERA_HEIGHT over the ground in either interface, a little
