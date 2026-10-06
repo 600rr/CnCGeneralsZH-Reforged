@@ -1186,9 +1186,9 @@ GameMessageDisposition SelectionTranslator::translateGameMessage(const GameMessa
 				if( !TheInGameUI->getGUICommand() && !TheInGameUI->isOrderKeyArmed()
 						&& !TheKeyboard->isShift() && !TheKeyboard->isCtrl() && !TheKeyboard->isAlt() )
 				{
-					//No GUI command mode, so a click on empty ground deselects everyone.  Not in Classic,
-					//where that click is a move order and the right button is what deselects.
-					if( TheInGameUI->getPendingPlaceSourceObjectID() == INVALID_ID && !TheGlobalData->isClassicUI() )
+					//No GUI command mode, so a click on empty ground deselects everyone.  Not in Classic's
+					//default mouse, where that click is a move order and the right button is what deselects.
+					if( TheInGameUI->getPendingPlaceSourceObjectID() == INVALID_ID && !TheGlobalData->leftButtonOrders() )
 					{
 						if( !TheInGameUI->getPreventLeftClickDeselectionInAlternateMouseModeForOneClick() )
 						{
@@ -1224,10 +1224,13 @@ GameMessageDisposition SelectionTranslator::translateGameMessage(const GameMessa
 
 			// Classic is the game as shipped: a right click with nothing armed deselects everyone, and
 			// with something armed it only takes that back, below.  A right drag panned and is gone above.
+			// Under EA's Alternate Mouse Setup that click is the order instead (CommandXlat) and
+			// deselects nothing.
 			if( TheGlobalData->isClassicUI() && TheInGameUI->getGUICommand() == NULL
 					&& TheInGameUI->getPendingPlaceType() == NULL )
 			{
-				deselectAll();
+				if( TheGlobalData->leftButtonOrders() )
+					deselectAll();
 				break;
 			}
 

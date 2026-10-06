@@ -124,9 +124,10 @@ NAME_THE_UNNAMED = [
     ("GUI:Options", "LabelTitle"),
 ]
 
-# Controls that are in the shipped file and are not wanted at all.  CheckAlternateMouse chose
-# between the classic mouse and the alternate one; there is one mouse now.
-DELETE = ["CheckAlternateMouse"]
+# EA's controls that only the Classic page keeps.  CheckAlternateMouse is EA's Alternate Mouse Setup:
+# Classic plays 1.04's mouse and offers its alternate one too, Reforged has one mouse and ignores the
+# setting, so its page drops the box.  OptionsMenu.cpp finds it by name and does without it.
+CLASSIC_ONLY = ["CheckAlternateMouse"]
 
 # The templates new controls are cloned from, and whose lettering the moved ones take.
 CHECK, LABEL, COMBO, SLIDER = "Retaliation", "DetailLabel", "ComboBoxDetail", "SliderGamma"
@@ -315,6 +316,7 @@ GROUP_LAYOUT = [
             ("check", "CheckStartAtMaxZoom"),
             ("check", "CheckSnapCamera45")]),
         ("GUI:OptionsGroupOrders", [
+            ("check", "CheckAlternateMouse"),
             ("check", "Retaliation"),
             ("check", "CheckDoubleClickAttackMove")]),
         ("GUI:OptionsGroupPlacement", [
@@ -389,12 +391,13 @@ def flow(groups):
     return best[1]
 
 
-def without_reforged(groups):
-    """The Classic page: REFORGED_ONLY controls out, and a group left with nothing in it out too."""
+def without(groups, names):
+    """A page with these controls out, and a group left with nothing in it out too.  The Classic page
+    leaves out REFORGED_ONLY, the Reforged page CLASSIC_ONLY."""
     kept = []
     for heading, items in groups:
         items = [item for item in items if (item[2] if item[0] == "setting" else item[1])
-                 not in REFORGED_ONLY]
+                 not in names]
         if items:
             kept.append((heading, items))
     return kept
@@ -558,7 +561,8 @@ def build(layout, classic=False):
                 node.name = _named(name)
 
     drop_by_text(layout.root, HEADINGS)
-    drop_by_name(layout.root, DELETE)
+    if not classic:
+        drop_by_name(layout.root, CLASSIC_ONLY)
     for name in RULES + DROP:
         detach(old, name)
 
@@ -611,8 +615,7 @@ def build(layout, classic=False):
 
     page_bottom = PAGE[1] + PAGE[3]
     for page_name, groups in GROUP_LAYOUT:
-        if classic:
-            groups = without_reforged(groups)
+        groups = without(groups, REFORGED_ONLY if classic else CLASSIC_ONLY)
         if not groups:
             raise ValueError("%s has nothing left on it" % page_name)
         index = 0
@@ -774,6 +777,11 @@ def selfcheck():
         if name in classic_controls:
             problems.append("OptionsMenuClassic.wnd still carries %s" % name)
     for name in sorted(widgets - set(REFORGED_ONLY)):
+        if name not in classic_controls:
+            problems.append("OptionsMenuClassic.wnd has no %s" % name)
+    for name in CLASSIC_ONLY:
+        if name in controls:
+            problems.append("OptionsMenu.wnd still carries %s, which only Classic has" % name)
         if name not in classic_controls:
             problems.append("OptionsMenuClassic.wnd has no %s" % name)
     for page_name, _tab, _text in TABS:

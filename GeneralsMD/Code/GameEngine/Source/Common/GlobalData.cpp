@@ -1298,6 +1298,7 @@ GlobalData::GlobalData()
 	//m_allAdvice = FALSE;
 
 	m_clientRetaliationModeEnabled = TRUE; //On by default.
+	m_useAlternateMouse = FALSE;
 
 }  // end GlobalData
 
@@ -1460,6 +1461,7 @@ void GlobalData::parseGameDataDefinition( INI* ini )
 
 	// override INI values with user preferences
 	OptionPreferences optionPref;
+	TheWritableGlobalData->m_useAlternateMouse = optionPref.getAlternateMouseModeEnabled();
 	TheWritableGlobalData->m_clientRetaliationModeEnabled = optionPref.getRetaliationModeEnabled();
 	TheWritableGlobalData->m_doubleClickAttackMove = optionPref.getDoubleClickAttackMoveEnabled();
 	TheWritableGlobalData->m_keyboardScrollFactor = optionPref.getScrollFactor();

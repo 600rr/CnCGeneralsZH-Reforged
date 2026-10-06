@@ -1283,6 +1283,33 @@ TEST(ctrl_force_fires_in_classic_and_only_there)
 	CHECK( !InGameUI_isForceFireOn( FALSE, FALSE, TRUE ) );
 }
 
+/* GlobalData.h: which button orders.  Classic is 1.04's left button, or the right under EA's Alternate
+   Mouse Setup (UseAlternateMouse, off out of the box); Reforged is the right whatever Options.ini says. */
+TEST(alternate_mouse_moves_the_order_button_in_classic_only)
+{
+	GlobalData *saved = TheWritableGlobalData;
+	TheWritableGlobalData = NEW GlobalData;
+	CHECK( !TheGlobalData->m_useAlternateMouse );
+
+	TheWritableGlobalData->m_interfaceStyle = INTERFACE_STYLE_CLASSIC;
+	CHECK(  TheGlobalData->leftButtonOrders() );
+	CHECK( !TheGlobalData->rightButtonOrders() );
+
+	TheWritableGlobalData->m_useAlternateMouse = TRUE;
+	CHECK( !TheGlobalData->leftButtonOrders() );
+	CHECK(  TheGlobalData->rightButtonOrders() );
+
+	TheWritableGlobalData->m_interfaceStyle = INTERFACE_STYLE_REFORGED;
+	CHECK( !TheGlobalData->leftButtonOrders() );
+	CHECK(  TheGlobalData->rightButtonOrders() );
+	TheWritableGlobalData->m_useAlternateMouse = FALSE;
+	CHECK( !TheGlobalData->leftButtonOrders() );
+	CHECK(  TheGlobalData->rightButtonOrders() );
+
+	delete TheWritableGlobalData;
+	TheWritableGlobalData = saved;
+}
+
 /* Player.cpp: the lobby's unit limit is 840 units shared out by the players who are not watching. */
 TEST(unit_limit_shares_840_between_the_players)
 {

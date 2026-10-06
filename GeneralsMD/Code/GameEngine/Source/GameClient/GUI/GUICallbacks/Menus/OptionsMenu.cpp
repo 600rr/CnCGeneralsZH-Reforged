@@ -113,6 +113,10 @@ static Int							menuModeCount = 0;
 static NameKeyType    comboBoxDetailID      = NAMEKEY_INVALID;
 static GameWindow *   comboBoxDetail        = NULL; 
 
+// only OptionsMenuClassic.wnd carries it: Reforged has one mouse and no box, so this stays NULL there
+static NameKeyType		checkAlternateMouseID	= NAMEKEY_INVALID;
+static GameWindow *		checkAlternateMouse		= NULL;
+
 static NameKeyType		checkRetaliationID	= NAMEKEY_INVALID;
 static GameWindow *		checkRetaliation		= NULL;
 
@@ -393,6 +397,18 @@ void OptionPreferences::setOnlineIPAddress( UnsignedInt IP )
 	AsciiString tmp;
 	tmp.format("%d.%d.%d.%d", ((IP & 0xff000000) >> 24), ((IP & 0xff0000) >> 16), ((IP & 0xff00) >> 8), (IP & 0xff));
 	(*this)["GameSpyIPAddress"] = tmp;
+}
+
+Bool OptionPreferences::getAlternateMouseModeEnabled(void)
+{
+	OptionPreferences::const_iterator it = find("UseAlternateMouse");
+	if (it == end())
+		return TheGlobalData->m_useAlternateMouse;
+
+	if (strcasecmp(it->second.str(), "yes") == 0) {
+		return TRUE;
+	}
+	return FALSE;
 }
 
 Bool OptionPreferences::getRetaliationModeEnabled(void)
@@ -901,6 +917,8 @@ static void setDefaults( void )
 	
 	//-------------------------------------------------------------------------------------------------
 	// Mouse Mode
+	if( checkAlternateMouse )
+		GadgetCheckBoxSetChecked(checkAlternateMouse, FALSE);
 	GadgetCheckBoxSetChecked(checkRetaliation, TRUE );
 	GadgetCheckBoxSetChecked( checkDoubleClickAttackMove, FALSE );
 
@@ -1522,7 +1540,13 @@ static void saveOptions( void )
 
 
 	//-------------------------------------------------------------------------------------------------
-	// mouse mode
+	// mouse mode.  Saved only from the Classic screen, so an Accept in Reforged keeps what Classic chose
+	if( checkAlternateMouse )
+	{
+		TheWritableGlobalData->m_useAlternateMouse = GadgetCheckBoxIsChecked(checkAlternateMouse);
+		(*pref)["UseAlternateMouse"] = TheWritableGlobalData->m_useAlternateMouse ? AsciiString("yes") : AsciiString("no");
+	}
+
 	TheWritableGlobalData->m_clientRetaliationModeEnabled = GadgetCheckBoxIsChecked(checkRetaliation);
 	(*pref)["Retaliation"] = TheWritableGlobalData->m_clientRetaliationModeEnabled? AsciiString("yes") : AsciiString("no");
 
@@ -2179,6 +2203,8 @@ void OptionsMenuInit( WindowLayout *layout, void *userData )
 	comboBoxLANIP					 = TheWindowManager->winGetWindowFromId( NULL,  comboBoxLANIPID);
 	comboBoxOnlineIPID		 = TheNameKeyGenerator->nameToKey( AsciiString( "OptionsMenu.wnd:ComboBoxOnlineIP" ) );
 	comboBoxOnlineIP			 = TheWindowManager->winGetWindowFromId( NULL,  comboBoxOnlineIPID);
+	checkAlternateMouseID  = TheNameKeyGenerator->nameToKey( AsciiString( "OptionsMenu.wnd:CheckAlternateMouse" ) );
+	checkAlternateMouse	   = TheWindowManager->winGetWindowFromId( NULL, checkAlternateMouseID);
 	checkRetaliationID		 = TheNameKeyGenerator->nameToKey( AsciiString( "OptionsMenu.wnd:Retaliation" ) );
 	checkRetaliation	     = TheWindowManager->winGetWindowFromId( NULL, checkRetaliationID);
 	checkDoubleClickAttackMoveID = TheNameKeyGenerator->nameToKey( AsciiString( "OptionsMenu.wnd:CheckDoubleClickAttackMove" ) );
@@ -2554,6 +2580,8 @@ void OptionsMenuInit( WindowLayout *layout, void *userData )
 //	GadgetCheckBoxSetChecked(checkAudioSurround, TheAudio->getSpeakerSurround());
 
 	// set the mouse mode
+	if( checkAlternateMouse )
+		GadgetCheckBoxSetChecked(checkAlternateMouse, TheGlobalData->m_useAlternateMouse);
 	GadgetCheckBoxSetChecked(checkRetaliation, TheGlobalData->m_clientRetaliationModeEnabled);
 	GadgetCheckBoxSetChecked( checkDoubleClickAttackMove, TheGlobalData->m_doubleClickAttackMove );
 
