@@ -75,6 +75,8 @@
 #include "GameClient/GameText.h"
 #include "GameClient/HeaderTemplate.h"
 #include "GameClient/GlobalLanguage.h"
+#include "GameClient/Shell.h"
+#include "GameLogic/GameLogic.h"
 
 #ifdef _INTERNAL
 // for occasional debugging...
@@ -515,12 +517,11 @@ static LayoutPlacement theLayoutPlacement = LAYOUT_STRETCH;
 /// where a fitted layout stands: the same fraction of the screen and of the layout, (0.5,0.5) centred
 static Coord2D theLayoutAnchor = { 0.5f, 0.5f };
 
-// The menus are fitted in both interfaces: the shell's screens and the dialogs a match opens over the
-// battlefield, all centred on a 4:3 panel of their own.  The stretch EA shipped drew every panel, logo
-// and medal 1.33x wide on a 16:9 screen, and the MenuLayout option that once kept it is gone.  In
-// Reforged the rest of Window/ is the battlefield's own furniture - the command bar, which scales
-// itself (ControlBarUniformScale), and windows that hold a screen edge (the general's powers bar, the
-// build tooltip) or follow the battlefield (chat, diplomacy, the general's promotion screen, replay
+// The dialogs a match opens over the battlefield are fitted in both interfaces, centred on a 4:3 panel
+// of their own; the shell's screens are stretched (layoutIsShellScreen).  In Reforged the rest of
+// Window/ is the battlefield's own furniture - the command bar, which scales itself
+// (ControlBarUniformScale), and windows that hold a screen edge (the general's powers bar, the build
+// tooltip) or follow the battlefield (chat, diplomacy, the general's promotion screen, replay
 // controls, IME) - and stays stretched.
 // Whether a path starts with this folder name (lower case), any case, then '/' or '\\'.
 static Bool startsWithFolder( const char *path, const char *folder )
@@ -571,6 +572,23 @@ static Coord2D classicLayoutAnchor( const char *filename )
 	return anchor;
 }
 
+// The shell's screens, the load screens and the score screen fill the whole screen in both
+// interfaces, stretched as EA shipped them: players took a 4:3 menu between black bars on a wide
+// monitor for a broken game.  Only a match's own furniture and the dialogs it opens are fitted.  The
+// furniture lies outside Menus/ and is built at startup, while the shell is up, so only a Menus/
+// layout asks whether a match is on screen.
+static Bool layoutIsShellScreen( const char *filename )
+{
+	if( !startsWithFolder( filename, "menus" ) )
+		return FALSE;
+	for( const char *c = filename; *c; c++ )
+		if( strnicmp( c, "loadscreen", 10 ) == 0 || strnicmp( c, "scorescreen", 11 ) == 0 )
+			return TRUE;
+	const Bool inMatch = TheGameLogic && TheGameLogic->isInGame() && !TheGameLogic->isInShellGame() &&
+		!( TheShell && TheShell->isShellActive() );
+	return !inMatch;
+}
+
 static LayoutPlacement layoutPlacement( const char *filename )
 {
 	theLayoutAnchor.x = theLayoutAnchor.y = 0.5f;
@@ -579,6 +597,8 @@ static LayoutPlacement layoutPlacement( const char *filename )
 	// "Menus/X.wnd" as the shell names them, or the whole "Window\\Menus\\X.wnd"
 	if( startsWithFolder( filename, "window" ) )
 		filename += 7;
+	if( layoutIsShellScreen( filename ) )
+		return LAYOUT_STRETCH;
 	if( TheGlobalData->isClassicUI() )
 	{
 		if( barLaysOutItself( filename ) )
@@ -627,9 +647,9 @@ static Bool parseScreenRect( char *token, char *buffer,
 	// Fit: one scale both ways, the smaller, with the layout's 4:3 area centred, so a
 	// panel, a logo or a medal keeps the shape it was drawn in.  A window that covers the whole
 	// layout - within two pixels, as a few parents are drawn - still fills the screen in Reforged: it
-	// is the backdrop, or the parent everything else sits in.  Classic keeps the backdrop in the box
-	// with the rest, black down both sides (W3DDisplay::draw).  At 4:3 the scales are equal and the
-	// offsets nothing, and this is the stretch to the pixel.
+	// is the backdrop, or the parent everything else sits in.  Classic keeps a match dialog's backdrop
+	// in the box with the rest, over the battlefield.  At 4:3 the scales are equal and the offsets
+	// nothing, and this is the stretch to the pixel.
 	//
 	const Bool fullScreen = screenRegion.lo.x <= 2 && screenRegion.lo.y <= 2 &&
 		screenRegion.hi.x >= createRes.x - 2 && screenRegion.hi.y >= createRes.y - 2;
