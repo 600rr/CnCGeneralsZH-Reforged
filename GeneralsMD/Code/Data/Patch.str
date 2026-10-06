@@ -873,6 +873,22 @@ TOOLTIP:StartAtMaxZoom
 "A match opens with the camera as far out as the wheel goes. Off, it opens close in, at the height the original game used."
 END
 
+GUI:ScrollSpeed
+"Camera Scroll Speed"
+END
+
+TOOLTIP:ScrollSpeed
+"How fast the camera pans: at the screen edge, on the arrow keys and while you drag with the right mouse button. The mouse wheel has its own Zoom Speed. Takes effect on Accept."
+END
+
+GUI:ZoomSpeed
+"Zoom Speed"
+END
+
+TOOLTIP:ZoomSpeed
+"How far one turn of the mouse wheel moves the camera in or out. At 100 it moves as far as in the original game. Takes effect on Accept."
+END
+
 GUI:DragTolerance
 "Drag Threshold"
 END

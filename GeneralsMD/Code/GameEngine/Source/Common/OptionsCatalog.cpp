@@ -65,6 +65,7 @@ OPTION_BOOL_ACCESSORS( m_snapBuildPlacementTo45 )
 OPTION_BOOL_ACCESSORS( m_snapBuildToNeighbour )
 OPTION_BOOL_ACCESSORS( m_nudgeBuildPlacement )
 OPTION_BOOL_ACCESSORS( m_zoomToCursor )
+OPTION_INT_ACCESSORS( m_zoomSpeed )
 OPTION_BOOL_ACCESSORS( m_isometricCamera )
 OPTION_BOOL_ACCESSORS( m_smoothMotion )
 OPTION_BOOL_ACCESSORS( m_startAtMaxZoom )
@@ -289,6 +290,12 @@ const OptionDef TheOptionCatalog[] =
 	{ "WheelZoomToCursor",				OPT_WND( "CheckZoomToCursor" ), "GUI:ZoomToCursor",
 		OPTION_BOOL, APPLY_LIVE, 0, 1,
 		get_m_zoomToCursor, set_m_zoomToCursor },
+
+	// How far one wheel notch moves the camera, in percent of the 60 units it always moved.  The
+	// scroll speed above never touched the wheel; this is the wheel's own.  On Options > Controls.
+	{ "ZoomSpeed",								OPT_WND( "SliderZoomSpeed" ), "GUI:ZoomSpeed",
+		OPTION_INT, APPLY_LIVE, 25, 300,
+		get_m_zoomSpeed, set_m_zoomSpeed },
 
 	// The battlefield from far off down a narrow cone, so a unit is the same size wherever it
 	// stands on the screen.  The heading stays the player's.  On Options > Controls.

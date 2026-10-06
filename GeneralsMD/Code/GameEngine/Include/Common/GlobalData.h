@@ -427,6 +427,7 @@ public:
 	Real m_buildPlacementOpacity;		///< how solid the structure riding the cursor is drawn, 0..1
 	Bool m_buildPlacementShadows;		///< whether that structure casts a shadow while it rides the cursor
 	Bool m_zoomToCursor;				///< the mouse wheel zooms toward whatever the cursor is over
+	Int m_zoomSpeed;					///< "ZoomSpeed" in Options.ini: percent of the height one wheel notch moves the camera; 100 is the game's own
 	Bool m_isometricCamera;				///< the tactical view from far off down a narrow cone, near enough orthographic
 	Bool m_smoothMotion;				///< R1: models shown between their last two logic states each render frame (W3DSmoothMotion.h)
 	Int m_dragTolerance;				///< pixels the pointer may travel with a button held before the press is a drag; replaces Mouse.ini's DragTolerance
