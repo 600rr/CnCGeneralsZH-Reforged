@@ -15194,7 +15194,27 @@ GUI:WindowMode2
 END
 
 TOOLTIP:WindowMode
-"Tam ekran, görüntü modunu devralır; kenarlıksız, ekranı bir pencereyle kaplar ve alt-tab anında gerçekleşir. Kenarlıksız monitörün kendi çözünürlüğünü alır; diğer iki modda yukarıdaki listeden siz seçersiniz."
+"Tam ekran, monitörü yukarıdaki çözünürlükte kaplar, küçükse ekrana büyütür, alt-tab'da kenara çekilir. Kenarlıksız her zaman monitörün kendi çözünürlüğünde çizer ve diğer pencerelerin arkasında yerinde durur."
+END
+
+GUI:ResolutionNote0
+"Monitör bu modu destekliyor"
+END
+
+GUI:FullscreenScaling
+"Tam Ekran Sığdırma"
+END
+
+GUI:FullscreenScaling0
+"Ekranı doldur"
+END
+
+GUI:FullscreenScaling1
+"Oranı koru, şerit ekle"
+END
+
+TOOLTIP:FullscreenScaling
+"Çözünürlüğün oranı monitörünkiyle aynı değilse tam ekranın nasıl dolacağı; 1920x1200 ekranda 1920x1080 ya da geniş ekranda 1024x768 gibi. Ekranı doldur her pikseli kaplar; diğeri görüntünün oranını korur, kenarlara siyah şerit koyar."
 END
 
 GUI:Monitor

@@ -97,6 +97,7 @@ OPTION_INT_ACCESSORS( m_menuTransitionSpeed )
 OPTION_INT_ACCESSORS( m_textureFilterMode )
 OPTION_INT_ACCESSORS( m_anisotropyLevel )
 OPTION_INT_ACCESSORS( m_windowMode )
+OPTION_INT_ACCESSORS( m_fullscreenScaling )
 OPTION_INT_ACCESSORS( m_msaaLevel )
 OPTION_BOOL_ACCESSORS( m_vsync )
 OPTION_BOOL_ACCESSORS( m_classicGraphics )
@@ -402,6 +403,13 @@ const OptionDef TheOptionCatalog[] =
 	{ "WindowMode",								OPT_WND( "ComboBoxWindowMode" ), "GUI:WindowMode",
 		OPTION_ENUM, APPLY_DEVICE_RESET, 0, WINDOW_MODE_COUNT - 1,
 		get_m_windowMode, set_m_windowMode },
+
+	// How fullscreen fills a monitor whose shape the picture does not have: stretched, or the
+	// picture's own shape with black bars.  The monitor keeps its mode and DX8Wrapper places the
+	// window (Apply_Fullscreen_Display); W3DDisplay::setDisplayMode pushes the choice in.
+	{ "FullscreenScaling",				OPT_WND( "ComboBoxFullscreenScaling" ), "GUI:FullscreenScaling",
+		OPTION_ENUM, APPLY_DEVICE_RESET, 0, FULLSCREEN_SCALING_COUNT - 1,
+		get_m_fullscreenScaling, set_m_fullscreenScaling },
 
 	// Multisampling, as an index into 0/2/4/8/16 rather than a sample count - the device offers
 	// those and nothing between them, so a slider would spend most of its travel on values that

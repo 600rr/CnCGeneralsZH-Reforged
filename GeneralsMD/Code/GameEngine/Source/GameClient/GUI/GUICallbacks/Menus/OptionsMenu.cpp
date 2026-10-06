@@ -1224,6 +1224,30 @@ static void updateResolutionEnabled( void )
 	comboBoxResolution->winEnable( value != WINDOW_MODE_BORDERLESS );
 }
 
+//-------------------------------------------------------------------------------------------------
+/** The line under the resolution list: "the monitor supports this mode" when the picked size is one
+	* of the modes Windows lists for the picked monitor, nothing when it is not.  Asked of the monitor
+	* again rather than of the list, so the line stays honest whatever the list comes to hold. */
+//-------------------------------------------------------------------------------------------------
+static void updateResolutionNote( void )
+{
+	GameWindow *note = TheWindowManager->winGetWindowFromId( NULL, NAMEKEY( "OptionsMenu.wnd:ResolutionNote" ) );
+	if( note == NULL || comboBoxResolution == NULL )
+		return;
+
+	Int index = -1;
+	GadgetComboBoxGetSelectedPos( comboBoxResolution, &index );
+	Bool supported = FALSE;
+	if( index >= 0 && index < menuModeCount )
+	{
+		DisplayModeEntry modes[ MAX_DISPLAY_MODE_ENTRIES ];
+		const Int count = listDisplayModes( selectedMonitor().device, modes, MAX_DISPLAY_MODE_ENTRIES );
+		for( Int i = 0; i < count && !supported; ++i )
+			supported = ( modes[ i ].width == menuModes[ index ].width && modes[ i ].height == menuModes[ index ].height );
+	}
+	GadgetStaticTextSetText( note, supported ? TheGameText->fetch( "GUI:ResolutionNote0" ) : UnicodeString::TheEmptyString );
+}
+
 static void saveOptions( void )
 {
 	Int index;
@@ -1232,6 +1256,7 @@ static void saveOptions( void )
 	// which of the three the window is wearing right now, before the controls overwrite it
 	const Int oldWindowMode = TheGlobalData->m_windowMode;
 	const Bool oldVSync = TheGlobalData->m_vsync;
+	const Int oldScaling = TheGlobalData->m_fullscreenScaling;
 	const MonitorEntry oldMonitor = findMonitor( TheGlobalData->m_monitor.str() );
 
 	//-------------------------------------------------------------------------------------------------
@@ -1427,8 +1452,9 @@ static void saveOptions( void )
 	const Bool modeChanged = ( oldWindowMode != TheGlobalData->m_windowMode );
 	const Bool vsyncChanged = ( oldVSync != TheGlobalData->m_vsync );
 	const Bool monitorChanged = ( ::strcasecmp( oldMonitor.device, monitor.device ) != 0 );
+	const Bool scalingChanged = ( oldScaling != TheGlobalData->m_fullscreenScaling );
 
-	if( sizeChanged || modeChanged || vsyncChanged || monitorChanged )
+	if( sizeChanged || modeChanged || vsyncChanged || monitorChanged || scalingChanged )
 	{
 		if( !TheDisplay->setDisplayMode( xres, yres, bitDepth, TheGlobalData->m_windowed ) )
 		{
@@ -2666,6 +2692,7 @@ void OptionsMenuInit( WindowLayout *layout, void *userData )
 
 	// borderless owns the resolution; the list is grey while it is picked
 	updateResolutionEnabled();
+	updateResolutionNote();
 
 	TheWindowManager->winSetModal(parent);
 	ignoreSelected = FALSE;
@@ -2835,6 +2862,7 @@ WindowMsgHandledType OptionsMenuSystem( GameWindow *window, UnsignedInt msg,
 
 				// picking borderless greys the resolution list out, the other two hand it back
 				updateResolutionEnabled();
+				updateResolutionNote();
 			break;
 		}
 

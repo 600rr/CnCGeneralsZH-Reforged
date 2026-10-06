@@ -681,13 +681,12 @@ void Reset_D3D_Device(bool active)
 {
 	if (TheDisplay && WW3D::Is_Initted() && !TheDisplay->getWindowed())
 	{
-		// Under the Direct3D 11 picture nothing owns the display exclusively, so leaving loses no
-		// device: the mode and the window covering it go, and come back with the game.
-		if (Direct3D11_Present_Is_Enabled())
-		{
-			DX8Wrapper::Apply_Fullscreen_Display(active);
-			return;
-		}
+		// On Windows nothing owns the display exclusively under either renderer, so leaving loses no
+		// device: the window covering the monitor goes, and comes back with the game.
+#if defined(_WIN32)
+		DX8Wrapper::Apply_Fullscreen_Display(active);
+		return;
+#endif
 		if (active)
 		{	
 			//switch back to desired mode when user alt-tabs back into game
@@ -853,6 +852,7 @@ Bool W3DDisplay::setDisplayMode( UnsignedInt xres, UnsignedInt yres, UnsignedInt
 	{
 		DX8Wrapper::Set_Requested_VSync( TheGlobalData->m_vsync != FALSE );
 		Direct3D11_Set_VSync( TheGlobalData->m_vsync != FALSE );
+		DX8Wrapper::Set_Requested_Fullscreen_Keep_Aspect( TheGlobalData->m_fullscreenScaling == FULLSCREEN_SCALING_KEEP_ASPECT );
 		pushDirect3D11PostChain();
 	}
 	DX8Wrapper::Set_Requested_Monitor( chosenMonitor().device );
@@ -1125,6 +1125,7 @@ void W3DDisplay::init( void )
 	DX8Wrapper::Set_Requested_VSync( TheGlobalData->m_vsync != FALSE );
 	Direct3D11_Set_VSync( TheGlobalData->m_vsync != FALSE );
 	DX8Wrapper::Set_Requested_Monitor( chosenMonitor().device );
+	DX8Wrapper::Set_Requested_Fullscreen_Keep_Aspect( TheGlobalData->m_fullscreenScaling == FULLSCREEN_SCALING_KEEP_ASPECT );
 
 	// Same reason: WW3D2 cannot see GlobalData, so the backend choice is pushed in from here.  The
 	// fixed-function probe and the generated combiner shaders are always on.

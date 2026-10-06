@@ -56,6 +56,7 @@
 #include "dx8webbrowser.h"	// the embedded browser: Windows only
 #endif
 #include "dx8fvf.h"
+#include "fullscreenfit.h"
 #include "dx8vertexbuffer.h"
 #include "dx8indexbuffer.h"
 #include "dx8renderer.h"
@@ -932,9 +933,8 @@ bool DX8Wrapper::Create_Device(void)
 }
 
 #if defined(_WIN32)
-// What the fullscreen display under the Direct3D 11 picture has changed on the desktop, so leaving
-// the game can put it back.  The gamma is the desktop's own ramp, read before the game's first one.
-static bool DisplayModeChanged = false;
+// What the fullscreen display has changed on the desktop, so leaving the game can put it back: only
+// the gamma now, the desktop's own ramp, read before the game's first one.
 static bool DesktopGammaSaved = false;
 static bool GameGammaSet = false;
 static D3DGAMMARAMP DesktopGammaRamp;
@@ -977,10 +977,44 @@ static void restore_desktop_display()
 	if (DesktopGammaSaved) {
 		set_desktop_gamma(&DesktopGammaRamp);
 	}
-	if (DisplayModeChanged) {
-		ChangeDisplaySettingsEx(NULL, NULL, NULL, 0, NULL);
-		DisplayModeChanged = false;
+}
+
+// Black over the parts of the monitor a picture of another shape leaves bare.  It never takes the
+// focus and has no taskbar button; the game's window sits on top of it.
+static HWND FullscreenBackdrop = NULL;
+static bool FullscreenKeepAspect = false;
+
+static void hide_backdrop()
+{
+	if (FullscreenBackdrop != NULL) {
+		::ShowWindow(FullscreenBackdrop, SW_HIDE);
 	}
+}
+
+static void show_backdrop(int x, int y, int width, int height)
+{
+	if (FullscreenBackdrop == NULL) {
+		WNDCLASSA backdrop_class;
+		ZeroMemory(&backdrop_class, sizeof(backdrop_class));
+		backdrop_class.lpfnWndProc = DefWindowProcA;
+		backdrop_class.hInstance = ::GetModuleHandleA(NULL);
+		backdrop_class.hbrBackground = (HBRUSH)::GetStockObject(BLACK_BRUSH);
+		backdrop_class.hCursor = ::LoadCursor(NULL, IDC_ARROW);
+		backdrop_class.lpszClassName = "ZHFullscreenBackdrop";
+		::RegisterClassA(&backdrop_class);
+		FullscreenBackdrop = ::CreateWindowExA(WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST,
+			backdrop_class.lpszClassName, "", WS_POPUP, x, y, width, height, NULL, NULL,
+			backdrop_class.hInstance, NULL);
+		if (FullscreenBackdrop == NULL) {
+			return;
+		}
+	}
+	::SetWindowPos(FullscreenBackdrop, HWND_TOPMOST, x, y, width, height, SWP_SHOWWINDOW | SWP_NOACTIVATE);
+}
+
+void DX8Wrapper::Set_Requested_Fullscreen_Keep_Aspect(bool keep)
+{
+	FullscreenKeepAspect = keep;
 }
 
 void DX8Wrapper::Set_Requested_Monitor(const char * device)
@@ -1002,9 +1036,19 @@ void DX8Wrapper::Apply_Fullscreen_Display(bool shown)
 	// window activated from inside that bounced focus between the game and the desktop until it
 	// ended minimized for good (issue #45): SW_MINIMIZE hands activation to whatever is next in the
 	// z-order, SW_RESTORE and a SetWindowPos without SWP_NOACTIVATE take it back.
-	const bool owns_display = !IsWindowed && Direct3D11_Present_Is_Enabled();
+	//
+	// No display mode is changed, whatever the resolution.  The game used to set the monitor to the
+	// picture's size and lay its window over it, and that is what put a fullscreen game below the
+	// monitor's own size in a window: wherever the change was refused, or the driver or Windows'
+	// display scaling did not stretch the new mode to the panel, a window of the picture's size sat
+	// in the corner of the desktop.  Measured on 1920x1080 here: 1280x720 also moved the second
+	// monitor from x 1920 to x 1280 and every window on it with it.  The picture is scaled instead:
+	// the swap chain's buffers keep the game's size and Present stretches them to the window.
+	//
+	const bool owns_display = !IsWindowed;
 	if (!owns_display || !shown) {
 		restore_desktop_display();
+		hide_backdrop();
 		if (owns_display) {
 			::ShowWindow(_Hwnd, SW_SHOWMINNOACTIVE);
 		}
@@ -1015,39 +1059,9 @@ void DX8Wrapper::Apply_Fullscreen_Display(bool shown)
 	DEVMODEA current;
 	memset(&current,0, sizeof(current));
 	current.dmSize = sizeof(current);
-	EnumDisplaySettingsExA(monitor, ENUM_CURRENT_SETTINGS, &current, 0);
-
-	// A monitor already in the game's mode is left alone.  Asking for it again with no refresh rate
-	// is a real mode change on a 144 or 165Hz desktop, which drops to 60 and back on every return.
-	// Any other mode is asked for at the desktop's own rate first, and the driver's default after.
-	if (current.dmPelsWidth != (DWORD)ResolutionWidth || current.dmPelsHeight != (DWORD)ResolutionHeight ||
-			current.dmBitsPerPel != (DWORD)BitDepth) {
-		DEVMODEA desktop;
-		ZeroMemory(&desktop, sizeof(desktop));
-		desktop.dmSize = sizeof(desktop);
-		DEVMODEA mode;
-		ZeroMemory(&mode, sizeof(mode));
-		mode.dmSize = sizeof(mode);
-		mode.dmPelsWidth = ResolutionWidth;
-		mode.dmPelsHeight = ResolutionHeight;
-		mode.dmBitsPerPel = BitDepth;
-		mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL;
-		// 0 and 1 are the hardware default, not a rate.
-		if (EnumDisplaySettingsExA(monitor, ENUM_REGISTRY_SETTINGS, &desktop, 0) &&
-				desktop.dmDisplayFrequency > 1) {
-			mode.dmDisplayFrequency = desktop.dmDisplayFrequency;
-			mode.dmFields |= DM_DISPLAYFREQUENCY;
-		}
-		LONG result = ChangeDisplaySettingsExA(monitor, &mode, NULL, CDS_FULLSCREEN, NULL);
-		if (result != DISP_CHANGE_SUCCESSFUL && (mode.dmFields & DM_DISPLAYFREQUENCY)) {
-			mode.dmFields &= ~DM_DISPLAYFREQUENCY;
-			result = ChangeDisplaySettingsExA(monitor, &mode, NULL, CDS_FULLSCREEN, NULL);
-		}
-		if (result == DISP_CHANGE_SUCCESSFUL) {
-			DisplayModeChanged = true;
-		}
-		// A monitor can move when its mode changes, so where it starts is asked after the change.
-		EnumDisplaySettingsExA(monitor, ENUM_CURRENT_SETTINGS, &current, 0);
+	if (!EnumDisplaySettingsExA(monitor, ENUM_CURRENT_SETTINGS, &current, 0)) {
+		current.dmPelsWidth = ResolutionWidth;
+		current.dmPelsHeight = ResolutionHeight;
 	}
 
 	// Only the primary starts at the desktop's origin.
@@ -1057,10 +1071,19 @@ void DX8Wrapper::Apply_Fullscreen_Display(bool shown)
 		origin.y = current.dmPosition.y;
 	}
 
+	const FullscreenFitRect fit = Fullscreen_Fit(current.dmPelsWidth, current.dmPelsHeight,
+		ResolutionWidth, ResolutionHeight, FullscreenKeepAspect);
+	if (fit.width != (int)current.dmPelsWidth || fit.height != (int)current.dmPelsHeight) {
+		show_backdrop(origin.x, origin.y, current.dmPelsWidth, current.dmPelsHeight);
+	} else {
+		hide_backdrop();
+	}
+
 	if (::IsIconic(_Hwnd)) {
 		::ShowWindow(_Hwnd, SW_SHOWNOACTIVATE);
 	}
-	::SetWindowPos(_Hwnd, HWND_TOPMOST, origin.x, origin.y, ResolutionWidth, ResolutionHeight,
+	// after the backdrop, so the game is the topmost of the two
+	::SetWindowPos(_Hwnd, HWND_TOPMOST, origin.x + fit.x, origin.y + fit.y, fit.width, fit.height,
 		SWP_SHOWWINDOW | SWP_NOACTIVATE);
 
 	if (GameGammaSet) {
@@ -1079,6 +1102,7 @@ static void save_desktop_gamma() {}
 static void restore_desktop_display() {}
 void DX8Wrapper::Set_Requested_Monitor(const char *) {}
 void DX8Wrapper::Apply_Fullscreen_Display(bool) {}
+void DX8Wrapper::Set_Requested_Fullscreen_Keep_Aspect(bool) {}
 #endif
 
 bool DX8Wrapper::Reset_Device(bool reload_assets)
@@ -1465,13 +1489,17 @@ bool DX8Wrapper::Set_Render_Device(int dev, int width, int height, int bits, int
 		WWDEBUG_SAY(("-dx11: Direct3D 11 device %s\n", created ? "created" : "refused"));
 	}
 
-	// While Direct3D 11 presents, the Direct3D 9 device is windowed even in a fullscreen game.  A
-	// Direct3D 9 device that owns the display refuses the Direct3D 11 swap chain its window, which
-	// kept every fullscreen game on the old picture.  The mode goes on before the device is made or
-	// reset, so it is made in the mode it will run in.
+	// The Direct3D 9 device is windowed even in a fullscreen game.  One that owns the display refuses
+	// the Direct3D 11 swap chain its window, which kept every fullscreen game on the old picture, and
+	// under -d3d9 it would change the monitor's mode, which is what fullscreen no longer does (see
+	// Apply_Fullscreen_Display).  A windowed device's Present stretches its back buffer to the window.
 	// A player who alt-tabbed away during the splash is not handed a topmost window over whatever he
 	// went to.  The game's activation applies the display when he comes back.
+#if defined(_WIN32)
+	const bool device_windowed = true;
+#else
 	const bool device_windowed = IsWindowed || Direct3D11_Present_Is_Enabled();
+#endif
 #if defined(_WIN32)
 	if (::GetForegroundWindow() == _Hwnd) {
 		Apply_Fullscreen_Display(true);
@@ -4561,10 +4589,10 @@ void DX8Wrapper::Set_Gamma(float gamma,float bright,float contrast,bool calibrat
 
 	if (Get_Current_Caps()->Support_Gamma() && !_PresentParameters.Windowed)	{
 		DX8Wrapper::_Get_D3D_Device()->SetGammaRamp(PRIMARY_SWAP_CHAIN,flag,&ramp);
-	} else if (Direct3D11_Present_Is_Enabled()) {
-		// A windowed Direct3D 9 device ignores its gamma ramp, so the fullscreen display under the
-		// Direct3D 11 picture sets the desktop's, keeps the desktop's own to give back on the way out,
-		// and puts the game's on again when the game comes back.
+	} else if (!IsWindowed || Direct3D11_Present_Is_Enabled()) {
+		// A windowed Direct3D 9 device ignores its gamma ramp, and a fullscreen game's device is a
+		// windowed one under either renderer, so the fullscreen display sets the desktop's, keeps the
+		// desktop's own to give back on the way out, and puts the game's on again when it comes back.
 		save_desktop_gamma();
 		GameGammaRamp = ramp;
 		GameGammaSet = true;
