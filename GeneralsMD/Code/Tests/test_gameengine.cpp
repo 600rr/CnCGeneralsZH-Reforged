@@ -15198,6 +15198,14 @@ TEST(scenario_parses_the_order_lines)
 	CHECK_STR( action.name.str(), "primary" );
 	CHECK_EQ( (Int)ScenarioDrill_parseLine( "1400 weaponat 1 * 2050 3700 quaternary", &action ), (Int)SCENARIO_PARSE_BAD_ACTION );
 
+	CHECK_EQ( (Int)ScenarioDrill_parseLine( "240 forceground 0 AmericaTankCrusader 980 3500", &action ), (Int)SCENARIO_PARSE_OK );
+	CHECK_EQ( (Int)action.action, (Int)SCENARIO_ACTION_FORCEGROUND );
+	CHECK_NEAR( action.at.y, 3500.0f, 0.01f );
+	CHECK_EQ( (Int)ScenarioDrill_parseLine( "240 respond 0 * start0:-120:0", &action ), (Int)SCENARIO_PARSE_OK );
+	CHECK_EQ( (Int)action.action, (Int)SCENARIO_ACTION_RESPOND );
+	CHECK_EQ( action.atStart, 0 );
+	CHECK_EQ( (Int)ScenarioDrill_parseLine( "240 respond 0 *", &action ), (Int)SCENARIO_PARSE_MISSING_ARGS );
+
 	CHECK_EQ( (Int)ScenarioDrill_parseLine( "200 shiftpower 0 * 1 AmericaSupplyCenter SpecialAbilityBlackLotusCaptureBuilding",
 																					 &action ), (Int)SCENARIO_PARSE_OK );
 	CHECK_EQ( (Int)action.action, (Int)SCENARIO_ACTION_SHIFTPOWER );
