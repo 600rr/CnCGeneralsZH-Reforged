@@ -846,6 +846,17 @@ void MilesAudioManager::playAudioEvent( AudioEventRTS *event, Bool requestStop )
 				}
 			}
 
+			// One track at a time.  Whatever music is still on the list and not fading out is stopped,
+			// so a track started without a stop in front of it cannot play over another.
+			if (info->m_soundType == AT_Music && (!handleToKill || foundSoundToReplace)) {
+				for (it = m_playingStreams.begin(); it != m_playingStreams.end(); ++it) {
+					playing = (*it);
+					if (playing && !playing->m_fade && audioIsType(playing->m_audioEventRTS, AT_Music)) {
+						stopPlayingAudio(playing);
+					}
+				}
+			}
+
 			HSTREAM stream;
 			if (!handleToKill || foundSoundToReplace) {
 				stream = AIL_open_stream(m_digitalHandle, fileToPlay.str(), 0);
@@ -1046,7 +1057,10 @@ void MilesAudioManager::stopAudioEvent( AudioHandle handle )
 
 	std::list<PlayingAudio *>::iterator it;
 	if ( handle == AHSV_StopTheMusic || handle == AHSV_StopTheMusicFade ) {
-		// for music, just find the currently playing music stream and kill it.
+		// Every music stream, not the first one found.  A stream that was already told to stop or fade
+		// stays on this list until the end of the update, so two track changes inside one update (two
+		// logic frames, or two scripts on one frame) used to find the old track a second time and leave
+		// the first new one playing under the second.
 		for ( it = m_playingStreams.begin(); it != m_playingStreams.end(); ++it ) {
 			PlayingAudio *audio = (*it);
 			if (!audio) {
@@ -1063,7 +1077,6 @@ void MilesAudioManager::stopAudioEvent( AudioHandle handle )
 				{
 					stopPlayingAudio( audio );
 				}
-				break;
 			}
 		}
 	}
