@@ -1,4 +1,4 @@
-# zerohour.gg hero loop 02: four armies on Fallen Empire either side of the Great Wall, which runs
+# Hero loop 02: four armies on Fallen Empire either side of the Great Wall, which runs
 # east-west through 1390,1250. America and China fight south of it on 1390,1040, the GLA and the
 # Tank General north of it on 1390,1460, close enough that both pairs shoot across the wall. Waves at
 # 420, 540, 660 and 800 keep it fed over frames 600 to 1019.

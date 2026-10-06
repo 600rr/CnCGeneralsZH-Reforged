@@ -1,4 +1,4 @@
-# zerohour.gg hero loop 10 (command line in Scenarios/hero_loop_10.txt): Flash Effect's palm beach,
+# Hero loop 10 (command line in Scenarios/hero_loop_10.txt): Flash Effect's palm beach,
 # wide, looking north across the fight on the sand to the sea. Locked so the edit's dissolve joins
 # matching frames.
 

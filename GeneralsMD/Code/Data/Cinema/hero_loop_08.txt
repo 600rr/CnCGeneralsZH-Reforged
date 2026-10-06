@@ -1,4 +1,4 @@
-# zerohour.gg hero loop 08 (command line in Scenarios/hero_loop_08.txt): Dark Night's village
+# Hero loop 08 (command line in Scenarios/hero_loop_08.txt): Dark Night's village
 # square at night, close and tight on the fire and the tanks crossing it, rf_night's heading 180,
 # locked so the edit's dissolve joins matching frames.
 

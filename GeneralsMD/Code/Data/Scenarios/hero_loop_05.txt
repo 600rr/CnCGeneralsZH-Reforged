@@ -1,4 +1,4 @@
-# zerohour.gg hero loop 05: the GLA from the south-west start against the Tank General from the
+# Hero loop 05: the GLA from the south-west start against the Tank General from the
 # north-east start on Dust Devil, meeting at the oil derricks at 1207,1212, the midpoint of the two
 # starts. Waves at 420, 540, 660 and 800 keep it fed over frames 600 to 1019.
 #

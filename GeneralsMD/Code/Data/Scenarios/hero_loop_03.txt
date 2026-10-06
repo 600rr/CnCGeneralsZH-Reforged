@@ -1,4 +1,4 @@
-# zerohour.gg hero loop 03: America from the south start against China from the north start on
+# Hero loop 03: America from the south start against China from the north start on
 # Bombardment Beach, meeting on the grass between the rock ridges at 1946,1376, the midpoint of the
 # two starts. Waves at 420, 540, 660 and 800 keep it fed over frames 600 to 1019.
 #

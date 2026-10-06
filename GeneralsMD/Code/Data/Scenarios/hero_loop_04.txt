@@ -1,4 +1,4 @@
-# zerohour.gg hero loop 04: China from the south-west start against the GLA from the north-east
+# Hero loop 04: China from the south-west start against the GLA from the north-east
 # start on Flash Fire, meeting in the trees at 1351,1368, the midpoint of the two starts. Waves at
 # 420, 540, 660 and 800 keep it fed over frames 600 to 1019.
 #

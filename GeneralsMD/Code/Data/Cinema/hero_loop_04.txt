@@ -1,4 +1,4 @@
-# zerohour.gg hero loop 04: the slow lateral drift. Flash Fire, looking down the line between the
+# Hero loop 04: the slow lateral drift. Flash Fire, looking down the line between the
 # two starts (heading -45 looks toward +x+y, so the armies come at each other through the depth of
 # the frame and stay in its middle) over Scenarios/hero_loop_04.txt, frames 600 to 1019 (command
 # line there). The edit loops source 5.0 to 14.0 s, game time 25.0 to 34.0, and dissolves 32.5 to

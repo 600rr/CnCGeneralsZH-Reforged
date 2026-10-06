@@ -1,4 +1,4 @@
-# zerohour.gg hero loop 01: America from the south against the GLA from the north, meeting on the
+# Hero loop 01: America from the south against the GLA from the north, meeting on the
 # Tournament Desert crossroads at 1020,1350, with waves at 420, 540, 660 and 800 so the middle stays
 # busy over frames 600 to 1019, and powers timed to land between 700 and 1020.
 #
