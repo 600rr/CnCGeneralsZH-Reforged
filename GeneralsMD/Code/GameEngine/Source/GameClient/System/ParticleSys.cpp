@@ -2333,7 +2333,9 @@ Bool ParticleSystem::updateEmission( Int localPlayerIndex, Bool *keepSystem )
 										chainedInfo.m_pos.x = from.x + (rootPos.x - from.x) * along + offset->x;
 										chainedInfo.m_pos.y = from.y + (rootPos.y - from.y) * along + offset->y;
 										chainedInfo.m_pos.z = from.z + (rootPos.z - from.z) * along + offset->z;
-										chained->createParticle( &chainedInfo, priority );
+										// its own priority, not the master's: the LOD and cap checks then drop the
+										// chained smoke before the streak it rides on
+										chained->createParticle( &chainedInfo, chained->getPriority() );
 									}
 								}
 							}
