@@ -140,7 +140,8 @@ public:
 
 	Bool createDirectory(AsciiString directory); ///< create a directory of the given name.
 
-	/// language when Data\<language>\Language.ini is loose or in an archive, otherwise "english".
+	/// language when Data\<language>\Language.ini is loose or in an archive, otherwise the first
+	/// retail language that has one (english first), otherwise empty.
 	/// Only meaningful once the archives are mounted.
 	AsciiString installedLanguage(const AsciiString &language) const;
 

@@ -320,12 +320,25 @@ Bool FileSystem::createDirectory(AsciiString directory)
 //============================================================================
 /* The registry's Language outlives the files it names: a Steam install switched from German to
 	 English keeps Language=german with only EnglishZH.big beside the exe, and GlobalLanguage::init
-	 then threw on Data\german\Language.ini before the first frame (player report #39). */
+	 then threw on Data\german\Language.ini before the first frame (player report #39). A German-only
+	 install has no english to fall back to either (issue #63), so every retail language is tried.
+	 Empty when no Language.ini is found at all. */
 AsciiString FileSystem::installedLanguage(const AsciiString &language) const
 {
+	static const char *const fallbacks[] = { "english", "german", "french", "spanish", "italian",
+		"korean", "chinese", "brazilian", "polish", "russian" };
 	AsciiString probe;
-	probe.format("Data\\%s\\Language.ini", language.str());
-	return doesFileExist(probe.str()) ? language : AsciiString("english");
+	if (!language.isEmpty()) {
+		probe.format("Data\\%s\\Language.ini", language.str());
+		if (doesFileExist(probe.str()))
+			return language;
+	}
+	for (Int i = 0; i < (Int)(sizeof(fallbacks) / sizeof(fallbacks[0])); ++i) {
+		probe.format("Data\\%s\\Language.ini", fallbacks[i]);
+		if (doesFileExist(probe.str()))
+			return AsciiString(fallbacks[i]);
+	}
+	return AsciiString::TheEmptyString;
 }
 
 //============================================================================

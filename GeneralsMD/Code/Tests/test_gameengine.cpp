@@ -538,7 +538,8 @@ TEST(ini_missing_file_throws)
 
 /* Player report #39: Language=german in the registry, only English data installed, and
    GlobalLanguage::init threw on Data\german\Language.ini at startup.  GameEngine::init now asks
-   installedLanguage once the archives are up and falls back to english. */
+   installedLanguage once the archives are up and falls back to the first retail language that has
+   data (issue #63: a German-only install has no english either), or to nothing at all. */
 TEST(installed_language_falls_back_to_english_when_its_data_is_missing)
 {
 	CHECK( bootOnce() );
@@ -550,7 +551,8 @@ TEST(installed_language_falls_back_to_english_when_its_data_is_missing)
 	writeFile( "Data\\zhtestlang\\Language.ini", "; test\n" );
 
 	CHECK_STR( TheFileSystem->installedLanguage( AsciiString( "zhtestlang" ) ).str(), "zhtestlang" );
-	CHECK_STR( TheFileSystem->installedLanguage( AsciiString( "zhtestnodata" ) ).str(), "english" );
+	// no retail language has data here, so there is nothing to fall back to
+	CHECK_STR( TheFileSystem->installedLanguage( AsciiString( "zhtestnodata" ) ).str(), "" );
 
 	remove( "Data\\zhtestlang\\Language.ini" );
 	std::filesystem::remove( "Data/zhtestlang", ec );

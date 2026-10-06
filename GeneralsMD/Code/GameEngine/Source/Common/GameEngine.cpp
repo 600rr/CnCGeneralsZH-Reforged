@@ -979,6 +979,13 @@ void GameEngine::init( int argc, char *argv[] )
 		{
 			const AsciiString registryLanguage = GetRegistryLanguage();
 			const AsciiString language = TheFileSystem->installedLanguage( registryLanguage );
+			if (language.isEmpty())
+			{
+				DEBUG_LOG(("GameEngine::init - no Data\\<language>\\Language.ini in any archive\n"));
+
+				MessageBoxWrapper( "Zero Hour's language files are missing: no Language.ini was found for any language.\n\nVerify the game's files in Steam, or reinstall Command & Conquer Generals Zero Hour.", "Command & Conquer Generals Zero Hour", MSGBOX_OK | MSGBOX_TASKMODAL | MSGBOX_ICONERROR );
+				_exit(1);
+			}
 			if (language.compareNoCase( registryLanguage ) != 0)
 			{
 				DEBUG_LOG(("GameEngine::init - Language=%s has no Data\\%s\\Language.ini, using %s\n",
