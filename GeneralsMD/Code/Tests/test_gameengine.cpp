@@ -14723,6 +14723,12 @@ TEST(four_finished_defenses_pay_for_each_superweapon)
 	CHECK( !DefenseCountsForSuperweapons( 0 ) );
 	CHECK( DefenseCountsForSuperweapons( 800 ) );
 
+	// a Scud Storm's hole holds its storm until the rebuild stands, then the rebuild counts itself;
+	// a Stinger Site's hole holds nothing
+	CHECK( RebuildHoleHoldsSuperweapon( TRUE, FALSE ) );
+	CHECK( !RebuildHoleHoldsSuperweapon( TRUE, TRUE ) );
+	CHECK( !RebuildHoleHoldsSuperweapon( FALSE, FALSE ) );
+
 	// a silo whose missile is silenced sells China's upgrades and asks for no defences
 	CHECK( !SuperweaponNeedsDefenses( AsciiString( "ChinaNuclearMissileLauncher" ), FALSE, SUPERWEAPONS_NONE ) );
 	CHECK( !SuperweaponNeedsDefenses( AsciiString( "Tank_ChinaNuclearMissileLauncher" ), TRUE, SUPERWEAPONS_ALLOW ) );
