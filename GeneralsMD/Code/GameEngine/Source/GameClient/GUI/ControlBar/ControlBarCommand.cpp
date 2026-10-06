@@ -905,7 +905,8 @@ void ControlBar::updateContextCommand( void )
 					if( p->getProductionType() == PRODUCTION_UNIT &&
 							p->getProductionObject() == command->getThingTemplate() )
 						queued++;
-				GadgetButtonSetCount( win, queued );
+				// Classic counts its queue on the queue buttons over the portrait, not on the button
+				GadgetButtonSetCount( win, TheGlobalData->isClassicUI() ? 0 : queued );
 				if( queued > 0 && obj->isLocallyControlled() )
 					win->winSetStatus( WIN_STATUS_CANCEL_WHEN_DISABLED );
 
