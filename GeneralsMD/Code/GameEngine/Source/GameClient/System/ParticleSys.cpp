@@ -2512,8 +2512,16 @@ Bool ParticleSystem::finishUpdate( const ParticleShadowBlob *blob )
 		// check if time is up
 		if (m_systemLifetimeLeft == 0)
 		{
-			if (m_slaveSystem == NULL || m_slaveSystem->isSystemForever())
+			if (m_slaveSystem == NULL)
 				return false;
+			// A slave that never ends was left behind here with no master, emitting on its own at the
+			// world origin and never removed: every blast whose flare carries a ReforgedHotCore left
+			// one, 900 of them after 15000 frames of a four-AI match.  It goes with its master now.
+			if (m_slaveSystem->isSystemForever())
+			{
+				m_slaveSystem->destroy();
+				return false;
+			}
 			m_isDestroyed = true;
 		}
 	}
