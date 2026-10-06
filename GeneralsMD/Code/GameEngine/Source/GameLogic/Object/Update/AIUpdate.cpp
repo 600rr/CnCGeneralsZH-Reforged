@@ -2576,20 +2576,12 @@ void AIUpdateInterface::crowdReleaseCorridor( void )
 //-------------------------------------------------------------------------------------------------
 void AIUpdateInterface::seedLaneFraction( void )
 {
-	Bool hadPending = m_hasPendingLane;
-
-	m_laneFraction = m_hasPendingLane ? m_pendingLane : 0.5f;
+	// Retail Generals Zero Hour: Always stick to centerline (0.5f)
+	// so units do not veer sideways into obstacles or wedge against walls.
+	m_laneFraction = 0.5f;
 	m_laneFractionValid = TRUE;
 	m_laneHoldFrame = 0;
 	m_hasPendingLane = FALSE;
-
-	// the other end of the SHOWLANES trail: a lane handed out at order time is worth nothing if the
-	// path arrives after something else has already seeded this unit at the centre.
-	if (TheGlobalData->m_showLanes)
-	{
-		DEBUG_LOG(("SHOWLANES seed: unit %d pending=%d lane=%.2f\n", getObject()->getID(),
-			hadPending ? 1 : 0, m_laneFraction));
-	}
 }
 
 //-------------------------------------------------------------------------------------------------

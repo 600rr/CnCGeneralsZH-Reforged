@@ -5083,39 +5083,16 @@ void Pathfinder::beginFlowSearch( const Object *obj )
 {
 	m_flowNow = TheGameLogic ? TheGameLogic->getFrame() : 0;
 	m_flowNowBucket = m_flowNow / PF_CLAIM_BUCKET_FRAMES;
-	m_flowCosts = obj != NULL &&
-								m_clearance != NULL && m_traffic != NULL && m_claims != NULL && m_claimTouch != NULL;
-	m_flowSpeed = m_flowCosts ? flowSpeedOf(obj) : 0;
-	// and the estimate is raised to match what the charge adds, or the search stops steering
-	thePathHeuristicNum = m_flowCosts ? PF_HEURISTIC_FLOW_NUM : 3;
-	thePathHeuristicDen = m_flowCosts ? PF_HEURISTIC_FLOW_DEN : 2;
+	// Retail Generals Zero Hour: Disable artificial clearance, traffic and crossing costs
+	m_flowCosts = false;
+	m_flowSpeed = 0;
+	// Retail EA Generals Zero Hour heuristic is 3/2 (1.5)
+	thePathHeuristicNum = 3;
+	thePathHeuristicDen = 2;
 
-	/* Momentum is a separate question from the three maps and is switched separately: it is about
-		 the hull, not about the ground or the traffic on it.  A search with no object behind it - is
-		 there a way at all, how far apart are these two points, where can I shoot from - has no hull
-		 and charges nothing. */
+	// Retail Generals Zero Hour: No turn chassis momentum penalty that causes vehicles to detour
 	thePathTurnChassis = 0;
 	thePathStartDirValid = FALSE;
-	if (obj != NULL)
-	{
-		const AIUpdateInterface *ai = obj->getAIUpdateInterface();
-		const Locomotor *loco = ai ? ai->getCurLocomotor() : NULL;
-		if (loco != NULL)
-		{
-			const BodyDamageType damage = obj->getBodyModule()->getDamageState();
-			const Real speed = loco->getMaxSpeedForCondition( damage );
-			const Real turn = loco->getMaxTurnRate( damage );
-			// per frame over per frame: world units of driving in the time it takes to turn a radian,
-			// which is one cost unit per world unit here
-			if (speed > 0.01f && turn > 0.0001f)
-				thePathTurnChassis = REAL_TO_INT_FLOOR( speed / turn );
-		}
-
-		const Real facing = obj->getOrientation();
-		thePathStartDirX = (Real)Cos( facing );
-		thePathStartDirY = (Real)Sin( facing );
-		thePathStartDirValid = (thePathTurnChassis > 0);
-	}
 }
 
 /* How wide the ground is beside a point, on one side.  Half-cell steps, stopping at the first

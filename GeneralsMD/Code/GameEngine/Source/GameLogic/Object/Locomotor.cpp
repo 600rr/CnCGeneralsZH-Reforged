@@ -1138,10 +1138,9 @@ Bool Locomotor::isHelicopter(const Object* obj) const
 //-------------------------------------------------------------------------------------------------
 Bool Locomotor::isGroundVehicle(const Object* obj) const
 {
-	LocomotorAppearance appearance = m_template->m_appearance;
-	return (appearance == LOCO_TREADS || appearance == LOCO_WHEELS_FOUR || appearance == LOCO_MOTORCYCLE)
-		&& !obj->isKindOf(KINDOF_AIRCRAFT)	// a jet or a landed helicopter taxiing keeps EA's drive
-		&& !getFlag(ULTRA_ACCURATE);				// and so does a dozer or a POW truck lining up on its spot
+	// Return false to use retail EA Zero Hour vehicle locomotion (treads and wheels)
+	// without sluggish acceleration, turning circle constraints, and reversing jams.
+	return false;
 }
 
 //-------------------------------------------------------------------------------------------------
