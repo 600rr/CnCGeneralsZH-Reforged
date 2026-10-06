@@ -115,6 +115,28 @@ void Direct3D11_Mirror_Texture(unsigned stage, struct IDirect3DBaseTexture9 * te
 // per unit of their light.  A Direct3D 9 run ignores them.
 void Direct3D11_Set_Headlights(const float * lights, unsigned count, const float gain[3]);
 
+// The scene's dynamic point lights for the frame, nearest the camera first, twelve floats each
+// (BLAST_LIGHT_FLOATS): world position and far reach, diffuse over the map's terrain light and near
+// reach, ambient over the same and one unused.  A Direct3D 9 run ignores them.
+void Direct3D11_Set_Blast_Lights(const float * lights, unsigned count);
+
+// True while the Direct3D 11 frame's shadow-receiving programs are lighting the dynamic lights per
+// pixel, which is when the engine's own vertex lighting has to leave them out or light them twice.
+// False under -d3d9, -headless and the Classic graphics setting.
+bool Direct3D11_Lights_Per_Pixel();
+
+// The draws that follow are sorted particle billboards, which fade where they meet the scene's
+// depth.  The sorting pool sets it around the billboards' runs.
+void Direct3D11_Set_Soft_Particles(bool soft);
+
+// Copy the scene's depth for the soft particles, if anything wrote it since the last copy.  The
+// sorting pool calls it at the top of each flush, before any particle run resolves its program.
+void Direct3D11_Take_Scene_Depth();
+
+// Whether the soft particles run at all.  Off under the Classic graphics setting, so its picture
+// matches -d3d9's.  On by default.
+void Direct3D11_Allow_Soft_Particles(bool allowed);
+
 // The sun's depth buffer.  Between Begin and End every draw lands in it and nowhere else, which is
 // how the caster pass is written without the engine knowing what a render target is.  False from
 // Begin means there is no Direct3D 11 backend or the device refused the surface, and the caller
@@ -291,9 +313,9 @@ void Direct3D11_Statistics(unsigned & pipelines_built, unsigned long long & draw
 void Direct3D11_Program_Statistics(unsigned & shipped, unsigned & held);
 
 // What the frame since the last call spent building pipelines and copying textures, and how many
-// of each.  Taking it resets it.
+// of each, and how many times the soft particles copied the scene's depth.  Taking it resets it.
 void Direct3D11_Take_Frame_Cost(double & pipeline_milliseconds, unsigned & pipelines,
-	double & texture_milliseconds, unsigned & textures);
+	double & texture_milliseconds, unsigned & textures, unsigned & depth_copies);
 
 // The refusals split by cause: no buffer bound, no texture stage enabled, a vertex format with no
 // input layout, and a program that could not be generated or compiled.

@@ -43,7 +43,9 @@
 #include "Common/GameType.h"
 #include "WorldHeightMap.h"
 
-#define MAX_ENABLED_DYNAMIC_LIGHTS 20
+// The lights one terrain relight takes in, the rest dropped.  Only the vertex path reads it: the
+// Direct3D 11 frame lights the ground per pixel and takes BLAST_LIGHT_SLOTS (32) instead.  Was 20.
+#define MAX_ENABLED_DYNAMIC_LIGHTS 32
 typedef UnsignedByte HeightSampleType;	//type of data to store in heightmap
 class W3DTreeBuffer;
 class W3DBibBuffer;
@@ -251,9 +253,12 @@ protected:
 	Int	m_y;	///< dimensions of heightmap
 
 #ifdef DO_SCORCH
-	enum { MAX_SCORCH_VERTEX=32768, 
-					MAX_SCORCH_INDEX=65535, 
-					MAX_SCORCH_MARKS=500,
+	// ponytail: one 16-bit buffer pair, so the indices cap the drawn marks at about 680 of radius
+	// fifteen whatever MAX_SCORCH_MARKS says (DX8IndexBufferClass counts in an unsigned short); the
+	// newest are drawn and the oldest wait in the list.  A second buffer pair when that shows.
+	enum { MAX_SCORCH_VERTEX=65535,
+					MAX_SCORCH_INDEX=65535,
+					MAX_SCORCH_MARKS=1000,
 					SCORCH_MARKS_IN_TEXTURE=9,
 					SCORCH_PER_ROW = 3};
 	DX8VertexBufferClass	*m_vertexScorch;	///<Scorch vertex buffer.

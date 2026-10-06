@@ -105,6 +105,20 @@ struct CombinerDescription
 	// glow of a fire behind a plume went dark with the plume's far side.  Replaces SpecularAdd, whose
 	// slot it takes.  Initialised here for a caller that fills the rest field by field.
 	bool SmokeGlow = false;
+
+	// D3D11 only: a sorted particle billboard fades out where it comes within a few units of what
+	// is already drawn behind it, read from a copy of the scene's depth at t7 (SOFT_PARTICLE_SAMPLING).
+	// Without it a smoke or fire sprite cuts a straight line wherever it passes through the ground or
+	// a building.  SOFT_PARTICLE_ALPHA fades the alpha alone, which is what a SRCALPHA blend reads;
+	// SOFT_PARTICLE_COLOUR fades the colour as well, for a blend that adds the colour unweighted.
+	unsigned SoftParticle = 0;
+};
+
+enum
+{
+	SOFT_PARTICLE_NONE = 0,
+	SOFT_PARTICLE_ALPHA = 1,
+	SOFT_PARTICLE_COLOUR = 2
 };
 
 // The constant block still carries this many normal mapped light slots, unread, so the shadow and
@@ -300,7 +314,8 @@ const unsigned NORMAL_MAPPED_LIGHTS = 4;
 	"    return sun * smoke_reaching(position);\n" \
 	"}\n" \
 	"\n" \
-	HEADLIGHT_SAMPLING
+	HEADLIGHT_SAMPLING \
+	BLAST_LIGHT_SAMPLING
 
 // Vehicle headlights on a night map, Direct3D 11 only and riding on the smoke's text for that
 // reason: one spot light per lit vehicle, the nearest HEADLIGHT_SLOTS to the camera
@@ -345,22 +360,101 @@ const unsigned NORMAL_MAPPED_LIGHTS = 4;
 	"}\n" \
 	"\n"
 
+// The dynamic point lights of the scene (explosions, muzzle flashes, burning wrecks), per pixel on
+// the Direct3D 11 frame: RTS3DScene hands the BLAST_LIGHT_SLOTS nearest the camera over every frame
+// (Direct3D11_Set_Blast_Lights) and, while this runs, leaves them out of the per-object vertex
+// lights and the terrain's per-vertex relight, which held four to an object and lit the ground in
+// ten-unit steps.  Each slot is the world position with the far reach in w, the diffuse colour
+// with the near reach (full strength inside it) in w, and the ambient colour.  The falloff and the
+// facing are the terrain relight's (HeightMapRenderObjClass::doTheDynamicLight); the colours come
+// over divided by the map's own terrain light, so the result is a gain on the lit pixel the way the
+// headlights' is, and the shroud stays black.  The surface is turned to face the eye, which the
+// derivatives alone do not say, so a wall with its back to a blast stays dark.  Particles skip it,
+// the backend handing a camera space draw a count of zero: the smoke takes the same lights on the
+// CPU already (W3DParticleSys.cpp).
+#define BLAST_LIGHT_SLOTS 32
+#define BLAST_LIGHT_SLOTS_TEXT "32"
+#define BLAST_LIGHT_FLOATS 12
+#define BLAST_LIGHT_SAMPLING \
+	"float3 blast_reaching(float4 position)\n" \
+	"{\n" \
+	"    float2 ndc = float2(position.x * ShadowViewport.x * 2.0 - 1.0,\n" \
+	"                        1.0 - position.y * ShadowViewport.y * 2.0);\n" \
+	"    float4 world = mul(float4(ndc, position.z, 1.0), WorldFromClip);\n" \
+	"    world.xyz /= world.w;\n" \
+	"    float4 eye = mul(float4(ndc, 0.0, 1.0), WorldFromClip);\n" \
+	"    eye.xyz /= eye.w;\n" \
+	"    float3 facing = cross(ddx(world.xyz), ddy(world.xyz));\n" \
+	"    float3 surface = facing * rsqrt(max(dot(facing, facing), 1e-20));\n" \
+	"    if (dot(surface, eye.xyz - world.xyz) < 0.0) surface = -surface;\n" \
+	"    float3 light = float3(0.0, 0.0, 0.0);\n" \
+	"    int count = (int)BlastLightParameters.x;\n" \
+	"    [loop] for (int i = 0; i < count; ++i) {\n" \
+	"        float3 to = BlastLightPosition[i].xyz - world.xyz;\n" \
+	"        float dist = length(to);\n" \
+	"        float reach = BlastLightPosition[i].w;\n" \
+	"        if (dist >= reach) continue;\n" \
+	"        float inner = BlastLightDiffuse[i].w;\n" \
+	"        float fall = saturate(1.0 - (dist - inner) / max(reach - inner, 0.001));\n" \
+	"        float shade = saturate(dot(surface, to / max(dist, 0.001)));\n" \
+	"        light += fall * (shade * BlastLightDiffuse[i].rgb + BlastLightAmbient[i].rgb);\n" \
+	"    }\n" \
+	"    // Straight up to a half, then a knee towards three quarters, so the lit pixel at most\n" \
+	"    // brightens by 1.75: the terrain relight clamped its sum at white, and a nuke's light\n" \
+	"    // uncapped took the ground to white in a few frames.  The knee is taken on the brightest\n" \
+	"    // channel and the colour scaled by it, so a fire's orange stays orange as it grows.\n" \
+	"    float peak = max(light.r, max(light.g, light.b));\n" \
+	"    float over = max(peak - 0.5, 0.0);\n" \
+	"    float held = min(peak, 0.5) + 0.25 * over / (0.25 + over);\n" \
+	"    return light * (held / max(peak, 1e-4));\n" \
+	"}\n" \
+	"\n"
+
+// A particle sprite fading out where it meets what is drawn behind it.  The scene's depth is a copy
+// taken after the opaque world was drawn (DX11BackendClass::Soft_Particle_Depth), read texel for
+// texel at the pixel's own position, so the viewport's half pixel shift applies to both alike.  Both
+// depths go back to the distance from the eye through the projection the particles are drawn with,
+// w = SoftParticleDepth.x / (z * SoftParticleDepth.y - SoftParticleDepth.z), which is the same
+// matrix the world was drawn with; .w is one over the distance the fade takes, in world units.  The
+// ramp is a smoothstep: a straight one left a crease at both ends of every sprite's fade, and a
+// toxin cloud is hundreds of sprites lying on the ground, whose creases stacked into contour lines.
+#define SOFT_PARTICLE_SAMPLING \
+	"Texture2D SceneDepth : register(t7);\n" \
+	"\n" \
+	"float soft_particle_fade(float4 position)\n" \
+	"{\n" \
+	"    float scene = SceneDepth.Load(int3(position.xy, 0)).r;\n" \
+	"    float behind = SoftParticleDepth.x / (scene * SoftParticleDepth.y - SoftParticleDepth.z);\n" \
+	"    float here = SoftParticleDepth.x / (position.z * SoftParticleDepth.y - SoftParticleDepth.z);\n" \
+	"    float fade = saturate((behind - here) * SoftParticleDepth.w);\n" \
+	"    return fade * fade * (3.0 - 2.0 * fade);\n" \
+	"}\n" \
+	"\n"
+
 // The constant block's fields for it, declared after SkyUp: DX11BackendClass::PixelConstantBlock.
+// The soft particles' field closes it, so a program that fades declares the whole block.
 #define VOLUMETRIC_CONSTANTS \
 	"    float4 VolumeParameters;\n" \
 	"    row_major float4x4 WorldFromClip;\n" \
 	"    float4 HeadlightParameters;\n" \
 	"    float4 HeadlightPosition[" HEADLIGHT_SLOTS_TEXT "];\n" \
-	"    float4 HeadlightDirection[" HEADLIGHT_SLOTS_TEXT "];\n"
+	"    float4 HeadlightDirection[" HEADLIGHT_SLOTS_TEXT "];\n" \
+	"    float4 BlastLightParameters;\n" \
+	"    float4 BlastLightPosition[" BLAST_LIGHT_SLOTS_TEXT "];\n" \
+	"    float4 BlastLightDiffuse[" BLAST_LIGHT_SLOTS_TEXT "];\n" \
+	"    float4 BlastLightAmbient[" BLAST_LIGHT_SLOTS_TEXT "];\n" \
+	"    float4 SoftParticleDepth;\n"
 
 // SHADOW_APPLY with the smoke in it.  A particle takes the shade whatever its own brightness: the
 // threshold is there for ground under the shroud, and on smoke it tied the shade to the colour, so
 // the fire's glow, lifting a dark plume over the threshold, made it take more shade and go darker.
-// The headlights come after the shade: a shadow is the sun's, and a lamp shines into it.
+// The headlights and the blasts come after the shade: a shadow is the sun's, and a lamp shines into
+// it.
 #define VOLUMETRIC_SHADOW_APPLY SHADOW_LIT \
 	"    if (VolumeParameters.z > 0.5) shadow_lit = 1.0;\n" \
 	"    current.rgb *= lerp(1.0, light_reaching(input.Position), shadow_lit);\n" \
-	"    current.rgb = saturate(current.rgb * (1.0 + headlight_reaching(input.Position)));\n"
+	"    float3 lamp_gain = headlight_reaching(input.Position) + blast_reaching(input.Position);\n" \
+	"    current.rgb = saturate(current.rgb * (1.0 + lamp_gain));\n"
 
 // The HLSL for one description, or false when the description names an operation or an argument
 // this does not generate.  A refusal is not a failure: the caller keeps the fixed-function path for

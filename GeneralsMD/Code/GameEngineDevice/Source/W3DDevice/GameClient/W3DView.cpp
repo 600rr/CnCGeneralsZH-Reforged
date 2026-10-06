@@ -1714,8 +1714,13 @@ void W3DView::update(void)
 			m_shakeOffset.x = m_shakeIntensity * m_shakeAngleCos;
 			m_shakeOffset.y = m_shakeIntensity * m_shakeAngleSin;
 
-			// fake a stiff spring/damper
-			const Real dampingCoeff = 0.75f;
+			// fake a stiff spring/damper.  A big kick settles at EA's rate and what is left of it rumbles
+			// on: the damping eases from 0.75 a step at an intensity of two or more to 0.88 near rest, so
+			// a heavy blast trails off over about a second instead of stopping dead after half of one.
+			const Real HARD_DAMPING = 0.75f;
+			const Real TAIL_DAMPING = 0.88f;
+			const Real hardness = WWMath::Clamp(m_shakeIntensity * 0.5f, 0.0f, 1.0f);
+			const Real dampingCoeff = TAIL_DAMPING + (HARD_DAMPING - TAIL_DAMPING) * hardness;
 			m_shakeIntensity *= dampingCoeff;
 
 			// spring is so "stiff", it pulls 180 degrees opposite each frame
@@ -3982,15 +3987,20 @@ void W3DView::shake( const Coord3D *epicenter, CameraShakeType shakeType )
 	if (dist > TheGlobalData->m_maxShakeRange)
 		return;
 
-	intensity *= 1.0f - (dist/TheGlobalData->m_maxShakeRange);
+	// A square of the remaining distance rather than a straight line, and half as much again at the
+	// epicentre: a shell landing under the camera kicks it hard, one at the edge of the range barely
+	// moves it.  The two meet the old line at about a third of the range.
+	const Real SHAKE_NEAR_BOOST = 1.5f;
+	const Real nearness = 1.0f - (dist/TheGlobalData->m_maxShakeRange);
+	intensity *= SHAKE_NEAR_BOOST * nearness * nearness;
 
 	// add intensity and clamp
 	m_shakeIntensity += intensity;
 
-	//const Real maxIntensity = 10.0f;
-	const Real maxIntensity = 3.0f;
+	// Held at the ceiling.  EA's line put it back to 3.0 once the sum passed MaxShakeIntensity, so
+	// the hit that took a barrage over the top shook the camera less than the one before it.
 	if (m_shakeIntensity > TheGlobalData->m_maxShakeIntensity)
-		m_shakeIntensity = maxIntensity;
+		m_shakeIntensity = TheGlobalData->m_maxShakeIntensity;
 }
 
 //-------------------------------------------------------------------------------------------------

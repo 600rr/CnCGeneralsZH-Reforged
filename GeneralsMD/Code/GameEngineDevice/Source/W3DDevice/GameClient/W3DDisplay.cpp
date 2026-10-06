@@ -831,6 +831,8 @@ static void sizeWindowToClient( Int mode, Int width, Int height )
 // and share the back buffer's depth with it.
 static void pushDirect3D11PostChain( void )
 {
+	// Classic graphics is the game's own picture, which is what -d3d9 draws: hard edged sprites.
+	Direct3D11_Allow_Soft_Particles( !TheGlobalData->m_classicGraphics );
 	const AsciiString & requested = TheGlobalData->m_direct3D11PostChain;
 	if( !Direct3D11_Post_Chain( requested.str() ) && !requested.isEmpty() )
 	{
@@ -2714,10 +2716,11 @@ AGAIN:
 					unsigned pipelines = 0;
 					double textureMS = 0.0;
 					unsigned textures = 0;
-					Direct3D11_Take_Frame_Cost( pipelineMS, pipelines, textureMS, textures );
+					unsigned depthCopies = 0;
+					Direct3D11_Take_Frame_Cost( pipelineMS, pipelines, textureMS, textures, depthCopies );
 					if( pipelineMS + textureMS > DX11_FRAME_COST_REPORT_MS )
-						DEBUG_LOG(("DX11 FRAME COST frame %d: %u pipelines built in %.1f ms, %u textures copied in %.1f ms\n",
-							TheGameLogic->getFrame(), pipelines, pipelineMS, textures, textureMS));
+						DEBUG_LOG(("DX11 FRAME COST frame %d: %u pipelines built in %.1f ms, %u textures copied in %.1f ms, %u soft particle depth copies\n",
+							TheGameLogic->getFrame(), pipelines, pipelineMS, textures, textureMS, depthCopies));
 
 					long presentResult = 0;
 					if( Direct3D11_Take_Present_Failure( presentResult ) )

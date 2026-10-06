@@ -263,6 +263,37 @@ void Direct3D11_Set_Headlights(const float * lights, unsigned count, const float
 	}
 }
 
+void Direct3D11_Set_Blast_Lights(const float * lights, unsigned count)
+{
+	if (Active) {
+		Backend.Set_Blast_Lights(lights, count);
+	}
+}
+
+bool Direct3D11_Lights_Per_Pixel()
+{
+	return Active && Backend.Lights_Per_Pixel();
+}
+
+void Direct3D11_Set_Soft_Particles(bool soft)
+{
+	if (Active) {
+		Backend.Set_Soft_Particles(soft);
+	}
+}
+
+void Direct3D11_Take_Scene_Depth()
+{
+	if (Active) {
+		Backend.Take_Scene_Depth();
+	}
+}
+
+void Direct3D11_Allow_Soft_Particles(bool allowed)
+{
+	Backend.Allow_Soft_Particles(allowed);
+}
+
 bool Direct3D11_Begin_Shadow_Map(unsigned size)
 {
 	return Active ? Backend.Begin_Shadow_Map(size) : false;
@@ -738,12 +769,14 @@ void Direct3D11_Program_Statistics(unsigned & shipped, unsigned & held)
 }
 
 void Direct3D11_Take_Frame_Cost(double & pipeline_milliseconds, unsigned & pipelines,
-	double & texture_milliseconds, unsigned & textures)
+	double & texture_milliseconds, unsigned & textures, unsigned & depth_copies)
 {
 	pipeline_milliseconds = 0.0;
 	pipelines = 0;
+	depth_copies = 0;
 	if (Active) {
 		Backend.Take_Frame_Build_Cost(pipeline_milliseconds, pipelines);
+		depth_copies = Backend.Take_Frame_Depth_Copies();
 	}
 	DX11Texture_Take_Frame_Cost(texture_milliseconds, textures);
 }

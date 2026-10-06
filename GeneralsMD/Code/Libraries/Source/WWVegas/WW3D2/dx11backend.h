@@ -94,6 +94,34 @@ public:
 	// is what a pixel gains per channel per unit of light (HEADLIGHT_SAMPLING).
 	void Set_Headlights(const float * lights, unsigned count, const float gain[3]);
 
+	// The scene's dynamic point lights for the frame, BLAST_LIGHT_FLOATS a light: world position and
+	// far reach, diffuse colour and near reach, ambient colour and one unused.  The colours are
+	// already divided by the map's terrain light (BLAST_LIGHT_SAMPLING).  Past BLAST_LIGHT_SLOTS the
+	// rest are dropped; the caller sorts them nearest first.
+	void Set_Blast_Lights(const float * lights, unsigned count);
+
+	// Whether the shadow-receiving programs, which carry the per-pixel lights, are drawing this
+	// frame.  While they are, the engine leaves the dynamic lights out of its own vertex lighting.
+	bool Lights_Per_Pixel() const { return ShadowReceiving && ShadowMapTexture != NULL; }
+
+	// The draws that follow are sorted particle billboards, which fade where they meet the scene's
+	// depth (SOFT_PARTICLE_SAMPLING).  Only the sorting pool sets it, around the billboards' runs.
+	void Set_Soft_Particles(bool soft);
+
+	// Copy the scene's depth for the soft particles if anything wrote it since the last copy.  The
+	// sorting pool calls it at the top of each flush, before any particle run resolves its program.
+	void Take_Scene_Depth();
+	// How many depth copies Take_Scene_Depth made since the last call.  Taking it resets it.
+	unsigned Take_Frame_Depth_Copies();
+	// Off under the Classic graphics setting, whose picture is -d3d9's: no draw fades, no copy.
+	void Allow_Soft_Particles(bool allowed)
+	{
+		if (SoftParticlesAllowed != allowed) {
+			SoftParticlesAllowed = allowed;
+			PipelineChanged = true;
+		}
+	}
+
 	// The engine bound a texture at this stage that has no D3D11 copy - a render target it drew
 	// into, most often.  Sampling white there paints a full screen quad over the frame, so a draw
 	// that reads one is refused instead.
@@ -345,6 +373,15 @@ private:
 		float HeadlightParameters[4];
 		float HeadlightPosition[HEADLIGHT_SLOTS][4];
 		float HeadlightDirection[HEADLIGHT_SLOTS][4];
+		// The dynamic point lights (BLAST_LIGHT_SAMPLING): how many are lit, then each slot's
+		// position and far reach, diffuse and near reach, and ambient.
+		float BlastLightParameters[4];
+		float BlastLightPosition[BLAST_LIGHT_SLOTS][4];
+		float BlastLightDiffuse[BLAST_LIGHT_SLOTS][4];
+		float BlastLightAmbient[BLAST_LIGHT_SLOTS][4];
+		// A soft particle's way from a depth back to a distance, and one over the distance its fade
+		// takes (SOFT_PARTICLE_SAMPLING).  Last, so only a program that fades has to declare it.
+		float SoftParticleDepth[4];
 	};
 	// A draw that is painting the world and can take a shadow from the sun's map.
 	bool Shadow_Receiving() const;
@@ -461,6 +498,21 @@ private:
 	float Headlights[HEADLIGHT_SLOTS][8];
 	unsigned HeadlightCount;
 	float HeadlightGain[3];
+	// Set_Blast_Lights' slots and how many are lit.
+	float BlastLights[BLAST_LIGHT_SLOTS][BLAST_LIGHT_FLOATS];
+	unsigned BlastLightCount;
+	// Set_Soft_Particles, and which fade the current draw takes (a SOFT_PARTICLE_* value).
+	bool SoftParticles;
+	bool SoftParticlesAllowed;
+	unsigned Soft_Particle() const;
+	// The scene's depth as a texture, copied when a soft particle first needs it after anything
+	// wrote depth: a depth buffer cannot be sampled while it is the one being tested against.
+	ID3D11Texture2D * SceneDepthCopy;
+	ID3D11ShaderResourceView * SceneDepthCopyView;
+	bool SceneDepthStale;
+	bool SceneDepthRefused;		///< the device would not make the copy; no draw fades again
+	unsigned FrameDepthCopies;
+	void Release_Scene_Depth();
 	bool Make_Smoke_Map();
 	void Release_Smoke_Map();
 
@@ -732,6 +784,8 @@ private:
 		// second sampler is null when only the first was set.
 		ID3D11ShaderResourceView * Maps[2];
 		ID3D11SamplerState * MapSamplers[2];
+		// The scene's depth copy at t7, for the soft particles.
+		ID3D11ShaderResourceView * SceneDepth;
 		ID3D11InputLayout * Layout;
 		ID3D11Buffer * VertexBuffer;
 		UINT VertexStride;
