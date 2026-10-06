@@ -4444,41 +4444,88 @@ static Int drawOwnCountdown( DisplayString *&countdown, Int seconds, Int x, Int 
 }
 
 //-------------------------------------------------------------------------------------------------
-/** How far the slowest long reload on this object has come, 0 to 1, or -1 when none is running.
+/** Whether a weapon is slow enough to earn a reload bar, from its data alone: the time a full clip
+	* takes to fire and reload, divided by the shots in it, has to come to more than three seconds a
+	* shot. A clip of 0 is endless and its delay between shots is the whole wait.
 	*
-	* Only a wait longer than three seconds counts. Every direct-fire tank gun in the game waits two
-	* (the Laser General's Crusader 2.3), so a lower line would hang a bar on every main battle tank
-	* that fires and empty it again before it could be read. Above it sit the weapons whose wait is
-	* the whole decision: the Nuke Cannon's ten seconds, artillery, the Inferno Cannon, SCUD and
-	* Tomahawk launchers, the Scorpion's and the Comanche's missiles, the rocket buggy's clip.
+	* Every direct-fire tank gun in the game waits two (the Laser General's Crusader 2.3). Above the
+	* line sit the guns whose wait is the decision: the Nuke Cannon's ten seconds, the Inferno Cannon,
+	* the artillery platform, the SCUD and Tomahawk launchers, the Scorpion's missile and the
+	* Comanche's anti-tank missiles. Below it go the weapons that empty a quick clip and then reload
+	* it - the Rocket Buggy's six rockets, the Comanche's rocket pods, the Paladin's point defence
+	* laser - which fire about as often as a tank does. The old test was the
+	* length of whichever wait was running, and those clip reloads all ran past three seconds, so a
+	* Paladin that touched an infantryman with its laser wore an amber bar for the next four. */
+//-------------------------------------------------------------------------------------------------
+Bool Drawable_weaponWearsReloadBar( Int clipSize, UnsignedInt delayFrames, UnsignedInt clipReloadFrames )
+{
+	const UnsignedInt RELOAD_BAR_MIN_FRAMES = 3 * LOGICFRAMES_PER_SECOND;
+	if( clipSize <= 0 )
+		return delayFrames > RELOAD_BAR_MIN_FRAMES;
+
+	return clipSize * delayFrames + clipReloadFrames > (UnsignedInt)clipSize * RELOAD_BAR_MIN_FRAMES;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** How far a wait from `started` to `ready` has come at `now`, 0 to 1, or -1 when it is not one
+	* worth a bar. `longest` is the longest wait the weapon's data allows. The start frame is only
+	* written when this weapon fires or reloads, so a launcher sharing its reload with another slot,
+	* or a Combat Bike handing its gun to a new rider, is told when it can fire next and keeps an old
+	* start - a wait that looked a minute long. The span is held to what the data allows. */
+//-------------------------------------------------------------------------------------------------
+Real Drawable_reloadBarFraction( UnsignedInt now, UnsignedInt started, UnsignedInt ready, UnsignedInt longest )
+{
+	const UnsignedInt RELOAD_BAR_MIN_FRAMES = 3 * LOGICFRAMES_PER_SECOND;
+
+	// 0x7fffffff is an empty clip that does not reload itself (a jet waiting for its airfield)
+	if( ready <= now || ready == 0x7fffffff )
+		return -1.0f;
+
+	UnsignedInt span = ready > started ? ready - started : longest;
+	if( span > longest )
+		span = longest;
+	if( span < ready - now )
+		span = ready - now;
+	if( span <= RELOAD_BAR_MIN_FRAMES )
+		return -1.0f;
+
+	return 1.0f - INT_TO_REAL( ready - now ) / INT_TO_REAL( span );
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The slowest long reload on this object, 0 to 1, or -1 when none is running.
 	*
 	* A weapon that does less than one point of damage is a dummy that only drives an animation
 	* (the Battle Bus and Troop Crawler passengers' ten-second one, the angry mob's) and the SCUD
 	* Storm's, whose launch already has its own charge bar; none of those is a reload anyone waits on.
 	*
-	* This reads the two frame numbers and nothing else. Weapon::getStatus() writes m_status, which
-	* the logic CRC covers, so calling it from a draw would be the client writing logic state. */
+	* This reads frame numbers and template values and nothing else. Weapon::getStatus() writes
+	* m_status and WeaponTemplate::getDelayBetweenShots() draws from the logic random stream, so
+	* calling either from a draw would be the client writing logic state. */
 //-------------------------------------------------------------------------------------------------
 static Real reloadBarFraction( const Object *obj )
 {
-	const UnsignedInt RELOAD_BAR_MIN_FRAMES = 3 * LOGICFRAMES_PER_SECOND;
 	const UnsignedInt now = TheGameLogic->getFrame();
 	Real least = -1.0f;
 
 	for( Int i = 0; i < WEAPONSLOT_COUNT; ++i )
 	{
 		const Weapon *weapon = obj->getWeaponInWeaponSlot( (WeaponSlotType)i );
-		if( weapon == NULL || weapon->getTemplate()->getPrimaryDamage( WeaponBonus() ) < 1.0f )
+		if( weapon == NULL )
+			continue;
+		const WeaponTemplate *tmpl = weapon->getTemplate();
+		if( tmpl->getPrimaryDamage( WeaponBonus() ) < 1.0f )
 			continue;
 
-		// 0x7fffffff is an empty clip that does not reload itself (a jet waiting for its airfield)
-		const UnsignedInt ready = weapon->getPossibleNextShotFrame();
-		const UnsignedInt started = weapon->getLastReloadStartedFrame();
-		if( ready <= now || ready == 0x7fffffff || ready - started <= RELOAD_BAR_MIN_FRAMES )
+		const UnsignedInt delay = (UnsignedInt)tmpl->getMaxDelayBetweenShots();
+		const UnsignedInt clipReload = (UnsignedInt)tmpl->getClipReloadTime( WeaponBonus() );
+		if( !Drawable_weaponWearsReloadBar( tmpl->getClipSize(), delay, clipReload ) )
 			continue;
 
-		Real fraction = INT_TO_REAL( now - started ) / INT_TO_REAL( ready - started );
-		if( least < 0.0f || fraction < least )
+		const UnsignedInt longest = tmpl->getClipSize() > 0 && clipReload > delay ? clipReload : delay;
+		const Real fraction = Drawable_reloadBarFraction( now, weapon->getLastReloadStartedFrame(),
+																											weapon->getPossibleNextShotFrame(), longest );
+		if( fraction >= 0.0f && ( least < 0.0f || fraction < least ) )
 			least = fraction;
 	}
 

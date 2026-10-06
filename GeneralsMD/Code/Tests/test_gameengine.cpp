@@ -7338,6 +7338,32 @@ TEST(the_spy_drone_wears_a_health_bar_and_a_toxin_field_does_not)
 	CHECK( Drawable_kindShowsHealthBar( healthBarKinds( KINDOF_INERT, KINDOF_SELECTABLE ) ) == FALSE );
 }
 
+/** Only a slow gun wears the amber reload bar: over three seconds a shot, a clip's reload spread
+	 over the shots in it. Frames, at 30 a second. */
+TEST(only_a_slow_firing_weapon_wears_a_reload_bar)
+{
+	CHECK( Drawable_weaponWearsReloadBar( 0, 300, 0 ) == TRUE );		// Nuke Cannon, 10 s
+	CHECK( Drawable_weaponWearsReloadBar( 0, 120, 0 ) == TRUE );		// Inferno Cannon, 4 s
+	CHECK( Drawable_weaponWearsReloadBar( 1, 0, 300 ) == TRUE );		// SCUD, one missile and a 10 s reload
+	CHECK( Drawable_weaponWearsReloadBar( 2, 6, 450 ) == TRUE );		// Scorpion's two missiles, 15 s reload
+	CHECK( Drawable_weaponWearsReloadBar( 0, 60, 0 ) == FALSE );		// a tank gun, 2 s
+	CHECK( Drawable_weaponWearsReloadBar( 0, 90, 0 ) == FALSE );		// exactly three seconds is not over three
+	CHECK( Drawable_weaponWearsReloadBar( 6, 6, 180 ) == FALSE );		// Rocket Buggy, six rockets, 6 s reload
+	CHECK( Drawable_weaponWearsReloadBar( 2, 7, 120 ) == FALSE );		// Paladin's point defence laser
+	CHECK( Drawable_weaponWearsReloadBar( 20, 6, 900 ) == FALSE );	// Comanche rocket pods
+}
+
+/** A launcher that shares its reload is told when it can fire next and keeps an old start frame;
+	 the bar is measured against the longest wait its data allows, not a minute of nothing. */
+TEST(a_reload_bar_ignores_a_stale_start_frame)
+{
+	CHECK_NEAR( Drawable_reloadBarFraction( 150, 0, 300, 300 ), 0.5f, 0.001f );
+	CHECK_NEAR( Drawable_reloadBarFraction( 1150, 0, 1300, 300 ), 0.5f, 0.001f );
+	CHECK( Drawable_reloadBarFraction( 300, 0, 300, 300 ) < 0.0f );				// ready
+	CHECK( Drawable_reloadBarFraction( 10, 0, 0x7fffffff, 300 ) < 0.0f );		// empty, waits for an airfield
+	CHECK( Drawable_reloadBarFraction( 100, 100, 106, 450 ) < 0.0f );			// between two missiles
+}
+
 /** Being carried is not a malfunction, so a unit inside a transport keeps its owner's colour.
 	 Anything else that disables it turns the bar blue - and the pair together used to fail: the old
 	 test asked `isDisabled() && !isDisabledByType(DISABLED_HELD)`, so a held unit that was then EMP'd
