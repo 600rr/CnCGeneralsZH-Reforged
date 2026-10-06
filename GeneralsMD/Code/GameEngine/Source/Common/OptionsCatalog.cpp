@@ -24,6 +24,8 @@
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
 #include "Common/OptionsCatalog.h"
+#include "Common/AudioAffect.h"
+#include "Common/GameAudio.h"
 #include "Common/GlobalData.h"
 #include "Common/UserPreferences.h"
 #include "GameClient/Mouse.h"
@@ -75,6 +77,15 @@ static void set_m_dragTolerance( Int value )
 	TheWritableGlobalData->m_dragTolerance = value;
 	if (TheMouse)
 		TheMouse->m_dragTolerance = (UnsignedInt)value;
+}
+// The catalog loads before there is an audio manager, which takes the value from GlobalData in its
+// init; the menu's Accept pushes it in from here.
+static Int get_m_ambientVolume( void ) { return TheGlobalData->m_ambientVolume; }
+static void set_m_ambientVolume( Int value )
+{
+	TheWritableGlobalData->m_ambientVolume = value;
+	if (TheAudio)
+		TheAudio->setVolume( value / 100.0f, (AudioAffect)(AudioAffect_Ambient | AudioAffect_SystemSetting) );
 }
 OPTION_BOOL_ACCESSORS( m_formationDrag )
 OPTION_BOOL_ACCESSORS( m_showAllyCursors )
@@ -304,6 +315,12 @@ const OptionDef TheOptionCatalog[] =
 	{ "DragTolerance",						OPT_WND( "SliderDragTolerance" ), "GUI:DragTolerance",
 		OPTION_INT, APPLY_LIVE, 2, 50,
 		get_m_dragTolerance, set_m_dragTolerance },
+
+	// Looping world ambience - birds, wind, water, a town - on a slider of its own beside Sound FX,
+	// which no longer reaches it.  AudioManager::isAmbientSound says what counts.  On Options > Audio.
+	{ "AmbientVolume",						OPT_WND( "SliderAmbientVolume" ), "GUI:AmbientVolume",
+		OPTION_INT, APPLY_LIVE, 0, 100,
+		get_m_ambientVolume, set_m_ambientVolume },
 
 	// With the move, attack move or guard key armed, a left drag over the ground spreads the
 	// selection along the line drawn instead of sending everyone to one point.  On by default, and

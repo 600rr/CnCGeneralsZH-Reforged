@@ -881,6 +881,14 @@ TOOLTIP:DragTolerance
 "How many pixels the mouse may move with a button held before a click becomes a drag. Raise it if selection boxes start by accident, lower it if drags read as clicks."
 END
 
+GUI:AmbientVolume
+"Ambient Volume"
+END
+
+TOOLTIP:AmbientVolume
+"Birds, wind, water and the hum of a town. Sound FX no longer moves these, so the battle can stay loud while the world around it stays quiet."
+END
+
 GUI:IsometricCamera
 "Isometric Camera"
 END

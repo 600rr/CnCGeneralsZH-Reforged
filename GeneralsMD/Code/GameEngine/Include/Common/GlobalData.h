@@ -523,6 +523,7 @@ public:
   Real m_musicVolumeFactor;         ///< Factor applied to loudness of music volume
   Real m_SFXVolumeFactor;           ///< Factor applied to loudness of SFX volume
   Real m_voiceVolumeFactor;         ///< Factor applied to loudness of voice volume
+	Int m_ambientVolume;							///< "AmbientVolume" in Options.ini: percent for looping world ambience, in place of the effects slider
   Bool m_3DSoundPref;               ///< Whether user wants to use 3DSound or not
 
 	Bool m_animateWindows;						///< Should we animate window transitions?

@@ -2291,6 +2291,11 @@ Real MilesAudioManager::getVoiceMixedVolume( const AudioEventRTS *event, Real sl
 		return min( 1.0f, eventVolume * max( sliderVolume, m_speechVolume ) * VOICE_BOOST );
 	}
 
+	// Ambience answers to its own slider, whichever effects slider the caller passed.
+	if (isAmbientSound( info )) {
+		return eventVolume * getAmbientVolume( event->isPositionalAudio() );
+	}
+
 	return eventVolume * sliderVolume;
 }
 
@@ -2624,7 +2629,9 @@ void MilesAudioManager::processPlayingList( void )
 				else
 				{
 					Real volForConsideration = getEffectiveVolume(playing->m_audioEventRTS);
-					volForConsideration /= (m_sound3DVolume > 0.0f ? m_sound3DVolume : 1.0f);
+					// the slider is taken back out: a sound is culled by distance, not by how far a slider is down
+					const Real slider = isAmbientSound( playing->m_audioEventRTS->getAudioEventInfo() ) ? getAmbientVolume( TRUE ) : m_sound3DVolume;
+					volForConsideration /= (slider > 0.0f ? slider : 1.0f);
 					Bool playAnyways = BitTest( playing->m_audioEventRTS->getAudioEventInfo()->m_type, ST_GLOBAL) || playing->m_audioEventRTS->getAudioEventInfo()->m_priority == AP_CRITICAL;
 					if( volForConsideration < m_audioSettings->m_minVolume && !playAnyways )
 					{
@@ -2980,9 +2987,10 @@ Real MilesAudioManager::getEffectiveVolume(AudioEventRTS *event) const
 	} 
 	else 
 	{
-		if (event->isPositionalAudio()) 
+		const Bool ambient = isAmbientSound( event->getAudioEventInfo() );
+		if (event->isPositionalAudio())
 		{
-			volume *= m_sound3DVolume;
+			volume *= ambient ? getAmbientVolume( TRUE ) : m_sound3DVolume;
 			Coord3D distance = m_listenerPosition;
 			const Coord3D *pos = event->getCurrentPosition();
 			if (pos) 
@@ -3015,9 +3023,9 @@ Real MilesAudioManager::getEffectiveVolume(AudioEventRTS *event) const
 					TheAudio->getAudioSettings()->m_rangeVolumeFade );
 			}
 		} 
-		else 
+		else
 		{
-			volume *= m_soundVolume;
+			volume *= ambient ? getAmbientVolume( FALSE ) : m_soundVolume;
 		}
 	}
 

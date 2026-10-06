@@ -2039,6 +2039,7 @@ static const SliderReadout TheSliderReadouts[] =
 	{ "OptionsMenu.wnd:SliderMusicVolume",	"OptionsMenu.wnd:ValueMusicVolume",				READOUT_PERCENT },
 	{ "OptionsMenu.wnd:SliderSFXVolume",		"OptionsMenu.wnd:ValueSFXVolume",					READOUT_PERCENT },
 	{ "OptionsMenu.wnd:SliderVoiceVolume",	"OptionsMenu.wnd:ValueVoiceVolume",				READOUT_PERCENT },
+	{ "OptionsMenu.wnd:SliderAmbientVolume",	"OptionsMenu.wnd:ValueAmbientVolume",		READOUT_PERCENT },
 	{ "OptionsMenu.wnd:SliderScrollSpeed",	"OptionsMenu.wnd:ValueScrollSpeed",				READOUT_NUMBER },
 	{ "OptionsMenu.wnd:SliderDragTolerance",	"OptionsMenu.wnd:ValueDragTolerance",			READOUT_NUMBER },
 };

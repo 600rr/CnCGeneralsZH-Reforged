@@ -183,6 +183,8 @@ NEW_CONTROLS = [
     (COMBO,  "ComboBoxSmoke",          None),
     (CHECK,  "CheckParticleBounce",    "GUI:ParticleBounce"),
     (CHECK,  "CheckChromaLighting",    "GUI:ChromaLighting"),
+    (LABEL,  "LabelAmbientVolume",     "GUI:AmbientVolume"),
+    (SLIDER, "SliderAmbientVolume",    None),
 ]
 
 # A slider on its own says nothing about where it stands, so each one has a readout beside it that
@@ -190,7 +192,7 @@ NEW_CONTROLS = [
 READOUTS = [
     "ValueGamma", "ValueTextureResolution", "ValueParticleCap", "ValueAnisotropy",
     "ValueMusicVolume", "ValueSFXVolume", "ValueVoiceVolume", "ValueScrollSpeed",
-    "ValueDragTolerance",
+    "ValueDragTolerance", "ValueAmbientVolume",
 ]
 
 # Lines of small grey text under a control that say what its current choice does, written by
@@ -206,7 +208,8 @@ NOTE_COLOR = ("ENABLED:  192 192 192 255, ENABLEDBORDER:  0 0 0 255, "
 
 # a cloned slider keeps its template's range unless it is given one; selfcheck holds these to the
 # catalog row's own bounds
-SLIDER_RANGES = [("SliderAnisotropy", 0, 16), ("SliderDragTolerance", 2, 50)]
+SLIDER_RANGES = [("SliderAnisotropy", 0, 16), ("SliderDragTolerance", 2, 50),
+                 ("SliderAmbientVolume", 0, 100)]
 
 # EA's captions that do not fit the page: two popup headings written in capitals, and a check box
 # caption that ran 20 pixels past the panel's right edge once it stood in a 268 pixel column.
@@ -298,7 +301,8 @@ GROUP_LAYOUT = [
         ("GUI:OptionsGroupVolume", [
             setting("MusicVolumeLabel", "SliderMusicVolume", "ValueMusicVolume"),
             setting("SFXVolumeLabel", "SliderSFXVolume", "ValueSFXVolume"),
-            setting("VoiceVolumeLabel", "SliderVoiceVolume", "ValueVoiceVolume")])]),
+            setting("VoiceVolumeLabel", "SliderVoiceVolume", "ValueVoiceVolume"),
+            setting("LabelAmbientVolume", "SliderAmbientVolume", "ValueAmbientVolume")])]),
 
     ("PageControls", [
         ("GUI:OptionsGroupCamera", [

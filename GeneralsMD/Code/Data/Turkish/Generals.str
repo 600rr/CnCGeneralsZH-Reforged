@@ -15369,6 +15369,14 @@ TOOLTIP:DragTolerance
 "Bir tuş basılıyken fare kaç piksel oynarsa tıklamanın sürüklemeye döneceği. Seçim kutuları yanlışlıkla açılıyorsa yükseltin, sürüklemeler tıklama sayılıyorsa düşürün."
 END
 
+GUI:AmbientVolume
+"Ortam Sesi"
+END
+
+TOOLTIP:AmbientVolume
+"Kuşlar, rüzgâr, su ve kasabanın uğultusu. Efekt Sesi artık bunları değiştirmez; çatışma yüksek kalırken çevresi sessiz kalabilir."
+END
+
 GUI:IsometricCamera
 "İzometrik Kamera"
 END
