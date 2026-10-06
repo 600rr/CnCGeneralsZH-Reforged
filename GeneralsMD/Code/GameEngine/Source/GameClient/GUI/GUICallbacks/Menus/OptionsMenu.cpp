@@ -1214,6 +1214,7 @@ static void saveOptions( void )
 	// which of the three the window is wearing right now, before the controls overwrite it
 	const Int oldWindowMode = TheGlobalData->m_windowMode;
 	const Bool oldVSync = TheGlobalData->m_vsync;
+	const Int oldScaling = TheGlobalData->m_fullscreenScaling;
 	const MonitorEntry oldMonitor = findMonitor( TheGlobalData->m_monitor.str() );
 
 	//-------------------------------------------------------------------------------------------------
@@ -1409,8 +1410,9 @@ static void saveOptions( void )
 	const Bool modeChanged = ( oldWindowMode != TheGlobalData->m_windowMode );
 	const Bool vsyncChanged = ( oldVSync != TheGlobalData->m_vsync );
 	const Bool monitorChanged = ( ::strcasecmp( oldMonitor.device, monitor.device ) != 0 );
+	const Bool scalingChanged = ( oldScaling != TheGlobalData->m_fullscreenScaling );
 
-	if( sizeChanged || modeChanged || vsyncChanged || monitorChanged )
+	if( sizeChanged || modeChanged || vsyncChanged || monitorChanged || scalingChanged )
 	{
 		if( !TheDisplay->setDisplayMode( xres, yres, bitDepth, TheGlobalData->m_windowed ) )
 		{

@@ -162,6 +162,7 @@ public:
 	Bool m_windowed;
 	Int m_windowMode;					///< WindowModeType: fullscreen, borderless or windowed.  m_windowed
 														///< is derived from it and is what the device layer reads.
+	Int m_fullscreenScaling;	///< FullscreenScalingType: a fullscreen picture of another shape stretched or barred
 	AsciiString m_monitor;		///< the monitor the game is on, as its GDI device name ("\\.\DISPLAY2");
 														///< empty is the primary.  See Common/Monitors.h.
 	Int m_msaaLevel;					///< multisampling, as an index into the levels the options menu offers

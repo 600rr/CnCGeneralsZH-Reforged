@@ -138,6 +138,8 @@ NEW_CONTROLS = [
     (COMBO,  "ComboBoxMonitor",        None),
     (LABEL,  "LabelWindowMode",        "GUI:WindowMode"),
     (COMBO,  "ComboBoxWindowMode",     None),
+    (LABEL,  "LabelFullscreenScaling", "GUI:FullscreenScaling"),
+    (COMBO,  "ComboBoxFullscreenScaling", None),
     (CHECK,  "CheckVSync",             "GUI:VSync"),
     (CHECK,  "CheckClassicGraphics",   "GUI:ClassicGraphics"),
     (LABEL,  "LabelMSAA",              "GUI:MSAA"),
@@ -264,6 +266,7 @@ GROUP_LAYOUT = [
             setting("LabelMonitor", "ComboBoxMonitor"),
             setting("ResolutionLabel", "ComboBoxResolution"),
             setting("LabelWindowMode", "ComboBoxWindowMode"),
+            setting("LabelFullscreenScaling", "ComboBoxFullscreenScaling"),
             ("check", "CheckVSync")]),
         ("GUI:OptionsGroupPicture", [
             setting("GammaLabel", "SliderGamma", "ValueGamma"),

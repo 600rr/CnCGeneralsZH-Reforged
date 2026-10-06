@@ -852,6 +852,7 @@ Bool W3DDisplay::setDisplayMode( UnsignedInt xres, UnsignedInt yres, UnsignedInt
 	{
 		DX8Wrapper::Set_Requested_VSync( TheGlobalData->m_vsync != FALSE );
 		Direct3D11_Set_VSync( TheGlobalData->m_vsync != FALSE );
+		DX8Wrapper::Set_Requested_Fullscreen_Keep_Aspect( TheGlobalData->m_fullscreenScaling == FULLSCREEN_SCALING_KEEP_ASPECT );
 		pushDirect3D11PostChain();
 	}
 	DX8Wrapper::Set_Requested_Monitor( chosenMonitor().device );
@@ -1124,6 +1125,7 @@ void W3DDisplay::init( void )
 	DX8Wrapper::Set_Requested_VSync( TheGlobalData->m_vsync != FALSE );
 	Direct3D11_Set_VSync( TheGlobalData->m_vsync != FALSE );
 	DX8Wrapper::Set_Requested_Monitor( chosenMonitor().device );
+	DX8Wrapper::Set_Requested_Fullscreen_Keep_Aspect( TheGlobalData->m_fullscreenScaling == FULLSCREEN_SCALING_KEEP_ASPECT );
 
 	// Same reason: WW3D2 cannot see GlobalData, so the backend choice is pushed in from here.  The
 	// fixed-function probe and the generated combiner shaders are always on.

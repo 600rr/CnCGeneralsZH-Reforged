@@ -659,6 +659,7 @@ GlobalData::GlobalData()
 	m_chipSetType = 0;
 	m_windowed = 0;
 	m_windowMode = WINDOW_MODE_FULLSCREEN;
+	m_fullscreenScaling = FULLSCREEN_SCALING_STRETCH;	// what EA's fullscreen mode change gave on most monitors
 	m_msaaLevel = 0;
 	m_vsync = FALSE;
 	m_direct3D11 = TRUE;

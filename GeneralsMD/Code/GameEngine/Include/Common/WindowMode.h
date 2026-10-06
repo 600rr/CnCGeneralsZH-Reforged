@@ -38,4 +38,14 @@ enum WindowModeType
 	WINDOW_MODE_COUNT				= 3,
 };
 
+// How a fullscreen picture whose shape is not the monitor's fills it.  The monitor keeps its own
+// mode and the picture is scaled onto it either way.
+enum FullscreenScalingType
+{
+	FULLSCREEN_SCALING_STRETCH			= 0,	///< all of the monitor, the picture stretched to it
+	FULLSCREEN_SCALING_KEEP_ASPECT	= 1,	///< the picture's own shape, black bars beside it
+
+	FULLSCREEN_SCALING_COUNT				= 2,
+};
+
 #endif // __WINDOWMODE_H_
