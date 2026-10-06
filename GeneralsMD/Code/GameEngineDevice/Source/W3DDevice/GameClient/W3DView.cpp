@@ -3997,10 +3997,10 @@ void W3DView::shake( const Coord3D *epicenter, CameraShakeType shakeType )
 	// add intensity and clamp
 	m_shakeIntensity += intensity;
 
-	//const Real maxIntensity = 10.0f;
-	const Real maxIntensity = 3.0f;
+	// Held at the ceiling.  EA's line put it back to 3.0 once the sum passed MaxShakeIntensity, so
+	// the hit that took a barrage over the top shook the camera less than the one before it.
 	if (m_shakeIntensity > TheGlobalData->m_maxShakeIntensity)
-		m_shakeIntensity = maxIntensity;
+		m_shakeIntensity = TheGlobalData->m_maxShakeIntensity;
 }
 
 //-------------------------------------------------------------------------------------------------
