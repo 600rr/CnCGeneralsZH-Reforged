@@ -3034,6 +3034,20 @@ static Int countOwnedNear( Player *player, const ThingTemplate *tmpl, const Coor
 	return search.count;
 }
 
+/** The nearest standing structure of another side, ally or enemy, beside a dock: whoever built it
+	* has the pile already, or sits on it.  Civilian buildings are neutral and do not count. */
+static Object *otherSideStructureNear( Player *player, const Object *dock )
+{
+	PartitionFilterAcceptByKindOf fStructure(MAKE_KINDOF_MASK(KINDOF_STRUCTURE), KINDOFMASK_NONE);
+	PartitionFilterPlayer fNotMine(player, false);
+	PartitionFilterPlayerAffiliation fSide(player, ALLOW_ALLIES | ALLOW_ENEMIES, true);
+	PartitionFilterAlive fAlive;
+	PartitionFilterOnMap fOnMap;
+	PartitionFilter *filters[] = { &fStructure, &fNotMine, &fSide, &fAlive, &fOnMap, 0 };
+	return ThePartitionManager->getClosestObject( dock->getPosition(),
+		SUPPLY_CENTER_CLOSE_DIST + dock->getGeometryInfo().getBoundingCircleRadius(), FROM_BOUNDINGSPHERE_2D, filters );
+}
+
 // ------------------------------------------------------------------------------------------------
 /** Build a supply center near a supply source with minimumCash or more resources. */
 // ------------------------------------------------------------------------------------------------
@@ -3171,10 +3185,11 @@ void AIPlayer::buildBySupplies(Int minimumCash, const AsciiString& thingName, Bo
 			return;
 		}
 		location.z = 0; // All build list locations are ground relative.
-		DEBUG_LOG(("AI EXPAND frame %d player %d builds '%s' at (%.0f,%.0f) by dock %d, %d in the bank, %.0f from a base of radius %.0f%s\n",
+		const Object *claimant = otherSideStructureNear( m_player, bestSupplyWarehouse );
+		DEBUG_LOG(("AI EXPAND frame %d player %d builds '%s' at (%.0f,%.0f) by dock %d, %d in the bank, %.0f from a base of radius %.0f%s, held by player %d\n",
 			TheGameLogic->getFrame(), m_player->getPlayerIndex(), thingName.str(), location.x, location.y, bestSupplyWarehouse->getID(),
 			m_player->getMoney()->countMoney(), sqrt( sqr( location.x - m_baseCenter.x ) + sqr( location.y - m_baseCenter.y ) ), m_baseRadius,
-			holdableOnly ? ", its own choice" : ""));
+			holdableOnly ? ", its own choice" : "", claimant ? claimant->getControllingPlayer()->getPlayerIndex() : -1));
 		m_player->addToPriorityBuildList(thingName, &location, angle);
 		m_curWarehouseID = bestSupplyWarehouse->getID();
 	}
@@ -3426,22 +3441,20 @@ Object *AIPlayer::findSupplyCenter(Int minimumCash, Bool holdableOnly)
 				Real radius = SUPPLY_CENTER_CLOSE_DIST + obj->getGeometryInfo().getBoundingCircleRadius();
 
 				PartitionFilterAcceptByKindOf f1(MAKE_KINDOF_MASK(KINDOF_CASH_GENERATOR), KINDOFMASK_NONE);
-				//
-				// "Do I already have a centre here" - and, for a supportive AI, "does my ally".  Two
-				// allied AIs racing each other to the same warehouse is one of the most visibly
-				// stupid things AI teammates do, and this filter is the whole of the fix.
-				//
 				PartitionFilterPlayer f2(m_player, true);	// Only find your own units.
-				PartitionFilterPlayerAffiliation f2Ally(m_player, ALLOW_SAME_PLAYER | ALLOW_ALLIES, true);
 				PartitionFilterOnMap filterMapStatus;
-
-				PartitionFilter *mine[] = { &f1, &f2, &filterMapStatus, 0 };
-				PartitionFilter *ours[] = { &f1, &f2Ally, &filterMapStatus, 0 };
-				PartitionFilter **filters = (m_role == AIROLE_SUPPORTIVE || TheGameLogic->getIncomeSharing() == INCOME_SHARING_ALL) ? ours : mine;
+				PartitionFilter *filters[] = { &f1, &f2, &filterMapStatus, 0 };
 
 				Object *supplyCenter = ThePartitionManager->getClosestObject(&center, radius, FROM_BOUNDINGSPHERE_2D, filters);
 				if (supplyCenter) {
 					// We already have a supply center.
+					continue;
+				}
+				// Another side's pile: its supply center works it, or its base stands round it.  Only
+				// our own center was looked for (an ally's too, for a supportive AI), so a dock inside
+				// an ally's base or a second enemy's read as free and the AI put a center, then guns
+				// and factories, against theirs.
+				if (otherSideStructureNear(m_player, obj)) {
 					continue;
 				}
 
