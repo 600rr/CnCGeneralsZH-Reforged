@@ -275,9 +275,6 @@ GameConsole::~GameConsole()
 //-------------------------------------------------------------------------------------------------
 void GameConsole::toggle( void )
 {
-	// EA's game had no console; the Classic interface keeps it shut
-	if( !m_isOpen && TheGlobalData->isClassicUI() )
-		return;
 	m_isOpen = !m_isOpen;
 	if( !m_isOpen )
 		m_inputLine.clear();
