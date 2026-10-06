@@ -467,7 +467,19 @@ void ControlBarPopupDescriptionUpdateFunc( WindowLayout *layout, void *param )
 			TheControlBar->deleteBuildTooltipLayout();
 		}
 	}
-	
+
+}
+
+//
+// How far the bar had travelled (minimised, or sliding in) the last time the tooltip was moved with
+// it.  It belongs to one tooltip layout: a new layout, made when the resolution changes, stands where
+// the loader put it, and carrying the old one's offset over lifted it by the whole minimised drop.
+//
+static ICoord2D theTooltipLastOffset = { 0, 0 };
+
+void ControlBarPopupDescription_forgetOffset( void )
+{
+	theTooltipLastOffset.x = theTooltipLastOffset.y = 0;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -1070,7 +1082,7 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 	{
 
 		static NameKeyType winNamekey	= TheNameKeyGenerator->nameToKey( AsciiString( "ControlBar.wnd:BackgroundMarker" ) );
-		static ICoord2D lastOffset = { 0, 0 };
+		ICoord2D &lastOffset = theTooltipLastOffset;
 
 		ICoord2D size, newSize, pos;
 		Int diffSize;

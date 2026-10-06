@@ -509,10 +509,11 @@ static Bool parseTooltip( char *token, WinInstanceData *instData,
 enum LayoutPlacement
 {
 	LAYOUT_STRETCH,		///< stretched to the whole screen, x and y apart, as EA shipped every layout
-	LAYOUT_FIT,				///< one scale, centred in the 4:3 box
-	LAYOUT_HUD				///< stretched as EA shipped it, over the Classic HUD's 16:9 frame (TheHudRect)
+	LAYOUT_FIT				///< one scale, the smaller, its 800x600 standing at theLayoutAnchor
 };
 static LayoutPlacement theLayoutPlacement = LAYOUT_STRETCH;
+/// where a fitted layout stands: the same fraction of the screen and of the layout, (0.5,0.5) centred
+static Coord2D theLayoutAnchor = { 0.5f, 0.5f };
 
 // The menus are fitted in both interfaces: the shell's screens and the dialogs a match opens over the
 // battlefield, all centred on a 4:3 panel of their own.  The stretch EA shipped drew every panel, logo
@@ -530,10 +531,9 @@ static Bool startsWithFolder( const char *path, const char *folder )
 	return *path == '/' || *path == '\\';
 }
 
-// The Classic interface puts everything in the 4:3 box (UIRectForScreen), battlefield furniture and
-// all, except the command bar's own layouts.  Classic stretches those as the game shipped them, over
-// the HUD's 16:9 frame (TheHudRect), and layoutPanels and ControlBarLayoutUniform divide the loader's
-// stretch back out, so they must be given it.
+// The Classic interface fits everything at one scale, battlefield furniture and all, except the
+// command bar's own layouts: layoutPanels and ControlBarLayoutUniform divide the loader's stretch
+// back out of those, so they must be given it.
 static Bool barLaysOutItself( const char *filename )
 {
 	static const char *const own[] = { "controlbar.wnd", "generalsexppoints.wnd", "genpowersshortcutbar" };
@@ -543,27 +543,37 @@ static Bool barLaysOutItself( const char *filename )
 	return FALSE;
 }
 
-// The Classic interface's in-match furniture that stands with the command bar, in its 16:9 frame:
-// the build tooltip over the bar, the chat line, the quit menu and diplomacy.  Matched on the file's
-// own name, whatever folder it was asked for under.
-static Bool classicHudLayout( const char *filename )
+// Where a fitted Classic layout stands.  The match's own furniture keeps the corner EA drew it in, as
+// the bar's radar and selection keep theirs: the build tooltip and the chat line over the radar in the
+// bottom left, diplomacy in the top left, the replay controls over the middle of the bar.  Every other
+// layout, the shell's and the dialogs a match opens, is centred.  Matched on the file's own name,
+// whatever folder it was asked for under.
+static Coord2D classicLayoutAnchor( const char *filename )
 {
 	const char *name = filename;
 	for( const char *c = filename; *c; c++ )
 		if( *c == '/' || *c == '\\' )
 			name = c + 1;
-	static const char *const hud[] =
+	static const struct { const char *name; Real x, y; } anchors[] =
 	{
-		"controlbarpopupdescription.wnd", "ingamechat.wnd", "quitmenu.wnd", "quitnosave.wnd", "diplomacy.wnd"
+		{ "controlbarpopupdescription.wnd", 0.0f, 1.0f },
+		{ "ingamechat.wnd", 0.0f, 1.0f },
+		{ "diplomacy.wnd", 0.0f, 0.0f },
+		{ "replaycontrol.wnd", 0.5f, 1.0f },
 	};
-	for( Int i = 0; i < (Int)ARRAY_SIZE( hud ); i++ )
-		if( stricmp( name, hud[ i ] ) == 0 )
-			return TRUE;
-	return FALSE;
+	Coord2D anchor = { 0.5f, 0.5f };
+	for( Int i = 0; i < (Int)ARRAY_SIZE( anchors ); i++ )
+		if( stricmp( name, anchors[ i ].name ) == 0 )
+		{
+			anchor.x = anchors[ i ].x;
+			anchor.y = anchors[ i ].y;
+		}
+	return anchor;
 }
 
 static LayoutPlacement layoutPlacement( const char *filename )
 {
+	theLayoutAnchor.x = theLayoutAnchor.y = 0.5f;
 	if( TheGlobalData == NULL || filename == NULL )
 		return LAYOUT_STRETCH;
 	// "Menus/X.wnd" as the shell names them, or the whole "Window\\Menus\\X.wnd"
@@ -573,7 +583,8 @@ static LayoutPlacement layoutPlacement( const char *filename )
 	{
 		if( barLaysOutItself( filename ) )
 			return LAYOUT_STRETCH;
-		return classicHudLayout( filename ) ? LAYOUT_HUD : LAYOUT_FIT;
+		theLayoutAnchor = classicLayoutAnchor( filename );
+		return LAYOUT_FIT;
 	}
 	return startsWithFolder( filename, "menus" ) ? LAYOUT_FIT : LAYOUT_STRETCH;
 }
@@ -622,20 +633,11 @@ static Bool parseScreenRect( char *token, char *buffer,
 	//
 	const Bool fullScreen = screenRegion.lo.x <= 2 && screenRegion.lo.y <= 2 &&
 		screenRegion.hi.x >= createRes.x - 2 && screenRegion.hi.y >= createRes.y - 2;
-	if( theLayoutPlacement == LAYOUT_HUD )
-	{
-		const UIRect hud = TheHudRect();
-		const Real hudScaleX = (Real)hud.w / (Real)createRes.x;
-		screenRegion.lo.x = (Int)((Real)screenRegion.lo.x * hudScaleX) + hud.x;
-		screenRegion.lo.y = (Int)((Real)screenRegion.lo.y * yScale);
-		screenRegion.hi.x = (Int)((Real)screenRegion.hi.x * hudScaleX) + hud.x;
-		screenRegion.hi.y = (Int)((Real)screenRegion.hi.y * yScale);
-	}
-	else if( theLayoutPlacement == LAYOUT_FIT && ( !fullScreen || TheGlobalData->isClassicUI() ) )
+	if( theLayoutPlacement == LAYOUT_FIT && ( !fullScreen || TheGlobalData->isClassicUI() ) )
 	{
 		const Real scale = min( xScale, yScale );
-		const Real left = ((Real)TheDisplay->getWidth() - (Real)createRes.x * scale) / 2.0f;
-		const Real top = ((Real)TheDisplay->getHeight() - (Real)createRes.y * scale) / 2.0f;
+		const Real left = ((Real)TheDisplay->getWidth() - (Real)createRes.x * scale) * theLayoutAnchor.x;
+		const Real top = ((Real)TheDisplay->getHeight() - (Real)createRes.y * scale) * theLayoutAnchor.y;
 		screenRegion.lo.x = (Int)((Real)screenRegion.lo.x * scale + left);
 		screenRegion.lo.y = (Int)((Real)screenRegion.lo.y * scale + top);
 		screenRegion.hi.x = (Int)((Real)screenRegion.hi.x * scale + left);

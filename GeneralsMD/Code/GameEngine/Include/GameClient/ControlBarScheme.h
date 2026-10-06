@@ -132,9 +132,6 @@ public:
 	~ControlBarScheme( void );
 
 	void validate( void ) const;
-	/** How far this scheme reaches past a 4:3 box of its own height on either side, in its own units.
-		* EA's schemes are 800x600 and say 0; the Classic interface's 16:9 bar is 1066x600 and says 133. */
-	Int getOverhangX( void ) const;
 	void init( void );
 	void update( void );
 	void drawForeground( Coord2D multi, ICoord2D offset );	///< draw function to be called within a w3d draw procedure for the foreground 
@@ -278,15 +275,6 @@ public:
 		* of that side's art - so the scheme wearing the same right hand plate names the side the bar
 		* is really showing.  Empty when nothing else shares it. */
 	AsciiString getCurrentArtTwinSide( void ) const;
-
-	/// the scheme on screen's ControlBarScheme::getOverhangX, 0 with none up
-	Int getCurrentOverhangX( void ) const
-	{ return m_currentScheme ? m_currentScheme->getOverhangX() : 0; }
-
-	/** Whether the painting on screen is solid at this screen point, its layers placed the way
-		* drawBackground and drawForeground put them with the same offset.  A texture that is not a
-		* 32-bit targa counts as solid all over its part. */
-	Bool isPaintedAt( Int x, Int y, ICoord2D offset ) const;
 
 
 	// parse Functions for the INI file

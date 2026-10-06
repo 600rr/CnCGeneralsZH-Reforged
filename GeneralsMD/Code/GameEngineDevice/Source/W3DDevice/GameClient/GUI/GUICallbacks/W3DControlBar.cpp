@@ -687,39 +687,11 @@ static const Image *plateImage( const ControlBarPlate *plate )
 /** Each panel wears a plate of its own now - see ControlBarPlateForSide in ControlBar.cpp for what
 	* a plate is and why the scheme's one-piece painting is not drawn at all. */
 //-------------------------------------------------------------------------------------------------
-//-------------------------------------------------------------------------------------------------
-/** The Classic interface's bar wears EA's one-piece painting, the scheme's own layers, offset by
-	* however far the bar's frame has travelled from where layoutPanels put it (the minimised bar drops
-	* it), the same measure the plates use.  ControlBarSchemeManager::drawBackground puts the painting where the windows are, in the HUD's 16:9 frame. */
-//-------------------------------------------------------------------------------------------------
-static void drawSchemeLayers( GameWindow *window, ControlBarSchemeManager *man, Bool foreground )
-{
-	GameWindow *frame = window ? window->winGetParent() : NULL;
-	if( frame == NULL )
-		return;
-
-	ICoord2D now, offset;
-	frame->winGetScreenPosition( &now.x, &now.y );
-	offset.x = now.x - TheControlBar->getPanelOrigin()->x;
-	offset.y = now.y - TheControlBar->getPanelOrigin()->y;
-
-	if( foreground )
-		man->drawForeground( offset );
-	else
-		man->drawBackground( offset );
-}
-
 void W3DCommandBarBackgroundDraw( GameWindow *window, WinInstanceData *instData )
 {
 	ControlBarSchemeManager *man = TheControlBar ? TheControlBar->getControlBarSchemeManager() : NULL;
 	if( man == NULL || TheDisplay == NULL )
 		return;
-
-	if( TheGlobalData->isClassicUI() )
-	{
-		drawSchemeLayers( window, man, FALSE );
-		return;
-	}
 
 	//
 	// The plates are drawn from the design rectangles rather than from a window, so on their own
@@ -785,12 +757,7 @@ void W3DCommandBarBackgroundDraw( GameWindow *window, WinInstanceData *instData 
 
 void W3DCommandBarForegroundDraw( GameWindow *window, WinInstanceData *instData )
 {
-	// nothing sits on top of the plates - see W3DCommandBarBackgroundDraw - but EA's painting has
-	// a foreground layer
-	ControlBarSchemeManager *man = TheControlBar ? TheControlBar->getControlBarSchemeManager() : NULL;
-	if( man && TheGlobalData->isClassicUI() )
-		drawSchemeLayers( window, man, TRUE );
-
+	// nothing sits on top of the plates - see W3DCommandBarBackgroundDraw
 }
 
 void W3DNoDraw( GameWindow *window, WinInstanceData *instData )

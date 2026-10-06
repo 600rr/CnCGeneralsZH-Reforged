@@ -1702,9 +1702,7 @@ extern Real ControlBarHudPageScale( void );
 	* at the given fraction of the screen (0 = left/top edge, 1 = right/bottom, 0.5 = centred) with
 	* the matching fraction of the design space as its fixed point.  This is layoutPanels for a
 	* layout that is one piece rather than three: the generals' power bar hangs off the right edge
-	* with (1,1) and the science screen is centred at the top with (0.5,0).  The Classic interface
-	* keeps the loader's stretch, as the game shipped, but moves it into the HUD's 16:9 frame
-	* (TheHudRect), which is the screen itself up to 16:9.
+	* with (1,1) and the science screen is centred at the top with (0.5,0).  Both interfaces.
 	*
 	* Call it once, on a layout straight out of winCreateLayout.  It reads the authored rectangle
 	* back out of where the loader put each window, so a second call would divide a scale out that

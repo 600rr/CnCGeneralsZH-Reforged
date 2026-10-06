@@ -11925,20 +11925,11 @@ TEST(the_three_panels_are_one_bar_at_4x3_and_pull_apart_on_a_wide_screen)
 	CHECK( ControlBarPanelDesignToScreen( ControlBar::CB_PANEL_LEFT, &whole, 0, 0, &left ) == FALSE );
 }
 
-TEST(the_classic_bar_is_one_piece_across_the_16x9_hud_frame)
+TEST(the_classic_bar_is_three_plates_on_the_screen_edges_at_one_scale)
 {
-	/* The menus keep the 4:3 box.  The Classic bar is EA's in one piece stretched across the HUD's
-		 16:9 frame: the whole screen up to 16:9, a centred 16:9 with the world down both sides past it. */
-	CHECK_EQ( HudRectForScreen( 1920, 1080 ).x, 0 );
-	CHECK_EQ( HudRectForScreen( 1920, 1080 ).w, 1920 );
-	CHECK_EQ( HudRectForScreen( 2560, 1080 ).x, 320 );
-	CHECK_EQ( HudRectForScreen( 2560, 1080 ).w, 1920 );
-	CHECK_EQ( HudRectForScreen( 5120, 1440 ).x, 1280 );
-	CHECK_EQ( HudRectForScreen( 5120, 1440 ).w, 2560 );
-	CHECK_EQ( HudRectForScreen( 1680, 1050 ).x, 0 );		// 16:10 is narrower: the whole screen
-	CHECK_EQ( HudRectForScreen( 1680, 1050 ).w, 1680 );
-	CHECK_EQ( HudRectForScreen( 1024, 768 ).w, 1024 );
-
+	/* The menus keep the 4:3 box.  The Classic bar is the three plates Reforged's arithmetic puts on
+		 the screen's edges, at every shape of screen: radar on the left edge, grid centred, selection
+		 on the right edge, every one of them the same scale across as down. */
 	CHECK_EQ( UIRectForScreen( 1920, 1080 ).x, 240 );
 	CHECK_EQ( UIRectForScreen( 1920, 1080 ).w, 1440 );
 	CHECK_EQ( UIRectForScreen( 1920, 1080 ).h, 1080 );
@@ -11951,23 +11942,40 @@ TEST(the_classic_bar_is_one_piece_across_the_16x9_hud_frame)
 	TheWritableGlobalData = NEW GlobalData;
 	TheWritableGlobalData->m_interfaceStyle = INTERFACE_STYLE_CLASSIC;
 
-	IRegion2D whole;
-	whole.lo.x = 0;
-	whole.lo.y = 408;
-	whole.hi.x = 800;
-	whole.hi.y = 600;
-	for( Int screen = 0; screen < 2; screen++ )
+	static const Int screens[][ 2 ] =
 	{
-		const Int w = screen ? 2560 : 1920;
-		const UIRect box = HudRectForScreen( w, 1080 );
-		for( Int p = 0; p < ControlBar::CB_PANEL_COUNT; p++ )
-		{
-			IRegion2D rect;
-			CHECK( ControlBarPanelDesignToScreen( p, &whole, w, 1080, &rect ) );
-			CHECK_NEAR( (Real)rect.lo.x, (Real)box.x, 1.5f );
-			CHECK_NEAR( (Real)rect.hi.x, (Real)( box.x + box.w ), 1.5f );
-			CHECK_EQ( rect.hi.y, 1080 );
-		}
+		{ 1024, 768 }, { 1280, 1024 }, { 1680, 1050 }, { 1920, 1080 }, { 2560, 1440 },
+		{ 3840, 2160 }, { 2560, 1080 }, { 3440, 1440 }, { 5120, 1440 }
+	};
+	const IRegion2D *radar = &ControlBarPlateForSide( "America", ControlBar::CB_PANEL_LEFT )->design;
+	const IRegion2D *grid = &ControlBarPlateForSide( "America", ControlBar::CB_PANEL_CENTER )->design;
+	const IRegion2D *selection = &ControlBarPlateForSide( "America", ControlBar::CB_PANEL_RIGHT )->design;
+	for( Int i = 0; i < (Int)( sizeof( screens ) / sizeof( screens[ 0 ] ) ); i++ )
+	{
+		const Int w = screens[ i ][ 0 ];
+		const Int h = screens[ i ][ 1 ];
+		const Real s = ControlBarUniformScaleFor( w, h );
+		IRegion2D left, centre, right;
+		CHECK( ControlBarPanelDesignToScreen( ControlBar::CB_PANEL_LEFT, radar, w, h, &left ) );
+		CHECK( ControlBarPanelDesignToScreen( ControlBar::CB_PANEL_CENTER, grid, w, h, &centre ) );
+		CHECK( ControlBarPanelDesignToScreen( ControlBar::CB_PANEL_RIGHT, selection, w, h, &right ) );
+
+		// the radar on the left edge, the selection on the right, the grid in the middle
+		CHECK_EQ( left.lo.x, 0 );
+		CHECK_EQ( right.hi.x, w );
+		CHECK_NEAR( ( centre.lo.x + centre.hi.x ) * 0.5f, w * 0.5f + ( ( grid->lo.x + grid->hi.x ) * 0.5f - 400.0f ) * s, 2.0f );
+		CHECK_EQ( left.hi.y, h );
+		CHECK_EQ( centre.hi.y, h );
+		CHECK_EQ( right.hi.y, h );
+
+		// nothing stretched: the grid plate is as many times its design width across as down, down
+		// being to the screen's bottom edge, which the plate is snapped onto
+		CHECK_NEAR( (Real)centre.width() / grid->width(), (Real)centre.height() / ( 600 - grid->lo.y ), 0.02f );
+		CHECK_NEAR( (Real)centre.width() / grid->width(), s, 0.02f );
+
+		// the three never overlap past the seams the art already shares at 4:3
+		CHECK( left.hi.x <= centre.lo.x + REAL_TO_INT_CEIL( 4.0f * s ) );
+		CHECK( centre.hi.x <= right.lo.x + REAL_TO_INT_CEIL( 14.0f * s ) );
 	}
 
 	delete TheWritableGlobalData;

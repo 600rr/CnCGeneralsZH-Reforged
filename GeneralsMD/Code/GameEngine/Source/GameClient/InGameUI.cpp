@@ -4454,16 +4454,28 @@ void InGameUI::fadeClassicMessages( void )
 }
 
 //-------------------------------------------------------------------------------------------------
+/** Where an x EA gave as a fraction of its 800 wide screen lands at the HUD's one scale: as far from
+	* the nearer side edge as EA's was, so a column EA put on the right stays on the right of a 32:9
+	* screen.  At 4:3 this is EA's own position. */
+//-------------------------------------------------------------------------------------------------
+static Int hudEdgeX( Real fraction )
+{
+	const Real s = ControlBarUniformScale();
+	if( fraction < 0.5f )
+		return REAL_TO_INT( fraction * 800.0f * s );
+	return TheDisplay->getWidth() - REAL_TO_INT( ( 1.0f - fraction ) * 800.0f * s );
+}
+
+//-------------------------------------------------------------------------------------------------
 void InGameUI::drawClassicMessages( void )
 {
 	fadeClassicMessages();
 	if( !m_messagesOn )
 		return;
 
-	// in the HUD's 16:9 frame with the bar, not the menus' 4:3 box
-	const UIRect box = TheHudRect();
-	const Int x = box.x + m_messagePosition.x;
-	Int y = box.y + m_messagePosition.y;
+	// the screen's own top left corner, not the menus' 4:3 box
+	const Int x = m_messagePosition.x;
+	Int y = m_messagePosition.y;
 	for( Int i = CLASSIC_MESSAGES - 1; i >= 0; i-- )
 	{
 		ClassicMessage &line = m_classicMessages[ i ];
@@ -8533,13 +8545,12 @@ void InGameUI::postDraw( void )
 		m_superweaponIconCount = 0;
 		m_spectatorSuperweapons.clear();
 
-		// the Classic interface writes EA's column of names and clocks instead, inside the HUD's
-		// 16:9 frame beside the bar
+		// the Classic interface writes EA's column of names and clocks instead, in the top right
 		const Bool classic = TheGlobalData->isClassicUI();
-		const UIRect box = TheHudRect();
-		const Int classicX = box.x + REAL_TO_INT( m_superweaponPosition.x * box.w );
-		Int classicY = box.y + REAL_TO_INT( m_superweaponPosition.y * box.h );
-		const Int classicBottom = box.y + REAL_TO_INT( box.h * 0.8f * 0.82f );	// EA's: the view above its bar
+		const Int screenH = TheDisplay->getHeight();
+		const Int classicX = hudEdgeX( m_superweaponPosition.x );
+		Int classicY = REAL_TO_INT( m_superweaponPosition.y * screenH );
+		const Int classicBottom = REAL_TO_INT( screenH * 0.8f * 0.82f );	// EA's: the view above its bar
 
 		for (Int i=0; i<MAX_PLAYER_COUNT; ++i)
 		{
@@ -8705,9 +8716,10 @@ void InGameUI::postDraw( void )
 	{
 //		Int namedTimerCount = 0;
 		Bool reverseXDir = (m_namedTimerPosition.x >= 0.5f);
-		const UIRect box = TheHudRect();
-		Int startX = box.x + (Int)(m_namedTimerPosition.x * box.w);
-		Int startY = box.y + (Int)(m_namedTimerPosition.y * box.h);
+		// Classic keeps EA's column as far in from the right edge as EA had it, at the HUD's scale
+		Int startX = TheGlobalData->isClassicUI() ? hudEdgeX( m_namedTimerPosition.x )
+																							: (Int)(m_namedTimerPosition.x * TheDisplay->getWidth());
+		Int startY = (Int)(m_namedTimerPosition.y * TheDisplay->getHeight());
 		Color bgColor = GameMakeColor( 0, 0, 0, 255 );
 		for (NamedTimerMapIt mapIt = m_namedTimers.begin(); mapIt != m_namedTimers.end(); ++mapIt)
 		{
@@ -9048,10 +9060,13 @@ void InGameUI::militarySubtitle( const AsciiString& label, Int duration )
 	TheInGameUI->disableTooltipsUntil(messageTimeout);
 	
 	// calculate where this screen position should be since the position being passed in is based off 8x6
+	// Classic: at the HUD's one scale from the screen's top left, as the messages are
 	Coord2D multiplier;
-	const UIRect box = TheUIRect();
+	const UIRect box = { 0, 0, (Int)TheDisplay->getWidth(), (Int)TheDisplay->getHeight() };
 	multiplier.x = (float)box.w / 800.0f;
 	multiplier.y = (float)box.h / 600.0f;
+	if( TheGlobalData->isClassicUI() )
+		multiplier.x = multiplier.y = ControlBarUniformScale();
 
 	// lets bring out the data structure!
 	m_militarySubtitle = NEW MilitarySubtitleData;

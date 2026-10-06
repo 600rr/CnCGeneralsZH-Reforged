@@ -294,26 +294,6 @@ inline UIRect UIRectForScreen( Int screenWidth, Int screenHeight )
 UIRect TheUIRect( void );
 
 //-------------------------------------------------------------------------------------------------
-/** The Classic interface's in-match HUD frame: the command bar, the powers beside it, the promotion
-	* screen, the superweapon clocks and the messages are laid out for 16:9.  On anything wider the
-	* 16:9 frame stands in the middle at full height; on anything narrower it is the whole screen. */
-//-------------------------------------------------------------------------------------------------
-inline UIRect HudRectForScreen( Int screenWidth, Int screenHeight )
-{
-	UIRect r = { 0, 0, screenWidth, screenHeight };
-	const Int wide = (Int)( screenHeight * 16.0f / 9.0f + 0.5f );
-	if( screenWidth > wide )
-	{
-		r.w = wide;
-		r.x = ( screenWidth - wide ) / 2;
-	}
-	return r;
-}
-
-/// The HUD frame: HudRectForScreen in the Classic interface, the whole screen in Reforged.
-UIRect TheHudRect( void );
-
-//-------------------------------------------------------------------------------------------------
 inline Real TheUIScale( void )
 {
 	if( TheDisplay == NULL )
