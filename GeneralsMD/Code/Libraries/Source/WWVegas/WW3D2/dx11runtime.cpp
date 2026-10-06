@@ -289,6 +289,11 @@ void Direct3D11_Take_Scene_Depth()
 	}
 }
 
+void Direct3D11_Allow_Soft_Particles(bool allowed)
+{
+	Backend.Allow_Soft_Particles(allowed);
+}
+
 bool Direct3D11_Begin_Shadow_Map(unsigned size)
 {
 	return Active ? Backend.Begin_Shadow_Map(size) : false;

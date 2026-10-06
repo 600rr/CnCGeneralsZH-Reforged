@@ -311,6 +311,7 @@ DX11BackendClass::DX11BackendClass()
 	memset(BlastLights, 0, sizeof(BlastLights));
 	BlastLightCount = 0;
 	SoftParticles = false;
+	SoftParticlesAllowed = true;
 	SceneDepthCopy = NULL;
 	SceneDepthCopyView = NULL;
 	SceneDepthStale = true;
@@ -952,7 +953,7 @@ void DX11BackendClass::Set_Soft_Particles(bool soft)
 		hard, because faded towards zero it would darken rather than vanish. */
 unsigned DX11BackendClass::Soft_Particle() const
 {
-	if (!SoftParticles || SceneDepthCopyView == NULL || ShadowMapBound) {
+	if (!SoftParticles || !SoftParticlesAllowed || SceneDepthCopyView == NULL || ShadowMapBound) {
 		return SOFT_PARTICLE_NONE;
 	}
 	if (VertexProgram != ENGINE_SHADER_NONE || PixelProgram != ENGINE_SHADER_NONE
@@ -995,7 +996,7 @@ void DX11BackendClass::Release_Scene_Depth()
 		changes either, and refreshed only when a draw has written depth since the last one. */
 void DX11BackendClass::Take_Scene_Depth()
 {
-	if (SceneDepthRefused || Device == NULL) {
+	if (SceneDepthRefused || !SoftParticlesAllowed || Device == NULL) {
 		return;
 	}
 	ID3D11ShaderResourceView * const source_view = Device->Get_Depth_Texture();

@@ -133,6 +133,10 @@ void Direct3D11_Set_Soft_Particles(bool soft);
 // sorting pool calls it at the top of each flush, before any particle run resolves its program.
 void Direct3D11_Take_Scene_Depth();
 
+// Whether the soft particles run at all.  Off under the Classic graphics setting, so its picture
+// matches -d3d9's.  On by default.
+void Direct3D11_Allow_Soft_Particles(bool allowed);
+
 // The sun's depth buffer.  Between Begin and End every draw lands in it and nowhere else, which is
 // how the caster pass is written without the engine knowing what a render target is.  False from
 // Begin means there is no Direct3D 11 backend or the device refused the surface, and the caller

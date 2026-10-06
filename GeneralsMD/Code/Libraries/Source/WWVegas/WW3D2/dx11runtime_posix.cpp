@@ -64,6 +64,7 @@ void Direct3D11_Set_Blast_Lights(const float *, unsigned) {}
 bool Direct3D11_Lights_Per_Pixel() { return false; }
 void Direct3D11_Set_Soft_Particles(bool) {}
 void Direct3D11_Take_Scene_Depth() {}
+void Direct3D11_Allow_Soft_Particles(bool) {}
 
 bool Direct3D11_Begin_Shadow_Map(unsigned) { return false; }
 void Direct3D11_End_Shadow_Map() {}

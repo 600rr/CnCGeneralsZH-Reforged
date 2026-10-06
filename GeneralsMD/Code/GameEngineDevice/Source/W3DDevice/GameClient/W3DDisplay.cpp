@@ -831,6 +831,8 @@ static void sizeWindowToClient( Int mode, Int width, Int height )
 // and share the back buffer's depth with it.
 static void pushDirect3D11PostChain( void )
 {
+	// Classic graphics is the game's own picture, which is what -d3d9 draws: hard edged sprites.
+	Direct3D11_Allow_Soft_Particles( !TheGlobalData->m_classicGraphics );
 	const AsciiString & requested = TheGlobalData->m_direct3D11PostChain;
 	if( !Direct3D11_Post_Chain( requested.str() ) && !requested.isEmpty() )
 	{

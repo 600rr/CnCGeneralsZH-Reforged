@@ -113,6 +113,14 @@ public:
 	void Take_Scene_Depth();
 	// How many depth copies Take_Scene_Depth made since the last call.  Taking it resets it.
 	unsigned Take_Frame_Depth_Copies();
+	// Off under the Classic graphics setting, whose picture is -d3d9's: no draw fades, no copy.
+	void Allow_Soft_Particles(bool allowed)
+	{
+		if (SoftParticlesAllowed != allowed) {
+			SoftParticlesAllowed = allowed;
+			PipelineChanged = true;
+		}
+	}
 
 	// The engine bound a texture at this stage that has no D3D11 copy - a render target it drew
 	// into, most often.  Sampling white there paints a full screen quad over the frame, so a draw
@@ -495,6 +503,7 @@ private:
 	unsigned BlastLightCount;
 	// Set_Soft_Particles, and which fade the current draw takes (a SOFT_PARTICLE_* value).
 	bool SoftParticles;
+	bool SoftParticlesAllowed;
 	unsigned Soft_Particle() const;
 	// The scene's depth as a texture, copied when a soft particle first needs it after anything
 	// wrote depth: a depth buffer cannot be sampled while it is the one being tested against.
