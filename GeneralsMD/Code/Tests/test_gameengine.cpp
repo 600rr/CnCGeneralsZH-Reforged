@@ -7338,6 +7338,19 @@ TEST(the_spy_drone_wears_a_health_bar_and_a_toxin_field_does_not)
 	CHECK( Drawable_kindShowsHealthBar( healthBarKinds( KINDOF_INERT, KINDOF_SELECTABLE ) ) == FALSE );
 }
 
+/** The planes a general's power sends over carry no SELECTABLE, and the cargo planes and the
+	 carpet bomber are FORCEATTACKABLE as well. The death puppet rule took their bars; anti-air
+	 shoots them down, so an aircraft keeps one. The artillery barrage's UNATTACKABLE dummy does not. */
+TEST(a_strike_or_cargo_plane_wears_a_health_bar)
+{
+	CHECK( Drawable_kindShowsHealthBar( healthBarKinds( KINDOF_VEHICLE, KINDOF_AIRCRAFT, KINDOF_CAN_ATTACK ) ) == TRUE );		// A-10, B-52, MiG
+	CHECK( Drawable_kindShowsHealthBar( healthBarKinds( KINDOF_AIRCRAFT, KINDOF_TRANSPORT, KINDOF_FORCEATTACKABLE ) ) == TRUE );	// cargo plane
+	CHECK( Drawable_kindShowsHealthBar( healthBarKinds( KINDOF_AIRCRAFT, KINDOF_SELECTABLE ) ) == TRUE );		// a Raptor you built
+	CHECK( Drawable_kindShowsHealthBar( healthBarKinds( KINDOF_AIRCRAFT, KINDOF_UNATTACKABLE ) ) == FALSE );	// artillery barrage dummy
+	CHECK( Drawable_kindShowsHealthBar( healthBarKinds( KINDOF_FORCEATTACKABLE ) ) == FALSE );					// a fence
+	CHECK( Drawable_kindShowsHealthBar( healthBarKinds( KINDOF_INFANTRY ) ) == FALSE );							// a pedestrian, a death puppet
+}
+
 /** Only a slow gun wears the amber reload bar: over three seconds a shot, a clip's reload spread
 	 over the shots in it. Frames, at 30 a second. */
 TEST(only_a_slow_firing_weapon_wears_a_reload_bar)
