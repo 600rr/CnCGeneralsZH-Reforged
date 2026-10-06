@@ -456,7 +456,9 @@ void W3DSmudgeManager::render(RenderInfoClass &rinfo)
 			// pixels across at the default zoom, sixteen to twenty-four of them overlap, and each
 			// blended a copy of the ground shifted by up to twenty pixels over the unshifted one,
 			// on both devices.  Held to a few pixels of the view it stays a shimmer at any size.
-			const Real MAX_PULL = 0.004f;	// of the view's width and height, about 8 pixels at 1920
+			// 0.004 kept the doubling off and the nuke's ring with it, readable for half a second;
+			// 0.006 stacked shifted copies of the flash's white edge into stepped bands
+			const Real MAX_PULL = 0.005f;	// of the view's width and height, about 10 pixels at 1920
 			const Real pullX = WWMath::Clamp(uvSpanX*smudge->m_offset.X, -MAX_PULL*texClampX, MAX_PULL*texClampX);
 			// .Y, not .X: the vertical offset was rolled, clamped against the top and bottom of the
 			// view a dozen lines up, and then never read - the centre vertex took the horizontal
