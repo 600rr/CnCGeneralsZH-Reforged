@@ -37,6 +37,7 @@
 #include "GameClient/TerrainVisual.h" // for TERRAIN_LOD_MIN definition
 #include "GameClient/GameText.h"
 #include "GameClient/ChromaKeyboard.h"
+#include "GameClient/GameConsole.h" // for -freecam
 #include "GameNetwork/GameInfo.h" // for the SlotState -autoskirmish hands the AI slots
 #include "GameNetwork/NetworkUtil.h" // for ResolveIP, which -lanip parses its address with
 #include "Common/FileSystem.h"
@@ -1969,6 +1970,22 @@ Int parseCinema(char *args[], int num)
 	return 1;
 }
 
+/* -freecam <x> <y> <z> <heading> <tilt> puts the match into the console's freecam at that pose once
+	 it is up, the way typing 'freecam x y z heading tilt' would.  A screenshot script cannot fly the
+	 camera with the mouse, so this is how a photo-mode picture is taken unattended.  Angles are in
+	 degrees, heading 0 along +x, tilt 0 level and negative looking down. */
+Int parseFreeCamera(char *args[], int num)
+{
+	if (num > 5)
+	{
+		AsciiString pose;
+		pose.format("%s %s %s %s %s", args[1], args[2], args[3], args[4], args[5]);
+		GameConsole_setStartupFreeCamera(pose.str());
+		return 6;
+	}
+	return 1;
+}
+
 /* -side <slot> <faction> nails one -autoskirmish slot to a faction instead of letting the seed
 	 pick it.
 
@@ -2557,6 +2574,7 @@ static CommandLineParam params[] =
 	{ "-nodevice", parseNoDevice },
 	{ "-scenario", parseScenario },
 	{ "-cinema", parseCinema },
+	{ "-freecam", parseFreeCamera },
 	{ "-side", parseSide },
 	{ "-takeover", parseTakeover },
 	{ "-replay", parseReplay },

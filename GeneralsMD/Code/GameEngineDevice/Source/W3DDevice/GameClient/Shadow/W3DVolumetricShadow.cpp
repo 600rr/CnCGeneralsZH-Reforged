@@ -121,6 +121,15 @@ const Real cosAngleToCare = cos ((0.2 * PI) / 180.0);	//1.5 degree difference
 #define SHADOW_MAP_SUN_DISTANCE 2000.0f
 #define SHADOW_MAP_NEAR_CLIP 10.0f
 #define SHADOW_MAP_FAR_CLIP 4000.0f
+// The console's freecam can look across the whole map at once, so its box is the whole map rather
+// than the ground around a look point, and the map is four times as wide to keep the texels about
+// the size they are at the usual zoom: a 6000 unit map is a box about 8500 across, a unit a texel.
+// 8192 square at 32 bits is 256 MB of video memory while the freecam flies; a device that refuses
+// it gets the usual 2048 over the same box, coarser.  Aircraft fly up to this far above the highest
+// ground and still have to be inside the box's depth.
+#define SHADOW_MAP_WHOLE_MAP_TEXELS 8192
+#define SHADOW_MAP_WHOLE_MAP_HEADROOM 600.0f
+#define SHADOW_MAP_WHOLE_MAP_DEPTH_MARGIN 200.0f
 // How far a surface has to be behind what the map holds before it counts as shadowed, how dark a
 // fully blocked pixel goes, and how far the filter reaches in texels.  The first is the one that
 // decides between a surface shadowing itself in stripes and a shadow lifting off its own caster.
@@ -3890,7 +3899,7 @@ struct SmokeCaster
 		particles nearest the camera's focus win, so a new fire on screen is never starved by old smoke
 		at the edge.  Every system with a particle in the map is marked, and those lose their blob;
 		with the option off, or the map refused, none is. */
-static void fillSmokeMap( const Matrix3D &sunTransform, const Vector3 &focus, Real halfWidth )
+static void fillSmokeMap( const Matrix3D &sunTransform, const Vector3 &focus, Real halfWidth, Real farClip )
 {
 	static std::vector<SmokeCaster> found;	// kept: a burning base is thousands of particles every frame
 	static std::vector<Real> packed;
@@ -3931,7 +3940,7 @@ static void fillSmokeMap( const Matrix3D &sunTransform, const Vector3 &focus, Re
 				Matrix3D::Inverse_Transform_Vector( sunTransform, Vector3( pos->x, pos->y, pos->z ), &inSun );
 				const Real reach = halfWidth + radius;
 				if (inSun.X < -reach || inSun.X > reach || inSun.Y < -reach || inSun.Y > reach
-						|| -inSun.Z < SHADOW_MAP_NEAR_CLIP - radius || -inSun.Z > SHADOW_MAP_FAR_CLIP + radius)
+						|| -inSun.Z < SHADOW_MAP_NEAR_CLIP - radius || -inSun.Z > farClip + radius)
 					continue;
 
 				SmokeCaster caster;
@@ -4137,6 +4146,40 @@ static Real shadowMapHalfWidth( const CameraClass &sceneCamera, const Matrix3D &
 	return held;
 }
 
+/** The freecam's box: the whole map.  Its middle at the lowest ground, and its eight corners at the
+		lowest ground and at the highest plus aircraft headroom, taken into the sun's frame, give the half
+		width and how far the box reaches toward the sun and away from it.  The sun's seat is set back
+		past the nearest corner and the far plane past the furthest, so nothing on the map falls out of
+		the box's depth however low the sun is. */
+static void wholeMapSunBox( const Vector3 &toSun, Vector3 *focus, Real *halfWidth, Real *sunDistance, Real *farClip )
+{
+	Region3D extent;
+	TheTerrainRenderObject->getDrawnExtent( &extent );	// the border ring is drawn, so it takes shadows too
+	const Real lowest = extent.lo.z;
+	const Real highest = extent.hi.z + SHADOW_MAP_WHOLE_MAP_HEADROOM;
+	focus->Set( (extent.lo.x + extent.hi.x) * 0.5f, (extent.lo.y + extent.hi.y) * 0.5f, lowest );
+
+	Matrix3D sunAtFocus;
+	sunAtFocus.Look_At( *focus + toSun, *focus, 0.0f );
+	Real across = 0.0f;
+	Real towardSun = 0.0f;
+	Real awayFromSun = 0.0f;
+	for (Int corner = 0; corner < 8; ++corner)
+	{
+		const Vector3 at( (corner & 1) ? extent.hi.x : extent.lo.x, (corner & 2) ? extent.hi.y : extent.lo.y,
+			(corner & 4) ? highest : lowest );
+		Vector3 inSun;
+		Matrix3D::Inverse_Transform_Vector( sunAtFocus, at, &inSun );
+		across = WWMath::Max( across, WWMath::Max( WWMath::Fabs( inSun.X ), WWMath::Fabs( inSun.Y ) ) );
+		const Real along = Vector3::Dot_Product( at - *focus, toSun );
+		towardSun = WWMath::Max( towardSun, along );
+		awayFromSun = WWMath::Max( awayFromSun, -along );
+	}
+	*halfWidth = WWMath::Ceil( across / SHADOW_MAP_HALF_WIDTH_STEP ) * SHADOW_MAP_HALF_WIDTH_STEP;
+	*sunDistance = towardSun + SHADOW_MAP_WHOLE_MAP_DEPTH_MARGIN + SHADOW_MAP_NEAR_CLIP;
+	*farClip = *sunDistance + awayFromSun + SHADOW_MAP_WHOLE_MAP_DEPTH_MARGIN;
+}
+
 /** The sun's depth pass.  The casters are the ones that cast a volume today, drawn again from the
 		sun into a depth buffer nothing samples yet, so this phase can be proved on its own: with it
 		off the frame is what it was, and with it on the map has the world in it and the frame is
@@ -4147,8 +4190,30 @@ void W3DVolumetricShadowManager::renderShadowMap( CameraClass &sceneCamera )
 {
 	theShadowMapHoldsTheFrame = FALSE;
 
-	if (!TheGlobalData->m_shadowMap || m_shadowList == NULL || TheTacticalView == NULL
-		|| !Direct3D11_Begin_Shadow_Map( SHADOW_MAP_TEXELS ))
+	/* The freecam asks for a map four times as wide and makes do with the usual one if refused.  A
+		 refusal is remembered until the freecam lands: asking again every frame released the usual
+		 map, failed the large one and made the usual one again, a texture rebuild a frame. */
+	const Bool wholeMap = TheTacticalView != NULL && TheTacticalView->isFreeCamera();
+	static Bool wholeMapRefused = FALSE;
+	if (!wholeMap)
+		wholeMapRefused = FALSE;
+	UnsignedInt texels = SHADOW_MAP_TEXELS;
+	Bool begun = FALSE;
+	if (TheGlobalData->m_shadowMap && m_shadowList != NULL && TheTacticalView != NULL)
+	{
+		if (wholeMap && !wholeMapRefused && Direct3D11_Begin_Shadow_Map( SHADOW_MAP_WHOLE_MAP_TEXELS ))
+		{
+			texels = SHADOW_MAP_WHOLE_MAP_TEXELS;
+			begun = TRUE;
+		}
+		else
+		{
+			if (wholeMap)
+				wholeMapRefused = TRUE;
+			begun = Direct3D11_Begin_Shadow_Map( SHADOW_MAP_TEXELS );
+		}
+	}
+	if (!begun)
 	{
 		//no Direct3D 11 device, or it refused the surface: the volumes keep the frame, no smoke is
 		//read out of a map the last frame filled, and every cloud keeps its blob
@@ -4168,44 +4233,53 @@ void W3DVolumetricShadowManager::renderShadowMap( CameraClass &sceneCamera )
 	tShadowStart = Clock_Ticks();
 #endif
 
-	Coord3D look;
-	TheTacticalView->getPosition( &look );
-	const Vector3 focus( look.x, look.y, TheTerrainLogic->getGroundHeight( look.x, look.y ) );
-
 	Vector3 toSun = TheW3DShadowManager->getLightPosWorld( 0 );
 	toSun.Normalize();
 
+	Vector3 focus;
+	Real halfWidth;
+	Real sunDistance = SHADOW_MAP_SUN_DISTANCE;
+	Real farClip = SHADOW_MAP_FAR_CLIP;
 	Matrix3D transform;
-	transform.Look_At( focus + toSun * SHADOW_MAP_SUN_DISTANCE, focus, 0.0f );
-
 	const Real lowestReceiver = TheTerrainRenderObject->getMinHeight();
-	const Real halfWidth = shadowMapHalfWidth( sceneCamera, transform, lowestReceiver,
-		TheTerrainRenderObject->getMaxHeight() );
+	if (wholeMap)
+	{
+		wholeMapSunBox( toSun, &focus, &halfWidth, &sunDistance, &farClip );
+		transform.Look_At( focus + toSun * sunDistance, focus, 0.0f );
+	}
+	else
+	{
+		Coord3D look;
+		TheTacticalView->getPosition( &look );
+		focus.Set( look.x, look.y, TheTerrainLogic->getGroundHeight( look.x, look.y ) );
+		transform.Look_At( focus + toSun * sunDistance, focus, 0.0f );
+		halfWidth = shadowMapHalfWidth( sceneCamera, transform, lowestReceiver,
+			TheTerrainRenderObject->getMaxHeight() );
+	}
 
 	CameraClass sun;
 	sun.Set_Projection_Type( CameraClass::ORTHO );
 	sun.Set_View_Plane( Vector2( -halfWidth, -halfWidth ), Vector2( halfWidth, halfWidth ) );
-	sun.Set_Clip_Planes( SHADOW_MAP_NEAR_CLIP, SHADOW_MAP_FAR_CLIP );
+	sun.Set_Clip_Planes( SHADOW_MAP_NEAR_CLIP, farClip );
 
 	/* The box has to sit on whole texels of its own map, or every scroll of the camera slides the
 		 grid under the world by a fraction of a texel and every shadow edge crawls and sparkles.  The
 		 look point is taken into the sun's own frame, rounded to the texel it lands in, and taken back
 		 out: the box then moves in texel steps and a shadow that did not move does not shimmer. */
-	const Real texelWidth = (2.0f * halfWidth) / (Real)SHADOW_MAP_TEXELS;
+	const Real texelWidth = (2.0f * halfWidth) / (Real)texels;
 	Vector3 focusInSun;
 	Matrix3D::Inverse_Transform_Vector( transform, focus, &focusInSun );
 	focusInSun.X = WWMath::Floor( focusInSun.X / texelWidth + 0.5f ) * texelWidth;
 	focusInSun.Y = WWMath::Floor( focusInSun.Y / texelWidth + 0.5f ) * texelWidth;
 	Vector3 snapped;
 	Matrix3D::Transform_Vector( transform, focusInSun, &snapped );
-	transform.Look_At( snapped + toSun * SHADOW_MAP_SUN_DISTANCE, snapped, 0.0f );
+	transform.Look_At( snapped + toSun * sunDistance, snapped, 0.0f );
 
 	sun.Set_Transform( transform );
 
 	Matrix4x4 projection;
 	sun.Get_D3D_Projection_Matrix( &projection );
-	DX8Wrapper::Set_Projection_Transform_With_Z_Bias( projection, SHADOW_MAP_NEAR_CLIP,
-		SHADOW_MAP_FAR_CLIP );
+	DX8Wrapper::Set_Projection_Transform_With_Z_Bias( projection, SHADOW_MAP_NEAR_CLIP, farClip );
 	Matrix3D view;
 	transform.Get_Orthogonal_Inverse( view );
 	DX8Wrapper::Set_Transform( D3DTS_VIEW, view );
@@ -4233,8 +4307,9 @@ void W3DVolumetricShadowManager::renderShadowMap( CameraClass &sceneCamera )
 
 	/* The filter's limits were chosen in texels of the 900 box.  Held at the same width on the ground
 		 as the box opens, a tank's edge stays as hard and a helicopter's shadow as pale from full height
-		 as it does at the usual one; counted in texels they would both spread with the zoom. */
-	const Real texelsPerBoxTexel = SHADOW_MAP_HALF_WIDTH / halfWidth;
+		 as it does at the usual one; counted in texels they would both spread with the zoom.  The
+		 freecam's larger map is the same rule: it is the width of a texel on the ground that counts. */
+	const Real texelsPerBoxTexel = (2.0f * SHADOW_MAP_HALF_WIDTH / (Real)SHADOW_MAP_TEXELS) / texelWidth;
 	const Real widest = texelsPerBoxTexel * ((TheGlobalData->m_shadowMapWidest > 0.0f)
 		? TheGlobalData->m_shadowMapWidest : SHADOW_MAP_WIDEST_TEXELS);
 	const Real narrowest = texelsPerBoxTexel * SHADOW_MAP_NARROWEST_TEXELS;
@@ -4326,7 +4401,9 @@ void W3DVolumetricShadowManager::renderShadowMap( CameraClass &sceneCamera )
 	Direct3D11_End_Shadow_Map();
 
 	// The smoke goes into a map of its own through the sun the casters were just drawn with.
-	fillSmokeMap( transform, focus, halfWidth );
+	// past the map's limit the smoke nearest the camera wins: the freecam's box is centred on the
+	// map's middle, which is not where it is looking from
+	fillSmokeMap( transform, wholeMap ? sceneCamera.Get_Position() : focus, halfWidth, farClip );
 
 	// The frame's own camera, put back: the view, the projection and the viewport all went with the
 	// sun.  Without this everything drawn after the pass is drawn from the sun's seat, which is the
@@ -4353,7 +4430,13 @@ void W3DVolumetricShadowManager::renderShadowMap( CameraClass &sceneCamera )
 		 many world units across, and a unit of depth is the whole of the near to far range, because
 		 an orthographic projection puts depth on a straight line. */
 	const Real worldPerTexel = texelWidth;
-	const Real unitsPerUnitOfDepth = SHADOW_MAP_FAR_CLIP - SHADOW_MAP_NEAR_CLIP;
+	const Real unitsPerUnitOfDepth = farClip - SHADOW_MAP_NEAR_CLIP;
+	/* The bias is a share of that range, picked for the usual 3990 units.  The freecam's deeper box
+		 would stretch it to tens of units and lift every shadow off its caster, so it is held at the
+		 same distance in the world: six units. */
+	const Real depthBias = wholeMap
+		? SHADOW_MAP_DEPTH_BIAS * (SHADOW_MAP_FAR_CLIP - SHADOW_MAP_NEAR_CLIP) / unitsPerUnitOfDepth
+		: SHADOW_MAP_DEPTH_BIAS;
 
 	// -shadowtune overrules any of the four that it was given; a zero leaves the build's own.
 	const Real penumbra = (TheGlobalData->m_shadowMapPenumbra > 0.0f)
@@ -4363,7 +4446,7 @@ void W3DVolumetricShadowManager::renderShadowMap( CameraClass &sceneCamera )
 	const Real strength = (TheGlobalData->m_shadowMapStrength > 0.0f)
 		? TheGlobalData->m_shadowMapStrength : SHADOW_MAP_STRENGTH;
 
-	Direct3D11_Set_Shadow_Parameters( SHADOW_MAP_DEPTH_BIAS, strength, widest,
+	Direct3D11_Set_Shadow_Parameters( depthBias, strength, widest,
 		narrowest, penumbra / worldPerTexel, unitsPerUnitOfDepth, skyFill );
 
 	/* Said last, and only on the way out: everything above can bail, and the volumes have to know

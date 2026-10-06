@@ -1085,6 +1085,16 @@ void BaseHeightMapRenderObjClass::Get_Obj_Space_Bounding_Box(AABoxClass & box) c
 	a volume enclosing things that can float above terrain.
  */
 //-------------------------------------------------------------------------------------------------
+/** TerrainLogic::getExtent is the playable map from 0,0; the terrain draws every cell of the
+		heightmap, the border ring around it too, and that is what the freecam can see. */
+void BaseHeightMapRenderObjClass::getDrawnExtent(Region3D *extent)
+{
+	const Int border = m_map->getBorderSizeInline();
+	extent->lo.set( -border * MAP_XY_FACTOR, -border * MAP_XY_FACTOR, m_minHeight );
+	extent->hi.set( (m_map->getXExtent() - 1 - border) * MAP_XY_FACTOR,
+		(m_map->getYExtent() - 1 - border) * MAP_XY_FACTOR, m_maxHeight );
+}
+
 Bool BaseHeightMapRenderObjClass::getMaximumVisibleBox(const FrustumClass &frustum, AABoxClass *box, Bool ignoreMaxHeight)
 {
 	//create a plane from the lowest point on the terrain

@@ -437,6 +437,19 @@ void Win32Mouse::setVisibility(Bool visible)
 	Win32Mouse::setCursor(getMouseCursor());
 }
 
+/** The freecam's mouse look puts the pointer back in the middle of the window every frame.  Never
+		while another window is in front: the pointer is that window's then. */
+Bool Win32Mouse::warpCursor( Int x, Int y )
+{
+	if( ::GetForegroundWindow() != ApplicationHWnd )
+		return FALSE;
+	POINT screen = { x, y };
+	if( !::ClientToScreen( ApplicationHWnd, &screen ) || !::SetCursorPos( screen.x, screen.y ) )
+		return FALSE;
+	setPosition( x, y );
+	return TRUE;
+}
+
 /**Preload all the cursors we may need during the game.  This must be done before the D3D device
 is created to avoid cursor corruption on buggy ATI Radeon cards. */
 void Win32Mouse::initCursorResources(void)

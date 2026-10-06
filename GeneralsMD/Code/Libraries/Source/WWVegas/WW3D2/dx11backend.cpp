@@ -484,11 +484,24 @@ void DX11BackendClass::Shutdown()
 
 /** The sun's depth buffer.  One surface with two views of it, because a depth buffer that is also
 		sampled cannot be made as a depth format: the surface is typeless and each view says how its
-		bits are to be read.  Made at the first size asked for and kept at that size. */
+		bits are to be read.  Made at the size asked for and kept while that is what is asked for; the
+		console's freecam asks for a larger one over the whole map, and the surface is made again at
+		whichever size the frame wants.  The views are dropped with it; a draw that still has the old
+		texture view bound holds its own reference until the unbind below. */
 bool DX11BackendClass::Begin_Shadow_Map(unsigned size)
 {
 	if (Device == NULL || size == 0 || ShadowMapBound) {
 		return false;
+	}
+
+	if (ShadowMapSurface != NULL && ShadowMapSize != size) {
+		ShadowMapTexture->Release();
+		ShadowMapTexture = NULL;
+		ShadowMapDepth->Release();
+		ShadowMapDepth = NULL;
+		ShadowMapSurface->Release();
+		ShadowMapSurface = NULL;
+		ShadowMapSize = 0;
 	}
 
 	if (ShadowMapSurface == NULL) {

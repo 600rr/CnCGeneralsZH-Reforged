@@ -242,6 +242,27 @@ public:
 	virtual void forceCameraConstraintRecalc(void) {}
 	virtual void setGuardBandBias( const Coord2D *gb ) = 0;
 
+	/** The console's freecam, a photo mode: the camera flies on its own from an eye point with a
+		* heading and a tilt, free of the look point, the zoom, the pitch range and the map's edges, and
+		* draws the whole map.  The look point (getPosition) stays where it was, so nothing that reads
+		* it sees the flight.  Client only. */
+	enum FreeCameraKeys
+	{
+		FREECAM_FORWARD = 0x01,
+		FREECAM_BACK		= 0x02,
+		FREECAM_LEFT		= 0x04,
+		FREECAM_RIGHT		= 0x08,
+		FREECAM_UP			= 0x10,
+		FREECAM_DOWN		= 0x20,
+	};
+	virtual void setFreeCamera( Bool on ) { }
+	virtual Bool isFreeCamera( void ) const { return FALSE; }
+	/// eye in world units, heading and tilt in radians (heading 0 looks along +x, tilt 0 is level)
+	virtual void setFreeCameraPose( const Coord3D *eye, Real heading, Real tilt ) { }
+	virtual void getFreeCameraPose( Coord3D *eye, Real *heading, Real *tilt ) const { }
+	/// which of the FreeCameraKeys are held
+	virtual void setFreeCameraKeys( UnsignedInt keys ) { }
+
 protected:
 
 	friend class Display;
