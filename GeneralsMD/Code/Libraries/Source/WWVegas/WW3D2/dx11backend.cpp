@@ -1880,6 +1880,9 @@ bool DX11BackendClass::Shadow_Receiving() const
 			|| destination == D3DBLEND_DESTCOLOR || source == D3DBLEND_DESTCOLOR) {
 			return false;	// additive and multiplicative passes: fire, glow, the shadows themselves
 		}
+		if (destination == D3DBLEND_INVSRCCOLOR) {
+			return false;	// the toxin field's stain: its colour is light taken away, and shaded it ran backwards
+		}
 	}
 	return true;
 }
