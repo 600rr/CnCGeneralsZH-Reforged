@@ -5861,6 +5861,9 @@ void ControlBar::showPurchaseScience( void )
 	m_purchaseScienceOpen = TRUE;
 	//switchToContext(CB_CONTEXT_PURCHASE_SCIENCE, NULL);
 	m_contextParent[ CP_PURCHASE_SCIENCE ]->winHide(FALSE);
+	// the screen's foot (to 434 of 600) runs under the command bar's top edge (416), and the first
+	// window under the pointer takes the click, so the screen goes in front of the bar while it is up
+	m_contextParent[ CP_PURCHASE_SCIENCE ]->winBringToTop();
 	TheInGameUI->openPromotionPage();
 	// the fade holds the screen hidden for nine frames and draws the side's old painting of it fading
 	// in, which the page has replaced
@@ -6044,8 +6047,13 @@ void ControlBar::updatePurchaseScienceHotKeys( void )
 	{
 		GameWindow *candidate = purchaseScienceCandidate( column );
 
+		// Classic's number keys pick teams on this screen as they did in 1.04 (SelectionXlat), so a
+		// column key here would name a key that buys nothing
 		UnicodeString label;
-		if( m_purchaseScienceColumn < 0 || m_purchaseScienceColumn == column )
+		if( barIsClassic() )
+		{
+		}
+		else if( m_purchaseScienceColumn < 0 || m_purchaseScienceColumn == column )
 			label = getMetaKeyLabel( (GameMessage::Type)( GameMessage::MSG_META_SELECT_TEAM1 + column ) );
 
 		for( Int depth = 0; depth < PURCHASE_SCIENCE_COLUMN_DEPTH; depth++ )
@@ -6480,6 +6488,15 @@ void ControlBar::arrangeSpecialPowerShortcutGrid( void )
 	const Bool classic = barIsClassic();
 	if( classic )
 		columnStep = columnStep * 2 / 3;
+
+	//
+	// Classic's bar keeps the authored height, 3..420 of the 800x600 screen, and widened for the
+	// row it stood over the right half of the promotion screen and the battlefield beside the
+	// powers.  An empty stretch of it took every click there and did nothing with it.  The bar
+	// itself takes none now; its slots and buttons still do
+	//
+	if( classic )
+		m_specialPowerShortcutParent->winSetStatus( WIN_STATUS_NO_INPUT );
 	const Int columns = classic ? m_currentlyUsedSpecialPowersButtons
 															: MIN( m_currentlyUsedSpecialPowersButtons, (Int)SPECIAL_POWER_SHORTCUT_COLS );
 	const Int widen = ( columns - 1 ) * columnStep;
