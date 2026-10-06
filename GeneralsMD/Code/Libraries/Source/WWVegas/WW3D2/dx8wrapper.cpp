@@ -4589,10 +4589,10 @@ void DX8Wrapper::Set_Gamma(float gamma,float bright,float contrast,bool calibrat
 
 	if (Get_Current_Caps()->Support_Gamma() && !_PresentParameters.Windowed)	{
 		DX8Wrapper::_Get_D3D_Device()->SetGammaRamp(PRIMARY_SWAP_CHAIN,flag,&ramp);
-	} else if (Direct3D11_Present_Is_Enabled()) {
-		// A windowed Direct3D 9 device ignores its gamma ramp, so the fullscreen display under the
-		// Direct3D 11 picture sets the desktop's, keeps the desktop's own to give back on the way out,
-		// and puts the game's on again when the game comes back.
+	} else if (!IsWindowed || Direct3D11_Present_Is_Enabled()) {
+		// A windowed Direct3D 9 device ignores its gamma ramp, and a fullscreen game's device is a
+		// windowed one under either renderer, so the fullscreen display sets the desktop's, keeps the
+		// desktop's own to give back on the way out, and puts the game's on again when it comes back.
 		save_desktop_gamma();
 		GameGammaRamp = ramp;
 		GameGammaSet = true;

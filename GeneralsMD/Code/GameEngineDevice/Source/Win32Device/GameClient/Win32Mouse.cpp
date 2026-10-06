@@ -109,10 +109,12 @@ static void gameToWindow( Int &x, Int &y )
 		return;
 	const Int width = TheDisplay->getWidth();
 	const Int height = TheDisplay->getHeight();
+	// rounded up, so windowToGame brings the point back to where it started while the window is the
+	// larger of the two; the freecam re-centres the pointer every frame and reads the difference
 	if( width > 0 && client.right != width )
-		x = (Int)( ( (Int64)x * client.right ) / width );
+		x = (Int)( ( (Int64)x * client.right + width - 1 ) / width );
 	if( height > 0 && client.bottom != height )
-		y = (Int)( ( (Int64)y * client.bottom ) / height );
+		y = (Int)( ( (Int64)y * client.bottom + height - 1 ) / height );
 }
 
 //-------------------------------------------------------------------------------------------------
