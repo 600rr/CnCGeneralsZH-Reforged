@@ -31,7 +31,7 @@
 
 enum WindowModeType
 {
-	WINDOW_MODE_FULLSCREEN	= 0,	///< exclusive fullscreen: the device owns the display mode
+	WINDOW_MODE_FULLSCREEN	= 0,	///< a topmost window over the monitor at the chosen resolution, scaled to it; minimised while away
 	WINDOW_MODE_BORDERLESS	= 1,	///< a windowed device covering the display, no caption, no frame
 	WINDOW_MODE_WINDOWED		= 2,	///< an ordinary window at the chosen resolution
 
