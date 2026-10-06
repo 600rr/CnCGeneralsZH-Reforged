@@ -7986,6 +7986,26 @@ StateReturnType AIHuntState::update()
 		{
 			teamVictim = owner->getTeam()->getTeamTargetObject();
 		}
+
+		if (teamVictim)
+		{
+			if (teamVictim->isEffectivelyDead() || teamVictim->isDestroyed())
+			{
+				owner->getTeam()->setTeamTargetObject(NULL);
+				teamVictim = NULL;
+			}
+			else
+			{
+				PartitionFilterStealthedAndUndetected filterStealth( owner, false );
+				if (!filterStealth.allow(teamVictim))
+				{
+					// Target is stealthed and undetected by us - stop hunting them through stealth!
+					owner->getTeam()->setTeamTargetObject(NULL);
+					teamVictim = NULL;
+				}
+			}
+		}
+
 		Object* victim = NULL;
 		if (teamVictim && info==NULL) 
 		{

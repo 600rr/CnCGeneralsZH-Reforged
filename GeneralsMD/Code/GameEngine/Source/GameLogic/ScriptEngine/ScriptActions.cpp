@@ -5309,7 +5309,12 @@ void ScriptActions::doMoveTeamTowardsNearest( const AsciiString& teamName, const
 		return;
 	}
 
-	Coord3D teamPos = *team->getEstimateTeamPosition();
+	const Coord3D *pTeamPos = team->getEstimateTeamPosition();
+	if (!pTeamPos)
+	{
+		return;
+	}
+	Coord3D teamPos = *pTeamPos;
 	PartitionFilterSameMapStatus filterMapStatus( teamObj );
 	PartitionFilterPolygonTrigger acceptWithin( trig );
 	Object *bestObj = NULL;

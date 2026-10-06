@@ -1622,6 +1622,12 @@ Bool Team::removeOverridePlayerRelationship( Int playerIndex )
 }
 
 // ------------------------------------------------------------------------
+static Bool objectKeepsOwnerAlive(const Object *obj)
+{
+	return Object_keepsOwnerAlive(obj->testStatus(OBJECT_STATUS_UNDER_CONSTRUCTION), obj->getConstructionPercent());
+}
+
+// ------------------------------------------------------------------------
 void Team::countObjectsByThingTemplate(Int numTmplates, const ThingTemplate* const* things, Bool ignoreDead, Int *counts, Bool ignoreUnderConstruction) const
 {
 	for (DLINK_ITERATOR<Object> iter = iterate_TeamMemberList(); !iter.done(); iter.advance())
@@ -1635,10 +1641,13 @@ void Team::countObjectsByThingTemplate(Int numTmplates, const ThingTemplate* con
 				continue;
 			}
 
-			if (ignoreDead && iter.cur()->isEffectivelyDead())
+			if (ignoreDead && (iter.cur()->isEffectivelyDead() || iter.cur()->isDestroyed()))
 				continue;
 
 			if( ignoreUnderConstruction && iter.cur()->getStatusBits().test( OBJECT_STATUS_UNDER_CONSTRUCTION ) )
+				continue;
+
+			if (!objectKeepsOwnerAlive(iter.cur()))
 				continue;
 
 			counts[i] += 1;
@@ -1653,6 +1662,15 @@ Int Team::countBuildings(void)
 {
 	int retVal = 0;
 	for (DLINK_ITERATOR<Object> iter = iterate_TeamMemberList(); !iter.done(); iter.advance()) {
+		if (iter.cur()->isEffectivelyDead())
+			continue;
+
+		if (iter.cur()->isDestroyed())
+			continue;
+
+		if (!objectKeepsOwnerAlive(iter.cur()))
+			continue;
+
 		const ThingTemplate* objtmpl = iter.cur()->getTemplate();
 		if (!objtmpl) {
 			continue;
@@ -1669,6 +1687,15 @@ Int Team::countObjects(KindOfMaskType setMask, KindOfMaskType clearMask)
 {
 	int retVal = 0;
 	for (DLINK_ITERATOR<Object> iter = iterate_TeamMemberList(); !iter.done(); iter.advance()) {
+		if (iter.cur()->isEffectivelyDead())
+			continue;
+
+		if (iter.cur()->isDestroyed())
+			continue;
+
+		if (!objectKeepsOwnerAlive(iter.cur()))
+			continue;
+
 		const ThingTemplate* objtmpl = iter.cur()->getTemplate();
 		if (!objtmpl) {
 			continue;
@@ -1696,12 +1723,6 @@ void Team::iterateObjects( ObjectIterateFunc func, void *userData )
 	{
 		func( iter.cur(), userData );
 	}
-}
-
-// ------------------------------------------------------------------------
-static Bool objectKeepsOwnerAlive(const Object *obj)
-{
-	return Object_keepsOwnerAlive(obj->testStatus(OBJECT_STATUS_UNDER_CONSTRUCTION), obj->getConstructionPercent());
 }
 
 // ------------------------------------------------------------------------
@@ -1756,14 +1777,20 @@ Bool Team::hasAnyUnits() const
 		if (iter.cur()->isDestroyed()) 
 			continue;
 
-		// If it's a structure, it's not  a unit.
+		// If it's a structure, it's not a unit.
 		if (iter.cur()->isKindOf(KINDOF_STRUCTURE)) continue;
 
-		// If it's a projectile, it's not  a unit.
+		// If it's a projectile, it's not a unit.
 		if (iter.cur()->isKindOf(KINDOF_PROJECTILE)) continue;
 
-		// If it's a mine, it's not  a unit.
+		// If it's a mine, it's not a unit.
 		if (iter.cur()->isKindOf(KINDOF_MINE)) continue;
+
+		// Inert objects (like radiation/poison residual fields) are not units.
+		if (iter.cur()->isKindOf(KINDOF_INERT)) continue;
+
+		if (!objectKeepsOwnerAlive(iter.cur()))
+			continue;
 
 		return true;
 	}
@@ -2261,56 +2288,46 @@ Bool Team::someInsideSomeOutside(PolygonTrigger *pTrigger, UnsignedInt whichToCo
 const Coord3D* Team::getEstimateTeamPosition(void) const
 {
 	// this doesn't actually calculate the team position, but rather estimates it by
-	// returning the position of the first member of the team
-	DLINK_ITERATOR<Object> iter = iterate_TeamMemberList();
-	Object *obj = iter.cur();
-	if (!obj)
-		return NULL;
+	// returning the position of the first living member of the team
+	for (DLINK_ITERATOR<Object> iter = iterate_TeamMemberList(); !iter.done(); iter.advance())
+	{
+		Object *obj = iter.cur();
+		if (!obj || obj->isEffectivelyDead() || obj->isDestroyed())
+			continue;
 
-	const Coord3D *pos = iter.cur()->getPosition();
-	if (!pos)
-		return NULL;
-
-	return pos;
+		const Coord3D *pos = obj->getPosition();
+		if (pos)
+			return pos;
+	}
+	return NULL;
 }
 
 // ------------------------------------------------------------------------
 void Team::deleteTeam(Bool ignoreDead)
 {
-	// First off, if this Team is the Player's default team, we need to Evacuate everyone or else
-	// Garrisoned buildings will fall victim to this deletion as well, since they were added to the
-	// Default when captured.  Design intends with this script to kill the people out from inside.
-	// If the thing is a transport, everything will still work, as the issue at hand is the container's
-	// wanting to change sides when emptied.  The bug is that the people in the Garrisoned building
-	// are deleted, and that changes the Team of the building, and then the DLink walks down the new team
-	// and deletes the wrong stuff.  Like every tree and civialian building on the map.
-	// Of course, to prevent the exact same DLINK jumping bug, I must first record what guys I am going to
-	// Evacuate, or else after the first occupied building is emptied, he will move his Next into the
-	// same damn wrong team.
-	if( this == getControllingPlayer()->getDefaultTeam() )
+	// First off, evacuate anyone in garrisoned buildings or transports so they don't fall victim
+	// to deletion and cause DLINK jumping bug when container changes team ownership.
+	std::list<Object *> guysToMakeEvacuate;
+	for (DLINK_ITERATOR<Object> iter = iterate_TeamMemberList(); !iter.done(); iter.advance()) 
 	{
-		std::list<Object *> guysToMakeEvacuate;
-		for (DLINK_ITERATOR<Object> iter = iterate_TeamMemberList(); !iter.done(); iter.advance()) 
-		{
-			Object *obj = iter.cur();
-			if (!obj) 
-				continue;
+		Object *obj = iter.cur();
+		if (!obj) 
+			continue;
 
-			if( obj->getContain()  &&  (obj->getContain()->getContainCount() > 0) )
-			{
-				// Write them all down, so the DLINK track jumping doesn't screw me up here as well.
-				guysToMakeEvacuate.push_back( obj );
-			}
+		if( obj->getContain()  &&  (obj->getContain()->getContainCount() > 0) )
+		{
+			// Write them all down, so the DLINK track jumping doesn't screw me up here as well.
+			guysToMakeEvacuate.push_back( obj );
 		}
+	}
 
-		for( std::list<Object *>::iterator it = guysToMakeEvacuate.begin(); it != guysToMakeEvacuate.end(); /*nothing*/ )
+	for( std::list<Object *>::iterator it = guysToMakeEvacuate.begin(); it != guysToMakeEvacuate.end(); /*nothing*/ )
+	{
+		Object *obj = *it;
+		it++;
+		if( obj->getContain() )
 		{
-			Object *obj = *it;
-			it++;
-			if( obj->getContain() )
-			{
-				obj->getContain()->removeAllContained();
-			}
+			obj->getContain()->removeAllContained();
 		}
 	}
 
@@ -2551,8 +2568,17 @@ Bool Team::hasAnyBuildFacility() const
 {
 	for (DLINK_ITERATOR<Object> iter = iterate_TeamMemberList(); !iter.done(); iter.advance())
 	{
+		if (iter.cur()->isEffectivelyDead())
+			continue;
+
+		if (iter.cur()->isDestroyed())
+			continue;
+
+		if (!objectKeepsOwnerAlive(iter.cur()))
+			continue;
+
 		const ThingTemplate *objtmpl = iter.cur()->getTemplate();
-		if (objtmpl->isBuildFacility()) 
+		if (objtmpl && objtmpl->isBuildFacility()) 
 			return true;
 	}
 	return false;

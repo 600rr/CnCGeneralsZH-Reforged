@@ -1091,13 +1091,8 @@ Int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	// game sizes everything in real pixels, which is what DPI awareness hands it.
 	::SetProcessDPIAware();
 
-	if (findEarlyCommandLineOption( L"-rk7" ) == NULL &&
-			findEarlyCommandLineOption( L"-multiInstance" ) == NULL &&
-			!isUnattendedProcess())
-	{
-		::MessageBoxA( NULL, "Please start Zero Hour Reforged from its launcher.", "Zero Hour Reforged", MB_OK | MB_ICONINFORMATION );
-		return 1;
-	}
+	// Launcher check removed so game can be launched directly from Steam or shortcut without being overwritten by launcher auto-updater.
+
 
 #ifdef _PROFILE
   Profile::StartRange("init");
