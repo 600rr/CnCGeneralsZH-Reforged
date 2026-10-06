@@ -13,10 +13,16 @@ Data/Art/Textures/ReforgedOrders.tga
 Data/Art/Textures/ReforgedSignalAttack.tga
 Data/Art/Textures/ReforgedSignalDefend.tga
 Data/Art/Textures/ReforgedSignalLook.tga
+Data/Cinema/blastcheck.txt
 Data/Cinema/demo.txt
+Data/Cinema/explreel.txt
 Data/Cinema/headlights.txt
 Data/Cinema/inf_jam.txt
 Data/Cinema/inf_walk.txt
+Data/Cinema/lsv_burst.txt
+Data/Cinema/lsv_laser.txt
+Data/Cinema/lsv_spam.txt
+Data/Cinema/lsv_spam2.txt
 Data/Cinema/missileapex_film.txt
 Data/Cinema/mobwatch.txt
 Data/Cinema/nohud.txt
@@ -65,6 +71,7 @@ Data/Cinema/v240_hook.txt
 Data/Cinema/v240_hook2.txt
 Data/Cinema/v240_md.txt
 Data/Cinema/v240_tank.txt
+Data/Cinema/wreckcheck.txt
 Data/German/Generals.str
 Data/INI/BalanceReforged.ini
 Data/INI/CommandMapReforged.ini
@@ -82,6 +89,7 @@ Data/Patch.str
 Data/Scenarios/airbelow.txt
 Data/Scenarios/airbelowfar.txt
 Data/Scenarios/alphaaurora.txt
+Data/Scenarios/blastcheck.txt
 Data/Scenarios/bridgecross.txt
 Data/Scenarios/bridgelong.txt
 Data/Scenarios/chokeprobe.txt
@@ -91,6 +99,7 @@ Data/Scenarios/crowdbattle.txt
 Data/Scenarios/defencereach.txt
 Data/Scenarios/driveby.txt
 Data/Scenarios/empfriendly.txt
+Data/Scenarios/explreel.txt
 Data/Scenarios/guardradius.txt
 Data/Scenarios/headlights.txt
 Data/Scenarios/helislide.txt
@@ -114,6 +123,7 @@ Data/Scenarios/missileapex.txt
 Data/Scenarios/missileapex_film.txt
 Data/Scenarios/missiledefence.txt
 Data/Scenarios/missilesmoke.txt
+Data/Scenarios/missilespam.txt
 Data/Scenarios/mob100.txt
 Data/Scenarios/mob250.txt
 Data/Scenarios/mob400.txt
@@ -179,6 +189,7 @@ Data/Scenarios/v240_md.txt
 Data/Scenarios/v240_tank.txt
 Data/Scenarios/vehiclelean.txt
 Data/Scenarios/vision.txt
+Data/Scenarios/wreckcheck.txt
 Data/Scripts/SkirmishScripts.scb
 Data/Turkish/Generals.str
 Data/Window/Html/Alert.html
