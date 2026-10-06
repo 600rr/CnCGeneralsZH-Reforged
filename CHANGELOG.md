@@ -513,7 +513,6 @@ found and fixed â€” EA's own, not port damage.**
 ## Weapons and units that were quietly wrong
 
 - The Dragon Tank's Fire Wall burns where you put it again. An earlier change in this build handed each patch of the wall the full speed of the flame that lit it, so the fire slid off across the map: in one test the patches came to rest anywhere from 155 to 1,050 away from the tank, 800 on average, setting fire to whatever stood in the way. They now stop 120 to 180 from the tank, a little past where the flames land, as they did in the original game. Napalm bombs and the wrecks of shot-down planes and drones keep their original drift too. Replays recorded before this change play out differently.
-
 - A bunker buster shot down on the way in no longer clears out the building it was aimed at. It emptied the bunker from wherever it happened to be destroyed - a Point Defence Laser did not save you, it just moved the explosion.
 - A Battle Bus in its wrecked form takes attack orders again. Every order you gave it was dropped on the way, because the crew inside are 'held' and held units were skipped.
 - A sniper cannot pick at an empty Stinger Site. The rule that stops snipers hurting empty buildings only counted passengers, and a Stinger Site's men are spawned, not carried.
