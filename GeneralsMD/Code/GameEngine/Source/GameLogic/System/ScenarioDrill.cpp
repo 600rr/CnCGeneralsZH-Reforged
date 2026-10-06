@@ -223,6 +223,10 @@ static Bool parseActionType( const AsciiString &token, ScenarioActionType *actio
 		*action = SCENARIO_ACTION_FORCEATTACK;
 	else if (token == "weaponat")
 		*action = SCENARIO_ACTION_WEAPONAT;
+	else if (token == "forceground")
+		*action = SCENARIO_ACTION_FORCEGROUND;
+	else if (token == "respond")
+		*action = SCENARIO_ACTION_RESPOND;
 	else
 		return FALSE;
 
@@ -307,6 +311,8 @@ static Int tokensNeededFor( ScenarioActionType action )
 		case SCENARIO_ACTION_CONSTRUCT:		return SCENARIO_TOKENS_MOVE;
 		case SCENARIO_ACTION_HUNT:				return SCENARIO_TOKENS_MOVE;
 		case SCENARIO_ACTION_WEAPONAT:		return SCENARIO_TOKENS_MOVE;
+		case SCENARIO_ACTION_FORCEGROUND:	return SCENARIO_TOKENS_MOVE;
+		case SCENARIO_ACTION_RESPOND:			return SCENARIO_TOKENS_MOVE;
 		case SCENARIO_ACTION_STANCE:			return SCENARIO_TOKENS_STANCE;
 		case SCENARIO_ACTION_SHIFTATTACK:	return SCENARIO_TOKENS_ATTACK;
 		case SCENARIO_ACTION_FORCEATTACK:	return SCENARIO_TOKENS_ATTACK;
@@ -391,6 +397,8 @@ ScenarioParseResult ScenarioDrill_parseLine( const char *line, ScenarioAction *a
 		case SCENARIO_ACTION_CONSTRUCT:
 		case SCENARIO_ACTION_HUNT:
 		case SCENARIO_ACTION_WEAPONAT:
+		case SCENARIO_ACTION_FORCEGROUND:
+		case SCENARIO_ACTION_RESPOND:
 		{
 			Int next = SCENARIO_ORDER_POSITION_TOKEN;
 			const ScenarioParseResult position = parseScenarioPosition( tokens, count, &next, action );
@@ -522,9 +530,29 @@ static const Real SCENARIO_DEPARTED_DISTANCE = 20.0f;
 
 static std::vector<ScenarioArrival> theScenarioArrivals;
 
+/** One respond line: how quickly each unit it matched took up the order given on that frame.  Aim is the
+	  first frame its gun (the turret the current weapon is on, or the hull) points within
+	  SCENARIO_RESPOND_AIM of the position; shot the first frame it fires with the gun pointed there; closer
+	  the first frame it stands SCENARIO_DEPARTED_DISTANCE nearer the position than it started.  Read-only. */
+struct ScenarioResponse
+{
+	Int slot;
+	AsciiString selector;
+	Coord3D goal;
+	UnsignedInt fromFrame;
+	std::vector<ObjectID> ids;
+	std::vector<Real> startDist;
+	std::vector<UnsignedInt> aimOn;
+	std::vector<UnsignedInt> shotOn;
+	std::vector<UnsignedInt> closerOn;
+};
+static const Real SCENARIO_RESPOND_AIM = 0.26f;	// 15 degrees
+static std::vector<ScenarioResponse> theScenarioResponses;
+
 static void resetScenario( void )
 {
 	theScenarioArrivals.clear();
+	theScenarioResponses.clear();
 	theScenarioActions.clear();
 	theScenarioCursor = 0;
 	theScenarioLoaded = FALSE;
@@ -913,6 +941,100 @@ static void updateArrivals( UnsignedInt now )
 	}
 }
 
+static Real distanceTo2D( const Object *obj, const Coord3D &goal )
+{
+	const Real dx = obj->getPosition()->x - goal.x;
+	const Real dy = obj->getPosition()->y - goal.y;
+	return (Real)sqrt( dx * dx + dy * dy );
+}
+
+static Bool executeRespond( const ScenarioAction &action, Player *player, const Coord3D &goal )
+{
+	ScenarioResponse response;
+	response.slot = action.slot;
+	response.selector = action.selector;
+	response.goal = goal;
+	response.fromFrame = TheGameLogic->getFrame();
+	for( Object *obj = TheGameLogic->getFirstObject(); obj; obj = obj->getNextObject() )
+	{
+		if (!isOrderableMatch( player, action.selector, obj ))
+			continue;
+		response.ids.push_back( obj->getID() );
+		response.startDist.push_back( distanceTo2D( obj, goal ) );
+		response.aimOn.push_back( SCENARIO_NOT_ARRIVED );
+		response.shotOn.push_back( SCENARIO_NOT_ARRIVED );
+		response.closerOn.push_back( SCENARIO_NOT_ARRIVED );
+	}
+	DEBUG_LOG(("SCENARIO: frame %d respond slot %d '%s' x%d at (%.0f,%.0f)\n",
+						 action.frame, action.slot, action.selector.str(), (Int)response.ids.size(), goal.x, goal.y));
+	if (response.ids.empty())
+		return FALSE;
+	theScenarioResponses.push_back( response );
+	return TRUE;
+}
+
+static void updateResponses( UnsignedInt now )
+{
+	for( std::vector<ScenarioResponse>::iterator it = theScenarioResponses.begin(); it != theScenarioResponses.end(); ++it )
+	{
+		for( size_t i = 0; i < it->ids.size(); ++i )
+		{
+			Object *obj = TheGameLogic->findObjectByID( it->ids[ i ] );
+			if (obj == NULL || obj->isEffectivelyDead() || now <= it->fromFrame)
+				continue;
+
+			const AIUpdateInterface *ai = obj->getAIUpdateInterface();
+			Real gunAngle = 0.0f;
+			Real pitch = 0.0f;
+			const WhichTurretType tur = ai ? ai->getWhichTurretForCurWeapon() : TURRET_INVALID;
+			if (tur != TURRET_INVALID)
+				ai->getTurretRotAndPitch( tur, &gunAngle, &pitch );
+			const Bool aimed = fabs( normalizeAngle( ThePartitionManager->getRelativeAngle2D( obj, &it->goal ) - gunAngle ) ) <= SCENARIO_RESPOND_AIM;
+			if (aimed && it->aimOn[ i ] == SCENARIO_NOT_ARRIVED)
+				it->aimOn[ i ] = now;
+
+			const Weapon *weapon = obj->getCurrentWeapon();
+			// the tick runs before the objects do, so last frame's shot is the newest one there is to see
+			if (aimed && weapon && weapon->getLastShotFrame() + 1 >= now && weapon->getLastShotFrame() > it->fromFrame
+					&& it->shotOn[ i ] == SCENARIO_NOT_ARRIVED)
+				it->shotOn[ i ] = weapon->getLastShotFrame();
+
+			if (it->closerOn[ i ] == SCENARIO_NOT_ARRIVED && distanceTo2D( obj, it->goal ) <= it->startDist[ i ] - SCENARIO_DEPARTED_DISTANCE)
+				it->closerOn[ i ] = now;
+		}
+	}
+}
+
+/** Mean and worst frames from the line to each of the three marks, over the units that reached it. */
+static void logResponses( void )
+{
+	for( std::vector<ScenarioResponse>::const_iterator it = theScenarioResponses.begin(); it != theScenarioResponses.end(); ++it )
+	{
+		const std::vector<UnsignedInt> *marks[ 3 ] = { &it->aimOn, &it->shotOn, &it->closerOn };
+		Int count[ 3 ] = { 0, 0, 0 };
+		Real sum[ 3 ] = { 0.0f, 0.0f, 0.0f };
+		Int worst[ 3 ] = { 0, 0, 0 };
+		for( Int m = 0; m < 3; ++m )
+		{
+			for( size_t i = 0; i < it->ids.size(); ++i )
+			{
+				const UnsignedInt on = (*marks[ m ])[ i ];
+				if (on == SCENARIO_NOT_ARRIVED)
+					continue;
+				const Int frames = (Int)(on - it->fromFrame);
+				++count[ m ];
+				sum[ m ] += (Real)frames;
+				worst[ m ] = (frames > worst[ m ]) ? frames : worst[ m ];
+			}
+		}
+		DEBUG_LOG(("HEADLESS RESPOND: slot %d '%s' from frame %d at (%.0f,%.0f), %d units: aimed %d mean %.1f worst %d, fired %d mean %.1f worst %d, closer %d mean %.1f worst %d\n",
+							 it->slot, it->selector.str(), it->fromFrame, it->goal.x, it->goal.y, (Int)it->ids.size(),
+							 count[ 0 ], count[ 0 ] ? sum[ 0 ] / count[ 0 ] : 0.0f, worst[ 0 ],
+							 count[ 1 ], count[ 1 ] ? sum[ 1 ] / count[ 1 ] : 0.0f, worst[ 1 ],
+							 count[ 2 ], count[ 2 ] ? sum[ 2 ] / count[ 2 ] : 0.0f, worst[ 2 ]));
+	}
+}
+
 /** Statues: a unit with an enemy it could shoot inside its own reach that has neither moved nor fired
 	  for STATUE_FRAMES.  Counted once per stop, by what the unit was doing when it reached the mark,
 	  and per second for as long as it keeps standing there.  Read-only, and only with a scenario. */
@@ -1028,6 +1150,7 @@ static void logStatues( void )
 void ScenarioDrill_logArrivals( void )
 {
 	logStatues();
+	logResponses();
 	for( std::vector<ScenarioArrival>::const_iterator it = theScenarioArrivals.begin();
 			 it != theScenarioArrivals.end(); ++it )
 	{
@@ -1535,6 +1658,19 @@ static Bool executeOrder( const ScenarioAction &action, Player *player, const Co
 		case SCENARIO_ACTION_WEAPONAT:
 			return executeWeaponAt( action, player, dest, group, taken );		// the dispatcher again
 
+		case SCENARIO_ACTION_FORCEGROUND:
+		{
+			// the attack key's click on open ground, through the dispatcher, which destroys the group
+			GameMessage *msg = newInstance( GameMessage )( GameMessage::MSG_DO_FORCE_ATTACK_GROUND );
+			msg->friend_setPlayerIndex( player->getPlayerIndex() );
+			msg->appendLocationArgument( dest );
+			TheGameLogic->logicMessageDispatcher( msg, group );
+			msg->deleteInstance();
+			DEBUG_LOG(("SCENARIO: frame %d forceground slot %d '%s' x%d at (%.0f,%.0f)\n",
+								 action.frame, action.slot, action.selector.str(), taken, dest.x, dest.y));
+			return TRUE;
+		}
+
 		case SCENARIO_ACTION_HUNT:
 			return executeSweep( action, player, dest, group, taken );		// and so does this
 
@@ -1552,6 +1688,7 @@ static Bool executeOrder( const ScenarioAction &action, Player *player, const Co
 		case SCENARIO_ACTION_POWER:
 		case SCENARIO_ACTION_PRODUCE:
 		case SCENARIO_ACTION_TALLY:
+		case SCENARIO_ACTION_RESPOND:
 			ordered = FALSE;		// handled before the group is built
 			break;
 	}
@@ -1606,6 +1743,9 @@ Bool ScenarioDrill_execute( const ScenarioAction &action )
 	if (action.action == SCENARIO_ACTION_ARRIVE)
 		return executeArrive( action, player, position );
 
+	if (action.action == SCENARIO_ACTION_RESPOND)
+		return executeRespond( action, player, position );
+
 	if (action.action == SCENARIO_ACTION_POWER)
 		return executePower( action, player, position );
 
@@ -1641,6 +1781,7 @@ void ScenarioDrill_tick( void )
 
 	// before the file test, because an arrive typed down the control socket has no file behind it
 	updateArrivals( now );
+	updateResponses( now );
 
 	if (TheGlobalData->m_scenarioFile.isEmpty())
 		return;

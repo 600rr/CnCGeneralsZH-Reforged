@@ -63,6 +63,7 @@ found and fixed â€” EA's own, not port damage.**
 - The Gattling Tank opens fire 15 degrees before its guns are on the target and walks the stream onto it, where it used to wait until it was within 2 degrees. The Gattling Cannon defence and the Strategy Center's bombardment cannon do the same. Circling four Troop Crawlers, a Gattling Tank hit them 208 times where it hit 102, and 12 of the extra hits come from the earlier start.
 - The Gattling cannon on an Overlord's back turns at the Gattling Tank's 180 degrees a second instead of 60 and opens fire the same way. A target appearing behind the Overlord is under fire 22 frames sooner and took 66 hits where it took 41.
 - A replay recorded before this change plays back differently.
+- Tell a tank to fire at the ground and it fires from where it stands. On any slope the game read the spot as hidden behind the very hill it was lying on, so a tank with the spot well inside its range drove off looking for a better angle, swinging its hull round under its own turret, and fired on the way. Pulled off a building to shell the ground 140 behind them, a Battlemaster took 84 frames to its first shell on the new spot and now takes 45, which is how long its turret needs to come round, and a pair of Scorpions that used to wander about 200 away over eight seconds now stay where they were put. Replays recorded before this play back differently.
 
 ## Flares on the planes, lasers in clips on the tanks
 
