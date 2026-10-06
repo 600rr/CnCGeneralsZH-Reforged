@@ -4179,7 +4179,7 @@ GameMessageDisposition CommandTranslator::translateGameMessage(const GameMessage
 		//-----------------------------------------------------------------------------
 		case GameMessage::MSG_MOUSE_RIGHT_DOUBLE_CLICK:
 		{
-			if( TheGlobalData->m_doubleClickAttackMove && !TheGlobalData->isClassicUI() )
+			if( TheGlobalData->m_doubleClickAttackMove && TheGlobalData->rightButtonOrders() )
 			{
 				// create the message and append arguments for a guard location
 				GameMessage *newMsg = TheMessageStream->appendMessage( GameMessage::MSG_DO_GUARD_POSITION );
@@ -4198,10 +4198,12 @@ GameMessageDisposition CommandTranslator::translateGameMessage(const GameMessage
 		}
 		case GameMessage::MSG_MOUSE_RIGHT_CLICK:
 		{
-			// A Classic right button never orders at all: it scrolls and deselects, which LookAtXlat
-			// and SelectionXlat do, as the game shipped.
-			if( TheGlobalData->isClassicUI() )
+			// The Classic right button orders only under EA's Alternate Mouse Setup, and then exactly
+			// as 1.04 did: the click below and nothing else.  Without it it scrolls and deselects,
+			// which LookAtXlat and SelectionXlat do, as the game shipped.
+			if( !TheGlobalData->rightButtonOrders() )
 				break;
+			const Bool classic = TheGlobalData->isClassicUI();
 
 			// A right click is an order.  A right drag pans the camera (LookAtXlat), so a release that
 			// travelled past the drag tolerance, or was held too long, gives no order at all.
@@ -4211,8 +4213,9 @@ GameMessageDisposition CommandTranslator::translateGameMessage(const GameMessage
 
 			// The one exception is the move, attack, attack move or guard key.  Those orders are aimed
 			// with the left button, so a right click while one is armed puts the key down and gives no
-			// order.  A pan leaves the key armed.
-			if( TheInGameUI->isOrderKeyArmed() )
+			// order.  A pan leaves the key armed.  Classic's alternate mouse aims its attack move with
+			// this click, as 1.04 did.
+			if( !classic && TheInGameUI->isOrderKeyArmed() )
 			{
 				if( isRightClick )
 					TheInGameUI->clearAttackMoveToMode();
@@ -4263,8 +4266,9 @@ GameMessageDisposition CommandTranslator::translateGameMessage(const GameMessage
 		case GameMessage::MSG_MOUSE_LEFT_DOUBLE_CLICK:
 		{
 			// Classic's orders are on the left button, so its double-click guard is here, the game's
-			// own guard with its own two arguments.  Reforged's is on the right button.
-			if( TheGlobalData->isClassicUI() && TheGlobalData->m_doubleClickAttackMove )
+			// own guard with its own two arguments.  Reforged's, and the alternate mouse's, is on the
+			// right button.
+			if( TheGlobalData->leftButtonOrders() && TheGlobalData->m_doubleClickAttackMove )
 			{
 				GameMessage *newMsg = TheMessageStream->appendMessage( GameMessage::MSG_DO_GUARD_POSITION );
 				Coord3D pos;
@@ -4308,10 +4312,12 @@ GameMessageDisposition CommandTranslator::translateGameMessage(const GameMessage
 			// The left button selects and nothing else.  The exceptions are a GUI command that is
 			// already armed and waiting for a target, and the attack, attack move and guard keys: all of
 			// them are aimed with the left button, because the right one cancels them.  In Classic the
-			// left button is the order button as well, as it was in the game as shipped.
+			// left button is the order button as well, as it was in the game as shipped, unless EA's
+			// Alternate Mouse Setup is on: then only a GUI command waiting for a target fires here.
 			const Bool classic = TheGlobalData->isClassicUI();
 			const Bool isOrderKey = TheInGameUI->isOrderKeyArmed();
-			if( !isFiringGUICommand && !isOrderKey && !classic )
+			if( classic ? !TheGlobalData->leftButtonOrders() && !isFiringGUICommand
+									: !isFiringGUICommand && !isOrderKey )
 				break;
 
 			Bool controllable = TheInGameUI->areSelectedObjectsControllable()

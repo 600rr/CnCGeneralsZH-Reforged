@@ -188,8 +188,9 @@ extern Bool contextCommandForNewSelection(const DrawableList *currentlySelectedD
 
 	// In Reforged the left button selects and the right button orders, so a left click never
 	// commands.  The counting above is still wanted - the caller reads the counts for the cursor and
-	// the selection filters.
-	if (!TheGlobalData->isClassicUI()) {
+	// the selection filters.  Classic's alternate mouse is EA's, where the left button never
+	// commanded either.
+	if (!TheGlobalData->leftButtonOrders()) {
 		return FALSE;
 	}
 

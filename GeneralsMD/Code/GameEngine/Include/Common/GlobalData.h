@@ -187,6 +187,7 @@ public:
 	Bool m_noDynamicLODOverride;	// "-noDynamicLOD": off for this run, whatever the static preset or Options.ini set
 	Bool m_enableStaticLOD;
 	Int m_terrainLODTargetTimeMS;
+	Bool m_useAlternateMouse;			///< EA's Alternate Mouse Setup, Options.ini UseAlternateMouse: Classic only, Reforged never reads it (client only)
 	Bool m_clientRetaliationModeEnabled;
 	Bool m_doubleClickAttackMove;
 	Bool m_rightMouseAlwaysScrolls;
@@ -342,6 +343,10 @@ public:
 	Int m_hudScale;								///< HUD size step, 0 = 100%; see ControlBarHudScale (client only)
 	Int m_interfaceStyle;					///< INTERFACE_STYLE_CLASSIC or INTERFACE_STYLE_REFORGED, set by -interface only (client only, never GameLogic)
 	Bool isClassicUI() const { return m_interfaceStyle == INTERFACE_STYLE_CLASSIC; }
+	/// which button gives a click on the ground its order.  Reforged: the right.  Classic: the left, as
+	/// 1.04 shipped, or the right under EA's Alternate Mouse Setup, where the left only selects
+	Bool leftButtonOrders() const { return isClassicUI() && !m_useAlternateMouse; }
+	Bool rightButtonOrders() const { return !leftButtonOrders(); }
 	Int m_playerColorScheme;			///< PlayerColorSchemeType: whose colour the client draws (client only)
 	Int m_textLanguage;						///< TextLanguageType: the translation GameText lays over the CSF, read once at startup (client only)
 	Bool m_showOrderLines;				///< draw a line from each selected unit to where it is going, and its queue (client only)
