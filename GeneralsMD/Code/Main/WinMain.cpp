@@ -521,6 +521,10 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message,
 				if (!gInitializing)
 				{
 					gDoPaint = false;
+					if (gLoadScreenBitmap != NULL) {
+						::DeleteObject(gLoadScreenBitmap);
+						gLoadScreenBitmap = NULL;
+					}
 					//
 					// That resize is also the moment borderless becomes fullscreen.  The window is born
 					// small and centred, so the splash sits on the desktop the way it always has instead
@@ -735,10 +739,17 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message,
 					::TextOut(dc, 30, 30, "Loading Command & Conquer Generals...", 37);
 #endif
 					if (gLoadScreenBitmap!=NULL) {
+						BITMAP bmp;
+						Int width = DEFAULT_XRESOLUTION;
+						Int height = DEFAULT_YRESOLUTION;
+						if (GetObject(gLoadScreenBitmap, sizeof(BITMAP), &bmp)) {
+							width = bmp.bmWidth;
+							height = bmp.bmHeight;
+						}
 						Int savContext = ::SaveDC(dc);
 						HDC tmpDC = ::CreateCompatibleDC(dc);
 						HBITMAP savBitmap = (HBITMAP)::SelectObject(tmpDC, gLoadScreenBitmap);
-						::BitBlt(dc, 0, 0, DEFAULT_XRESOLUTION, DEFAULT_YRESOLUTION, tmpDC, 0, 0, SRCCOPY);
+						::BitBlt(dc, 0, 0, width, height, tmpDC, 0, 0, SRCCOPY);
 						::SelectObject(tmpDC, savBitmap);
 						::DeleteDC(tmpDC);
 						::RestoreDC(dc, savContext);
@@ -823,6 +834,16 @@ static Bool initializeAppWindows( HINSTANCE hInstance, Int nCmdShow, Bool runWin
 	Int startWidth = DEFAULT_XRESOLUTION,
 			startHeight = DEFAULT_YRESOLUTION;
 
+	if (gLoadScreenBitmap != NULL) {
+		BITMAP bmp;
+		if (GetObject(gLoadScreenBitmap, sizeof(BITMAP), &bmp)) {
+			if (bmp.bmWidth > 0 && bmp.bmHeight > 0) {
+				startWidth = bmp.bmWidth;
+				startHeight = bmp.bmHeight;
+			}
+		}
+	}
+
 	// register the window class
 
   WNDCLASS wndClass = { CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS, WndProc, 0, 0, hInstance,
@@ -863,7 +884,7 @@ static Bool initializeAppWindows( HINSTANCE hInstance, Int nCmdShow, Bool runWin
 	rect.right = startWidth;
 	rect.bottom = startHeight;
 	AdjustWindowRect (&rect, windowStyle, FALSE);
-	if (runWindowed) {
+	if (runWindowed && gLoadScreenBitmap == NULL) {
 		// Makes the normal debug 800x600 window center in the screen.
 		startWidth = DEFAULT_XRESOLUTION;
 		startHeight= DEFAULT_YRESOLUTION;
@@ -923,7 +944,7 @@ static Bool initializeAppWindows( HINSTANCE hInstance, Int nCmdShow, Bool runWin
 	ApplicationHInstance = hInstance;
 	ApplicationHWnd = hWnd;
 	gInitializing = false;
-	if (!runWindowed) {
+	if (!runWindowed && !ApplicationIsBorderless) {
 		gDoPaint = false;
 	}
 
@@ -1261,7 +1282,8 @@ Int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		if( initializeAppWindows( hInstance, nCmdShow, ApplicationIsWindowed) == false )
 			return 0;
 
-		if (gLoadScreenBitmap!=NULL) {
+		// Retain gLoadScreenBitmap for borderless/windowed mode until WM_SIZE when W3D takes over.
+		if (!ApplicationIsWindowed && !ApplicationIsBorderless && gLoadScreenBitmap != NULL) {
 			::DeleteObject(gLoadScreenBitmap);
 			gLoadScreenBitmap = NULL;
 		}
@@ -1388,6 +1410,11 @@ Int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	TheUnicodeStringCriticalSection = NULL;
 	TheDmaCriticalSection = NULL;
 	TheMemoryPoolCriticalSection = NULL;
+
+	if (gLoadScreenBitmap != NULL) {
+		::DeleteObject(gLoadScreenBitmap);
+		gLoadScreenBitmap = NULL;
+	}
 
 	return 0;
 
