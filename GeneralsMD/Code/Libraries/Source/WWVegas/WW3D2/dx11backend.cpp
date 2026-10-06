@@ -308,6 +308,14 @@ DX11BackendClass::DX11BackendClass()
 	memset(Headlights, 0, sizeof(Headlights));
 	HeadlightCount = 0;
 	memset(HeadlightGain, 0, sizeof(HeadlightGain));
+	memset(BlastLights, 0, sizeof(BlastLights));
+	BlastLightCount = 0;
+	SoftParticles = false;
+	SceneDepthCopy = NULL;
+	SceneDepthCopyView = NULL;
+	SceneDepthStale = true;
+	SceneDepthRefused = false;
+	FrameDepthCopies = 0;
 	set_identity(WorldFromClip);
 	for (unsigned stage = 0; stage < DX11_BACKEND_TEXTURE_STAGES; ++stage) {
 		set_identity(TextureTransforms[stage]);
@@ -467,6 +475,7 @@ void DX11BackendClass::Shutdown()
 	ShadowMapSize = 0;
 	ShadowMapBound = false;
 	Release_Smoke_Map();
+	Release_Scene_Depth();
 	RenderStates.Set_Shadow_Caster_Pass(false);
 	Note_Shadow_State_Changed();
 	Device = NULL;
@@ -610,6 +619,9 @@ static const unsigned SMOKE_MOST_CASTERS = 16384;
 // side, and at 32 soot went flat.
 static const float SMOKE_SELF_SHADOW_GAIN = 0.8f;
 static const float SMOKE_SELF_SHADOW_CURVE = 16.0f;
+// How far in front of what is behind it a particle sprite has fully faded in, in world units.  A
+// tank is about thirty long; a smoke puff is ten to forty across.
+static const float SOFT_PARTICLE_FADE_UNITS = 12.0f;
 
 // Each caster is a disc facing the sun, drawn as a four corner strip whose corners come from the
 // vertex number, so the only buffer is the one holding the casters.
@@ -925,6 +937,138 @@ bool DX11BackendClass::Smoke_Glow() const
 		&& (VertexFormat & D3DFVF_NORMAL) != 0 && (VertexFormat & D3DFVF_XYZRHW) == 0;
 }
 
+void DX11BackendClass::Set_Soft_Particles(bool soft)
+{
+	if (SoftParticles != soft) {
+		SoftParticles = soft;
+		PipelineChanged = true;
+		ConstantsChanged = true;
+	}
+}
+
+/** Which fade a draw takes.  Only the sorted billboards, which the sorting pool marks, and only
+		while the depth being tested against is the scene's own: a mirror or a filter target of another
+		size has a depth buffer of its own that nothing here copies.  A multiplicative blend is left
+		hard, because faded towards zero it would darken rather than vanish. */
+unsigned DX11BackendClass::Soft_Particle() const
+{
+	if (!SoftParticles || SceneDepthCopyView == NULL || ShadowMapBound) {
+		return SOFT_PARTICLE_NONE;
+	}
+	if (VertexProgram != ENGINE_SHADER_NONE || PixelProgram != ENGINE_SHADER_NONE
+		|| (VertexFormat & D3DFVF_XYZRHW) != 0 || !Camera_Space_Draw()) {
+		return SOFT_PARTICLE_NONE;
+	}
+	if (CurrentTarget != NULL && CurrentDepth != Device->Get_Depth_Stencil_View()) {
+		return SOFT_PARTICLE_NONE;
+	}
+	if (Device->Get_Depth_Texture() == NULL
+		|| RenderStates.Get_Render_State(D3DRS_ALPHABLENDENABLE) == FALSE) {
+		return SOFT_PARTICLE_NONE;
+	}
+	const DWORD source = RenderStates.Get_Render_State(D3DRS_SRCBLEND);
+	const DWORD destination = RenderStates.Get_Render_State(D3DRS_DESTBLEND);
+	if (source == D3DBLEND_DESTCOLOR || source == D3DBLEND_ZERO || destination == D3DBLEND_SRCCOLOR) {
+		return SOFT_PARTICLE_NONE;
+	}
+	return (source == D3DBLEND_ONE) ? SOFT_PARTICLE_COLOUR : SOFT_PARTICLE_ALPHA;
+}
+
+void DX11BackendClass::Release_Scene_Depth()
+{
+	if (SceneDepthCopyView != NULL) {
+		SceneDepthCopyView->Release();
+		SceneDepthCopyView = NULL;
+	}
+	if (SceneDepthCopy != NULL) {
+		SceneDepthCopy->Release();
+		SceneDepthCopy = NULL;
+	}
+	SceneDepthStale = true;
+}
+
+/** The scene's depth as the soft particles read it, taken once at the top of each sorted flush and
+		before any of its draws resolves a pipeline: a sorted mesh that writes depth between two
+		particle runs would otherwise cost a full copy per run, and a copy the device refuses would be
+		found only after a fading program was chosen, which then read nothing and drew nothing.  The
+		copy is made at the depth buffer's own size and typeless format, made again when a resize
+		changes either, and refreshed only when a draw has written depth since the last one. */
+void DX11BackendClass::Take_Scene_Depth()
+{
+	if (SceneDepthRefused || Device == NULL) {
+		return;
+	}
+	ID3D11ShaderResourceView * const source_view = Device->Get_Depth_Texture();
+	if (source_view == NULL) {
+		return;
+	}
+	ID3D11Resource * source = NULL;
+	source_view->GetResource(&source);
+	if (source == NULL) {
+		return;
+	}
+
+	D3D11_TEXTURE2D_DESC description;
+	static_cast<ID3D11Texture2D *>(source)->GetDesc(&description);
+	if (SceneDepthCopy != NULL) {
+		D3D11_TEXTURE2D_DESC held;
+		SceneDepthCopy->GetDesc(&held);
+		if (held.Width != description.Width || held.Height != description.Height
+				|| held.Format != description.Format) {
+			Release_Scene_Depth();
+		}
+	}
+	if (SceneDepthCopy == NULL) {
+		description.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+		description.MiscFlags = 0;
+		description.Usage = D3D11_USAGE_DEFAULT;
+		description.CPUAccessFlags = 0;
+		D3D11_SHADER_RESOURCE_VIEW_DESC view;
+		source_view->GetDesc(&view);
+		if (FAILED(Device->Get_Device()->CreateTexture2D(&description, NULL, &SceneDepthCopy))
+			|| FAILED(Device->Get_Device()->CreateShaderResourceView(SceneDepthCopy, &view,
+				&SceneDepthCopyView))) {
+			Note_Refusal("the device refused a copy of the scene's depth for the soft particles");
+			Release_Scene_Depth();
+			SceneDepthRefused = true;
+			PipelineChanged = true;
+			source->Release();
+			return;
+		}
+		SceneDepthStale = true;
+		PipelineChanged = true;		// Soft_Particle reads whether the copy exists
+	}
+	if (SceneDepthStale) {
+		Device->Get_Context()->CopyResource(SceneDepthCopy, source);
+		SceneDepthStale = false;
+		++FrameDepthCopies;
+	}
+	source->Release();
+}
+
+unsigned DX11BackendClass::Take_Frame_Depth_Copies()
+{
+	const unsigned copies = FrameDepthCopies;
+	FrameDepthCopies = 0;
+	return copies;
+}
+
+void DX11BackendClass::Set_Blast_Lights(const float * lights, unsigned count)
+{
+	if (count > BLAST_LIGHT_SLOTS) {
+		count = BLAST_LIGHT_SLOTS;
+	}
+	if (count == BlastLightCount
+		&& (count == 0 || memcmp(BlastLights, lights, sizeof(float) * BLAST_LIGHT_FLOATS * count) == 0)) {
+		return;
+	}
+	if (count > 0) {
+		memcpy(BlastLights, lights, sizeof(float) * BLAST_LIGHT_FLOATS * count);
+	}
+	BlastLightCount = count;
+	ConstantsChanged = true;
+}
+
 bool DX11BackendClass::Views_Current_Target(unsigned stage, ID3D11ShaderResourceView * texture) const
 {
 	if (texture == NULL || CurrentTarget == NULL) {
@@ -1081,6 +1225,8 @@ void DX11BackendClass::Set_Render_State(D3DRENDERSTATETYPE state, DWORD value)
 		case D3DRS_TEXTUREFACTOR:
 		case D3DRS_ALPHAREF:
 		case D3DRS_ALPHABLENDENABLE:
+		case D3DRS_SRCBLEND:		// a multiply pass takes no blast light (Upload_Pixel_Constants)
+		case D3DRS_DESTBLEND:
 			PixelConstantsChanged = true;
 			break;
 		default:
@@ -1482,6 +1628,8 @@ void DX11BackendClass::Dump_Program(const std::string & key, const std::string &
 
 void DX11BackendClass::Begin_Scene()
 {
+	SceneDepthStale = true;
+
 	// A scene can begin with a render target already set: the water's reflection and the shadow
 	// projector both set theirs and then call WW3D::Begin_Render, and forcing the back buffer here
 	// sent the reflection scene, and its clear, over the picture that was already drawn.
@@ -1653,6 +1801,7 @@ void DX11BackendClass::Clear(bool colour, bool depth, const float colour_value[4
 	if (depth && depth_view != NULL) {
 		Device->Get_Context()->ClearDepthStencilView(depth_view,
 			D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+		SceneDepthStale = true;
 	}
 }
 
@@ -1689,6 +1838,7 @@ bool DX11BackendClass::Build_Combiner_Description(CombinerDescription & descript
 	}
 	description.ShadowReceiving = description.StageCount > 0 && Shadow_Receiving();
 	description.SmokeGlow = Smoke_Glow();
+	description.SoftParticle = Soft_Particle();
 	return description.StageCount > 0;
 }
 
@@ -2203,6 +2353,29 @@ void DX11BackendClass::Upload_Pixel_Constants()
 			memcpy(pixel_block.HeadlightPosition[slot], &Headlights[slot][0], sizeof(float) * 4);
 			memcpy(pixel_block.HeadlightDirection[slot], &Headlights[slot][4], sizeof(float) * 4);
 		}
+		// None for a particle: the smoke takes these lights on the CPU (BLAST_LIGHT_SAMPLING).  None
+		// for a pass that multiplies what is under it (ZERO, SRCCOLOR): the base pass took the light
+		// already, and gained again the surface came out lit twice.
+		const bool multiplies = RenderStates.Get_Render_State(D3DRS_ALPHABLENDENABLE) != FALSE
+			&& (RenderStates.Get_Render_State(D3DRS_SRCBLEND) == D3DBLEND_ZERO
+				|| RenderStates.Get_Render_State(D3DRS_DESTBLEND) == D3DBLEND_SRCCOLOR);
+		const unsigned blasts = (camera_space || multiplies) ? 0 : BlastLightCount;
+		pixel_block.BlastLightParameters[0] = static_cast<float>(blasts);
+		for (unsigned slot = 0; slot < blasts; ++slot) {
+			memcpy(pixel_block.BlastLightPosition[slot], &BlastLights[slot][0], sizeof(float) * 4);
+			memcpy(pixel_block.BlastLightDiffuse[slot], &BlastLights[slot][4], sizeof(float) * 4);
+			memcpy(pixel_block.BlastLightAmbient[slot], &BlastLights[slot][8], sizeof(float) * 4);
+		}
+	}
+
+	// The particles' projection, the one the world behind them was drawn with: the distance from a
+	// depth is SoftParticleDepth.x / (depth * .y - .z) (SOFT_PARTICLE_SAMPLING).  Written only around
+	// the sorted billboards, so every other draw keeps the bytes it had.
+	if (SoftParticles && camera_space) {
+		pixel_block.SoftParticleDepth[0] = Projection[11] * Projection[14];
+		pixel_block.SoftParticleDepth[1] = Projection[11];
+		pixel_block.SoftParticleDepth[2] = Projection[10];
+		pixel_block.SoftParticleDepth[3] = 1.0f / SOFT_PARTICLE_FADE_UNITS;
 	}
 
 	if (!PixelConstantsHeld
@@ -2458,6 +2631,16 @@ void DX11BackendClass::Bind_State_Objects()
 			}
 		}
 	}
+
+	// The scene's depth at t7 for a soft particle, read with Load, so it wants no sampler.  The copy
+	// was taken at the top of the sorted flush (Take_Scene_Depth) and is refreshed in place.
+	if (SoftParticles && Soft_Particle() != SOFT_PARTICLE_NONE) {
+		ID3D11ShaderResourceView * const depth = SceneDepthCopyView;
+		if (!known || depth != Bound.SceneDepth) {
+			context->PSSetShaderResources(DX11_BACKEND_TEXTURE_STAGES + 3, 1, &depth);
+			Bound.SceneDepth = depth;
+		}
+	}
 }
 
 void DX11BackendClass::Bind_Pipeline(const Pipeline & pipeline, ID3D11Buffer * vertices, UINT stride,
@@ -2597,6 +2780,12 @@ bool DX11BackendClass::Draw_Indexed(unsigned index_count, unsigned start_index,
 	context->DrawIndexed(index_count, start_index, base_vertex);
 
 	++DrawsMade;
+	// The soft particles' copy of the depth is behind whatever this wrote into the scene's depth
+	// (Take_Scene_Depth); a mirror or a filter target's own depth is not what they read.
+	if (RenderStates.Get_Render_State(D3DRS_ZWRITEENABLE) != FALSE
+		&& (CurrentTarget == NULL || CurrentDepth == Device->Get_Depth_Stencil_View())) {
+		SceneDepthStale = true;
+	}
 	if (CurrentTarget != NULL) {
 		++DrawsIntoTargets;
 		MaskWhileTargeted |= RenderStates.Get_Render_State(D3DRS_COLORWRITEENABLE);
@@ -2637,6 +2826,12 @@ bool DX11BackendClass::Draw_Triangles(unsigned vertex_count, unsigned start_vert
 	context->Draw(vertex_count, start_vertex);
 
 	++DrawsMade;
+	// The soft particles' copy of the depth is behind whatever this wrote into the scene's depth
+	// (Take_Scene_Depth); a mirror or a filter target's own depth is not what they read.
+	if (RenderStates.Get_Render_State(D3DRS_ZWRITEENABLE) != FALSE
+		&& (CurrentTarget == NULL || CurrentDepth == Device->Get_Depth_Stencil_View())) {
+		SceneDepthStale = true;
+	}
 	if (CurrentTarget != NULL) {
 		++DrawsIntoTargets;
 		MaskWhileTargeted |= RenderStates.Get_Render_State(D3DRS_COLORWRITEENABLE);
@@ -2799,6 +2994,12 @@ bool DX11BackendClass::Draw_User_Strip(const void * vertices, unsigned primitive
 	context->Draw(list_vertex_count, 0);
 
 	++DrawsMade;
+	// The soft particles' copy of the depth is behind whatever this wrote into the scene's depth
+	// (Take_Scene_Depth); a mirror or a filter target's own depth is not what they read.
+	if (RenderStates.Get_Render_State(D3DRS_ZWRITEENABLE) != FALSE
+		&& (CurrentTarget == NULL || CurrentDepth == Device->Get_Depth_Stencil_View())) {
+		SceneDepthStale = true;
+	}
 	if (CurrentTarget != NULL) {
 		++DrawsIntoTargets;
 		MaskWhileTargeted |= RenderStates.Get_Render_State(D3DRS_COLORWRITEENABLE);

@@ -93,6 +93,7 @@
 #include "W3DDevice/GameClient/W3DWater.h"
 #include "W3DDevice/GameClient/W3DShroud.h"
 #include "WW3D2/dx8wrapper.h"
+#include "WW3D2/dx11runtime.h"
 #include "WW3D2/light.h"
 #include "WW3D2/scene.h"
 #include "W3DDevice/GameClient/W3DPoly.h"
@@ -1444,10 +1445,21 @@ void HeightMapRenderObjClass::On_Frame_Update(void)
 	const Int xCoordMax = xCoordMin + m_map->getDrawWidth();
 	const Int yCoordMax = yCoordMin + m_map->getDrawHeight();
 
+	// On the Direct3D 11 frame every pixel of the ground takes these lights itself
+	// (BLAST_LIGHT_SAMPLING, RTS3DScene's handBlastLights); relit here as well it took them twice, in
+	// ten-unit steps.  A light lit into the tiles at the moment that turns on stays there until the
+	// tiles are next rebuilt; it only turns on with the shadow map, at the match's first frame or
+	// from the options.
+	const Bool lightsPerPixel = Direct3D11_Lights_Per_Pixel();
+
 	for (pDynamicLightsIterator.First(); !pDynamicLightsIterator.Is_Done(); pDynamicLightsIterator.Next())
-	{		
+	{
 		W3DDynamicLight *pLight = (W3DDynamicLight*)pDynamicLightsIterator.Peek_Obj();
 		pLight->m_processMe = false;
+		if (lightsPerPixel) {
+			pLight->m_priorEnable = false;
+			continue;
+		}
 		if (pLight->m_enabled || pLight->m_priorEnable) {
 			Real range = pLight->Get_Attenuation_Range();
 			if (pLight->m_priorEnable) {

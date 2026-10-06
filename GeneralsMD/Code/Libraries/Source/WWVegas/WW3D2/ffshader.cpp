@@ -252,6 +252,9 @@ bool CombinerShader_Generate(const CombinerDescription & description, CombinerSh
 static bool generate_combiners(const CombinerDescription & description,
 	CombinerShaderTarget target, std::string & hlsl, bool volumetric)
 {
+	// The soft particles ride on the Direct3D 11 text for the smoke's reason: the SDL3 backend binds
+	// nothing at t7 and uploads nothing past SkyUp.
+	const bool soft = volumetric && description.SoftParticle != SOFT_PARTICLE_NONE;
 	volumetric = volumetric && description.ShadowReceiving;
 	if (description.StageCount == 0 || description.StageCount > MAXIMUM_COMBINER_STAGES) {
 		return false;
@@ -355,8 +358,9 @@ static bool generate_combiners(const CombinerDescription & description,
 		// A shader declares a prefix of the block the backend uploads, so a field is found by what
 		// comes before it and not by its name.  The shadow fields sit behind the old normal mapped
 		// ones and the terrain's sun, so a program that reads them has to declare those too, unused:
-		// without them a shadow matrix lands where the first light's direction is.
-		if (description.ShadowReceiving) {
+		// without them a shadow matrix lands where the first light's direction is.  A soft particle's
+		// field closes the block, so a program that fades declares all of it.
+		if (description.ShadowReceiving || soft) {
 			char line[256];
 			snprintf(line, sizeof(line),
 				"    float4 NormalLightDirection[%u];\n"
@@ -377,7 +381,7 @@ static bool generate_combiners(const CombinerDescription & description,
 				"    float4 Sky;\n"
 				"    float4 SkyUp;\n";
 		}
-		if (volumetric) {
+		if (volumetric || soft) {
 			hlsl += VOLUMETRIC_CONSTANTS;
 		}
 		hlsl += "};\n";
@@ -386,6 +390,9 @@ static bool generate_combiners(const CombinerDescription & description,
 		}
 		if (volumetric) {
 			hlsl += VOLUMETRIC_SAMPLING;
+		}
+		if (soft) {
+			hlsl += SOFT_PARTICLE_SAMPLING;
 		}
 	}
 	else {
@@ -452,6 +459,14 @@ static bool generate_combiners(const CombinerDescription & description,
 	if (target == COMBINER_SHADER_TARGET_D3D11
 		&& !CombinerShader_Append_Pixel_Pipeline(description.PixelPipeline, hlsl)) {
 		return false;
+	}
+
+	// After the alpha test: faded before it, a sprite's edge against the ground would be clipped to
+	// a hard line again, only a little further out.
+	if (soft) {
+		hlsl += (description.SoftParticle == SOFT_PARTICLE_COLOUR)
+			? "    current *= soft_particle_fade(input.Position);\n"
+			: "    current.a *= soft_particle_fade(input.Position);\n";
 	}
 
 	hlsl +=
@@ -527,6 +542,10 @@ std::string CombinerShader_Key(const CombinerDescription & description)
 	}
 	if (description.SmokeGlow) {
 		key += ":G";
+	}
+	if (description.SoftParticle != SOFT_PARTICLE_NONE) {
+		snprintf(field, sizeof(field), ":Z%u", description.SoftParticle);
+		key += field;
 	}
 	return key;
 }
