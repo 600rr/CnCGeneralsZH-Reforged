@@ -16,7 +16,7 @@ Command & Conquer: Generals Zero Hour, rebuilt from the source EA opened and pla
 ![renderers](https://img.shields.io/badge/draws%20with-Direct3D%2011%20%7C%20Direct3D%209%20%7C%20Metal%20%7C%20Vulkan-0d1117?style=for-the-badge&labelColor=161b22)
 ![languages](https://img.shields.io/badge/text-English%20%7C%20T%C3%BCrk%C3%A7e%20%7C%20Deutsch-0d1117?style=for-the-badge&labelColor=161b22)
 
-[zerohour.gg](https://zerohour.gg) · [Play it](#play-it) · [Every change](CHANGELOG.md) · [Build it](#build-it) · [How it is tested](#how-it-is-tested) · [Help out](#help-out) · [Discussions](https://github.com/olcayseygan/CnCGeneralsZH-Reforged/discussions)
+[Play it](#play-it) · [Every change](CHANGELOG.md) · [Build it](#build-it) · [How it is tested](#how-it-is-tested) · [Help out](#help-out) · [Discussions](https://github.com/olcayseygan/CnCGeneralsZH-Reforged/discussions)
 
 </div>
 
@@ -176,7 +176,7 @@ played a full check match on a Steam Deck. A match between Windows and a Mac has
 ### Windows
 
 1. Have Zero Hour installed from Steam or the EA app.
-2. Download the Reforged launcher from [zerohour.gg](https://zerohour.gg) and run it. The installer
+2. Download the Reforged launcher and run it. The installer
    is not code signed, so Windows SmartScreen asks once before it starts.
 3. The launcher finds your Zero Hour folder and lists every file it is about to write before it writes
    any. Each file it replaces is backed up first. Press Install, then Play.
