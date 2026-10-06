@@ -1622,6 +1622,12 @@ Bool Team::removeOverridePlayerRelationship( Int playerIndex )
 }
 
 // ------------------------------------------------------------------------
+static Bool objectKeepsOwnerAlive(const Object *obj)
+{
+	return Object_keepsOwnerAlive(obj->testStatus(OBJECT_STATUS_UNDER_CONSTRUCTION), obj->getConstructionPercent());
+}
+
+// ------------------------------------------------------------------------
 void Team::countObjectsByThingTemplate(Int numTmplates, const ThingTemplate* const* things, Bool ignoreDead, Int *counts, Bool ignoreUnderConstruction) const
 {
 	for (DLINK_ITERATOR<Object> iter = iterate_TeamMemberList(); !iter.done(); iter.advance())
@@ -1635,10 +1641,13 @@ void Team::countObjectsByThingTemplate(Int numTmplates, const ThingTemplate* con
 				continue;
 			}
 
-			if (ignoreDead && iter.cur()->isEffectivelyDead())
+			if (ignoreDead && (iter.cur()->isEffectivelyDead() || iter.cur()->isDestroyed()))
 				continue;
 
 			if( ignoreUnderConstruction && iter.cur()->getStatusBits().test( OBJECT_STATUS_UNDER_CONSTRUCTION ) )
+				continue;
+
+			if (!objectKeepsOwnerAlive(iter.cur()))
 				continue;
 
 			counts[i] += 1;
@@ -1653,6 +1662,15 @@ Int Team::countBuildings(void)
 {
 	int retVal = 0;
 	for (DLINK_ITERATOR<Object> iter = iterate_TeamMemberList(); !iter.done(); iter.advance()) {
+		if (iter.cur()->isEffectivelyDead())
+			continue;
+
+		if (iter.cur()->isDestroyed())
+			continue;
+
+		if (!objectKeepsOwnerAlive(iter.cur()))
+			continue;
+
 		const ThingTemplate* objtmpl = iter.cur()->getTemplate();
 		if (!objtmpl) {
 			continue;
@@ -1669,6 +1687,15 @@ Int Team::countObjects(KindOfMaskType setMask, KindOfMaskType clearMask)
 {
 	int retVal = 0;
 	for (DLINK_ITERATOR<Object> iter = iterate_TeamMemberList(); !iter.done(); iter.advance()) {
+		if (iter.cur()->isEffectivelyDead())
+			continue;
+
+		if (iter.cur()->isDestroyed())
+			continue;
+
+		if (!objectKeepsOwnerAlive(iter.cur()))
+			continue;
+
 		const ThingTemplate* objtmpl = iter.cur()->getTemplate();
 		if (!objtmpl) {
 			continue;
@@ -1696,12 +1723,6 @@ void Team::iterateObjects( ObjectIterateFunc func, void *userData )
 	{
 		func( iter.cur(), userData );
 	}
-}
-
-// ------------------------------------------------------------------------
-static Bool objectKeepsOwnerAlive(const Object *obj)
-{
-	return Object_keepsOwnerAlive(obj->testStatus(OBJECT_STATUS_UNDER_CONSTRUCTION), obj->getConstructionPercent());
 }
 
 // ------------------------------------------------------------------------
@@ -2551,8 +2572,17 @@ Bool Team::hasAnyBuildFacility() const
 {
 	for (DLINK_ITERATOR<Object> iter = iterate_TeamMemberList(); !iter.done(); iter.advance())
 	{
+		if (iter.cur()->isEffectivelyDead())
+			continue;
+
+		if (iter.cur()->isDestroyed())
+			continue;
+
+		if (!objectKeepsOwnerAlive(iter.cur()))
+			continue;
+
 		const ThingTemplate *objtmpl = iter.cur()->getTemplate();
-		if (objtmpl->isBuildFacility()) 
+		if (objtmpl && objtmpl->isBuildFacility()) 
 			return true;
 	}
 	return false;
