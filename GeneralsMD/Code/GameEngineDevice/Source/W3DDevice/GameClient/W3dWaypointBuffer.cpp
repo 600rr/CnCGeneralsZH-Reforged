@@ -245,14 +245,15 @@ void W3DWaypointBuffer::drawWaypoints(RenderInfoClass &rinfo)
 				}
 			}
 		}
-		renderQueuedLines( localRinfo );
 	}
 
 	// Reforged draws every order the selection is on the way a building's rally point is drawn: this
 	// line, the puck on each point short of the end and on any unit or building it is aimed at, and
 	// the rally flag on the last bit of ground (a drawable of its own, InGameUI::updateOrderFlags).
 	// The hints are rebuilt off the units every frame, so a puck on a target follows it.
-	if( !TheGlobalData->isClassicUI() && !TheInGameUI->getOrderHints().empty() )
+	// not in the water's mirror pass: the ground is left out of the reflection, and a PASS_ALWAYS
+	// line would lie on top of the water
+	if( !TheGlobalData->isClassicUI() && !TheInGameUI->getOrderHints().empty() && !ShaderClass::Is_Backface_Culling_Inverted() )
 	{
 		LightEnvironmentClass lightEnv;
 		lightEnv.Reset(Vector3(0,0,0), Vector3(1.0f,1.0f,1.0f));
@@ -282,7 +283,8 @@ void W3DWaypointBuffer::drawWaypoints(RenderInfoClass &rinfo)
 				WW3D::Render( *m_waypointNodeRobj, localRinfo );		// the little hockey puck
 			}
 		}
-		renderQueuedLines( localRinfo );
+		// the lines stay queued: the rally and placement pucks below would flush them into the
+		// terrain pass, under the buildings (see queueLine)
 	}
 
 	// Rally points, drawn whenever we are not actively laying down waypoints. This used to be the
@@ -603,7 +605,6 @@ void W3DWaypointBuffer::drawWaypoints(RenderInfoClass &rinfo)
 				
 			}
 		}
-		renderQueuedLines( localRinfo );
 
 	}
 
@@ -645,9 +646,19 @@ void W3DWaypointBuffer::drawWaypoints(RenderInfoClass &rinfo)
 				points[ 0 ] = exitLoc;
 				points[ 1 ] = rallyLoc;
 				queueLine( 2, points );
-				renderQueuedLines( localRinfo );
 			}
 		}
+	}
+
+	// every line of every block above goes out after the last puck
+	if( m_linesUsed > 0 )
+	{
+		LightEnvironmentClass lightEnv;
+		lightEnv.Reset(Vector3(0,0,0), Vector3(1.0f,1.0f,1.0f));
+		lightEnv.Pre_Render_Update(rinfo.Camera.Get_Transform());
+		RenderInfoClass localRinfo(rinfo.Camera);
+		localRinfo.light_environment=&lightEnv;
+		renderQueuedLines( localRinfo );
 	}
 }
 
