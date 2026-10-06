@@ -430,7 +430,7 @@ Bool Drawable_structureShowsHealthBar( Bool isBridge, Bool isUnowned, Bool isGar
 	* is either mobile or a STRUCTURE.
 	*
 	* A booby trap has one hit point and cannot be shot, so its bar was a full green line forever.
-	* Everything force-attackable is a civilian fence with one hit point.
+	* Everything force-attackable on the ground is a civilian fence with one hit point.
 	*
 	* And a unit the cursor cannot reach at all - no SELECTABLE, which in EA's data means "the mouse
 	* can interact with it" - never wore a bar in retail, where a bar needed a selection or a mouse
@@ -438,6 +438,15 @@ Bool Drawable_structureShowsHealthBar( Bool isBridge, Bool isUnowned, Bool isGar
 	* and a ToxicInfantry or FlamingInfantry takes his place, a live 50 hit point INFANTRY that melts
 	* or runs burning for three seconds, and always-on bars put a full one over every one of them.
 	* Buildings keep their own rule below.
+	*
+	* Aircraft are the exception to both rules. The planes a general's power or a support building
+	* sends over - the A-10s, the B-52 and B-3, the MiG napalm strike, the carrier's Raptors, the
+	* American, Chinese and GLA cargo planes with their paradrops and supply crates, the Chinese
+	* carpet bomber - carry no SELECTABLE, and the cargo planes and the carpet bomber are
+	* FORCEATTACKABLE besides, yet every one of them is a target with real hit points that anti-air
+	* is meant to bring down. So an AIRCRAFT keeps its bar whether the cursor can reach it or not.
+	* The only plane left bare by the list above is the Chinese artillery barrage's dummy, which is
+	* UNATTACKABLE. The civilian airliner a map sends over gains one too, and it can be shot down.
 	*
 	* INERT is what the toxin and radiation fields carry, and the Spy Drone too: EA tags it INERT so
 	* nothing targets it and NO_SELECT so it cannot be selected, and NO_SELECT is commented in
@@ -456,8 +465,13 @@ Bool Drawable_kindShowsHealthBar( const KindOfMaskType& kinds )
 			TEST_KINDOFMASK( kinds, KINDOF_PARACHUTE ) ||
 			TEST_KINDOFMASK( kinds, KINDOF_HULK ) ||
 			TEST_KINDOFMASK( kinds, KINDOF_CLICK_THROUGH ) ||
-			TEST_KINDOFMASK( kinds, KINDOF_CRATE ) ||
-			TEST_KINDOFMASK( kinds, KINDOF_FORCEATTACKABLE ) )
+			TEST_KINDOFMASK( kinds, KINDOF_CRATE ) )
+		return FALSE;
+
+	if( TEST_KINDOFMASK( kinds, KINDOF_AIRCRAFT ) )
+		return TRUE;
+
+	if( TEST_KINDOFMASK( kinds, KINDOF_FORCEATTACKABLE ) )
 		return FALSE;
 
 	if( TEST_KINDOFMASK( kinds, KINDOF_STRUCTURE ) )
@@ -3066,7 +3080,15 @@ static Bool computeHealthRegion( const Drawable *draw, IRegion2D& region )
 
 	Real healthBoxWidth, healthBoxHeight;
 	if (!obj->getHealthBoxDimensions(healthBoxHeight, healthBoxWidth))
-		return FALSE;
+	{
+		// IGNORED_IN_GUI has no box, and the planes a general's power sends over are all IGNORED_IN_GUI;
+		// they wear a bar anyway (Drawable_kindShowsHealthBar), sized as any other unit's would be
+		if( !obj->isKindOf( KINDOF_AIRCRAFT ) )
+			return FALSE;
+		const GeometryInfo& geom = obj->getGeometryInfo();
+		healthBoxHeight = 3.0f;
+		healthBoxWidth = 2.0f * MAX( 20.0f, MIN( 150.0f, geom.getMajorRadius() + geom.getMinorRadius() ) );
+	}
 
 	// scale the health bars according to the zoom
 	Real zoom = TheTacticalView->getZoom();
@@ -4455,11 +4477,18 @@ static Int drawOwnCountdown( DisplayString *&countdown, Int seconds, Int x, Int 
 	* it - the Rocket Buggy's six rockets, the Comanche's rocket pods, the Paladin's point defence
 	* laser - which fire about as often as a tank does. The old test was the
 	* length of whichever wait was running, and those clip reloads all ran past three seconds, so a
-	* Paladin that touched an infantryman with its laser wore an amber bar for the next four. */
+	* Paladin that touched an infantryman with its laser wore an amber bar for the next four.
+	*
+	* A weapon of DamageType DISARM is not a gun at all. The Dozer's mine-clearing scoop is one shot
+	* and a four-second reload, so the Dozer wore an amber bar after every mine it lifted. The
+	* Worker's clearing weapon is DISARM too, and those two are the only DISARM weapons in the data. */
 //-------------------------------------------------------------------------------------------------
-Bool Drawable_weaponWearsReloadBar( Int clipSize, UnsignedInt delayFrames, UnsignedInt clipReloadFrames )
+Bool Drawable_weaponWearsReloadBar( Int clipSize, UnsignedInt delayFrames, UnsignedInt clipReloadFrames, Bool disarms )
 {
 	const UnsignedInt RELOAD_BAR_MIN_FRAMES = 3 * LOGICFRAMES_PER_SECOND;
+	if( disarms )
+		return FALSE;
+
 	if( clipSize <= 0 )
 		return delayFrames > RELOAD_BAR_MIN_FRAMES;
 
@@ -4519,7 +4548,7 @@ static Real reloadBarFraction( const Object *obj )
 
 		const UnsignedInt delay = (UnsignedInt)tmpl->getMaxDelayBetweenShots();
 		const UnsignedInt clipReload = (UnsignedInt)tmpl->getClipReloadTime( WeaponBonus() );
-		if( !Drawable_weaponWearsReloadBar( tmpl->getClipSize(), delay, clipReload ) )
+		if( !Drawable_weaponWearsReloadBar( tmpl->getClipSize(), delay, clipReload, tmpl->getDamageType() == DAMAGE_DISARM ) )
 			continue;
 
 		const UnsignedInt longest = tmpl->getClipSize() > 0 && clipReload > delay ? clipReload : delay;
